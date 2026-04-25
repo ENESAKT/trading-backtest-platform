@@ -44,6 +44,7 @@ except ImportError:
 from quant_engine.backtest.engine import BacktestConfig, BacktestEngine  # noqa: E402
 from quant_engine.backtest.metrics import calculate_metrics  # noqa: E402
 from quant_engine.core.protocols import BarRequest, Market, Timeframe  # noqa: E402
+from quant_engine.data.providers.binance_provider import BinanceProvider  # noqa: E402
 from quant_engine.data.providers.yfinance_provider import YFinanceProvider  # noqa: E402
 from quant_engine.data_pipeline.data_validator import DataValidator  # noqa: E402
 from quant_engine.strategy.base import BaseStrategy  # noqa: E402
@@ -58,10 +59,14 @@ from quant_engine.strategy.examples.buy_and_hold import BuyAndHold  # noqa: E402
 from quant_engine.strategy.examples.rsi_reversion import RsiReversion  # noqa: E402
 from quant_engine.strategy.examples.sma_crossover import SmaCrossover  # noqa: E402
 from quant_engine.strategy.indicators import bollinger_bands, rsi, sma  # noqa: E402
+from quant_engine.strategy.persistence import StrategyStore  # noqa: E402
+from quant_engine.strategy.registry import get_registry  # noqa: E402
+from quant_engine.workspace.json_store import WorkspaceJsonStore  # noqa: E402
 from quant_engine.workspace.manager import (  # noqa: E402
     BIST30_INSTRUMENTS,
     BIST_WIDE_INSTRUMENTS,
     COMMODITY_INSTRUMENTS,
+    CRYPTO_INSTRUMENTS,
     FOREX_INSTRUMENTS,
     WorkspaceRequest,
     build_workspace_config,
@@ -84,18 +89,48 @@ STOCKANALYSIS_BIST_URLS = (
     "https://stockanalysis.com/list/borsa-istanbul/?page=2",
 )
 
-STRATEGY_MAP: dict[str, type[BaseStrategy]] = {
-    "SMA Kesişimi": SmaCrossover,
-    "RSI Dönüşü": RsiReversion,
-    "Bollinger Dönüşü": BollingerReversion,
-    "Al ve Tut": BuyAndHold,
+STRATEGY_LABELS: dict[str, str] = {
+    "sma_crossover": "SMA Kesişimi",
+    "rsi_reversion": "RSI Dönüşü",
+    "bollinger_reversion": "Bollinger Dönüşü",
+    "buy_and_hold": "Al ve Tut",
 }
+
+
+def _registered_strategy_map() -> dict[str, type[BaseStrategy]]:
+    """Registry'den UI'ın kullandığı Türkçe strateji listesini üret."""
+    registry = get_registry()
+    fallback = {
+        "SMA Kesişimi": SmaCrossover,
+        "RSI Dönüşü": RsiReversion,
+        "Bollinger Dönüşü": BollingerReversion,
+        "Al ve Tut": BuyAndHold,
+    }
+    mapped: dict[str, type[BaseStrategy]] = {}
+    for item in registry.list_strategies():
+        internal_name = item["name"]
+        label = STRATEGY_LABELS.get(internal_name, internal_name.replace("_", " ").title())
+        mapped[label] = registry.get_class(internal_name)
+    return mapped or fallback
+
+
+STRATEGY_MAP: dict[str, type[BaseStrategy]] = _registered_strategy_map()
 
 TIMEFRAME_OPTIONS = {
     "Günlük": Timeframe.D1,
     "Haftalık": Timeframe.W1,
     "Aylık": Timeframe.MO1,
 }
+
+DASHBOARD_ASSETS: tuple[dict[str, Any], ...] = (
+    {"label": "BIST 100", "symbol": "XU100", "market": Market.BIST, "precision": 2},
+    {"label": "USD/TRY", "symbol": "USDTRY", "market": Market.FOREX, "precision": 4},
+    {"label": "XAU/USD", "symbol": "XAUUSD", "market": Market.COMMODITY, "precision": 2},
+    {"label": "BTC/USDT", "symbol": "BTCUSDT", "market": Market.CRYPTO, "precision": 2},
+    {"label": "ETH/USDT", "symbol": "ETHUSDT", "market": Market.CRYPTO, "precision": 2},
+)
+
+OPEN_WINDOWS_KEY = "terminal:open_windows"
 
 RANKING_OPTIONS = {
     "Sharpe oranı": "sharpe_ratio",
@@ -222,6 +257,13 @@ def _format_number(value: Any, percentage: bool = False) -> str:
     return str(value)
 
 
+def _provider_for_market(market: Market, timeout: float = 15):
+    """Piyasaya göre gerçek veri provider'ını seç."""
+    if market == Market.CRYPTO:
+        return BinanceProvider(timeout=timeout)
+    return YFinanceProvider(timeout=timeout)
+
+
 def load_symbol_data(
     symbol: str,
     start_date: dt.date,
@@ -229,7 +271,7 @@ def load_symbol_data(
     market: Market = Market.BIST,
 ) -> tuple[pd.DataFrame, list[str]]:
     """UI için yalnızca gerçek veri yükle; başarısızlıkta boş veri döndür."""
-    provider = YFinanceProvider(timeout=15)
+    provider = _provider_for_market(market, timeout=15)
     result = provider.fetch_bars(
         BarRequest(
             symbol=symbol,
@@ -335,6 +377,254 @@ def render_metric_strip(metrics, result):
             label, value, percentage, tone = item
             with col:
                 render_metric_card(label, value, percentage, tone)
+
+
+@cache_data
+def load_market_snapshot(
+    symbol: str,
+    market_value: str,
+    start_date_iso: str,
+    timeframe_value: str,
+) -> dict[str, Any]:
+    """Dashboard kartları için gerçek piyasa verisinden son durum üret."""
+    market = Market(market_value)
+    timeframe = Timeframe(timeframe_value)
+    data, warnings = load_symbol_data(
+        symbol=symbol,
+        start_date=dt.date.fromisoformat(start_date_iso),
+        timeframe=timeframe,
+        market=market,
+    )
+    if data.empty:
+        return {
+            "symbol": symbol,
+            "market": market.value,
+            "status": "Veri yok",
+            "warnings": warnings,
+            "rows": 0,
+        }
+    latest = data.iloc[-1]
+    previous_close = float(data["close"].iloc[-2]) if len(data) > 1 else float(latest["close"])
+    last_close = float(latest["close"])
+    daily_pct = ((last_close / previous_close) - 1) * 100 if previous_close else 0.0
+    return {
+        "symbol": symbol,
+        "market": market.value,
+        "status": "Hazır",
+        "last": last_close,
+        "daily_pct": daily_pct,
+        "high": float(latest["high"]),
+        "low": float(latest["low"]),
+        "volume": float(latest.get("volume", 0.0)),
+        "last_date": _format_date(latest["date"]),
+        "rows": len(data),
+        "source": "binance" if market == Market.CRYPTO else "yfinance",
+        "warnings": warnings,
+    }
+
+
+def _window_key(symbol: str, market: Market, timeframe: Timeframe = Timeframe.D1) -> str:
+    return f"{market.value}:{symbol.upper()}:{timeframe.value}"
+
+
+def _open_terminal_window(label: str, symbol: str, market: Market) -> None:
+    windows = list(st.session_state.get(OPEN_WINDOWS_KEY, []))
+    key = _window_key(symbol, market)
+    if not any(item["key"] == key for item in windows):
+        windows.append(
+            {
+                "key": key,
+                "label": label,
+                "symbol": symbol.upper(),
+                "market": market.value,
+                "timeframe": Timeframe.D1.value,
+            }
+        )
+    st.session_state[OPEN_WINDOWS_KEY] = windows
+
+
+def _close_terminal_window(key: str) -> None:
+    st.session_state[OPEN_WINDOWS_KEY] = [
+        item for item in st.session_state.get(OPEN_WINDOWS_KEY, []) if item["key"] != key
+    ]
+
+
+def render_snapshot_card(asset: dict[str, Any], snapshot: dict[str, Any]) -> None:
+    label = asset["label"]
+    if snapshot.get("status") != "Hazır":
+        render_metric_card(label, "Veri yok", tone="warn")
+        return
+    tone = "good" if snapshot["daily_pct"] >= 0 else "bad"
+    render_metric_card(
+        label,
+        f"{snapshot['last']:.{asset['precision']}f} ({snapshot['daily_pct']:+.2f}%)",
+        tone=tone,
+    )
+    st.caption(f"{snapshot['last_date']} | {snapshot['source']} | {snapshot['rows']} bar")
+
+
+def render_window_chart(data: pd.DataFrame, symbol: str, precision: int) -> None:
+    """Bağımsız terminal penceresi için gerçek veriden kompakt grafik çiz."""
+    if data.empty:
+        st.warning("Bu pencere gerçek veri bekliyor; sahte mum çizilmiyor.")
+        return
+    latest = data.iloc[-1]
+    c1, c2, c3, c4 = st.columns(4)
+    with c1:
+        render_metric_card("Son", round(float(latest["close"]), precision))
+    with c2:
+        daily_pct = float(data["close"].pct_change().iloc[-1] * 100) if len(data) > 1 else 0.0
+        render_metric_card("Gün %", daily_pct, True, "good" if daily_pct >= 0 else "bad")
+    with c3:
+        render_metric_card("Yüksek", round(float(latest["high"]), precision), tone="good")
+    with c4:
+        render_metric_card("Düşük", round(float(latest["low"]), precision), tone="bad")
+
+    if not HAS_PLOTLY:
+        st.dataframe(data.tail(40), width="stretch", hide_index=True)
+        return
+    chart_df = data.tail(260).copy()
+    chart_df["sma20"] = sma(chart_df["close"], 20)
+    chart_df["sma50"] = sma(chart_df["close"], 50)
+    fig = go.Figure()
+    fig.add_trace(
+        go.Candlestick(
+            x=chart_df["date"],
+            open=chart_df["open"],
+            high=chart_df["high"],
+            low=chart_df["low"],
+            close=chart_df["close"],
+            name="Mum",
+            increasing_line_color="#16c784",
+            decreasing_line_color="#ea3943",
+        )
+    )
+    fig.add_trace(
+        go.Scatter(
+            x=chart_df["date"],
+            y=chart_df["sma20"],
+            mode="lines",
+            name="SMA 20",
+            line=dict(color="#f0b90b", width=1.2),
+        )
+    )
+    fig.add_trace(
+        go.Scatter(
+            x=chart_df["date"],
+            y=chart_df["sma50"],
+            mode="lines",
+            name="SMA 50",
+            line=dict(color="#8ab4ff", width=1.2),
+        )
+    )
+    fig.update_layout(
+        template="plotly_dark",
+        height=460,
+        margin=dict(l=20, r=20, t=30, b=20),
+        title=f"{symbol} Bağımsız Analiz Penceresi",
+        xaxis_rangeslider_visible=False,
+        paper_bgcolor="#0f1117",
+        plot_bgcolor="#0f1117",
+    )
+    st.plotly_chart(fig, width="stretch", config={"displaylogo": False, "scrollZoom": True})
+
+
+def page_dashboard():
+    st.markdown("## Ana Gösterge Paneli")
+    st.caption(
+        "Piyasa özeti ve sembole özel bağımsız analiz pencereleri yalnızca gerçek "
+        "provider verisi geldikten sonra çizilir."
+    )
+    start_iso = (dt.date.today() - dt.timedelta(days=90)).isoformat()
+    cols = st.columns(len(DASHBOARD_ASSETS))
+    for col, asset in zip(cols, DASHBOARD_ASSETS):
+        with col:
+            snapshot = load_market_snapshot(
+                asset["symbol"],
+                asset["market"].value,
+                start_iso,
+                Timeframe.D1.value,
+            )
+            render_snapshot_card(asset, snapshot)
+            for warning in snapshot.get("warnings", [])[:1]:
+                st.caption(warning)
+
+    st.markdown("### Pencere Aç")
+    c1, c2, c3, c4 = st.columns([0.28, 0.28, 0.28, 0.16])
+    with c1:
+        market_label = st.selectbox(
+            "Piyasa",
+            ["BIST 100", "Forex", "Emtia", "Kripto"],
+            key="dashboard_market",
+        )
+    with c2:
+        if market_label == "Forex":
+            options = list(FOREX_INSTRUMENTS)
+        elif market_label == "Emtia":
+            options = list(COMMODITY_INSTRUMENTS)
+        elif market_label == "Kripto":
+            options = list(CRYPTO_INSTRUMENTS)
+        else:
+            options = list(BIST_SYMBOLS)
+        symbol = st.selectbox("Sembol", options, key=f"dashboard_symbol_{market_label}")
+    with c3:
+        custom_symbol = st.text_input(
+            "Özel sembol",
+            value="",
+            help="Örn: THYAO, SASA, USDTRY, XAUUSD, BTCUSDT.",
+        )
+        if custom_symbol.strip():
+            symbol = custom_symbol.strip().upper().replace(".IS", "")
+    with c4:
+        st.write("")
+        st.write("")
+        if st.button("Aç", type="primary", width="stretch"):
+            resolution = resolve_workspace(
+                WorkspaceRequest(symbol_id=symbol, market_type=market_label, timeframe_label="1G")
+            )
+            if resolution.valid:
+                _open_terminal_window(
+                    resolution.instrument.full_name,
+                    resolution.instrument.symbol_code,
+                    resolution.instrument.market,
+                )
+            else:
+                st.warning(workspace_warning_text(resolution))
+
+    windows = st.session_state.get(OPEN_WINDOWS_KEY, [])
+    if not windows:
+        st.info("Bir sembol seçip pencere açınca burada bağımsız grafik sekmesi oluşur.")
+        return
+
+    st.markdown("### Açık Pencereler")
+    tabs = st.tabs([item["symbol"] for item in windows])
+    for tab, item in zip(tabs, list(windows)):
+        with tab:
+            market = Market(item["market"])
+            resolution = resolve_workspace(
+                WorkspaceRequest(
+                    symbol_id=item["symbol"],
+                    market_type=market.value,
+                    timeframe_label="1G",
+                )
+            )
+            left, right = st.columns([0.84, 0.16])
+            with left:
+                st.markdown(f"#### {item['symbol']} - {item['label']}")
+            with right:
+                if st.button("Kapat", key=f"close_{item['key']}", width="stretch"):
+                    _close_terminal_window(item["key"])
+                    st.rerun()
+            data, warnings = load_symbol_data(
+                item["symbol"],
+                start_date=dt.date.today() - dt.timedelta(days=365),
+                timeframe=Timeframe.D1,
+                market=market,
+            )
+            for warning in warnings[:3]:
+                st.warning(warning)
+            precision = resolution.instrument.precision if resolution.valid else 2
+            render_window_chart(data, item["symbol"], precision)
 
 
 def render_decision_report(report: DecisionReport):
@@ -1884,6 +2174,8 @@ def _workspace_symbol_options(market_type: str) -> list[str]:
         return list(FOREX_INSTRUMENTS)
     if market_type == "Emtia":
         return list(COMMODITY_INSTRUMENTS)
+    if market_type == "Kripto":
+        return list(CRYPTO_INSTRUMENTS)
     if market_type == "BIST 30":
         return list(BIST30_SYMBOLS)
     return list(BIST_SYMBOLS)
@@ -1936,7 +2228,7 @@ def render_workspace_preview(data: pd.DataFrame, symbol: str, precision: int):
 def page_workspace_manager():
     st.markdown("## Çoklu Piyasa Çalışma Alanları")
     st.caption(
-        "BIST, Forex ve Emtia sembolleri için izole workspace config üretir. "
+        "BIST, Forex, Emtia ve Kripto sembolleri için izole workspace config üretir. "
         "Veri yoksa sahte mum veya rastgele fiyat üretmez."
     )
 
@@ -1944,7 +2236,7 @@ def page_workspace_manager():
         st.markdown("### Workspace Kurulumu")
         market_type = st.selectbox(
             "Piyasa tipi",
-            ["BIST 30", "BIST 100", "BIST Tüm", "Forex", "Emtia"],
+            ["BIST 30", "BIST 100", "BIST Tüm", "Forex", "Emtia", "Kripto"],
             index=1,
             key="workspace_market_type",
         )
@@ -1958,7 +2250,7 @@ def page_workspace_manager():
         custom_symbol = st.text_input(
             "Özel sembol",
             value="",
-            help="Listede yoksa EREGL.IS, USDTRY, XAUUSD gibi sembol gir.",
+            help="Listede yoksa EREGL.IS, USDTRY, XAUUSD, BTCUSDT gibi sembol gir.",
         )
         if custom_symbol.strip():
             symbol = custom_symbol.strip()
@@ -2036,7 +2328,7 @@ def page_workspace_manager():
             st.info("Gerçek veri bağlantısını test etmek için çalışma alanı oluştur.")
             return
 
-        provider = YFinanceProvider(timeout=15)
+        provider = _provider_for_market(resolution.instrument.market, timeout=15)
         result = provider.fetch_bars(
             BarRequest(
                 symbol=resolution.instrument.symbol_code,
@@ -2068,8 +2360,9 @@ def page_workspace_manager():
 def page_data_station():
     st.markdown("## Veri İstasyonu")
     st.caption(
-        "Bu ekran veri kaynağı durumunu ve BIST sembol kataloğunu net gösterir. "
-        "Listede olmayan geçerli BIST kodları da özel sembol alanından denenebilir."
+        "Bu ekran veri kaynağı durumunu, Workspace JSON sözleşmesini ve sembol "
+        "gruplarını yönetir. Kaydedilen her kaynak gerçek veri bağlantısı olarak "
+        "tanımlanır; demo veri üretmez."
     )
     use_online_catalog = st.toggle(
         "Çevrimiçi tüm BIST kataloğunu dene",
@@ -2081,23 +2374,107 @@ def page_data_station():
         catalog, catalog_warnings = load_online_bist_catalog()
         for warning in catalog_warnings[:5]:
             st.warning(warning)
-    provider = YFinanceProvider(timeout=8)
-    c1, c2, c3 = st.columns(3)
+    y_provider = YFinanceProvider(timeout=8)
+    b_provider = BinanceProvider(timeout=8)
+    workspace_store = WorkspaceJsonStore()
+    workspace_doc = workspace_store.load()
+    c1, c2, c3, c4 = st.columns(4)
     with c1:
         render_metric_card("BIST Katalog", len(catalog))
     with c2:
-        render_metric_card("Varsayılan Kaynak", "Yahoo Finance")
+        render_metric_card("Workspace Kaynak", len(workspace_doc["api_sources"]))
     with c3:
-        status = "Erişilebilir" if provider.health_check() else "Kontrol edilemedi"
+        status = "Erişilebilir" if y_provider.health_check() else "Kontrol edilemedi"
         tone = "good" if status == "Erişilebilir" else "warn"
-        render_metric_card("Kaynak Durumu", status, tone=tone)
+        render_metric_card("Yahoo Durumu", status, tone=tone)
+    with c4:
+        crypto_status = "Erişilebilir" if b_provider.health_check() else "Kontrol edilemedi"
+        render_metric_card("Binance Durumu", crypto_status, tone="good")
 
-    st.markdown("### BIST Sembol Kataloğu")
-    rows = [
-        {"Sembol": symbol, "Şirket": company, "Yahoo Kodu": f"{symbol}.IS"}
-        for symbol, company in catalog.items()
-    ]
-    st.dataframe(pd.DataFrame(rows), width="stretch", hide_index=True)
+    tab_json, tab_sources, tab_groups, tab_catalog = st.tabs(
+        ["Workspace JSON", "API Kaynakları", "Sembol Grupları", "BIST Kataloğu"]
+    )
+
+    with tab_json:
+        st.code(json.dumps(workspace_doc, ensure_ascii=False, indent=2), language="json")
+
+    with tab_sources:
+        source_rows = [
+            {
+                "Ad": item.get("name"),
+                "Provider": item.get("provider"),
+                "Base URL": item.get("base_url"),
+                "Auth": item.get("auth_type"),
+                "Aktif": item.get("enabled"),
+                "Not": item.get("notes"),
+            }
+            for item in workspace_doc["api_sources"]
+        ]
+        st.dataframe(pd.DataFrame(source_rows), width="stretch", hide_index=True)
+        with st.form("workspace_api_source_form"):
+            st.markdown("### Yeni API Kaynağı")
+            name = st.text_input("Kaynak adı", value="Özel Kaynak")
+            provider_name = st.selectbox(
+                "Provider tipi",
+                ["yfinance", "binance", "verda", "matriks", "foreks", "custom"],
+            )
+            base_url = st.text_input("Base URL", value="https://")
+            auth_type = st.selectbox("Kimlik doğrulama", ["none", "api_key", "basic", "oauth"])
+            enabled = st.toggle("Aktif", value=True)
+            notes = st.text_area("Not", value="")
+            submitted = st.form_submit_button("Workspace JSON'a ekle", type="primary")
+            if submitted:
+                workspace_store.upsert_api_source(
+                    name=name,
+                    provider=provider_name,
+                    base_url=base_url,
+                    auth_type=auth_type,
+                    enabled=enabled,
+                    notes=notes,
+                )
+                st.success("API kaynağı Workspace JSON'a kaydedildi.")
+                st.rerun()
+
+    with tab_groups:
+        group_rows = [
+            {
+                "Ad": item.get("name"),
+                "Piyasa": item.get("market"),
+                "Sembol": ", ".join(item.get("symbols", [])),
+            }
+            for item in workspace_doc["symbol_groups"]
+        ]
+        st.dataframe(pd.DataFrame(group_rows), width="stretch", hide_index=True)
+        with st.form("workspace_symbol_group_form"):
+            st.markdown("### Yeni Sembol Grubu")
+            group_name = st.text_input("Grup adı", value="Favoriler")
+            group_market = st.selectbox(
+                "Piyasa",
+                ["bist", "forex", "commodity", "crypto", "mixed"],
+            )
+            group_symbols = st.text_area(
+                "Semboller",
+                value="THYAO, SASA, BTCUSDT",
+                help="Virgülle ayır.",
+            )
+            submitted = st.form_submit_button("Sembol grubunu kaydet", type="primary")
+            if submitted:
+                symbols = [item.strip() for item in group_symbols.split(",")]
+                workspace_store.upsert_symbol_group(
+                    name=group_name,
+                    market=group_market,
+                    symbols=symbols,
+                )
+                st.success("Sembol grubu Workspace JSON'a kaydedildi.")
+                st.rerun()
+
+    with tab_catalog:
+        st.markdown("### BIST Sembol Kataloğu")
+        rows = [
+            {"Sembol": symbol, "Şirket": company, "Yahoo Kodu": f"{symbol}.IS"}
+            for symbol, company in catalog.items()
+        ]
+        st.dataframe(pd.DataFrame(rows), width="stretch", hide_index=True)
 
 
 def apply_theme():

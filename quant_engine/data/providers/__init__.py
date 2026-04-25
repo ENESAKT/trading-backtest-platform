@@ -1,2 +1,2 @@
 # quant_engine/data/providers — Veri sağlayıcılar
-# yfinance, Matriks, BIST VERDA stub'ları burada.
+# yfinance, Binance, Matriks ve BIST VERDA adaptörleri burada toplanır.

@@ -59,6 +59,14 @@ _SYMBOL_MAP: dict[str, str] = {
     "BRENT": "BZ=F",
     "WTI": "CL=F",
     "NGAS": "NG=F",
+    "BTCUSD": "BTC-USD",
+    "BTCUSDT": "BTC-USD",
+    "ETHUSD": "ETH-USD",
+    "ETHUSDT": "ETH-USD",
+    "BNBUSD": "BNB-USD",
+    "BNBUSDT": "BNB-USD",
+    "SOLUSD": "SOL-USD",
+    "SOLUSDT": "SOL-USD",
 }
 
 
@@ -68,7 +76,7 @@ def _to_yahoo_ticker(symbol: str, market: Market = Market.BIST) -> str:
     # Özel eşleme varsa kullan
     if symbol in _SYMBOL_MAP:
         return _SYMBOL_MAP[symbol]
-    if market in {Market.FOREX, Market.COMMODITY}:
+    if market in {Market.FOREX, Market.COMMODITY, Market.CRYPTO}:
         return symbol
     # Yoksa suffix ekle
     if not symbol.endswith(_BIST_SUFFIX):
@@ -121,7 +129,12 @@ class YFinanceProvider(BaseProvider):
     def capabilities(self) -> ProviderCapabilities:
         return ProviderCapabilities(
             name="yfinance",
-            supported_markets=[Market.BIST, Market.FOREX, Market.COMMODITY],
+            supported_markets=[
+                Market.BIST,
+                Market.FOREX,
+                Market.COMMODITY,
+                Market.CRYPTO,
+            ],
             supported_timeframes=[
                 Timeframe.M1,
                 Timeframe.M5,

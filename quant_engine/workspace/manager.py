@@ -226,6 +226,14 @@ COMMODITY_INSTRUMENTS: dict[str, tuple[str, str]] = {
     "NGAS": ("Doğal Gaz Vadeli", "NG=F"),
 }
 
+CRYPTO_INSTRUMENTS: dict[str, tuple[str, str]] = {
+    "BTCUSDT": ("Bitcoin / Tether", "BTCUSDT"),
+    "ETHUSDT": ("Ethereum / Tether", "ETHUSDT"),
+    "BNBUSDT": ("BNB / Tether", "BNBUSDT"),
+    "SOLUSDT": ("Solana / Tether", "SOLUSDT"),
+    "XRPUSDT": ("XRP / Tether", "XRPUSDT"),
+}
+
 TIMEFRAME_LABELS: dict[str, Timeframe] = {
     "1D": Timeframe.M1,
     "5D": Timeframe.M5,
@@ -241,7 +249,14 @@ TIMEFRAME_LABELS: dict[str, Timeframe] = {
 
 def normalize_symbol(symbol_id: str) -> str:
     """Kullanıcı sembolünü kanonik forma getir."""
-    return symbol_id.upper().strip().replace(" ", "").replace("/", "").replace(".IS", "")
+    return (
+        symbol_id.upper()
+        .strip()
+        .replace(" ", "")
+        .replace("/", "")
+        .replace("-", "")
+        .replace(".IS", "")
+    )
 
 
 def normalize_market_type(market_type: str) -> str:
@@ -254,6 +269,10 @@ def precision_for(symbol: str, market: Market) -> int:
         return 2
     if market == Market.COMMODITY:
         return 2 if symbol in {"XAUUSD", "XAGUSD", "BRENT", "WTI", "NGAS"} else 4
+    if market == Market.CRYPTO:
+        if symbol.startswith(("BTC", "ETH", "BNB")):
+            return 2
+        return 4
     if symbol.endswith("JPY"):
         return 3
     if symbol.endswith("TRY"):
@@ -287,6 +306,20 @@ def resolve_instrument(symbol_id: str, market_type: str) -> InstrumentSpec:
             market=Market.COMMODITY,
             yahoo_ticker=ticker,
             precision=precision_for(symbol, Market.COMMODITY),
+            supports_volume=True,
+        )
+
+    if market_key.startswith("KRIPTO") or market_key.startswith("CRYPTO"):
+        if symbol.endswith("USD") and not symbol.endswith("USDT"):
+            symbol = f"{symbol[:-3]}USDT"
+        name, ticker = CRYPTO_INSTRUMENTS.get(symbol, (f"{symbol} Kripto Varlık", symbol))
+        return InstrumentSpec(
+            symbol_code=symbol,
+            full_name=name,
+            market_category="Kripto / Spot",
+            market=Market.CRYPTO,
+            yahoo_ticker=ticker,
+            precision=precision_for(symbol, Market.CRYPTO),
             supports_volume=True,
         )
 
@@ -330,6 +363,7 @@ def resolve_workspace(request: WorkspaceRequest) -> WorkspaceResolution:
     if instrument.market != Market.BIST and instrument.symbol_code not in {
         *FOREX_INSTRUMENTS,
         *COMMODITY_INSTRUMENTS,
+        *CRYPTO_INSTRUMENTS,
     }:
         valid = False
         warning = "Geçerli piyasa veri sağlayıcı eşlemesi bulunamadı."
@@ -368,6 +402,11 @@ def build_workspace_config(resolution: WorkspaceResolution) -> dict[str, Any]:
         side_panel = (
             "Forex için bid/ask ve spread önceliklidir; hacim desteklenmiyorsa hacim yerine "
             "gün içi en düşük/yüksek ve son veri zamanı göster."
+        )
+    elif instrument.market == Market.CRYPTO:
+        side_panel = (
+            "Kripto için spot hacim, son kline zamanı ve Binance public market-data durumu "
+            "gösterilir; private hesap veya emir bilgisi bu workspace'e yüklenmez."
         )
 
     return {

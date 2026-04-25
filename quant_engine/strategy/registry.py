@@ -107,6 +107,16 @@ class StrategyRegistry:
         """Kayıtlı strateji isimlerini döndür."""
         return list(self._strategies.keys())
 
+    def get_class(self, name: str) -> type[BaseStrategy]:
+        """Kayıtlı strateji sınıfını döndür."""
+        if name not in self._strategies:
+            available = list(self._strategies.keys())
+            raise KeyError(
+                f"'{name}' bulunamadı. "
+                f"Mevcut stratejiler: {available}"
+            )
+        return self._strategies[name]
+
     def __contains__(self, name: str) -> bool:
         return name in self._strategies
 

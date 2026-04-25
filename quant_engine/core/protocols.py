@@ -43,6 +43,7 @@ class AssetClass(str, Enum):
     INDEX = "index"
     FOREX = "forex"
     COMMODITY = "commodity"
+    CRYPTO = "crypto"
 
 
 class Market(str, Enum):
@@ -51,6 +52,7 @@ class Market(str, Enum):
     VIOP = "viop"
     FOREX = "forex"
     COMMODITY = "commodity"
+    CRYPTO = "crypto"
 
 
 class Timeframe(str, Enum):
