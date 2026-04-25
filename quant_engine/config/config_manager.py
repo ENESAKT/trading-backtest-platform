@@ -8,8 +8,8 @@ TOML dosyasından okunan değerler Pydantic ile tip kontrolünden geçirilir.
 from __future__ import annotations
 
 import os
-from pathlib import Path
 from functools import lru_cache
+from pathlib import Path
 
 try:
     import tomllib
@@ -17,7 +17,6 @@ except ModuleNotFoundError:
     import tomli as tomllib  # Python < 3.11 fallback
 
 from pydantic import BaseModel, Field
-
 
 # ---------------------------------------------------------------------------
 # Konfigürasyon Modelleri
@@ -107,25 +106,25 @@ def _find_config_path() -> Path:
 def load_config(config_path: str | Path | None = None) -> AppConfig:
     """
     TOML dosyasından konfigürasyonu yükle ve doğrula.
-    
+
     Args:
         config_path: TOML dosya yolu. None ise otomatik arar.
-        
+
     Returns:
         AppConfig: Doğrulanmış konfigürasyon nesnesi.
     """
     if config_path is None:
         config_path = _find_config_path()
-    
+
     config_path = Path(config_path)
-    
+
     if not config_path.exists():
         # Dosya yoksa varsayılan ayarlarla döndür
         return AppConfig()
-    
+
     with open(config_path, "rb") as f:
         raw = tomllib.load(f)
-    
+
     return AppConfig(**raw)
 
 
@@ -148,7 +147,7 @@ def apply_env_overrides(config: AppConfig) -> AppConfig:
     Örn: QUANT_BACKTEST_COMMISSION_RATE=0.002
     """
     prefix = "QUANT_"
-    
+
     if val := os.environ.get(f"{prefix}DATA_DIR"):
         config.database.data_dir = val
     if val := os.environ.get(f"{prefix}INITIAL_CAPITAL"):
@@ -157,5 +156,5 @@ def apply_env_overrides(config: AppConfig) -> AppConfig:
         config.backtest.commission_rate = float(val)
     if val := os.environ.get(f"{prefix}LOG_LEVEL"):
         config.logging.level = val
-    
+
     return config
