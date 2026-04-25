@@ -127,3 +127,10 @@
 ## Arayüz Geliştirme (UI)
 
 - **Ağ kısıtlamaları Streamlit kurulumunu engelledi.** Sanal ortamda `pip install streamlit` çalıştırılırken DNS/Ağ hatası (`Errno 8`) alındı. Ortamın internete kapalı olması veya DNS engellemesi bulunması UI testlerini (grafik çizdirme, dashboard görüntüleme) imkansız kılmaktadır. Kurulum manuel yapılana kadar UI kodu test edilemez.
+
+## AŞAMA 6–10 — Optimizasyon, UI ve Finansal Doğruluk İyileştirmeleri
+
+- **Sinyal ve Dolum (Execution) Zamanlaması:** `signal@t`, `execution@t+1` kuralı kesinleştirildi. Sinyalin üretildiği bar ile emrin gerçekleştiği bar (bir sonraki barın açılışı) veri yapılarında (`signal_timestamp` vs `fill_timestamp`) ayrıştırıldı. Bu sayede lookahead bias tamamen engellendi.
+- **CAGR ve Metriklerin Zaman Bağımlılığı:** Yıllık bileşik getiri (CAGR) basitçe bar sayısından değil, `(Bitiş Tarihi - Başlangıç Tarihi)` gerçek takvim farkı kullanılarak hesaplandı. Sharpe ve Sortino oranları `timeframe` (1d, 1h, vs.) aware hale getirildi.
+- **Optimizasyon ve Overfitting Uyarısı:** `GridSearchOptimizer` modülü geliştirilirken, çok yüksek Sharpe oranları (>3.0) veya aşırı az sayıda gerçekleşen trade (<5) durumlarında overfitting uyarısı verecek mekanizmalar sisteme eklendi.
+- **Data Validation Skoru:** Gelen finansal verilerin (OHLCV) tutarlılığını ölçen bir kalite skorlama sistemi eklendi (0-100 arası). Sadece `checks_passed` / `checks_total` üzerinden değil, tespit edilen her hata (error) ve uyarı (warning) için eksi puan uygulandı.
