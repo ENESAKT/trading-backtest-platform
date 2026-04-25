@@ -81,3 +81,33 @@
 - **ruff --fix 198 hatayı otomatik düzeltti, --unsafe-fixes 42 SQL whitespace sorununu çözdü.** SQL triple-quote string'lerdeki trailing whitespace ruff'ın normal --fix'iyle düzelmiyor, --unsafe-fixes gerekiyor. Bu SQL yapısını bozmadı çünkü sadece satır sonu boşlukları temizledi.
 
 - **Storage test'lerinde tmp_path fixture kullan.** Testler gerçek data/ dizinine yazarsa test artığı kalır. pytest'in `tmp_path` fixture'ı her test için geçici dizin verir, test bitince temizlenir.
+
+## AŞAMA 2 — Config Sistemi Düzeltmeleri
+
+- **Pydantic `extra="forbid"` her config modeline konulmalı.** Yazım hatası yapılan ayar isimleri (ör: `comission_rate` yerine `commission_rate`) sessizce yok sayılıyor. `extra="forbid"` ile Pydantic bilinmeyen alan görünce hata fırlatıyor — konfigürasyon hataları deploy öncesi yakalanıyor.
+
+- **`get_config()` cache'li ama env override sonradan uygulanmıyordu.** `lru_cache` ilk çağrıda sonucu donduruyor, `apply_env_overrides()` çağrılmadan cache'e giriyordu. Çözüm: `get_config()` içinde env override uygula, ardından cache'e al. Test'lerde `reset_config_cache()` ile temizle.
+
+- **`db_path` gereksizdi — `data_dir`'den türetilebilir.** İki farklı yerde path tanımlamak tutarsızlık riski yaratıyor. Tek kaynak (data_dir) + property (`resolved_db_path = data_dir / "quant_engine.duckdb"`) daha güvenli.
+
+- **Field sınırları olmadan geçersiz config sessizce kabul ediliyor.** `commission_rate=-1` veya `max_position_pct=5.0` gibi saçma değerler hata vermeden çalışıyor. Pydantic `Field(ge=0, le=1)` ile sınır konulmalı.
+
+## AŞAMA 3 — Core Katmanı ve Protocol'ler
+
+- **`Protocol` + `runtime_checkable` ile arayüz sözleşmesi tanımla.** ABC yerine Protocol tercih edildi — daha hafif, duck typing uyumlu. `isinstance()` kontrolü yapılabiliyor ama çalışma zamanında yavaşlatmıyor.
+
+- **Value object'leri `frozen=True` dataclass yap.** `BarRequest`, `ProviderCapabilities` gibi nesneler oluşturulduktan sonra değiştirilmemeli. Immutable yapı hem güvenli hem de dict key olarak kullanılabilir (hashable).
+
+- **BaseProvider retry mekanizması sağlıyor.** Her provider'ın kendi retry yazması yerine, `BaseProvider._fetch_bars_impl()` → `fetch_bars()` sarmalı ile retry/loglama ortaklaştırıldı.
+
+## AŞAMA 4–5 — Storage ve Validator Bug Düzeltmeleri
+
+- **SQL string interpolation ciddi güvenlik riski.** `f"SELECT * FROM '{path}'"` yerine parametre geçen `execute(sql, [path])` kullanılmalı. DuckDB `read_parquet(?)` parametreyi destekliyor.
+
+- **Geçersiz mode sessizce kabul edilmemeli.** `mode="nonsense"` append gibi davranıyordu. Basit allow-list kontrolü (`if mode not in _VALID_MODES: raise ValueError`) yeterli.
+
+- **Atomic write: temp → rename.** Yazma sırasında hata olursa yarım kalmış parquet dosyası kalıyor. `tempfile.mkstemp()` ile geçici dosyaya yaz, başarılıysa `rename()` ile atomic taşı.
+
+- **Validator'da NaN kontrolü `<= 0` ile yapılamaz.** `NaN <= 0` Python'da `False` döner — NaN satırları görünmez oluyor. Ayrı `isna()` kontrolü şart. Aynı şekilde negatif volume için ayrı `< 0` kontrolü gerekiyor.
+
+- **auto_fix'te sınırsız ffill tehlikeli.** 100 satırlık NaN bölgesini sessizce eski fiyatla doldurmak veri uydurma. `ffill(limit=3)` ile en fazla 3 ardışık NaN doldurulmalı, geri kalanı NaN kalsın — kullanıcı karar versin.
