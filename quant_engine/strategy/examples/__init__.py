@@ -1,1 +1,1 @@
-# strategy/examples modülü
+"""Quant Engine — Strategy Examples."""

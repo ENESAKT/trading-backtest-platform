@@ -18,7 +18,6 @@ Kullanım:
 
 from __future__ import annotations
 
-import datetime as dt
 from dataclasses import dataclass, field
 
 import pandas as pd
@@ -269,25 +268,29 @@ class BacktestEngine:
                     returns.mean() / returns.std()
                 ) * (252 ** 0.5)
 
-        # Win rate
-        if result.fills:
-            profitable = sum(
-                1 for f in result.fills
-                if f.order.side == OrderSide.SELL
-                and (
-                    f.fill_price
-                    > portfolio.get_or_create_position(
-                        f.order.symbol
-                    ).avg_entry_price
-                    or f.fill_price > f.fill_price  # dummy
-                )
-            )
-            sell_count = sum(
-                1 for f in result.fills
-                if f.order.side == OrderSide.SELL
-            )
-            if sell_count > 0:
-                result.win_rate = profitable / sell_count
+        # Win rate — al/sat çiftlerinden hesapla
+        buy_fills = [
+            f for f in result.fills
+            if f.order.side == OrderSide.BUY
+        ]
+        sell_fills = [
+            f for f in result.fills
+            if f.order.side == OrderSide.SELL
+        ]
+        if sell_fills:
+            profitable = 0
+            for sell_fill in sell_fills:
+                # Eşleşen buy'ı bul (aynı sembol, sell'den önce)
+                matching_buys = [
+                    b for b in buy_fills
+                    if b.order.symbol == sell_fill.order.symbol
+                    and b.bar_index < sell_fill.bar_index
+                ]
+                if matching_buys:
+                    last_buy = matching_buys[-1]
+                    if sell_fill.fill_price > last_buy.fill_price:
+                        profitable += 1
+            result.win_rate = profitable / len(sell_fills)
 
         logger.success(
             f"✅ Backtest tamamlandı: "

@@ -17,7 +17,6 @@ from quant_engine.backtest.domain import (
     Fill,
     Order,
     OrderSide,
-    OrderType,
     Portfolio,
     Position,
 )
@@ -26,7 +25,6 @@ from quant_engine.backtest.engine import (
     BacktestEngine,
     buy_and_hold_signal,
 )
-
 
 # ---------------------------------------------------------------------------
 # Golden Fixture: Elle hesaplanmış 5 barlık veri
@@ -280,7 +278,6 @@ class TestBacktestEngine:
         self, golden_data, config
     ):
         """Al-sat döngüsü: al → tut → sat."""
-        trade_count = [0]
 
         def buy_then_sell(data, i, portfolio):
             pos = portfolio.get_or_create_position("TEST")

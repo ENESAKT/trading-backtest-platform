@@ -5,25 +5,27 @@
 | # | Modül / Görev | Durum | İlerleme |
 |:--|:---|:---:|:---:|
 | 1 | Proje Scaffold & Sanal Ortam | ✅ | %100 |
-| 2 | Config Sistemi (Pydantic+TOML) | 🐛 6 bug | %50 |
-| 3 | Data Pipeline — Fetcher | 🐛 9 bug | %40 |
-| 4 | Data Pipeline — Storage Manager | 🐛 11 bug | %30 |
-| 5 | Data Pipeline — Data Validator | 🐛 7 bug | %50 |
+| 2 | Config Sistemi (Pydantic+TOML) | ✅ CFG-1→6 düzeltildi | %100 |
+| 3 | Data Pipeline — Fetcher | ✅ FET-1→9 düzeltildi | %90 |
+| 4 | Data Pipeline — Storage Manager | ✅ STR-3,5,7,8 düzeltildi | %80 |
+| 5 | Data Pipeline — Data Validator | ✅ VAL-1→4 düzeltildi | %90 |
 | 6 | Data Pipeline — Orchestrator | 🐛 3 bug | %60 |
 | 7 | Demo Script | 🐛 3 bug | %60 |
-| 8 | Pip Bağımlılık Kurulumu | ⏳ Blocker | %0 |
-| 9 | **Mimari Yeniden Yapılanma** | 📋 | %0 |
-| 10 | Test Altyapısı | 📋 | %0 |
-| 11 | Core Domain Katmanı | 📋 | %0 |
+| 8 | Pip Bağımlılık Kurulumu | ✅ | %100 |
+| 9 | **Mimari Yeniden Yapılanma** | ✅ core/ + data/ | %70 |
+| 10 | Test Altyapısı | ✅ 149 test | %100 |
+| 11 | Core Domain Katmanı | ✅ protocols + instrument | %80 |
 | 12 | Veri Omurgası + Transforms | 📋 | %0 |
-| 13 | BIST Trading Calendar | 📋 | %0 |
-| 14 | Execution Spec + Minimal Motor | 📋 | %0 |
-| 15 | Run Registry + Raporlama | 📋 | %0 |
-| 16 | Optimizasyon + Governance | 📋 | %0 |
-| 17 | UI — Streamlit MVP | 📋 | %0 |
-| 18 | UI — Matrix Terminal (React) | 📋 | %0 |
+| 13 | BIST Trading Calendar | ✅ | %100 |
+| 14 | Execution Spec + Minimal Motor | ✅ engine + domain + win_rate fix | %85 |
+| 15 | **Strategy Framework** | ✅ base + indicators + registry + 3 strateji | %100 |
+| 16 | **Performans Metrikleri** | ✅ metrics.py (16 metrik) | %100 |
+| 17 | Run Registry + Raporlama | 📋 | %0 |
+| 18 | Optimizasyon + Governance | 📋 | %0 |
+| 19 | UI — Streamlit MVP | 📋 | %0 |
+| 20 | UI — Matrix Terminal (React) | 📋 | %0 |
 
-**Gerçek İlerleme: ~%8 (scaffold + bug'lı data pipeline)**
+**Gerçek İlerleme: ~%65 (config ✅, core ✅, provider ✅, storage ✅, validator ✅, calendar ✅, backtest motor ✅, strategy framework ✅, metrics ✅, 149 test)**
 
 ---
 
@@ -291,34 +293,34 @@ Her dosyada metadata: `source, ingest_time, schema_version, checksum, row_count,
 
 ## YENİ SPRİNT PLANI
 
-### Sprint 0 — Acil Blocker'lar
-- [ ] REQ-1: pandas-ta kaldır/değiştir
-- [ ] REQ-2: Bağımlılık lock dosyası üret
-- [ ] PYP-1: testpaths düzelt
-- [ ] `pip install` başarılı çalışsın
-- [ ] Ruff ile lint temizliği
+### Sprint 0 — Acil Blocker'lar ✅
+- [x] REQ-1: pandas-ta kaldırıldı (önceki aşamada)
+- [x] REQ-2: Bağımlılık lock dosyası üret
+- [x] PYP-1: testpaths düzeltildi (önceki aşamada)
+- [x] `pip install` başarılı çalışıyor
+- [x] Ruff ile lint temizliği (0 hata)
 
 ### Sprint 1 — Mimari Yeniden Yapılanma + Bug Düzeltme
 > Mevcut kodu yeni klasör yapısına taşı + bug'ları düzelt.
 
 **Klasör geçişi:**
-- [ ] `quant_engine/core/` oluştur: `protocols.py`, `instrument.py`, `order.py`, `clock.py`
-- [ ] `quant_engine/data/providers/` ← fetcher.py taşı + bug düzelt (FET-1→9)
-- [ ] `quant_engine/data/storage/` ← storage_manager.py taşı + bug düzelt (STR-1→11)
-- [ ] `quant_engine/data/validation/` ← data_validator.py taşı + bug düzelt (VAL-1→7)
+- [x] `quant_engine/core/` oluştur: `protocols.py`, `instrument.py`
+- [x] `quant_engine/data/providers/` ← yfinance_provider.py yazıldı + FET-1→9 düzeltildi
+- [x] `quant_engine/data_pipeline/storage_manager.py` bug düzeltildi (STR-3,5,7,8)
+- [x] `quant_engine/data_pipeline/data_validator.py` bug düzeltildi (VAL-1→4)
 - [ ] `quant_engine/data/transforms/` oluştur (raw→clean→adjusted→features)
-- [ ] Config bug'ları düzelt (CFG-1→6)
+- [x] Config bug'ları düzeltildi (CFG-1→6) — 34 test
 - [ ] Pipeline bug'ları düzelt (PIP-1→3)
 - [ ] Demo bug'ları düzelt (DEM-1→3)
 
-### Sprint 2 — Test Altyapısı
-- [ ] Root'ta `tests/unit/`, `tests/integration/`, `tests/golden/`
-- [ ] Golden fixture: 5-10 satır elle doğrulanmış OHLCV CSV
-- [ ] `test_storage.py`: fixture → write → read → karşılaştır
-- [ ] `test_validator.py`: bilinen hatalı veri → hata tespit
-- [ ] `test_config.py`: geçersiz config → hata fırlatma
-- [ ] `test_protocols.py`: interface sözleşme testleri
-- [ ] pytest yeşil, ruff temiz
+### Sprint 2 — Test Altyapısı ✅
+- [x] Root'ta `tests/unit/`, `tests/integration/`, `tests/golden/`
+- [x] Golden fixture: 10 satır elle doğrulanmış OHLCV CSV
+- [x] `test_storage.py`: fixture → write → read → karşılaştır (12 test)
+- [x] `test_validator.py`: bilinen hatalı veri → hata tespit (12 test)
+- [x] `test_config.py`: geçersiz config → hata fırlatma (34 test)
+- [x] `test_core.py`: protocol sözleşme + domain testleri (18 test)
+- [x] pytest yeşil (111 test), ruff temiz (0 hata)
 
 ### Sprint 3 — Veri Omurgası + Transforms
 - [ ] 4 katmanlı dizin: raw/clean/adjusted/features
@@ -326,36 +328,36 @@ Her dosyada metadata: `source, ingest_time, schema_version, checksum, row_count,
 - [ ] Her dosyada `_metadata.json` (source, checksum, lineage)
 - [ ] Schema contract (PyArrow schema her katmanda)
 - [ ] Transform pipeline: raw → clean → adjusted → features
-- [ ] Atomic write: temp → checksum → rename
+- [x] Atomic write: temp → checksum → rename (STR-8)
 
-### Sprint 4 — BIST Trading Calendar
-- [ ] İşlem günleri, tatiller, yarım günler
-- [ ] Müzayede dönemleri
-- [ ] Timezone: `Europe/Istanbul` → UTC normalize
-- [ ] `is_trading_day()`, `next_trading_day()`, `trading_days_between()`
+### Sprint 4 — BIST Trading Calendar ✅
+- [x] İşlem günleri, tatiller (sabit + dini 2024-2026), yarım günler
+- [x] Müzayede dönemleri (açılış/kapanış seans saatleri)
+- [x] Timezone: `Europe/Istanbul` config'e eklendi (CFG-6)
+- [x] `is_trading_day()`, `next_trading_day()`, `previous_trading_day()`, `trading_days_between()`
 - [ ] Seans dışı işlem yasağı
 - [ ] Validator ve fetcher'a entegre
 
-### Sprint 5 — Core Domain Nesneleri
-- [ ] `Order`: market, limit, stop, stop-loss, take-profit
-- [ ] `Fill`: fill_price, slippage, timestamp, partial_fill
-- [ ] `Position`: quantity, entry_price, unrealized_pnl
-- [ ] `Portfolio`: cash, positions, total_equity, exposure
+### Sprint 5 — Core Domain Nesneleri ✅
+- [x] `Order`: market, limit + OrderSide, OrderType, OrderStatus
+- [x] `Fill`: fill_price, slippage, timestamp, commission, net_amount
+- [x] `Position`: quantity, avg_entry_price, unrealized_pnl, market_value
+- [x] `Portfolio`: cash, positions, total_equity, exposure, process_fill
 - [ ] `Clock`: current_bar, warm_up_complete, session_active
-- [ ] Invariant: `cash + sum(position_values) == total_equity` her barda
+- [x] Invariant: `cash + sum(position_values) == total_equity` her barda
 
-### Sprint 6 — Execution Spec + Minimal Motor
-- [ ] Signal timing: bar[t].close → sinyal, bar[t+1].open → execute
+### Sprint 6 — Execution Spec + Minimal Motor ✅
+- [x] Signal timing: bar[t].close → sinyal, bar[t+1].open → execute
 - [ ] Intrabar ambiguity: conservative fill
 - [ ] Fill policy: full fill, no fill (limit dışı)
-- [ ] Cost model: `FixedBPS → SpreadPlusBPS → ParticipationRate`
-- [ ] Warm-up bars standardı (configurable, varsayılan 200)
+- [x] Cost model: komisyon (bps) + slippage (bps)
+- [x] Warm-up bars standardı (configurable)
 - [ ] Assumptions registry: her koşuya snapshot
-- [ ] **Tek sembol, long-only, market order ile çalışan motor**
-- [ ] Audit trail: `signal → order → fill → position → pnl`
-- [ ] Anti-leakage: `feature_ts ≤ decision_ts < execution_ts`
-- [ ] Golden fixture ile elle hesaplanmış sonuç eşleşmesi
-- [ ] Buy & Hold baseline
+- [x] **Tek sembol, long-only, market order ile çalışan motor**
+- [x] Audit trail: `signal → order → fill → position → pnl`
+- [x] Anti-leakage: `feature_ts ≤ decision_ts < execution_ts` (test ile doğrulandı)
+- [x] Golden fixture ile elle hesaplanmış sonuç eşleşmesi (5 bar test verisi)
+- [x] Buy & Hold baseline
 
 ### Sprint 7 — Run Registry + Raporlama
 - [ ] `artifacts/runs/<run_id>/` yapısı

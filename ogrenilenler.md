@@ -111,3 +111,15 @@
 - **Validator'da NaN kontrolü `<= 0` ile yapılamaz.** `NaN <= 0` Python'da `False` döner — NaN satırları görünmez oluyor. Ayrı `isna()` kontrolü şart. Aynı şekilde negatif volume için ayrı `< 0` kontrolü gerekiyor.
 
 - **auto_fix'te sınırsız ffill tehlikeli.** 100 satırlık NaN bölgesini sessizce eski fiyatla doldurmak veri uydurma. `ffill(limit=3)` ile en fazla 3 ardışık NaN doldurulmalı, geri kalanı NaN kalsın — kullanıcı karar versin.
+
+## AŞAMA 9–10 — Strategy Framework ve Metrics
+
+- **Win rate hesabında pozisyon kapandıktan sonra avg_entry_price 0'a dönüyor.** Engine'deki eski win_rate kodu `portfolio.get_or_create_position().avg_entry_price` ile karşılaştırıyordu — ama satıştan sonra pozisyon kapanıp avg_entry_price=0 oluyordu. Çözüm: buy/sell fill eşleştirmesi ile hesapla (her sell fill'in eşleşen son buy fill'ine bak).
+
+- **Strategy sınıfına `as_signal_func()` metodu ekle.** Engine'in beklediği `signal_func(data, bar_index, portfolio)` imzası ile strateji sınıfının `generate_signals()` metodu arasında adaptör gerekiyor. Warm-up kontrolü de bu adaptörde yapılıyor. Böylece engine stratejiden bağımsız kalıyor.
+
+- **İndikatörleri pandas-ta yerine kendimiz yazmak daha güvenli.** SMA, EMA, RSI, Bollinger, ATR, MACD için saf Pandas/NumPy kullandık. Dış bağımlılık yok, her hesabı test edebildik, Wilder's smoothing gibi ince detayları kontrol edebildik.
+
+- **Strateji parametrelerine bilinmeyen key atanmasını engelle.** `SmaCrossover(params={"typo_param": 5})` sessizce kabul edilmemeli. BaseStrategy `__init__` içinde `unknown = set(params.keys()) - set(default_params.keys())` kontrolü eklendi.
+
+- **Profit factor = gross_profit / gross_loss.** Sıfır kayıp durumunda bölme hatasından kaçınmak için `gross_loss > 0` kontrolü şart. Win rate ise `completed_trades / total_trades * 100` değil, `winning_trades / total_trades * 100` — trade bir al-sat çiftidir, tek fill değil.

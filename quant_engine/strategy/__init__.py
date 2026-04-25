@@ -1,1 +1,1 @@
-# strategy modülü
+"""Quant Engine — Strategy Module."""
