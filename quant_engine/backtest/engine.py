@@ -231,7 +231,7 @@ class BacktestEngine:
                     execution_date=bar_date,
                 )
                 if fill:
-                    realized = portfolio.process_fill(fill)
+                    portfolio.process_fill(fill)
                     result.orders.append(fill.order)
                     result.fills.append(fill)
 

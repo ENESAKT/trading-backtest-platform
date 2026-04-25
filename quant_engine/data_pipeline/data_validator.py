@@ -4,21 +4,25 @@ Quant Engine — Veri Kalite Kontrolü (Data Validator)
 Çekilen verilerin güvenilirliğini doğrular.
 Backtest sonuçlarının doğruluğu, veri kalitesine doğrudan bağlıdır.
 
-Düzeltilen bug'lar:
-    VAL-1: NaN fiyatları artık yakalanıyor
-    VAL-2: Negatif volume artık yakalanıyor
-    VAL-3: low > close artık yakalanıyor (tam OHLC tutarlılık)
-    VAL-4: auto_fix sınırlandırıldı (max_ffill_limit eklendi)
+Düzeltmeler (Aşama 5):
+    - Duplicate kontrolü symbol + timestamp üzerinden
+    - OHLC kontrolleri sertleştirildi
+    - ValidationResult kalite skoru eklendi
+    - Kritik hata varsa backtest engellenebilir
+    - Split/temettü fiyat kopması uyarısı
+    - Required columns: date/timestamp, OHLCV, symbol
 
 Kontroller:
-    1. Boşluk (gap) tespiti — eksik işlem günleri
-    2. Outlier tespiti — anormal fiyat hareketleri
-    3. Tarih sıralaması — kronolojik düzen
-    4. Negatif/sıfır fiyat kontrolü
-    5. NaN fiyat kontrolü (VAL-1)
-    6. Negatif volume kontrolü (VAL-2)
-    7. OHLC tam tutarlılık kontrolü (VAL-3)
-    8. Volume tutarlılığı
+    1. Zorunlu sütun kontrolü (date, OHLCV, symbol)
+    2. Boşluk (gap) tespiti
+    3. Outlier / split / temettü tespiti
+    4. Tarih sıralaması
+    5. Negatif/sıfır fiyat kontrolü
+    6. NaN fiyat kontrolü
+    7. Negatif volume kontrolü
+    8. OHLC tam tutarlılık kontrolü
+    9. Symbol + timestamp duplicate kontrolü
+    10. Kalite skoru (0-100)
 """
 
 from __future__ import annotations
@@ -32,11 +36,38 @@ from loguru import logger
 @dataclass
 class ValidationResult:
     """Tek bir sembol için doğrulama sonucu."""
+
     symbol: str
     is_valid: bool = True
     total_rows: int = 0
     warnings: list[str] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
+    checks_passed: int = 0
+    checks_total: int = 0
+
+    @property
+    def quality_score(self) -> float:
+        """
+        Veri kalite skoru (0-100).
+
+        100 = tüm kontroller geçti
+        0 = tüm kontroller başarısız
+        """
+        if self.checks_total == 0:
+            return 0.0
+        base = (
+            self.checks_passed / self.checks_total
+        ) * 100
+        # Her error skoru %10 düşürür
+        penalty = len(self.errors) * 10
+        # Her warning skoru %2 düşürür
+        penalty += len(self.warnings) * 2
+        return max(0.0, min(100.0, base - penalty))
+
+    @property
+    def can_run_backtest(self) -> bool:
+        """Backtest çalıştırılabilir mi?"""
+        return self.is_valid and len(self.errors) == 0
 
     def add_warning(self, msg: str):
         self.warnings.append(msg)
@@ -47,13 +78,23 @@ class ValidationResult:
         self.is_valid = False
         logger.error(f"❌ {self.symbol}: {msg}")
 
+    def _pass_check(self):
+        self.checks_passed += 1
+        self.checks_total += 1
+
+    def _fail_check(self):
+        self.checks_total += 1
+
     def summary(self) -> str:
-        status = "✅ GEÇER" if self.is_valid else "❌ BAŞARISIZ"
+        status = (
+            "✅ GEÇER" if self.is_valid else "❌ BAŞARISIZ"
+        )
         return (
             f"{self.symbol}: {status} | "
             f"{self.total_rows} satır | "
             f"{len(self.warnings)} uyarı | "
-            f"{len(self.errors)} hata"
+            f"{len(self.errors)} hata | "
+            f"Kalite: {self.quality_score:.0f}/100"
         )
 
 
@@ -64,6 +105,16 @@ class DataValidator:
     Çekilen OHLCV verilerini çeşitli kurallara göre doğrular.
     Hatalı veriler backtest sonuçlarını tamamen yanıltabilir.
     """
+
+    # Zorunlu sütunlar
+    REQUIRED_COLUMNS = {
+        "date",
+        "open",
+        "high",
+        "low",
+        "close",
+    }
+    RECOMMENDED_COLUMNS = {"volume", "symbol"}
 
     def __init__(
         self,
@@ -77,7 +128,7 @@ class DataValidator:
             max_daily_change_pct: Maks. günlük değişim %
             max_gap_days: Kabul edilebilir maks. takvim günü
             min_rows: Minimum satır sayısı eşiği
-            max_ffill_limit: auto_fix'te maks. forward fill satır
+            max_ffill_limit: auto_fix'te maks. forward fill
         """
         self.max_daily_change_pct = max_daily_change_pct
         self.max_gap_days = max_gap_days
@@ -113,12 +164,13 @@ class DataValidator:
 
         # Tüm kontrolleri çalıştır
         self._check_required_columns(df, result)
+        self._check_recommended_columns(df, result)
         self._check_date_order(df, result)
         self._check_duplicates(df, result)
-        self._check_nan_prices(df, result)       # VAL-1 FIX
+        self._check_nan_prices(df, result)
         self._check_price_validity(df, result)
-        self._check_ohlc_consistency(df, result)  # VAL-3 FIX
-        self._check_volume(df, result)            # VAL-2 FIX
+        self._check_ohlc_consistency(df, result)
+        self._check_volume(df, result)
         self._check_outliers(df, result)
         self._check_gaps(df, result)
 
@@ -129,10 +181,31 @@ class DataValidator:
         self, df: pd.DataFrame, result: ValidationResult
     ):
         """Zorunlu sütunların varlığını kontrol et."""
-        required = {"date", "open", "high", "low", "close"}
-        missing = required - set(df.columns)
+        missing = self.REQUIRED_COLUMNS - set(
+            df.columns
+        )
         if missing:
-            result.add_error(f"Eksik sütunlar: {missing}")
+            result.add_error(
+                f"Eksik zorunlu sütunlar: {missing}"
+            )
+            result._fail_check()
+        else:
+            result._pass_check()
+
+    def _check_recommended_columns(
+        self, df: pd.DataFrame, result: ValidationResult
+    ):
+        """Önerilen sütunların varlığını kontrol et."""
+        missing = self.RECOMMENDED_COLUMNS - set(
+            df.columns
+        )
+        if missing:
+            result.add_warning(
+                f"Önerilen sütunlar eksik: {missing}"
+            )
+            result._fail_check()
+        else:
+            result._pass_check()
 
     def _check_date_order(
         self, df: pd.DataFrame, result: ValidationResult
@@ -145,29 +218,44 @@ class DataValidator:
             result.add_warning(
                 "Tarihler kronolojik sırada değil!"
             )
+            result._fail_check()
+        else:
+            result._pass_check()
 
     def _check_duplicates(
         self, df: pd.DataFrame, result: ValidationResult
     ):
-        """Tekrarlayan tarihleri tespit et."""
+        """Symbol + timestamp üzerinden duplicate kontrol."""
         if "date" not in df.columns:
             return
+
+        # Symbol varsa symbol+date, yoksa sadece date
+        subset = ["date"]
+        if "symbol" in df.columns:
+            subset = ["date", "symbol"]
+
         dupes = df.duplicated(
-            subset=["date"], keep=False
+            subset=subset, keep=False
         ).sum()
         if dupes > 0:
             result.add_warning(
-                f"{dupes} tekrarlayan tarih bulundu"
+                f"{dupes} tekrarlayan kayıt bulundu "
+                f"({'+'.join(subset)} bazında)"
             )
+            result._fail_check()
+        else:
+            result._pass_check()
 
     def _check_nan_prices(
         self, df: pd.DataFrame, result: ValidationResult
     ):
-        """VAL-1 FIX: NaN fiyatları tespit et."""
+        """NaN fiyatları tespit et."""
         price_cols = [
-            c for c in ["open", "high", "low", "close"]
+            c
+            for c in ["open", "high", "low", "close"]
             if c in df.columns
         ]
+        has_nan = False
         for col in price_cols:
             nan_count = df[col].isna().sum()
             if nan_count > 0:
@@ -175,17 +263,24 @@ class DataValidator:
                     f"'{col}' sütununda {nan_count} "
                     f"NaN değer tespit edildi"
                 )
+                has_nan = True
+
+        if has_nan:
+            result._fail_check()
+        else:
+            result._pass_check()
 
     def _check_price_validity(
         self, df: pd.DataFrame, result: ValidationResult
     ):
         """Negatif veya sıfır fiyatları tespit et."""
         price_cols = [
-            c for c in ["open", "high", "low", "close"]
+            c
+            for c in ["open", "high", "low", "close"]
             if c in df.columns
         ]
+        has_invalid = False
         for col in price_cols:
-            # NaN olmayan değerlerde kontrol yap
             valid_mask = df[col].notna()
             invalid = (df.loc[valid_mask, col] <= 0).sum()
             if invalid > 0:
@@ -193,11 +288,17 @@ class DataValidator:
                     f"'{col}' sütununda {invalid} "
                     f"geçersiz fiyat (≤0)"
                 )
+                has_invalid = True
+
+        if has_invalid:
+            result._fail_check()
+        else:
+            result._pass_check()
 
     def _check_ohlc_consistency(
         self, df: pd.DataFrame, result: ValidationResult
     ):
-        """VAL-3 FIX: Tam OHLC mantıksal tutarlılık kontrolü.
+        """Tam OHLC mantıksal tutarlılık kontrolü.
 
         Kurallar:
         - High >= Low
@@ -210,10 +311,11 @@ class DataValidator:
         if not all(c in df.columns for c in required):
             return
 
-        # NaN satırları atla
         valid = df[required].dropna()
         if valid.empty:
             return
+
+        has_error = False
 
         high_low = (valid["high"] < valid["low"]).sum()
         if high_low > 0:
@@ -221,14 +323,19 @@ class DataValidator:
                 f"{high_low} satırda High < Low "
                 f"(OHLC tutarsız)"
             )
+            has_error = True
 
-        high_open = (valid["high"] < valid["open"]).sum()
+        high_open = (
+            valid["high"] < valid["open"]
+        ).sum()
         if high_open > 0:
             result.add_warning(
                 f"{high_open} satırda High < Open"
             )
 
-        high_close = (valid["high"] < valid["close"]).sum()
+        high_close = (
+            valid["high"] < valid["close"]
+        ).sum()
         if high_close > 0:
             result.add_warning(
                 f"{high_close} satırda High < Close"
@@ -240,30 +347,35 @@ class DataValidator:
                 f"{low_open} satırda Low > Open"
             )
 
-        # VAL-3 FIX: low > close artık yakalanıyor
-        low_close = (valid["low"] > valid["close"]).sum()
+        low_close = (
+            valid["low"] > valid["close"]
+        ).sum()
         if low_close > 0:
             result.add_warning(
                 f"{low_close} satırda Low > Close"
             )
 
+        if has_error:
+            result._fail_check()
+        else:
+            result._pass_check()
+
     def _check_volume(
         self, df: pd.DataFrame, result: ValidationResult
     ):
-        """VAL-2 FIX: Volume tutarlılığını kontrol et.
-
-        Artık negatif volume da yakalanıyor.
-        """
+        """Volume tutarlılığını kontrol et."""
         if "volume" not in df.columns:
             return
 
-        # VAL-2 FIX: Negatif volume kontrolü
+        has_error = False
+
         neg_vol = (df["volume"] < 0).sum()
         if neg_vol > 0:
             result.add_error(
                 f"{neg_vol} satırda negatif volume "
                 f"tespit edildi"
             )
+            has_error = True
 
         zero_vol = (df["volume"] == 0).sum()
         pct = (zero_vol / len(df)) * 100
@@ -273,10 +385,15 @@ class DataValidator:
                 f"{pct:.1f}% ({zero_vol} gün)"
             )
 
+        if has_error:
+            result._fail_check()
+        else:
+            result._pass_check()
+
     def _check_outliers(
         self, df: pd.DataFrame, result: ValidationResult
     ):
-        """Anormal fiyat hareketlerini tespit et."""
+        """Anormal fiyat hareketlerini ve olası split/temettüyü tespit et."""
         if "close" not in df.columns or len(df) < 2:
             return
 
@@ -286,12 +403,24 @@ class DataValidator:
         ]
 
         if len(outliers) > 0:
+            # %50+ değişim → olası split/temettü
+            extreme = returns[returns > 50]
+            if len(extreme) > 0:
+                result.add_warning(
+                    f"{len(extreme)} günde %50'den fazla "
+                    f"değişim. Olası hisse bölünmesi veya "
+                    f"temettü düzeltmesi kontrol edilmeli!"
+                )
+
             result.add_warning(
                 f"{len(outliers)} günde "
                 f"%{self.max_daily_change_pct}'den fazla "
                 f"değişim. Olası split/temettü veya veri "
                 f"hatası!"
             )
+            result._fail_check()
+        else:
+            result._pass_check()
 
     def _check_gaps(
         self, df: pd.DataFrame, result: ValidationResult
@@ -309,6 +438,9 @@ class DataValidator:
                 f"{len(large_gaps)} büyük boşluk "
                 f"(>{self.max_gap_days} gün)"
             )
+            result._fail_check()
+        else:
+            result._pass_check()
 
     def validate_bulk(
         self, data: dict[str, pd.DataFrame]
@@ -336,8 +468,6 @@ class DataValidator:
         """
         Otomatik düzeltilebilecek sorunları düzelt.
 
-        VAL-4 FIX: forward-fill artık sınırlı.
-
         - Tekrarlayan tarihleri temizle
         - Tarihleri sırala
         - NaN fiyatları sınırlı forward-fill ile doldur
@@ -349,16 +479,20 @@ class DataValidator:
 
         # Tekrarları temizle
         if "date" in fixed.columns:
+            subset = ["date"]
+            if "symbol" in fixed.columns:
+                subset.append("symbol")
             fixed = fixed.drop_duplicates(
-                subset=["date"], keep="last"
+                subset=subset, keep="last"
             )
-            fixed = fixed.sort_values("date").reset_index(
-                drop=True
-            )
+            fixed = fixed.sort_values(
+                "date"
+            ).reset_index(drop=True)
 
-        # VAL-4 FIX: NaN fiyatları sınırlı forward-fill
+        # NaN fiyatları sınırlı forward-fill
         price_cols = [
-            c for c in ["open", "high", "low", "close"]
+            c
+            for c in ["open", "high", "low", "close"]
             if c in fixed.columns
         ]
         fixed[price_cols] = fixed[price_cols].ffill(

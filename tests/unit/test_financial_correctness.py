@@ -22,13 +22,6 @@ import pytest
 
 from quant_engine.backtest.domain import (
     CompletedTrade,
-    Fill,
-    Order,
-    OrderSide,
-    OrderStatus,
-    OrderType,
-    Portfolio,
-    Position,
 )
 from quant_engine.backtest.engine import (
     BacktestConfig,
@@ -36,13 +29,11 @@ from quant_engine.backtest.engine import (
     buy_and_hold_signal,
 )
 from quant_engine.backtest.metrics import (
-    PerformanceMetrics,
     calculate_metrics,
 )
 from quant_engine.core.protocols import (
     OrderSide as CoreOrderSide,
 )
-
 
 # ---------------------------------------------------------------------------
 # Test Fixtures
