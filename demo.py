@@ -138,7 +138,7 @@ def run_strategy_comparison(data: pd.DataFrame, symbol: str):
 
     print()
     print("═" * 80)
-    print(f"  🚀 QUANT ENGINE — STRATEJİ KARŞILAŞTIRMA RAPORU")
+    print("  🚀 QUANT ENGINE — STRATEJİ KARŞILAŞTIRMA RAPORU")
     print(f"  📊 Sembol: {symbol} | {len(data)} bar | "
           f"₺{config.initial_capital:,.0f} sermaye")
     print(f"  📅 {data['date'].min().strftime('%Y-%m-%d')} → "

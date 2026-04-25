@@ -11,6 +11,10 @@ Kurallar:
 Varsayılan parametreler:
     - fast_period: 10
     - slow_period: 30
+
+Optimizasyon:
+    - prepare() ile SMA'lar bir kez hesaplanır
+    - generate_signals() sadece indekse bakar
 """
 
 from __future__ import annotations
@@ -30,7 +34,10 @@ class SmaCrossover(BaseStrategy):
     """SMA Crossover — Golden/Death Cross stratejisi."""
 
     name = "sma_crossover"
-    description = "Çift SMA kesişim stratejisi (Golden/Death Cross)"
+    description = (
+        "Çift SMA kesişim stratejisi "
+        "(Golden/Death Cross)"
+    )
     version = "1.0"
 
     @property
@@ -43,6 +50,40 @@ class SmaCrossover(BaseStrategy):
     @property
     def warm_up_bars(self) -> int:
         return self.get_param("slow_period")
+
+    def validate_params(self) -> list[str]:
+        """SMA parametrelerini doğrula."""
+        errors = super().validate_params()
+        fast = self.get_param("fast_period")
+        slow = self.get_param("slow_period")
+
+        if fast >= slow:
+            errors.append(
+                f"fast_period ({fast}) < "
+                f"slow_period ({slow}) olmalı"
+            )
+        if fast < 1:
+            errors.append(
+                f"fast_period >= 1 olmalı "
+                f"(mevcut: {fast})"
+            )
+        if slow < 2:
+            errors.append(
+                f"slow_period >= 2 olmalı "
+                f"(mevcut: {slow})"
+            )
+        return errors
+
+    def prepare(self, data: pd.DataFrame) -> None:
+        """SMA'ları önceden hesapla."""
+        fast_period = self.get_param("fast_period")
+        slow_period = self.get_param("slow_period")
+        close = data["close"]
+
+        self._prepared_data = {
+            "fast_sma": sma(close, fast_period),
+            "slow_sma": sma(close, slow_period),
+        }
 
     def generate_signals(
         self,
@@ -63,17 +104,24 @@ class SmaCrossover(BaseStrategy):
         if bar_index < slow_period:
             return 0
 
-        close = data["close"]
-        fast_sma = sma(close, fast_period)
-        slow_sma = sma(close, slow_period)
+        # Cache'den oku veya hesapla
+        if "fast_sma" in self._prepared_data:
+            fast_sma = self._prepared_data["fast_sma"]
+            slow_sma = self._prepared_data["slow_sma"]
+        else:
+            close = data["close"]
+            fast_sma = sma(close, fast_period)
+            slow_sma = sma(close, slow_period)
 
         current_fast = fast_sma.iloc[bar_index]
         current_slow = slow_sma.iloc[bar_index]
 
-        if pd.isna(current_fast) or pd.isna(current_slow):
+        if pd.isna(current_fast) or pd.isna(
+            current_slow
+        ):
             return 0
 
-        # Önceki barın değerlerini de kontrol et (kesişim)
+        # Önceki barın değerlerini kontrol et (kesişim)
         if bar_index >= slow_period + 1:
             prev_fast = fast_sma.iloc[bar_index - 1]
             prev_slow = slow_sma.iloc[bar_index - 1]
@@ -81,17 +129,27 @@ class SmaCrossover(BaseStrategy):
             if pd.isna(prev_fast) or pd.isna(prev_slow):
                 return 0
 
-            position = portfolio.get_or_create_position(
-                data.iloc[bar_index].get("symbol", "UNKNOWN")
+            position = (
+                portfolio.get_or_create_position(
+                    data.iloc[bar_index].get(
+                        "symbol", "UNKNOWN"
+                    )
+                )
             )
 
             # Golden Cross: fast yukarı kesiyor
-            if prev_fast <= prev_slow and current_fast > current_slow:
+            if (
+                prev_fast <= prev_slow
+                and current_fast > current_slow
+            ):
                 if not position.is_open:
                     return 1  # AL
 
             # Death Cross: fast aşağı kesiyor
-            if prev_fast >= prev_slow and current_fast < current_slow:
+            if (
+                prev_fast >= prev_slow
+                and current_fast < current_slow
+            ):
                 if position.is_open:
                     return -1  # SAT
 

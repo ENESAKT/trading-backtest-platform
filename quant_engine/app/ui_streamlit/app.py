@@ -1,18 +1,18 @@
 import sys
 from pathlib import Path
-import streamlit as st
+
 import pandas as pd
-import numpy as np
+import streamlit as st
 
 # Proje ana dizinini path'e ekliyoruz ki quant_engine paketini içeri aktarabilelim
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent.parent))
 
+from demo import generate_synthetic_data
 from quant_engine.backtest.engine import BacktestConfig, BacktestEngine
 from quant_engine.backtest.metrics import calculate_metrics
 from quant_engine.strategy.examples.buy_and_hold import BuyAndHold
-from quant_engine.strategy.examples.sma_crossover import SmaCrossover
 from quant_engine.strategy.examples.rsi_reversion import RsiReversion
-from demo import generate_synthetic_data
+from quant_engine.strategy.examples.sma_crossover import SmaCrossover
 
 st.set_page_config(
     page_title="Quant Engine Terminal",
@@ -50,13 +50,13 @@ def render_metric_card(title, value, is_percentage=False, is_currency=False, con
         color_class = "profit"
     elif condition == "loss":
         color_class = "loss"
-    
+
     formatted_val = f"{value:,.2f}" if isinstance(value, (int, float)) else value
     if is_percentage:
         formatted_val += "%"
     elif is_currency:
         formatted_val = f"₺{formatted_val}"
-        
+
     st.markdown(f"""
     <div class="metric-card {color_class}">
         <div class="metric-title">{title}</div>
@@ -66,7 +66,7 @@ def render_metric_card(title, value, is_percentage=False, is_currency=False, con
 
 def view_dashboard():
     st.header("Dashboard & Veri İstasyonu")
-    
+
     col1, col2, col3, col4 = st.columns(4)
     with col1:
         render_metric_card("Aktif Sembol", "1 (SYNTH)")
@@ -78,7 +78,7 @@ def view_dashboard():
         render_metric_card("Motor Versiyonu", "v0.1.0")
 
     st.subheader("Veri Sağlık Kontrolü")
-    data = {"Sembol": ["SYNTH", "THYAO", "GARAN"], 
+    data = {"Sembol": ["SYNTH", "THYAO", "GARAN"],
             "Durum": ["✅ Güncel", "❌ Veri Çekilemedi", "❌ Veri Çekilemedi"],
             "Eksik Gün": [0, "-", "-"],
             "Son Tarih": ["2023-12-01", "-", "-"]}
@@ -87,7 +87,7 @@ def view_dashboard():
 def view_matrix_scanner():
     st.header("Matrix Tarama Paneli")
     st.write("Sistemdeki tüm sembollerin anlık sinyal ve metrik özeti.")
-    
+
     # Gerçek veri entegre edilene kadar sistemin konseptini gösteren mock veri
     data = {
         "Sembol": ["THYAO", "GARAN", "AKBNK", "SYNTH"],
@@ -102,13 +102,13 @@ def view_matrix_scanner():
 
 def view_strategy_builder():
     st.header("Strateji Kurucu ve Laboratuvar")
-    
+
     col_sidebar, col_main = st.columns([1, 3])
-    
+
     with col_sidebar:
         st.subheader("Parametreler")
         strategy_name = st.selectbox("Strateji Tipi", ["RSI Reversion", "SMA Crossover", "Buy & Hold"])
-        
+
         st.markdown("---")
         if strategy_name == "RSI Reversion":
             rsi_period = st.slider("RSI Periyodu", 5, 30, 14)
@@ -126,7 +126,7 @@ def view_strategy_builder():
         capital = st.number_input("Başlangıç Sermayesi (₺)", value=100000, step=10000)
         commission = st.number_input("Komisyon Oranı (%)", value=0.1, step=0.01) / 100.0
         slippage = st.number_input("Slippage (BPS)", value=5, step=1)
-        
+
         run_btn = st.button("🚀 Backtest Çalıştır", type="primary", use_container_width=True)
 
     with col_main:
@@ -134,7 +134,7 @@ def view_strategy_builder():
             with st.spinner("Backtest çalıştırılıyor..."):
                 # İnternet sorunu nedeniyle her zaman sentetik veri (yapay veri) kullanıyoruz
                 df = generate_synthetic_data(n_bars=500, symbol="SYNTH")
-                
+
                 config = BacktestConfig(
                     initial_capital=capital,
                     commission_rate=commission,
@@ -142,11 +142,11 @@ def view_strategy_builder():
                     max_position_pct=0.95,
                     warm_up_bars=0
                 )
-                
+
                 engine = BacktestEngine(config)
                 result = engine.run(df, strategy.as_signal_func(), symbol="SYNTH")
                 metrics = calculate_metrics(result.equity_curve, result.fills, capital)
-                
+
                 # KPI Kartları
                 k1, k2, k3, k4 = st.columns(4)
                 with k1:
@@ -157,31 +157,31 @@ def view_strategy_builder():
                     render_metric_card("Sharpe", metrics.sharpe_ratio)
                 with k4:
                     render_metric_card("Win Rate", metrics.win_rate, is_percentage=True)
-                
+
                 # Grafikler
                 try:
                     import plotly.graph_objects as go
-                    
+
                     st.subheader("Sermaye Eğrisi (Equity Curve)")
-                    
+
                     eq_df = pd.DataFrame([{
-                        "date": eq.timestamp, 
+                        "date": eq.timestamp,
                         "equity": eq.total_equity
                     } for eq in result.equity_curve])
-                    
+
                     fig = go.Figure()
                     fig.add_trace(go.Scatter(x=eq_df["date"], y=eq_df["equity"], mode="lines", name="Sermaye", line=dict(color="#00ff88")))
                     fig.update_layout(
-                        template="plotly_dark", 
-                        paper_bgcolor="#1a1a2e", 
+                        template="plotly_dark",
+                        paper_bgcolor="#1a1a2e",
                         plot_bgcolor="#1a1a2e",
                         margin=dict(l=0, r=0, t=30, b=0)
                     )
                     st.plotly_chart(fig, use_container_width=True)
-                    
+
                 except ImportError:
                     st.warning("Grafiklerin çizilmesi için 'plotly' kütüphanesi eksik. İnternet erişimi sağlandığında kurulmalıdır.")
-                
+
                 # İşlem Tablosu
                 st.subheader("Trade Inspector (İşlem Denetleyicisi)")
                 if result.fills:

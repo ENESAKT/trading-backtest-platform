@@ -1,42 +1,49 @@
 """
 Quant Engine — Core Domain Nesneleri
 
-Order, Fill, Position, Portfolio — backtest motorunun temel yapı taşları.
+Order, Fill, Position, Portfolio, CompletedTrade — backtest motorunun
+temel yapı taşları.
 
 Execution Spec:
     - bar[t].close sinyal üret → bar[t+1].open execute et
     - Anti-leakage: feature_ts ≤ decision_ts < execution_ts
     - Invariant: cash + sum(position_values) == total_equity (her barda)
+
+Enum'lar core/protocols.py'den import edilir (tek kaynak prensibi).
+Bu modülden de erişilebilir kalır (geriye dönük uyumluluk).
 """
 
 from __future__ import annotations
 
 import datetime as dt
 from dataclasses import dataclass, field
-from enum import Enum
 from typing import Optional
 
+# Enum'lar tek kaynaktan import edilir — core/protocols.py
+from quant_engine.core.protocols import (
+    OrderSide,
+    OrderStatus,
+    OrderType,
+)
 
-class OrderSide(str, Enum):
-    BUY = "buy"
-    SELL = "sell"
-
-
-class OrderType(str, Enum):
-    MARKET = "market"
-    LIMIT = "limit"
-
-
-class OrderStatus(str, Enum):
-    PENDING = "pending"
-    FILLED = "filled"
-    CANCELLED = "cancelled"
-    REJECTED = "rejected"
+# Geriye dönük uyumluluk: bu modülden import edenler çalışmaya devam eder
+__all__ = [
+    "OrderSide",
+    "OrderType",
+    "OrderStatus",
+    "Order",
+    "Fill",
+    "Position",
+    "Portfolio",
+    "EquityPoint",
+    "CompletedTrade",
+]
 
 
 @dataclass
 class Order:
     """Emir nesnesi."""
+
     symbol: str
     side: OrderSide
     quantity: int
@@ -44,6 +51,8 @@ class Order:
     limit_price: Optional[float] = None
     signal_bar_index: int = 0
     signal_timestamp: Optional[dt.datetime] = None
+    execution_bar_index: int = 0
+    execution_timestamp: Optional[dt.datetime] = None
     status: OrderStatus = OrderStatus.PENDING
     order_id: str = ""
 
@@ -51,11 +60,13 @@ class Order:
 @dataclass
 class Fill:
     """Emir dolum sonucu."""
+
     order: Order
     fill_price: float
     fill_quantity: int
     commission: float = 0.0
     slippage: float = 0.0
+    slippage_cost: float = 0.0  # slippage * quantity (gerçek maliyet etkisi)
     fill_timestamp: Optional[dt.datetime] = None
     bar_index: int = 0
 
@@ -81,8 +92,71 @@ class Fill:
 
 
 @dataclass
+class CompletedTrade:
+    """
+    Tamamlanmış bir al-sat çifti.
+
+    Her trade bir buy fill + sell fill eşleşmesidir.
+    Metrikler bu nesnelerden hesaplanır.
+    """
+
+    symbol: str
+    entry_date: Optional[dt.datetime] = None
+    exit_date: Optional[dt.datetime] = None
+    entry_price: float = 0.0
+    exit_price: float = 0.0
+    quantity: int = 0
+    side: OrderSide = OrderSide.BUY  # Long trade
+    entry_bar_index: int = 0
+    exit_bar_index: int = 0
+    entry_commission: float = 0.0
+    exit_commission: float = 0.0
+    entry_slippage_cost: float = 0.0
+    exit_slippage_cost: float = 0.0
+
+    @property
+    def gross_pnl(self) -> float:
+        """Brüt kar/zarar (komisyon/slippage öncesi)."""
+        return (self.exit_price - self.entry_price) * self.quantity
+
+    @property
+    def total_commission(self) -> float:
+        """Toplam komisyon."""
+        return self.entry_commission + self.exit_commission
+
+    @property
+    def total_slippage_cost(self) -> float:
+        """Toplam slippage maliyeti."""
+        return self.entry_slippage_cost + self.exit_slippage_cost
+
+    @property
+    def net_pnl(self) -> float:
+        """Net kar/zarar (komisyon + slippage sonrası)."""
+        return self.gross_pnl - self.total_commission
+
+    @property
+    def pnl_pct(self) -> float:
+        """Net PnL yüzdesi."""
+        cost_basis = self.entry_price * self.quantity
+        if cost_basis == 0:
+            return 0.0
+        return (self.net_pnl / cost_basis) * 100
+
+    @property
+    def holding_bars(self) -> int:
+        """Pozisyonun tutulduğu bar sayısı."""
+        return self.exit_bar_index - self.entry_bar_index
+
+    @property
+    def is_winner(self) -> bool:
+        """Kazançlı trade mi?"""
+        return self.net_pnl > 0
+
+
+@dataclass
 class Position:
     """Açık pozisyon."""
+
     symbol: str
     quantity: int = 0
     avg_entry_price: float = 0.0
@@ -149,6 +223,7 @@ class Position:
 @dataclass
 class Portfolio:
     """Portföy durumu."""
+
     initial_capital: float = 100_000.0
     cash: float = 0.0
     positions: dict[str, Position] = field(
@@ -228,6 +303,7 @@ class Portfolio:
 @dataclass
 class EquityPoint:
     """Tek bir zaman noktasındaki portföy durumu."""
+
     timestamp: dt.datetime
     bar_index: int
     cash: float

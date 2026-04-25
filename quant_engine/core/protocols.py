@@ -4,6 +4,10 @@ Quant Engine — Protocol Tanımları (Soyut Arayüzler)
 Core katmanının dış dünyayı bilmemesi için tüm sözleşmeler
 burada Protocol olarak tanımlanır.
 
+Bu dosya aynı zamanda tüm domain enum'larının tek kaynağıdır.
+OrderSide, OrderType, OrderStatus gibi enum'lar sadece burada
+tanımlanır; diğer modüller buradan import eder.
+
 Bağımlılık akışı:
     core ← data ← strategy ← backtest ← research ← reporting ← app/cli
     Core hiçbir şeyi import etmez. Herkes core'u import edebilir.
@@ -13,6 +17,9 @@ Kullanım:
         MarketDataProvider,
         StorageBackend,
         Strategy,
+        OrderSide,
+        OrderType,
+        OrderStatus,
     )
 """
 
@@ -21,7 +28,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import date, datetime
 from enum import Enum
-from typing import Protocol, runtime_checkable
+from typing import Any, Protocol, runtime_checkable
 
 import pandas as pd
 
@@ -56,16 +63,24 @@ class Timeframe(str, Enum):
 
 
 class OrderSide(str, Enum):
-    """Emir yönü."""
+    """Emir yönü — tek kaynak (canonical)."""
     BUY = "buy"
     SELL = "sell"
 
 
 class OrderType(str, Enum):
-    """Emir tipi."""
+    """Emir tipi — tek kaynak (canonical)."""
     MARKET = "market"
     LIMIT = "limit"
     STOP = "stop"
+
+
+class OrderStatus(str, Enum):
+    """Emir durumu — tek kaynak (canonical)."""
+    PENDING = "pending"
+    FILLED = "filled"
+    CANCELLED = "cancelled"
+    REJECTED = "rejected"
 
 
 class DataLayer(str, Enum):
@@ -226,23 +241,48 @@ class Strategy(Protocol):
     """
     Strateji arayüzü.
 
-    Tüm stratejiler bunu implemente eder.
+    Tüm stratejiler bunu implemente eder. İki kullanım modu:
+
+    1. Per-bar sinyal (mevcut engine):
+       generate_signals(data, bar_index, portfolio) -> int
+       +1 = AL, -1 = SAT, 0 = BEKLE
+
+    2. Vektörize sinyal (gelecek optimizasyon):
+       generate_signals_vectorized(data) -> pd.Series
+
+    Strateji lifecycle:
+       validate_params() -> prepare(data) -> generate_signals(...)
     """
+
+    name: str
+    description: str
+    version: str
+
+    @property
+    def params(self) -> dict[str, Any]:
+        """Aktif parametreler."""
+        ...
+
+    @property
+    def warm_up_bars(self) -> int:
+        """Warm-up bar sayısını döndür."""
+        ...
+
+    def validate_params(self) -> list[str]:
+        """Parametre validasyonu. Hata mesajları döndür."""
+        ...
+
+    def prepare(self, data: pd.DataFrame) -> None:
+        """İndikatörleri önceden hesapla (cache)."""
+        ...
 
     def generate_signals(
         self,
         data: pd.DataFrame,
-        params: dict,
-    ) -> pd.DataFrame:
-        """Sinyal üret — SignalFrame döndür."""
-        ...
-
-    def get_params(self) -> dict:
-        """Strateji parametrelerini döndür."""
-        ...
-
-    def get_warm_up_bars(self) -> int:
-        """Warm-up bar sayısını döndür."""
+        bar_index: int,
+        portfolio: Any,
+    ) -> int:
+        """Per-bar sinyal üret: +1 AL, -1 SAT, 0 BEKLE."""
         ...
 
 

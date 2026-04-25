@@ -9,6 +9,15 @@ Execution Spec:
     3. Her barda portfolio invariant doğrula
     4. Audit trail: signal → order → fill → position → pnl
 
+Düzeltmeler (Aşama 2):
+    - signal_timestamp artık sinyal barının tarihini yazar
+    - execution_timestamp dolum barının tarihini yazar
+    - CompletedTrade eşleştirmesi eklendi
+    - Açık pozisyonlar final equity'de doğru değerlenir
+    - Son barda pending signal açık davranışı tanımlı
+    - Negatif nakit koruması
+    - Invariant ihlali RuntimeError fırlatır
+
 Kullanım:
     from quant_engine.backtest.engine import BacktestEngine
 
@@ -24,6 +33,7 @@ import pandas as pd
 from loguru import logger
 
 from quant_engine.backtest.domain import (
+    CompletedTrade,
     EquityPoint,
     Fill,
     Order,
@@ -37,6 +47,7 @@ from quant_engine.backtest.domain import (
 @dataclass
 class BacktestConfig:
     """Backtest çalıştırma konfigürasyonu."""
+
     initial_capital: float = 100_000.0
     commission_rate: float = 0.001
     slippage_bps: int = 5
@@ -45,13 +56,29 @@ class BacktestConfig:
 
 
 @dataclass
+class BacktestAssumptions:
+    """Backtest varsayımları — audit trail için."""
+
+    signal_timing: str = "bar[t].close"
+    execution_timing: str = "bar[t+1].open"
+    fill_policy: str = "full_fill_at_open"
+    cost_model: str = "fixed_bps"
+    position_sizing: str = "max_position_pct"
+    pending_at_end: str = "discard"
+
+
+@dataclass
 class BacktestResult:
-    """Backtest sonucu."""
+    """Backtest sonucu — tüm audit verisi dahil."""
+
     equity_curve: list[EquityPoint] = field(
         default_factory=list
     )
     orders: list[Order] = field(default_factory=list)
     fills: list[Fill] = field(default_factory=list)
+    trades: list[CompletedTrade] = field(
+        default_factory=list
+    )
     final_equity: float = 0.0
     total_return_pct: float = 0.0
     max_drawdown_pct: float = 0.0
@@ -59,6 +86,11 @@ class BacktestResult:
     total_commission: float = 0.0
     sharpe_ratio: float = 0.0
     win_rate: float = 0.0
+    assumptions: BacktestAssumptions = field(
+        default_factory=BacktestAssumptions
+    )
+    warnings: list[str] = field(default_factory=list)
+    has_open_position: bool = False
 
 
 class BacktestEngine:
@@ -105,11 +137,20 @@ class BacktestEngine:
         Pozisyon büyüklüğü hesapla.
 
         max_position_pct ile sınırlandırılmış.
+        Komisyon ve slippage sonrası negatif cash üretmez.
         """
         equity = portfolio.total_equity(prices)
         max_value = equity * self.config.max_position_pct
-        # Komisyon ve slippage için %1 marj bırak
-        available = min(portfolio.cash * 0.99, max_value)
+
+        # Komisyon ve slippage için marj bırak
+        commission_margin = 1 + self.config.commission_rate
+        slippage_margin = 1 + self.config.slippage_bps / 10_000
+        safety_factor = commission_margin * slippage_margin
+
+        available = min(
+            portfolio.cash / safety_factor,
+            max_value,
+        )
         if price <= 0:
             return 0
         quantity = int(available / price)
@@ -149,6 +190,10 @@ class BacktestEngine:
         result = BacktestResult()
         peak_equity = self.config.initial_capital
         pending_signal: int = 0
+        pending_signal_bar: int = -1
+
+        # Buy fill'leri trade eşleştirme için sakla
+        _open_buy_fills: dict[str, Fill] = {}
 
         logger.info(
             f"🚀 Backtest: {symbol} | "
@@ -167,21 +212,73 @@ class BacktestEngine:
             # Önceki bardan gelen sinyali bu barın
             # open'ında execute et
             if i > 0 and pending_signal != 0:
+                # signal_timestamp = sinyalin üretildiği
+                # barın tarihi (pending_signal_bar)
+                signal_bar = data.iloc[pending_signal_bar]
+                signal_date = pd.Timestamp(
+                    signal_bar["date"]
+                )
+
                 fill = self._execute_signal(
                     pending_signal,
                     symbol,
                     current_open,
                     portfolio,
                     prices,
-                    i,
-                    bar_date,
+                    bar_index=i,
+                    signal_bar_index=pending_signal_bar,
+                    signal_date=signal_date,
+                    execution_date=bar_date,
                 )
                 if fill:
                     realized = portfolio.process_fill(fill)
                     result.orders.append(fill.order)
                     result.fills.append(fill)
-                    if realized != 0:
-                        result.total_trades += 1
+
+                    # Trade eşleştirme
+                    if fill.order.side == OrderSide.BUY:
+                        _open_buy_fills[symbol] = fill
+                    elif fill.order.side == OrderSide.SELL:
+                        buy_fill = _open_buy_fills.pop(
+                            symbol, None
+                        )
+                        if buy_fill:
+                            trade = CompletedTrade(
+                                symbol=symbol,
+                                entry_date=(
+                                    buy_fill.fill_timestamp
+                                ),
+                                exit_date=(
+                                    fill.fill_timestamp
+                                ),
+                                entry_price=(
+                                    buy_fill.fill_price
+                                ),
+                                exit_price=fill.fill_price,
+                                quantity=(
+                                    buy_fill.fill_quantity
+                                ),
+                                entry_bar_index=(
+                                    buy_fill.bar_index
+                                ),
+                                exit_bar_index=(
+                                    fill.bar_index
+                                ),
+                                entry_commission=(
+                                    buy_fill.commission
+                                ),
+                                exit_commission=(
+                                    fill.commission
+                                ),
+                                entry_slippage_cost=(
+                                    buy_fill.slippage_cost
+                                ),
+                                exit_slippage_cost=(
+                                    fill.slippage_cost
+                                ),
+                            )
+                            result.trades.append(trade)
+                            result.total_trades += 1
 
                 pending_signal = 0
 
@@ -193,7 +290,17 @@ class BacktestEngine:
                 # bar[t].close'da sinyal üret
                 signal = signal_func(data, i, portfolio)
 
-            pending_signal = signal
+            # Son barda pending signal kaybolur
+            if i < len(data) - 1:
+                pending_signal = signal
+                pending_signal_bar = i
+            else:
+                if signal != 0:
+                    result.warnings.append(
+                        f"Son barda sinyal ({signal}) "
+                        f"üretildi ama execute edilemedi "
+                        f"(sonraki bar yok)."
+                    )
 
             # --- EQUITY TRACKING ---
             equity = portfolio.total_equity(prices)
@@ -204,10 +311,17 @@ class BacktestEngine:
             # Portfolio invariant doğrula
             expected = portfolio.cash + pos_value
             if abs(equity - expected) > 0.01:
-                logger.error(
-                    f"❌ Bar {i}: Invariant kırıldı! "
-                    f"equity={equity:.2f} != "
+                raise RuntimeError(
+                    f"Bar {i}: Portfolio invariant "
+                    f"kırıldı! equity={equity:.2f} != "
                     f"cash+pos={expected:.2f}"
+                )
+
+            # Negatif cash kontrolü
+            if portfolio.cash < -0.01:
+                result.warnings.append(
+                    f"Bar {i}: Negatif nakit! "
+                    f"cash={portfolio.cash:.2f}"
                 )
 
             # Drawdown hesapla
@@ -256,41 +370,40 @@ class BacktestEngine:
         )
         result.total_commission = portfolio.total_commission
 
+        # Açık pozisyon kontrolü
+        position = portfolio.get_or_create_position(symbol)
+        if position.is_open:
+            result.has_open_position = True
+            result.warnings.append(
+                f"Açık pozisyon kaldı: "
+                f"{position.quantity}x {symbol} @ "
+                f"avg_entry={position.avg_entry_price:.2f}"
+                f" — final equity'de piyasa değeriyle "
+                f"değerlendi."
+            )
+
         # Sharpe Ratio (günlük)
         if len(result.equity_curve) > 1:
             equities = [
                 ep.total_equity
                 for ep in result.equity_curve
             ]
-            returns = pd.Series(equities).pct_change().dropna()
+            returns = (
+                pd.Series(equities).pct_change().dropna()
+            )
             if returns.std() > 0:
                 result.sharpe_ratio = (
                     returns.mean() / returns.std()
-                ) * (252 ** 0.5)
+                ) * (252**0.5)
 
-        # Win rate — al/sat çiftlerinden hesapla
-        buy_fills = [
-            f for f in result.fills
-            if f.order.side == OrderSide.BUY
-        ]
-        sell_fills = [
-            f for f in result.fills
-            if f.order.side == OrderSide.SELL
-        ]
-        if sell_fills:
-            profitable = 0
-            for sell_fill in sell_fills:
-                # Eşleşen buy'ı bul (aynı sembol, sell'den önce)
-                matching_buys = [
-                    b for b in buy_fills
-                    if b.order.symbol == sell_fill.order.symbol
-                    and b.bar_index < sell_fill.bar_index
-                ]
-                if matching_buys:
-                    last_buy = matching_buys[-1]
-                    if sell_fill.fill_price > last_buy.fill_price:
-                        profitable += 1
-            result.win_rate = profitable / len(sell_fills)
+        # Win rate — CompletedTrade'lerden hesapla
+        if result.trades:
+            winners = sum(
+                1 for t in result.trades if t.is_winner
+            )
+            result.win_rate = (
+                winners / len(result.trades)
+            )
 
         logger.success(
             f"✅ Backtest tamamlandı: "
@@ -310,7 +423,9 @@ class BacktestEngine:
         portfolio: Portfolio,
         prices: dict[str, float],
         bar_index: int,
-        bar_date: pd.Timestamp,
+        signal_bar_index: int,
+        signal_date: pd.Timestamp,
+        execution_date: pd.Timestamp,
     ) -> Fill | None:
         """Sinyali execute et."""
         position = portfolio.get_or_create_position(symbol)
@@ -342,15 +457,27 @@ class BacktestEngine:
             fill_price, quantity
         )
 
+        # Slippage maliyet etkisi = per-unit slippage * adet
+        per_unit_slippage = abs(fill_price - open_price)
+        slippage_cost = per_unit_slippage * quantity
+
         order = Order(
             symbol=symbol,
             side=side,
             quantity=quantity,
             order_type=OrderType.MARKET,
-            signal_bar_index=bar_index - 1,
-            signal_timestamp=bar_date.to_pydatetime(),
+            signal_bar_index=signal_bar_index,
+            signal_timestamp=(
+                signal_date.to_pydatetime()
+            ),
+            execution_bar_index=bar_index,
+            execution_timestamp=(
+                execution_date.to_pydatetime()
+            ),
             status=OrderStatus.FILLED,
-            order_id=f"{symbol}_{bar_index}_{side.value}",
+            order_id=(
+                f"{symbol}_{bar_index}_{side.value}"
+            ),
         )
 
         fill = Fill(
@@ -358,16 +485,20 @@ class BacktestEngine:
             fill_price=fill_price,
             fill_quantity=quantity,
             commission=commission,
-            slippage=abs(fill_price - open_price),
-            fill_timestamp=bar_date.to_pydatetime(),
+            slippage=per_unit_slippage,
+            slippage_cost=slippage_cost,
+            fill_timestamp=(
+                execution_date.to_pydatetime()
+            ),
             bar_index=bar_index,
         )
 
         logger.debug(
-            f"📊 {bar_date:%Y-%m-%d} | "
+            f"📊 {execution_date:%Y-%m-%d} | "
             f"{side.value.upper()} {quantity}x "
             f"{symbol} @ {fill_price:.2f} | "
-            f"Komisyon: ₺{commission:.2f}"
+            f"Komisyon: ₺{commission:.2f} | "
+            f"Sinyal: {signal_date:%Y-%m-%d}"
         )
 
         return fill

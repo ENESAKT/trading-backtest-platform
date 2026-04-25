@@ -13,6 +13,12 @@ Kullanım:
             ...
             return signal  # +1, -1, 0
 
+Strateji Lifecycle:
+    1. __init__(params)     — parametrelerle oluştur
+    2. validate_params()    — parametre doğrulaması
+    3. prepare(data)        — indikatörleri önceden hesapla
+    4. generate_signals()   — bar-bar sinyal üret
+
 Execution Spec Hatırlatma:
     - bar[t].close'da sinyal üret
     - bar[t+1].open'da execute et
@@ -33,8 +39,11 @@ from quant_engine.backtest.domain import Portfolio
 @dataclass(frozen=True)
 class StrategyParams:
     """Strateji parametreleri — immutable, hashable."""
+
     name: str
-    params: dict[str, Any] = field(default_factory=dict)
+    params: dict[str, Any] = field(
+        default_factory=dict
+    )
 
     def __str__(self) -> str:
         param_str = ", ".join(
@@ -52,6 +61,8 @@ class BaseStrategy(ABC):
     - default_params: Varsayılan parametreler
     - warm_up_bars: Warm-up bar sayısı
     - generate_signals(): Sinyal üretme fonksiyonu
+    - validate_params(): Parametre validasyonu
+    - prepare(data): İndikatörleri önceden hesapla
     """
 
     name: str = "unnamed_strategy"
@@ -78,6 +89,7 @@ class BaseStrategy(ABC):
                 )
             merged.update(params)
         self._params = merged
+        self._prepared_data: dict[str, Any] = {}
 
     @property
     def default_params(self) -> dict[str, Any]:
@@ -97,6 +109,41 @@ class BaseStrategy(ABC):
     def get_param(self, key: str) -> Any:
         """Tek parametre oku."""
         return self._params[key]
+
+    def validate_params(self) -> list[str]:
+        """
+        Parametre validasyonu.
+
+        Alt sınıflar override ederek kendi kurallarını ekler.
+
+        Returns:
+            list[str]: Hata mesajları listesi (boş = geçerli)
+        """
+        errors: list[str] = []
+
+        # Genel kurallar
+        for key, value in self._params.items():
+            if isinstance(value, (int, float)):
+                if key.endswith("period") and value < 1:
+                    errors.append(
+                        f"{key} >= 1 olmalı "
+                        f"(mevcut: {value})"
+                    )
+
+        return errors
+
+    def prepare(self, data: pd.DataFrame) -> None:
+        """
+        İndikatörleri önceden hesapla (cache).
+
+        Alt sınıflar override ederek kendi indikatörlerini
+        önceden hesaplar. Her bar'da yeniden hesaplama yerine
+        bir kez hesapla, sonra indeksle eriş.
+
+        Args:
+            data: Tam OHLCV verisi
+        """
+        self._prepared_data = {}
 
     @abstractmethod
     def generate_signals(
@@ -124,6 +171,7 @@ class BaseStrategy(ABC):
 
         Warm-up kontrolü dahil.
         """
+
         def _signal_func(
             data: pd.DataFrame,
             bar_index: int,
@@ -134,6 +182,7 @@ class BaseStrategy(ABC):
             return self.generate_signals(
                 data, bar_index, portfolio
             )
+
         return _signal_func
 
     def get_strategy_params(self) -> StrategyParams:
