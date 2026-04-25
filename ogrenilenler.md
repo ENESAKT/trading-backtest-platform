@@ -73,3 +73,11 @@
 - **BIST VERDA API authentication ve lisans gerektiriyor.** Herkese açık bedava API değil, kurumsal sözleşme gerekir. Bireysel kullanıcı için Matriks daha erişilebilir.
 
 - **Genişletilmiş bar şeması (instrument_id, timestamp_open/close_utc, asset_class, source, is_adjusted) ileride zorunlu olacak.** Şu anki basit `date, OHLCV, symbol` şeması günlük yfinance verisi için yeterli ama çoklu kaynak, intraday ve VİOP geldiğinde yetersiz kalır. Migration script ile dönüşüm yapılabilir.
+
+## AŞAMA 1 — Geliştirici Altyapısı
+
+- **Bilinen bug'ları "şu anki davranışı belgeleyen test" olarak yaz.** Bug düzeltildikten sonra assertion tersine çevrilerek doğrulama yapılır. Bu yaklaşım hem bug'ı belgeliyor hem regression testi oluşturuyor.
+
+- **ruff --fix 198 hatayı otomatik düzeltti, --unsafe-fixes 42 SQL whitespace sorununu çözdü.** SQL triple-quote string'lerdeki trailing whitespace ruff'ın normal --fix'iyle düzelmiyor, --unsafe-fixes gerekiyor. Bu SQL yapısını bozmadı çünkü sadece satır sonu boşlukları temizledi.
+
+- **Storage test'lerinde tmp_path fixture kullan.** Testler gerçek data/ dizinine yazarsa test artığı kalır. pytest'in `tmp_path` fixture'ı her test için geçici dizin verir, test bitince temizlenir.
