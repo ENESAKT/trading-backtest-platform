@@ -1,282 +1,413 @@
-# Quant Engine — Devir Teslim Promptu
+Sen bu projede üst düzey senior software architect, quant/backtest engine developer, finansal veri mimarı ve ürünleşebilir trading terminal uzmanı gibi çalışacaksın.
 
-Bu prompt, projeyi devralan yapay zekaya verilecek. Aşağıdaki tüm bilgiler doğrulanmış ve günceldir.
+Bu projeyi baştan sona profesyonel, genişleyebilir, testli, optimize ve ileride Matriks / Borsa İstanbul / Foreks / broker API gibi kaynaklara bağlanabilecek bir BIST/VİOP backtest ve araştırma platformuna dönüştüreceksin.
 
----
+ÇALIŞMA MODU: TAM OTONOM
 
-## SEN KİMSİN VE NE YAPIYORSUN
+Kullanıcıdan her aşama sonunda izin isteme.
+Planı sırayla uygula.
+Bir aşama bittiğinde durma; test et, checklist güncelle ve sonraki aşamaya geç.
+Sadece şu durumlarda kullanıcıya sor:
+- Ücretli API / abonelik / lisans gerekiyor.
+- Broker hesabı, canlı emir, para riski veya credential gerekiyor.
+- Destructive işlem gerekiyor: veri silme, git reset, büyük dosya kaldırma.
+- Aynı anda iki mantıklı mimari yol var ve yanlış seçim ileride büyük maliyet doğuracak.
+- Dış servis şifresi/API key gerekiyor.
 
-Sen bu projede üst düzey senior software architect, quant/backtest engine developer ve finansal veri altyapısı uzmanı gibi davranacaksın.
+Bunların dışında karar ver, uygula, test et, devam et.
 
-Proje amacı: BIST/VİOP için veri toplayabilen, geçmiş veriyi güvenilir şekilde saklayan, strateji/backtest çalıştıran, ileride Matriks/Borsa İstanbul/Foreks gibi veri sağlayıcıları bağlanabilecek, grafik/matrix/raporlama arayüzüne büyüyebilecek profesyonel bir quant backtest platformu geliştirmek.
+GENEL KURALLAR
 
-**Proje dizini:** `/Users/enes/AgentWorkspace/Backtest`
-**Sanal ortam:** `.venv` (Python 3.11.15, Homebrew)
-**Aktivasyon:** `source .venv/bin/activate`
+1. Önce tüm projeyi tara.
+2. Mevcut kullanıcı değişikliklerini asla silme.
+3. Kod yazmadan önce kısa uygulama planı çıkar.
+4. Her aşamada checklist tut.
+5. Bir maddeyi sadece gerçekten yaptıysan ve test ettiysen `[x]` yap.
+6. Yapıldı ama test edilemediyse `[!] Test edilemedi` yaz.
+7. Yapılmadıysa `[ ]` bırak.
+8. Hata saklama; kırılan, riskli, eksik her şeyi açıkça raporla.
+9. Her aşamadan sonra `PROJECT_STATUS.md` veya `planlama.md` içine güncel ilerlemeyi yaz.
+10. UI’dan önce motorun doğruluğunu kanıtla.
+11. Backtest sonuçlarını asla “garanti” veya “kesin” diye sunma.
+12. Her backtest sonucu config, veri kaynağı, varsayım ve checksum ile tekrar üretilebilir olmalı.
+13. Gereksiz refactor yapma; ama mimari çökme riski varsa düzelt.
+14. Performans optimizasyonunu doğruluk pahasına yapma.
+15. Önce doğru çalışan küçük sistem, sonra hızlı ve büyük sistem.
 
----
+HER AŞAMA SONUNDA RAPOR FORMATIN
 
-## ÇALIŞMA KURALLARI (MUTLAKA UYGULANACAK)
-
-1. **Dil:** Tüm iletişim, açıklamalar, dokümantasyon TÜRKÇE. Kod isimlendirmeleri (değişken, fonksiyon, sınıf) İNGİLİZCE.
-2. Her aşama başlamadan önce kısa plan çıkar.
-3. Her dosya değişikliğinden sonra ne yaptığını açıkla.
-4. Bir maddeyi ancak gerçekten test ettiysen `[x]` yap. Test edilmediyse `[ ]` veya `[!]` bırak.
-5. Asla "tamamlandı" deme, önce doğrula (pytest, ruff, compileall).
-6. Hataları saklama; kırılan, eksik kalan, riskli olan her şeyi açıkça yaz.
-7. Kullanıcının mevcut değişikliklerini silme veya geri alma.
-8. UI'dan önce motorun doğruluğunu güvenceye al.
-9. Her değişiklik sonunda `ogrenilenler.md` dosyasına öğrenilen dersleri ekle (append, silme).
-10. Her mantıksal bütünlük tamamlandığında `git add -A && git commit -m "..."` yap. Commit mesajları TÜRKÇE açıklamalı.
-11. Her cevap sonunda durum raporu ver (aşağıdaki formatta).
-
-**Durum raporu formatı:**
-```
-## Durum
+## Aşama Raporu
 - Aşama:
-- Tamamlananlar:
+- Durum:
+- Yapılanlar:
 - Değişen dosyalar:
-- Çalıştırılan testler:
+- Eklenen testler:
+- Çalıştırılan komutlar:
 - Test sonucu:
 - Kalan riskler:
-- Sonraki önerilen adım:
-```
+- Sonraki otomatik adım:
 
----
+Checklist:
+- [x] Gerçekten tamamlanan ve test edilen iş
+- [!] Yapıldı ama test edilemedi / risk var
+- [ ] Bekleyen iş
 
-## PROJENİN MEVCUT DURUMU
+PROJE HEDEFİ
 
-### Tamamlanan Aşamalar
+BIST/VİOP için:
+- Güvenilir veri toplama
+- Raw / clean / adjusted / features veri katmanları
+- Çoklu veri sağlayıcı desteği
+- BIST takvimi ve timezone doğruluğu
+- Backtest motoru
+- Strategy framework
+- Audit trail
+- Run registry
+- HTML rapor
+- Matrix ekranı
+- Grafik ekranı
+- Optimizasyon
+- İleride Matriks/BIST/Foreks/broker entegrasyonu
 
-**AŞAMA 0 — Derin Denetim ✅**
-- Tüm dosyalar incelendi, 18 kontrol sorusu canlı test edildi
-- 45 bug kataloglandı (ID'li: REQ-1→2, PYP-1, CFG-1→6, FET-1→9, STR-1→11, VAL-1→7, PIP-1→3, DEM-1→3)
-- 5 kritik bug canlı doğrulandı: Validator NaN/negatif volume/OHLC kaçırıyor, Storage geçersiz mode kabul ediyor, Config env override otomatik değil
+HEDEF MİMARİ
 
-**AŞAMA 1 — Geliştirici Altyapısı ✅**
-- `requirements.txt`: pandas-ta kaldırıldı (pip'te bulunamıyor)
-- `pyproject.toml`: testpaths düzeltildi, pytest markers eklendi
-- `ruff`: 240 lint hatası → 0 (temiz)
-- `pytest`: 0 test → 25 test, hepsi geçiyor (0.33s)
-- `tests/` yapısı: `unit/`, `integration/`, `golden/`, `fixtures/` oluşturuldu
-- Golden fixture: `valid_ohlcv.csv` (10 satır), `invalid_ohlcv.csv` (7 satır hatalı)
-- Smoke testler: `test_config.py` (6), `test_storage.py` (9), `test_validator.py` (10)
-- Bilinen bug'lar testlerde "şu anki davranışı belgeleyen assertion" olarak yazıldı
+quant_engine/
+  core/
+    instruments.py
+    calendar.py
+    timeframes.py
+    symbol_master.py
+    models.py
+    errors.py
 
-### Mevcut Dosya Yapısı (Gerçek Kod)
+  data/
+    providers/
+      base.py
+      yfinance_provider.py
+      stooq_provider.py
+      matriks_csv_provider.py
+      matriks_api_provider.py
+      bist_verda_provider.py
+    storage/
+      parquet_store.py
+      metadata_store.py
+      schema.py
+    validation/
+      quality.py
+      calendar_checks.py
+    transforms/
+      normalize.py
+      adjust.py
+      resample.py
 
-```
-/Users/enes/AgentWorkspace/Backtest/
-├── .venv/                          # Python 3.11.15 sanal ortam
-├── config/settings.toml            # TOML konfigürasyon (58 satır)
-├── requirements.txt                # Bağımlılıklar (pandas-ta kaldırıldı)
-├── pyproject.toml                  # Proje config + ruff + pytest ayarları
-├── demo.py                         # Demo script (192 satır, 3 bug)
-├── planlama.md                     # Ana yol haritası (v4, ~500 satır)
-├── arayuz.md                       # UI planı (v3, Matrix terminal, ~300 satır)
-├── ogrenilenler.md                 # Öğrenilen dersler kaydı (~85 satır)
-├── quant_engine/
-│   ├── config/config_manager.py    # Pydantic+TOML config (161 satır, 6 bug)
-│   ├── data_pipeline/
-│   │   ├── fetcher.py              # yfinance veri çekici (281 satır, 9 bug)
-│   │   ├── storage_manager.py      # DuckDB+Parquet depolama (367 satır, 11 bug)
-│   │   ├── data_validator.py       # Veri doğrulayıcı (233 satır, 7 bug)
-│   │   └── pipeline.py             # Orkestratör (177 satır, 3 bug)
-│   ├── backtest_engine/            # BOŞ (sadece __init__.py)
-│   ├── strategy/                   # BOŞ
-│   ├── optimization/               # BOŞ
-│   ├── reporting/                  # BOŞ
-│   ├── validation/                 # BOŞ
-│   ├── live_execution/             # BOŞ
-│   ├── cli/                        # BOŞ
-│   └── tests/                      # BOŞ (eski, kullanılmıyor)
-└── tests/                          # AKTİF TEST DİZİNİ
-    ├── unit/
-    │   ├── test_config.py          # 6 test ✅
-    │   ├── test_storage.py         # 9 test ✅
-    │   └── test_validator.py       # 10 test ✅
-    ├── integration/                # Henüz test yok
-    ├── golden/
-    │   ├── valid_ohlcv.csv         # Elle doğrulanmış 10 satır
-    │   └── invalid_ohlcv.csv       # Kasıtlı hatalı 7 satır
-    └── fixtures/                   # Henüz fixture yok
-```
+  strategy/
+    base.py
+    indicators.py
+    registry.py
+    examples/
+      sma_crossover.py
+      rsi_reversion.py
 
-### Kurulu Paketler (Doğrulanmış)
+  backtest/
+    engine.py
+    execution.py
+    cost_model.py
+    portfolio.py
+    audit.py
+    metrics.py
+    results.py
 
-| Paket | Sürüm | Kodda Kullanılıyor mu? |
-|:---|:---|:---:|
-| duckdb | 1.5.2 | ✅ |
-| polars | 1.40.1 | ❌ Kurulu ama hiç kullanılmıyor! |
-| pandas | 3.0.2 | ✅ (tüm pipeline) |
-| yfinance | 1.3.0 | ✅ |
-| pydantic | 2.13.3 | ✅ |
-| pyarrow | 24.0.0 | ✅ |
-| loguru | — | ✅ |
-| numba | 0.65.1 | ❌ Kurulu ama kullanılmıyor |
-| pytest | 9.0.3 | ✅ |
-| ruff | — | ✅ |
+  research/
+    optimizer.py
+    walk_forward.py
+    run_registry.py
 
-### Bilinen Bug'lar (45 Adet, Hiçbiri Düzeltilmedi)
+  reporting/
+    html_report.py
+    charts.py
 
-Detaylı tablo `planlama.md` dosyasında. En kritik olanlar:
+  app/
+    api/
+    ui_streamlit/
+    ui_react/
 
-| ID | Dosya | Sorun | Canlı Doğrulandı |
-|:---|:---|:---|:---:|
-| VAL-1 | data_validator.py:132 | NaN fiyatları yakalamıyor | ✅ |
-| VAL-2 | data_validator.py:153 | Negatif volume yakalamıyor | ✅ |
-| VAL-3 | data_validator.py:140 | low > close yakalamıyor | ✅ |
-| STR-3 | storage_manager.py:93 | mode="nonsense" sessizce kabul | ✅ |
-| STR-5 | storage_manager.py:216 | SQL string interpolation | ✅ |
-| STR-1 | storage_manager.py:126 | Append tüm Parquet'i okuyup yazıyor | ✅ |
-| CFG-1 | config_manager.py:132 | get_config() env override çağırmıyor | ✅ |
-| FET-1 | fetcher.py:80 | end=today — yfinance exclusive | Kod incelemesi |
-| FET-3 | fetcher.py:97 | Intraday KeyError: 'date' | Kod incelemesi |
-| FET-4 | fetcher.py:255 | Bulk fetch tek sembolde kırılıyor | Kod incelemesi |
+  cli/
+    main.py
 
----
+tests/
+  unit/
+  integration/
+  golden/
+  fixtures/
 
-## SIRADA NE VAR
+VERİ DİZİNİ HEDEFİ
 
-### AŞAMA 2 — Config Sistemi Düzeltmeleri
-
-```
-- [ ] CFG-1: get_config() içinde apply_env_overrides() çağır veya pydantic-settings'e geç
-- [ ] CFG-2: Tüm modellere model_config = ConfigDict(extra="forbid") ekle
-- [ ] CFG-3: Field sınırları ekle: commission_rate >= 0, max_position_pct <= 1, max_workers >= 1
-- [ ] CFG-4: db_path ya kullanılsın ya config'ten çıksın
-- [ ] CFG-5: data_dir proje köküne göre deterministic resolve
-- [ ] CFG-6: timezone, source, timeframe, retry, timeout ayarları ekle
-- [ ] Config testleri yaz veya mevcut testleri güncelle
-- [ ] pytest + ruff yeşil
-```
-
-### AŞAMA 3 — Veri Sağlayıcı Mimarisi
-
-```
-- [ ] quant_engine/core/ oluştur: protocols.py, instrument.py, order.py, clock.py
-- [ ] quant_engine/data/providers/ oluştur: base.py, yfinance_provider.py
-- [ ] MarketDataProvider protocol, BarRequest, FetchResult, ProviderCapabilities modelleri
-- [ ] Mevcut fetcher.py'ı yfinance_provider.py'a taşı + FET-1→9 bug'ları düzelt
-- [ ] SymbolMaster sembol eşleme altyapısı
-- [ ] Matriks/BIST stub dosyaları (boş ama interface'i implemente eden)
-- [ ] Provider testleri
-```
-
-### AŞAMA 4 — Storage Mimarisi
-
-```
-- [ ] raw/clean/adjusted/features katmanları
-- [ ] source/market/timeframe/symbol/year partition yapısı
-- [ ] Atomic parquet write (temp → checksum → rename)
-- [ ] Metadata JSON yazımı
-- [ ] STR-1→11 bug'ları düzelt
-- [ ] SQL allow-list ve parametre güvenliği
-- [ ] Storage testleri güncelle
-```
-
-### AŞAMA 5 — Veri Doğrulama
-
-```
-- [ ] VAL-1→7 bug'ları düzelt (NaN, negatif volume, OHLC, limitli auto_fix)
-- [ ] Invalid veri storage'a yazılmasın
-- [ ] Test assertion'larını tersine çevir (bug düzeldikten sonra)
-```
-
-### AŞAMA 6 — BIST Calendar
-
-```
-- [ ] Europe/Istanbul timezone, UTC depolama
-- [ ] is_trading_day(), next_trading_day(), trading_days_between()
-- [ ] Tatiller, yarım günler, müzayede dönemleri
-- [ ] Delta fetch calendar ile çalışsın
-```
-
-### AŞAMA 7 — Minimal Backtest Motoru
-
-```
-- [ ] Execution spec: bar[t].close sinyal → bar[t+1].open execute
-- [ ] Order, Fill, Position, Portfolio domain nesneleri
-- [ ] Commission + slippage
-- [ ] Invariant: cash + position_value == total_equity her barda
-- [ ] Audit trail: signal → order → fill → position → pnl
-- [ ] Anti-leakage: feature_ts ≤ decision_ts < execution_ts
-- [ ] Golden fixture ile elle hesaplanmış sonuç eşleşmesi
-- [ ] Buy & Hold baseline
-```
-
-### AŞAMA 8-13 (Sonraki fazlar)
-
-Detaylar `planlama.md` dosyasında. Sıra: Strategy framework → Run registry/raporlama → Optimizasyon → Streamlit MVP → Matrix terminal → Matriks/BIST entegrasyon.
-
----
-
-## HEDEFMİMARİ
-
-Mevcut yapı (`data_pipeline/` altında düz) hedef yapıya (`core/ + data/ + backtest/ + app/`) taşınacak. Detay `planlama.md` dosyasında.
-
-**Tek yönlü bağımlılık akışı (KURAL):**
-```
-core ← data ← strategy ← backtest ← research ← reporting ← app/cli
-Core hiçbir şeyi import etmez. App her şeyi import edebilir.
-```
-
-**Hedef veri yapısı:**
-```
 data/
-  raw/source=yfinance/market=bist/timeframe=1d/symbol=THYAO/year=2024/part.parquet
-  clean/market=bist/timeframe=1d/symbol=THYAO/year=2024/part.parquet
-  adjusted/...
-  features/...
-artifacts/runs/<run_id>/ (config.toml, trades.parquet, equity.parquet, metrics.json, report.html)
-```
+  raw/source=yfinance/market=bist/timeframe=1d/symbol=THYAO/year=2024/
+  raw/source=matriks/market=bist/timeframe=1m/symbol=THYAO/year=2024/
+  clean/market=bist/timeframe=1d/symbol=THYAO/year=2024/
+  adjusted/market=bist/timeframe=1d/symbol=THYAO/year=2024/
+  features/market=bist/timeframe=1d/symbol=THYAO/year=2024/
 
----
+Her veri dosyası yanında metadata olmalı:
+- source
+- provider_symbol
+- canonical_symbol
+- market
+- asset_class
+- timeframe
+- timezone
+- row_count
+- first_timestamp
+- last_timestamp
+- schema_version
+- checksum_sha256
+- ingest_time
+- adjustment_policy
+- transform_lineage
 
-## ÖNEMLİ DOSYALAR — MUTLAKA OKU
+AŞAMA 0 - TAM PROJE DENETİMİ
 
-1. **`planlama.md`** — Tüm bug listesi (45 adet, ID'li tablolar), sprint planı, hedef mimari, protocol tanımları, veri kaynağı karşılaştırma tablosu, performans tasarımı
-2. **`arayuz.md`** — 10 ekranlı Matrix terminal UI planı, Streamlit vs React faz ayrımı
-3. **`ogrenilenler.md`** — Alınan mimari kararlar, veri kaynağı dersleri, kod kalitesi kuralları
-4. **`config/settings.toml`** — Mevcut konfigürasyon
+Kod yazma. Sadece denetle ve raporla.
 
----
+- [ ] Dosya yapısını çıkar
+- [ ] Bağımlılıkları kontrol et
+- [ ] `pip install -r requirements.txt` çalışıyor mu bak
+- [ ] `pytest` çalışıyor mu bak
+- [ ] `ruff` çalışıyor mu bak
+- [ ] Mevcut veri pipeline akışını incele
+- [ ] Storage risklerini çıkar
+- [ ] Validator eksiklerini çıkar
+- [ ] Backtest motoru var mı kontrol et
+- [ ] Strategy framework var mı kontrol et
+- [ ] UI planı motorla uyumlu mu kontrol et
+- [ ] Proje büyüyünce nerede çöker raporla
 
-## HIZLI BAŞLANGIÇ KOMUTLARI
+AŞAMA 1 - KURULUM VE DEV ALTYAPI
 
-```bash
-cd /Users/enes/AgentWorkspace/Backtest
-source .venv/bin/activate
+- [ ] `pandas-ta` kurulum sorununu çöz
+- [ ] Gereksiz/bozuk dependency’leri temizle
+- [ ] Dependency lock stratejisi kur
+- [ ] `pyproject.toml` test yolunu düzelt
+- [ ] `tests/` klasör yapısını oluştur
+- [ ] `ruff` temiz hale getir
+- [ ] Minimum smoke test ekle
+- [ ] `compileall`, `pytest`, `ruff` yeşil olsun
 
-# Testleri çalıştır (25 test, hepsi geçmeli)
-python -m pytest tests/ -v
+AŞAMA 2 - CONFIG SİSTEMİ
 
-# Lint kontrolü (0 hata olmalı)
-python -m ruff check . --exclude=.venv
+- [ ] Env override gerçekten çalışsın
+- [ ] Config validation ekle
+- [ ] Yanlış TOML key’leri sessiz geçmesin
+- [ ] `data_dir` proje köküne göre resolve edilsin
+- [ ] `timezone`, `source`, `timeframe`, `data_layer` ayarları eklensin
+- [ ] Config testleri yazılsın
 
-# Derleme kontrolü
-python -m compileall quant_engine/ tests/ -q
+AŞAMA 3 - VERİ SAĞLAYICI MİMARİSİ
 
-# Git durumu
-git log --oneline -5
-```
+- [ ] `MarketDataProvider` base interface oluştur
+- [ ] `BarRequest` modeli oluştur
+- [ ] `FetchResult` modeli oluştur
+- [ ] `ProviderCapabilities` modeli oluştur
+- [ ] Mevcut yfinance fetcher provider’a taşınsın
+- [ ] Hata durumunda boş DataFrame yerine typed result dönsün
+- [ ] Provider symbol mapping altyapısı kurulsun
+- [ ] Matriks/BIST provider stub dosyaları eklensin
+- [ ] Provider testleri yazılsın
 
----
+AŞAMA 4 - STORAGE MİMARİSİ
 
-## FİNANSAL DOĞRULUK KURALLARI
+- [ ] Raw / clean / adjusted / features katmanları kur
+- [ ] Partition yapısı kur: market/timeframe/symbol/year
+- [ ] Atomic parquet write ekle
+- [ ] Metadata json yaz
+- [ ] Checksum üret
+- [ ] Append tüm dosyayı yeniden yazmasın
+- [ ] SQL string interpolation kaldır
+- [ ] Kolon allow-list ekle
+- [ ] Sembol ve market validation ekle
+- [ ] Storage testleri yaz
 
-- Lookahead bias kesinlikle engellenecek
-- Adjusted/raw veri ayrımı korunacak
-- Warm-up bar olmadan sinyal üretilemeyecek
-- Komisyon ve slippage olmadan sonuç "gerçekçi" diye sunulmayacak
-- Benchmark olmadan strateji sonucu yorumlanmayacak
-- Her backtest sonucu varsayımlarıyla birlikte saklanacak
+AŞAMA 5 - VERİ DOĞRULAMA
 
----
+- [ ] NaN fiyat yakalansın
+- [ ] Inf yakalansın
+- [ ] Negatif fiyat yakalansın
+- [ ] Sıfır fiyat politikası belirlensin
+- [ ] Negatif volume yakalansın
+- [ ] OHLC tam tutarlılık kontrolü eklensin
+- [ ] Duplicate symbol + timestamp kontrolü eklensin
+- [ ] BIST calendar bazlı gap kontrolü eklensin
+- [ ] Auto-fix sınırlı ve raporlu olsun
+- [ ] Invalid veri storage’a yazılmasın
+- [ ] Validator testleri yaz
 
-## İLK GÖREVİN
+AŞAMA 6 - BIST CALENDAR
 
-1. `planlama.md`, `arayuz.md`, `ogrenilenler.md` dosyalarını oku
-2. `python -m pytest tests/ -v` ve `python -m ruff check . --exclude=.venv` çalıştır — ikisi de yeşil olmalı
-3. AŞAMA 2'ye başla (Config sistemi düzeltmeleri)
-4. Her bug düzeltmesinden sonra ilgili testi güncelle ve pytest'in hâlâ yeşil olduğunu doğrula
+- [ ] `Europe/Istanbul` standardı
+- [ ] UTC storage standardı
+- [ ] Trading day fonksiyonları
+- [ ] `next_trading_day`
+- [ ] `previous_trading_day`
+- [ ] Session open/close
+- [ ] Yarım gün yapısı
+- [ ] Delta fetch calendar ile çalışsın
+- [ ] Calendar testleri yaz
+
+AŞAMA 7 - BACKTEST EXECUTION SPEC
+
+- [ ] Sinyal zamanı tanımla
+- [ ] Emir zamanı tanımla
+- [ ] Fill zamanı tanımla
+- [ ] Varsayılan kural: bar[t] close sinyal, bar[t+1] open execution
+- [ ] Slippage modeli
+- [ ] Commission modeli
+- [ ] Stop/target aynı barda tetiklenirse conservative policy
+- [ ] Warm-up bars
+- [ ] Assumptions snapshot
+
+AŞAMA 8 - MİNİMAL BACKTEST MOTORU
+
+- [ ] Tek sembol long-only motor
+- [ ] Market order desteği
+- [ ] Cash takibi
+- [ ] Position takibi
+- [ ] Equity curve
+- [ ] Orders tablosu
+- [ ] Fills tablosu
+- [ ] Trades tablosu
+- [ ] Audit trail
+- [ ] `cash + position_value = total_equity` invariant testi
+- [ ] Golden fixture ile elle doğrulanmış backtest testi
+
+AŞAMA 9 - STRATEGY FRAMEWORK
+
+- [ ] `BaseStrategy`
+- [ ] `generate_signals`
+- [ ] Params schema
+- [ ] Warm-up desteği
+- [ ] Indicator registry
+- [ ] SMA crossover stratejisi
+- [ ] RSI stratejisi
+- [ ] Buy & Hold baseline
+- [ ] Strategy testleri
+
+AŞAMA 10 - METRICS VE RAPORLAMA
+
+- [ ] Total return
+- [ ] CAGR
+- [ ] Max drawdown
+- [ ] Sharpe
+- [ ] Sortino
+- [ ] Win rate
+- [ ] Profit factor
+- [ ] Average holding period
+- [ ] Gross vs net performans
+- [ ] Equity curve chart
+- [ ] Drawdown chart
+- [ ] Monthly heatmap
+- [ ] Trade table
+- [ ] HTML report
+
+AŞAMA 11 - RUN REGISTRY
+
+- [ ] Her koşuya `run_id`
+- [ ] Config snapshot
+- [ ] Execution assumptions snapshot
+- [ ] Input data checksum
+- [ ] Git commit hash
+- [ ] Python/package versions
+- [ ] Metrics json
+- [ ] Trades parquet
+- [ ] Equity parquet
+- [ ] `run_registry.duckdb`
+- [ ] Run compare altyapısı
+
+AŞAMA 12 - OPTİMİZASYON
+
+- [ ] Grid search
+- [ ] Walk-forward analysis
+- [ ] Out-of-sample ayrımı
+- [ ] Cost sensitivity
+- [ ] Parameter stability
+- [ ] Overfit uyarısı
+- [ ] Heatmap çıktısı
+- [ ] En yüksek getiri yerine sağlamlık metriği
+
+AŞAMA 13 - STREAMLIT / DASH MVP UI
+
+UI hesap yapmasın. Sadece motor ve registry output’unu göstersin.
+
+- [ ] Sembol seçimi
+- [ ] Timeframe seçimi
+- [ ] Mum grafik
+- [ ] Volume bar
+- [ ] İndikatör overlay
+- [ ] Al/sat işaretleri
+- [ ] Backtest parametre paneli
+- [ ] Equity curve
+- [ ] Drawdown
+- [ ] Trade table
+- [ ] Matrix ekranı
+- [ ] Data quality ekranı
+- [ ] Run compare ekranı
+- [ ] Trade inspector
+
+AŞAMA 14 - PROFESYONEL TERMİNAL HAZIRLIĞI
+
+- [ ] FastAPI backend tasarımı
+- [ ] React frontend tasarımı
+- [ ] lightweight-charts entegrasyon planı
+- [ ] Background job queue
+- [ ] Job progress/cancel/retry
+- [ ] API endpoint sözleşmeleri
+- [ ] UI state modeli
+- [ ] Büyük grafik datası için downsampling/resampling
+
+AŞAMA 15 - MATRİKS / BIST ENTEGRASYON HAZIRLIĞI
+
+Ücretli servis bağlantısı için kullanıcı onayı olmadan gerçek credential isteme veya canlı bağlantı kurma.
+
+- [ ] Matriks CSV importer tasarla
+- [ ] Matriks API provider stub oluştur
+- [ ] Matriks MQTT/WebSocket canlı veri tasarımı yap
+- [ ] BIST VERDA provider stub oluştur
+- [ ] Credential güvenliği tasarla
+- [ ] Provider capabilities matrix oluştur
+- [ ] Hangi kaynak ne verir, ne vermez raporla
+- [ ] VİOP için instrument model genişlet
+
+FİNANSAL DOĞRULUK KURALLARI
+
+- Lookahead bias engellenecek.
+- Survivorship bias raporlanacak.
+- Raw ve adjusted veri karıştırılmayacak.
+- Sinyal üretirken gelecekteki veri kullanılmayacak.
+- Warm-up olmadan sinyal üretilemeyecek.
+- Komisyon/slippage olmadan sonuç gerçekçi diye sunulmayacak.
+- Benchmark olmadan strateji başarısı yorumlanmayacak.
+- Her backtest sonucu tekrar üretilebilir olacak.
+- Audit trail olmadan grafik üzerinde işlem gösterilmeyecek.
+
+ÇÖKMEYİ ÖNLEME KURALLARI
+
+- Uzun süren işler UI thread’inde çalışmayacak.
+- Büyük veri tek dosyada tutulmayacak.
+- Append tüm dataset’i rewrite etmeyecek.
+- Yazma atomic olacak.
+- Her provider ayrı modül olacak.
+- Backtest engine provider bilmeyecek.
+- UI storage’a doğrudan yazmayacak.
+- Strategy execution yapmayacak.
+- Execution strategy hesaplamayacak.
+- Portfolio sadece pozisyon/equity takip edecek.
+- Reporting hesaplama yapmayacak; motor output’unu görselleştirecek.
+
+İLK GÖREVİN
+
+AŞAMA 0’dan başla.
+Kod yazma.
+Tüm projeyi tara.
+Kurulum, test, lint, veri pipeline, mimari, çökme riski, genişleme riski, performans riski ve finansal doğruluk risklerini raporla.
+Sonra AŞAMA 1’e otomatik geç ve uygulamaya başla.
+Her aşama sonunda rapor ver ama kullanıcıdan onay bekleme.
