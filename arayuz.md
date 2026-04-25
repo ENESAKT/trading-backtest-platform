@@ -1,70 +1,90 @@
-# 🖥️ Quant Engine — Arayüz ve Otomasyon Planı (UI/UX)
+# Quant Engine — Arayüz Planı (UI/UX) — v2 Revize
 
-Bu doküman, arka planda çalışan güçlü backtest motorunun (Quant Engine) ileride nasıl bir web arayüzü ile kontrol edileceğini ve veri süreçlerinin nasıl tam otomatik hale getirileceğini detaylandırır.
+## Tasarım Felsefesi
 
-## 1. 🤖 Tam Otomatik Veri Çekme (Data Otomasyonu)
+Hedef **şık efektler değil**, **güven, hız, karşılaştırma ve denetlenebilirlik**. Bir araştırma terminali gibi bilgi yoğunluğu yüksek, okunabilir, profesyonel bir arayüz.
 
-Senin hiçbir butona basmana gerek kalmadan verilerin güncellenmesi sistemin temel taşıdır.
-
-*   **Nasıl Çalışacak?** İşletim sisteminin arka plan görev yöneticisi (Mac için `launchd` veya `cronjob`) kullanılacak.
-*   **Zamanlama:** Sistem her gün Borsa İstanbul seans kapanışından sonra (örneğin saat **19:00'da**) uyanacak.
-*   **Akıllı Çekim (Delta Fetch):** Sadece "eksik olan günleri" çekecek. Örneğin dün veri çekildiyse, bugün sadece bugünün 1 günlük verisini indirecek. Bu işlem saniyeler sürecek.
-*   **Hata Yönetimi:** İnternet koparsa veya Yahoo Finance yanıt vermezse, sistem gece **00:00'a kadar her saat başı** tekrar deneyecek.
-*   **Bildirim:** İşlem başarıyla bittiğinde veya kalıcı bir hata olduğunda sana (örneğin Telegram botu üzerinden veya arayüzdeki bildirim panelinden) sessiz bir bildirim gönderecek.
+- **Dark mode** ama sade: Koyu gri arka plan, beyaz metin, yeşil (kâr) / kırmızı (zarar)
+- **Glassmorphism veya animasyon YOK** — her piksel bilgi taşımalı
+- **İlk versiyon:** Streamlit veya Dash (Python, hızlı prototip)
+- **Kalıcı versiyon:** FastAPI + React/Next.js (ihtiyaç olursa, sonra)
 
 ---
 
-## 2. 🎨 Arayüz Felsefesi ve Tasarım Dili
+## Tam Otomatik Veri Çekme
 
-Hedefimiz sıradan bir excel tablosu görünümü değil, **premium, fütüristik ve karanlık (Dark Mode) ağırlıklı bir Bloomberg Terminal alternatifi** yaratmak.
-
-*   **Renk Paleti:** Gece mavisi/siyah arka planlar (`#0B0E14`), vurgular için neon yeşil (kâr) ve siber kırmızı (zarar).
-*   **Cam Efekti (Glassmorphism):** Menüler ve kartlar yarı şeffaf, arka planı hafif bulanık gösteren modern bir yapıda olacak.
-*   **Canlılık:** Tıkladığında, fareyi grafikte gezdirdiğinde ufak mikro-animasyonlar ile sistemin "yaşadığını" hissedeceksin.
-*   **Teknoloji:** Arka uç (Backend) **FastAPI** (Python), Ön yüz (Frontend) ise **React/Next.js** (veya Python tabanlı çok şık bir **Streamlit/Dash** tasarımı) ile yapılacak.
-
----
-
-## 3. 📱 Ekranlar ve Menüler
-
-Sisteme girdiğinde sol tarafta şık bir menü çubuğu olacak. İşte sayfalar:
-
-### 🏠 1. Ana Gösterge Paneli (Dashboard)
-Sisteme ilk girdiğinde seni karşılayan özet ekran.
-*   **Sistem Durumu:** Veritabanında kaç milyon satır veri var? Son veri güncellemesi ne zaman yapıldı? (Yeşil tik ile gösterilecek).
-*   **Aktif Stratejiler:** Canlıda veya sanal takipte (paper trading) olan stratejilerinin bugünkü kâr/zarar durumu.
-*   **Piyasa Özeti:** BIST30'un o günkü genel durumu (küçük bir ısı haritası - Heatmap).
-
-### 📥 2. Veri İstasyonu (Data Pipeline)
-Veri tabanının kalbi.
-*   **Hisse Listesi:** Sistemde kayıtlı tüm hisselerin listesi. Yanlarında ne kadarlık geçmiş verileri olduğu yazar (Örn: `THYAO - 2015'ten bugüne (1.2M Satır)`).
-*   **Manuel Tetikleme:** Otomasyon dışında, istersen "Tüm Verileri Şimdi Güncelle" veya "Yeni Hisse Ekle" butonları.
-*   **Kalite Skoru:** Verilerde boşluk veya anormallik varsa sistem burada uyarı verir (Örn: *"GARAN verisinde 3 gün boşluk tespit edildi"*).
-
-### 🧪 3. Senaryo ve Strateji Kurucu (Strategy Builder)
-İşte burası senin oyun alanın. Hiç kod yazmadan veya çok az kodla yeni fikirler deneyeceğin yer.
-*   **Strateji Seçimi:** Önceden yazdığımız algoritmaları (Örn: "Hareketli Ortalama Kesişimi", "RSI Aşırı Satım", "Bollinger Kırılımı") bir açılır menüden seçersin.
-*   **Parametre Paneli:** Seçtiğin stratejinin ayarları sliders (kaydırma çubukları) ile önüne gelir. 
-    *   *Örnek:* "Kısa Ortalama: [ 10 ]", "Uzun Ortalama: [ 50 ]". Bunları fareyle sağa sola çekerek ayarlarsın.
-*   **Hisse Seçimi:** Bu stratejiyi nerede test etmek istiyorsun? "Sadece Bankalar", "Tüm BIST30", "Sadece THYAO". Tıkla ve seç.
-*   **Tarih Aralığı:** Hangi yıllar arasında test edilecek? (Örn: 2018-2024).
-*   **🚀 "TEST ET" Butonu:** En altta devasa, dikkat çekici bir buton. Buna bastığında motor arkada saniyeler içinde milyonlarca hesaplama yapar.
-
-### 📈 4. Backtest Laboratuvarı (Raporlar ve Sonuçlar)
-"Test Et" butonuna bastıktan sonra açılan sihirli ekran. Her şey görselleştirilmiştir.
-*   **Sermaye Eğrisi (Ana Grafik):** Ekranın ortasında kocaman bir grafik. Paranın zaman içindeki büyümesini gösterir. Fareyle grafikte gezindiğinde o günkü bakiyeni anlık görürsün.
-*   **Performans Kartları (En Üstte):** 
-    *   `Net Kâr: +%340` (Yeşil)
-    *   `Maksimum Düşüş (Drawdown): -%12` (Kırmızı)
-    *   `Kazanma Oranı (Win Rate): %65`
-    *   `Toplam İşlem: 142`
-*   **Aylık Isı Haritası (Heatmap):** Hangi ay yüzde kaç kâr/zarar ettiğini gösteren satranç tahtası gibi bir tablo. Kârlı aylar koyu yeşil, zararlı aylar koyu kırmızı. Bu sayede stratejinin hangi dönemlerde çuvalladığını şıp diye anlarsın.
-*   **İşlem Dökümü (Tablo):** En altta, yapılan tüm al-sat işlemlerinin excel benzeri ama çok şık bir tablosu. İstersen bu sonuçları "Excel'e Aktar" butonu ile bilgisayarına indirebilirsin.
-
-### ⚙️ 5. Ayarlar (Settings)
-*   Başlangıç paranı (Örn: 100.000 TL), aracı kurumunun senden kestiği komisyon oranını değiştirebileceğin bölüm.
+- Cronjob/launchd ile her gün saat **19:00'da** otomatik uyanır
+- Sadece eksik günleri çeker (delta fetch)
+- İnternet koparsa gece **00:00'a kadar** her saat tekrar dener
+- Başarı/hata durumunda bildirim (Telegram botu veya arayüz paneli)
+- Manuel "Şimdi Güncelle" butonu da mevcut
 
 ---
 
-## 🎯 Sonuç: Ne Elde Edeceksin?
-Motor (Backend) sana hızı ve doğruluğu sağlayacak. Bu planladığımız Arayüz (Frontend) ise senin bu gücü bir orkestra şefi gibi parmaklarının ucuyla, görsel bir şölen içinde yönetmeni sağlayacak. Strateji üretmek sıkıcı bir kod yazma işinden çıkıp, zevkli bir strateji oyununa dönüşecek.
+## Ekranlar
+
+### 1. Dashboard (Ana Panel)
+Sisteme ilk girişte görülen özet.
+- **Veri güncelliği:** Son başarılı fetch ne zaman? Hangi semboller güncel, hangileri değil?
+- **Veri kalite uyarıları:** Boşluk, outlier, eksik gün sayısı
+- **Son backtest koşuları:** Tarih, strateji, sonuç (Sharpe, MaxDD) — tıklanabilir
+- **Sistem durumu:** Toplam veri satır sayısı, disk kullanımı, motor versiyon
+
+### 2. Data Station (Veri İstasyonu)
+Veritabanının röntgeni.
+- **Sembol bazlı coverage:** Her hisse için ilk tarih / son tarih / satır sayısı
+- **Boşluk haritası:** Hangi günlerde veri eksik?
+- **Outlier listesi:** %20+ günlük değişim gösteren günler (olası split/temettü)
+- **Kaynak ve adjustment durumu:** raw / clean / adjusted / features hangi aşamada?
+- **"Yeni Hisse Ekle" ve "Verileri Güncelle"** butonları
+
+### 3. Strategy Builder (Strateji Kurucu)
+Hiç kod yazmadan senaryo kurma alanı.
+- **Strateji seçimi:** Açılır menüden (SMA Crossover, RSI, Bollinger vb.)
+- **Parametre paneli:** Slider'lar ile ayar (fast: 10, slow: 50)
+- **Universe seçimi:** "BIST30", "Bankalar", "Sadece THYAO" — çoklu seçim
+- **Tarih aralığı:** Başlangıç / bitiş
+- **Maliyet modeli:** Komisyon oranı, slippage seçimi
+- **Risk limitleri:** Max pozisyon %, max drawdown %
+- **Warm-up bars:** İlk kaç bar sinyal üretmesin?
+- **🚀 "TEST ET" butonu**
+
+### 4. Backtest Lab (Sonuç Laboratuvarı)
+Test bittikten sonra açılan analiz ekranı.
+- **Equity curve** (sermaye eğrisi) — interaktif, fareyle detay
+- **Drawdown grafiği** — maximum drawdown vurgulanmış
+- **Benchmark kıyası** — Buy & Hold ile yan yana
+- **Performans kartları:** Net Kâr, Sharpe, MaxDD, Win Rate, Profit Factor
+- **Gross vs Net ayrımı** — komisyon etkisi ne kadar?
+- **Aylık getiri ısı haritası** (heatmap)
+- **Trade tablosu:** Giriş/çıkış/kâr/zarar, filtrelenebilir
+- **Assumptions panel:** Bu sonuç hangi varsayımlarla üretildi? (slippage, fill model, warm-up)
+
+### 5. Run Compare (Koşu Karşılaştırma)
+Birden fazla backtest koşusunu yan yana analiz etme.
+- **Tablo:** Koşu ID, tarih, strateji, parametreler, Sharpe, MaxDD, net kâr
+- **Equity curve overlay:** Seçilen koşuların sermaye eğrilerini üst üste çiz
+- **Parametre diff:** İki koşu arasında ne değişti?
+- **Config snapshot:** Her koşunun ayarlarına tıkla ve gör
+
+### 6. Optimization (Parametre Optimizasyonu)
+Strateji parametrelerinin en sağlam kombinasyonunu bulma.
+- **Parametre heatmap:** X: fast_period, Y: slow_period, renk: Sharpe (veya net kâr)
+- **Walk-forward fold sonuçları:** Her fold'un in-sample/out-of-sample performansı
+- **Stability grafiği:** Parametreyi biraz değiştirince sonuç ne kadar bozuluyor?
+- **Cost sensitivity:** 2bps / 5bps / 10bps'de performans nasıl değişiyor?
+
+### 7. Trade Inspector (İşlem Denetçisi)
+"Bu işlem neden açıldı?" sorusuna cevap veren debug aracı.
+- **Audit trail:** Sinyal → Emir → Dolum → Pozisyon → PnL zinciri
+- **O anın grafiği:** İşlem açıldığı andaki fiyat + indikatör durumu
+- **Dolum detayı:** Hangi fiyattan, ne kadar slippage ile doldu?
+- **Filtreleme:** En kârlı / en zararlı / en büyük / belirli tarih
+
+---
+
+## Uygulama Sırası
+
+1. **Önce motor** — UI olmadan, terminalde çalışır, HTML rapor üretir
+2. **Streamlit MVP** — Motor hazır olduktan sonra, 1-2 günde basit ama işlevsel arayüz
+3. **React/Next.js** — Sadece Streamlit yetersiz kalırsa, çok sonra
