@@ -41,12 +41,16 @@ class AssetClass(str, Enum):
     EQUITY = "equity"
     FUTURES = "futures"
     INDEX = "index"
+    FOREX = "forex"
+    COMMODITY = "commodity"
 
 
 class Market(str, Enum):
     """Piyasa."""
     BIST = "bist"
     VIOP = "viop"
+    FOREX = "forex"
+    COMMODITY = "commodity"
 
 
 class Timeframe(str, Enum):

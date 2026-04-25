@@ -32,11 +32,11 @@ source .venv/bin/activate
 # 2. Bağımlılıkları yükle
 pip install -r requirements.txt
 
-# 3. Demo'yu çalıştır (tek hisse)
-python demo.py --symbol THYAO
+# 3. Gerçek veri kontrolünü çalıştır (tek hisse)
+python real_data_check.py --symbol THYAO
 
-# 4. Tam pipeline demo'su (3 hisse)
-python demo.py --full
+# 4. Streamlit terminalini aç
+streamlit run quant_engine/app/ui_streamlit/app.py --server.port 8502
 ```
 
 ## 📁 Proje Yapısı

@@ -189,10 +189,19 @@ class Position:
             float: Gerçekleşen PnL
         """
         realized_pnl = 0.0
-        fill_qty = fill.fill_quantity if fill.order.side == OrderSide.BUY else -fill.fill_quantity
+        fill_qty = (
+            fill.fill_quantity
+            if fill.order.side == OrderSide.BUY
+            else -fill.fill_quantity
+        )
 
         # Eğer miktar 0 ise veya yön aynıysa -> direkt ekle
-        if self.quantity == 0 or (self.quantity > 0 and fill_qty > 0) or (self.quantity < 0 and fill_qty < 0):
+        same_direction = (
+            self.quantity == 0
+            or (self.quantity > 0 and fill_qty > 0)
+            or (self.quantity < 0 and fill_qty < 0)
+        )
+        if same_direction:
             new_qty = self.quantity + fill_qty
             new_cost = self.total_cost_basis + fill.fill_price * abs(fill_qty)
             self.quantity = new_qty

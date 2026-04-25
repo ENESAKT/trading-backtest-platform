@@ -43,7 +43,7 @@ max_position_pct = 0.20
 max_drawdown_pct = 0.25
 
 [symbols]
-# İlk test için BIST30 çekirdek hisseleri
+# Hızlı tarama için çekirdek BIST hisseleri
 watchlist = [
     "THYAO", "GARAN", "AKBNK", "YKBNK", "ISCTR",
     "KCHOL", "SAHOL", "TUPRS", "EREGL", "BIMAS",

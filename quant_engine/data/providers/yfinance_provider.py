@@ -45,24 +45,41 @@ from quant_engine.data.providers.base import BaseProvider
 # Yahoo Finance'ın BIST için kullandığı suffix
 _BIST_SUFFIX = ".IS"
 
-# SymbolMaster — kanonical sembol → yahoo sembol eşlemesi
-# İleride ayrı modüle taşınacak
-_SYMBOL_MAP: dict[str, str] = {}
+# SymbolMaster — kanonical sembol → yahoo sembol eşlemesi.
+# Canlı/gün sonu gerçek veri yoksa üst katman sahte veriye düşmez.
+_SYMBOL_MAP: dict[str, str] = {
+    "USDTRY": "USDTRY=X",
+    "EURTRY": "EURTRY=X",
+    "GBPTRY": "GBPTRY=X",
+    "EURUSD": "EURUSD=X",
+    "GBPUSD": "GBPUSD=X",
+    "USDJPY": "USDJPY=X",
+    "XAUUSD": "GC=F",
+    "XAGUSD": "SI=F",
+    "BRENT": "BZ=F",
+    "WTI": "CL=F",
+    "NGAS": "NG=F",
+}
 
 
-def _to_yahoo_ticker(symbol: str) -> str:
-    """BIST sembolünü Yahoo Finance formatına çevir."""
+def _to_yahoo_ticker(symbol: str, market: Market = Market.BIST) -> str:
+    """Sembolü Yahoo Finance formatına çevir."""
+    symbol = symbol.upper().replace("/", "").strip()
     # Özel eşleme varsa kullan
     if symbol in _SYMBOL_MAP:
         return _SYMBOL_MAP[symbol]
+    if market in {Market.FOREX, Market.COMMODITY}:
+        return symbol
     # Yoksa suffix ekle
     if not symbol.endswith(_BIST_SUFFIX):
         return f"{symbol}{_BIST_SUFFIX}"
     return symbol
 
 
-def _clean_symbol(yahoo_ticker: str) -> str:
-    """Yahoo ticker'dan BIST sembolünü çıkar."""
+def _clean_symbol(yahoo_ticker: str, requested_symbol: str | None = None) -> str:
+    """Yahoo ticker'dan kullanıcı sembolünü çıkar."""
+    if requested_symbol:
+        return requested_symbol.upper().replace("/", "").replace(_BIST_SUFFIX, "")
     return yahoo_ticker.replace(_BIST_SUFFIX, "")
 
 
@@ -104,7 +121,7 @@ class YFinanceProvider(BaseProvider):
     def capabilities(self) -> ProviderCapabilities:
         return ProviderCapabilities(
             name="yfinance",
-            supported_markets=[Market.BIST],
+            supported_markets=[Market.BIST, Market.FOREX, Market.COMMODITY],
             supported_timeframes=[
                 Timeframe.M1,
                 Timeframe.M5,
@@ -125,8 +142,8 @@ class YFinanceProvider(BaseProvider):
         self, request: BarRequest
     ) -> FetchResult:
         """Yahoo Finance'tan bar verisi çek."""
-        yahoo_ticker = _to_yahoo_ticker(request.symbol)
-        clean_sym = _clean_symbol(yahoo_ticker)
+        yahoo_ticker = _to_yahoo_ticker(request.symbol, request.market)
+        clean_sym = _clean_symbol(yahoo_ticker, request.symbol)
 
         start_str = (
             request.start.isoformat()

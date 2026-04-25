@@ -5,7 +5,13 @@ secondaryBackgroundColor = "#252540"
 textColor = "#ffffff"
 font = "sans serif"
 
+[client]
+toolbarMode = "minimal"
+showErrorLinks = false
+
+[browser]
+gatherUsageStats = false
+
 [server]
 headless = true
-port = 8501
-enableCORS = false
+port = 8502

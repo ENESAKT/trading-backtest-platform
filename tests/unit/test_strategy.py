@@ -8,6 +8,7 @@ Test edilen:
 - Registry (kayıt, oluşturma, listeleme)
 - SMA Crossover stratejisi
 - RSI Reversion stratejisi
+- Bollinger Reversion stratejisi
 - Buy & Hold baseline
 - Engine entegrasyonu (strategy.as_signal_func → engine.run)
 """
@@ -436,6 +437,89 @@ class TestRsiReversion:
 
         strategy = RsiReversion(
             params={"rsi_period": 5, "oversold": 35, "overbought": 65}
+        )
+        engine = BacktestEngine(engine_config)
+        result = engine.run(
+            ohlcv_data,
+            strategy.as_signal_func(),
+            symbol="TEST",
+        )
+        assert result.final_equity > 0
+        assert len(result.equity_curve) == len(ohlcv_data)
+
+
+class TestBollingerReversion:
+    """Bollinger Reversion stratejisi testleri."""
+
+    def test_import_and_defaults(self):
+        from quant_engine.strategy.examples.bollinger_reversion import (
+            BollingerReversion,
+        )
+
+        s = BollingerReversion()
+        assert s.name == "bollinger_reversion"
+        assert s.get_param("period") == 20
+        assert s.get_param("num_std") == 2.0
+        assert s.get_param("exit_band") == "middle"
+        assert s.warm_up_bars == 20
+
+    def test_custom_params(self):
+        from quant_engine.strategy.examples.bollinger_reversion import (
+            BollingerReversion,
+        )
+
+        s = BollingerReversion(
+            params={"period": 10, "num_std": 1.8, "exit_band": "upper"}
+        )
+        assert s.get_param("period") == 10
+        assert s.get_param("num_std") == 1.8
+        assert s.get_param("exit_band") == "upper"
+
+    def test_invalid_exit_band(self):
+        from quant_engine.strategy.examples.bollinger_reversion import (
+            BollingerReversion,
+        )
+
+        s = BollingerReversion(params={"exit_band": "bad"})
+        assert s.validate_params()
+
+    def test_signal_rules(self):
+        from quant_engine.strategy.examples.bollinger_reversion import (
+            BollingerReversion,
+        )
+
+        data = pd.DataFrame(
+            {
+                "date": pd.date_range("2024-01-02", periods=8, freq="B"),
+                "open": [100, 100, 100, 100, 100, 80, 90, 100],
+                "high": [101, 101, 101, 101, 101, 82, 92, 102],
+                "low": [99, 99, 99, 99, 99, 78, 88, 98],
+                "close": [100, 100, 100, 100, 100, 80, 90, 100],
+                "volume": [1_000_000] * 8,
+                "symbol": ["TEST"] * 8,
+            }
+        )
+        strategy = BollingerReversion(
+            params={"period": 5, "num_std": 1.0, "exit_band": "middle"}
+        )
+        strategy.prepare(data)
+        portfolio = Portfolio(initial_capital=100_000)
+
+        assert strategy.generate_signals(data, 5, portfolio) == 1
+
+        position = portfolio.get_or_create_position("TEST")
+        position.quantity = 10
+        position.avg_entry_price = 80.0
+        position.total_cost_basis = 800.0
+        assert strategy.generate_signals(data, 7, portfolio) == -1
+
+    def test_engine_integration(self, ohlcv_data, engine_config):
+        from quant_engine.strategy.examples.bollinger_reversion import (
+            BollingerReversion,
+        )
+
+        strategy = BollingerReversion(
+            params={"period": 10, "num_std": 1.5, "exit_band": "middle"}
         )
         engine = BacktestEngine(engine_config)
         result = engine.run(

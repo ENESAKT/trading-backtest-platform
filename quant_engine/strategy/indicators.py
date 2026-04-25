@@ -121,6 +121,50 @@ def bollinger_bands(
     return upper, middle, lower
 
 
+def ichimoku_cloud(
+    high: pd.Series,
+    low: pd.Series,
+    close: pd.Series,
+    conversion_period: int = 9,
+    base_period: int = 26,
+    span_b_period: int = 52,
+    displacement: int = 26,
+) -> dict[str, pd.Series]:
+    """
+    Ichimoku Bulutu bileşenleri.
+
+    Returns:
+        dict: tenkan_sen, kijun_sen, senkou_span_a, senkou_span_b, chikou_span
+    """
+    if min(conversion_period, base_period, span_b_period, displacement) < 1:
+        raise ValueError("Ichimoku periyotları 1'den küçük olamaz.")
+
+    tenkan_sen = (
+        high.rolling(conversion_period, min_periods=conversion_period).max()
+        + low.rolling(conversion_period, min_periods=conversion_period).min()
+    ) / 2
+    kijun_sen = (
+        high.rolling(base_period, min_periods=base_period).max()
+        + low.rolling(base_period, min_periods=base_period).min()
+    ) / 2
+    senkou_span_a = ((tenkan_sen + kijun_sen) / 2).shift(displacement)
+    senkou_span_b = (
+        (
+            high.rolling(span_b_period, min_periods=span_b_period).max()
+            + low.rolling(span_b_period, min_periods=span_b_period).min()
+        )
+        / 2
+    ).shift(displacement)
+    chikou_span = close.shift(-displacement)
+    return {
+        "tenkan_sen": tenkan_sen,
+        "kijun_sen": kijun_sen,
+        "senkou_span_a": senkou_span_a,
+        "senkou_span_b": senkou_span_b,
+        "chikou_span": chikou_span,
+    }
+
+
 def atr(
     high: pd.Series,
     low: pd.Series,
