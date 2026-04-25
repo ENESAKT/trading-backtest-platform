@@ -123,3 +123,7 @@
 - **Strateji parametrelerine bilinmeyen key atanmasını engelle.** `SmaCrossover(params={"typo_param": 5})` sessizce kabul edilmemeli. BaseStrategy `__init__` içinde `unknown = set(params.keys()) - set(default_params.keys())` kontrolü eklendi.
 
 - **Profit factor = gross_profit / gross_loss.** Sıfır kayıp durumunda bölme hatasından kaçınmak için `gross_loss > 0` kontrolü şart. Win rate ise `completed_trades / total_trades * 100` değil, `winning_trades / total_trades * 100` — trade bir al-sat çiftidir, tek fill değil.
+
+## Arayüz Geliştirme (UI)
+
+- **Ağ kısıtlamaları Streamlit kurulumunu engelledi.** Sanal ortamda `pip install streamlit` çalıştırılırken DNS/Ağ hatası (`Errno 8`) alındı. Ortamın internete kapalı olması veya DNS engellemesi bulunması UI testlerini (grafik çizdirme, dashboard görüntüleme) imkansız kılmaktadır. Kurulum manuel yapılana kadar UI kodu test edilemez.
