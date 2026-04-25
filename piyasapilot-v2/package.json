@@ -1,0 +1,21 @@
+{
+  "name": "piyasapilot-v2",
+  "version": "2.0.0",
+  "description": "Professional trading terminal for BIST, Crypto, FX and US equities",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "chart.js": "^4.4.4",
+    "lightweight-charts": "^4.2.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.5",
+    "vite": "^5.3.4"
+  }
+}
