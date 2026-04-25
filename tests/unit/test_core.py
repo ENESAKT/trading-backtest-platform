@@ -37,6 +37,7 @@ class TestEnums:
     def test_market_values(self):
         assert Market.BIST.value == "bist"
         assert Market.VIOP.value == "viop"
+        assert Market.CRYPTO.value == "crypto"
 
     def test_timeframe_values(self):
         assert Timeframe.D1.value == "1d"
@@ -46,6 +47,7 @@ class TestEnums:
     def test_asset_class_values(self):
         assert AssetClass.EQUITY.value == "equity"
         assert AssetClass.FUTURES.value == "futures"
+        assert AssetClass.CRYPTO.value == "crypto"
 
     def test_data_layer_values(self):
         assert DataLayer.RAW.value == "raw"

@@ -175,3 +175,37 @@ class WorkspaceJsonStore:
         document["symbol_groups"] = groups
         self.save(document)
         return document
+
+    def upsert_dataset(
+        self,
+        *,
+        name: str,
+        source: str,
+        market: str,
+        timeframe: str,
+        layer: str,
+        symbols: list[str],
+    ) -> dict[str, Any]:
+        clean_symbols = [item.upper().strip() for item in symbols if item.strip()]
+        if not clean_symbols:
+            raise ValueError("Veri seti en az bir sembol içermeli.")
+        document = self.load()
+        datasets = [
+            dataset
+            for dataset in document["datasets"]
+            if dataset.get("name", "").lower() != name.lower()
+        ]
+        datasets.append(
+            {
+                "name": name.strip(),
+                "source": source.strip(),
+                "market": market.strip(),
+                "timeframe": timeframe.strip(),
+                "layer": layer.strip(),
+                "symbols": list(dict.fromkeys(clean_symbols)),
+                "created_at": _utc_now_iso(),
+            }
+        )
+        document["datasets"] = datasets
+        self.save(document)
+        return document

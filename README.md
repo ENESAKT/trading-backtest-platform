@@ -1,11 +1,13 @@
-# 🚀 Quant Engine — VİOP/BIST Algoritmik Trading & Backtest Motoru
+# Quant Engine — BIST/Kripto/Emtia Trading Terminali
 
-Apple Silicon üzerinde maksimum performansla çalışan, internet bağımsız (offline-first) algoritmik trading ve yüksek hızlı backtest motoru.
+Gerçek veri odaklı araştırma, backtest ve trading terminali. Streamlit arayüzü
+BIST, Forex, Emtia ve Kripto için piyasa özeti, bağımsız analiz pencereleri,
+Workspace JSON yönetimi ve kalıcı strateji laboratuvarı sunar.
 
 ## 🏗️ Mimari
 
 ```
-İnternet (yfinance) → Data Pipeline → Parquet Dosyaları → DuckDB Sorguları → Backtest Motoru
+İnternet (yfinance / Binance) → Provider Katmanı → Validator → Backtest Motoru → Streamlit Terminal
                          (Tek bağlantı noktası)         (Soğuk depolama)    (Sıcak okuma)
 ```
 
@@ -39,17 +41,26 @@ python real_data_check.py --symbol THYAO
 streamlit run quant_engine/app/ui_streamlit/app.py --server.port 8502
 ```
 
+## Terminal Özellikleri
+
+- Ana dashboard: BIST 100, USD/TRY, XAU/USD, BTC/USDT ve ETH/USDT gerçek veri özeti.
+- Bağımsız pencereler: seçilen sembol için aç/kapat yapılabilen analiz sekmeleri.
+- Veri İstasyonu: API kaynakları, sembol grupları ve veri setleri için Workspace JSON.
+- Strateji Laboratuvarı: SQLite append-only strateji kaydı ve geri çağırma.
+- Sıfır demo veri politikası: provider veri vermezse grafik bekleme/hata durumunda kalır.
+
 ## 📁 Proje Yapısı
 
 ```
 quant_engine/
 ├── config/              # Merkezi konfigürasyon (Pydantic + TOML)
-├── data_pipeline/       # İnternete bağlanan tek modül
+├── data_pipeline/       # Offline storage ve veri doğrulama akışı
 │   ├── fetcher.py       # Yahoo Finance veri çekici
 │   ├── storage_manager.py # DuckDB + Parquet depolama
 │   ├── data_validator.py  # Veri kalite kontrolü
 │   └── pipeline.py      # Orkestratör
-├── strategy/            # Strateji framework'ü
+├── strategy/            # Strateji framework'ü ve SQLite persistence
+├── workspace/           # Workspace JSON ve çoklu piyasa sembol çözümleme
 ├── backtest_engine/     # Vektörel backtest motoru
 ├── optimization/        # Parametre optimizasyonu
 ├── validation/          # Backtest doğrulama

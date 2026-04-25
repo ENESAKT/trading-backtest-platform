@@ -64,6 +64,23 @@ def test_commodity_workspace_maps_xauusd_to_real_provider_symbol():
     assert resolution.valid is True
 
 
+def test_crypto_workspace_maps_btcusd_to_binance_symbol():
+    resolution = resolve_workspace(
+        WorkspaceRequest(
+            symbol_id="BTC-USD",
+            market_type="Kripto",
+            timeframe_label="1G",
+        )
+    )
+    config = build_workspace_config(resolution)
+
+    assert resolution.instrument.market == Market.CRYPTO
+    assert resolution.instrument.symbol_code == "BTCUSDT"
+    assert resolution.instrument.yahoo_ticker == "BTCUSDT"
+    assert resolution.instrument.precision == 2
+    assert "Kripto / Spot" == config["calisma_alani_kurulumu"]["piyasa_kategorisi"]
+
+
 def test_unknown_non_bist_symbol_returns_waiting_protocol_without_fake_data():
     resolution = resolve_workspace(
         WorkspaceRequest(
@@ -89,3 +106,4 @@ def test_yfinance_ticker_mapping_respects_market_type():
     assert _to_yahoo_ticker("EREGL", Market.BIST) == "EREGL.IS"
     assert _to_yahoo_ticker("USDTRY", Market.FOREX) == "USDTRY=X"
     assert _to_yahoo_ticker("XAUUSD", Market.COMMODITY) == "GC=F"
+    assert _to_yahoo_ticker("BTCUSDT", Market.CRYPTO) == "BTC-USD"

@@ -404,3 +404,24 @@ quant_engine/app/ui_streamlit/
 ## Son Not
 
 Öncelik sırası net: önce grafikte alım/satım noktalarını gerçekten okunur yap, sonra strateji kataloğunu otomatikleştir, sonra BIST 30 x strateji matrisini grafiğe bağla. Böyle yapılırsa arayüz sadece güzel görünmez; gerçekten analiz yapılabilir bir backtest terminaline dönüşür.
+
+## 2026-04-25 Terminal Genişletme Raporu
+
+| Alan | Durum | Not |
+|---|---|---|
+| Ana Dashboard | [x] | BIST 100, USD/TRY, XAU/USD, BTC/USDT ve ETH/USDT özet kartları gerçek provider verisiyle eklendi |
+| Bağımsız pencereler | [x] | Dashboard üzerinden sembol bazlı aç/kapat yapılabilen izole analiz sekmeleri eklendi |
+| Kripto veri sağlayıcı | [x] | Binance Spot public kline provider eklendi; API key veya demo veri kullanılmıyor |
+| Workspace JSON | [x] | Veri İstasyonu içinde API kaynakları, sembol grupları ve veri setleri atomic JSON store ile yönetiliyor |
+| Strateji kalıcılığı | [x] | Strateji Laboratuvarı SQLite append-only store ile kayıt/geri çağırma yapıyor; silme akışı yok |
+| Strategy registry UI bağlantısı | [x] | UI strateji listesini global registry'den üretir; yeni kayıtlı strateji UI'a bağlanabilir |
+| Test | [x] | `ruff check .`, `compileall` ve `pytest -q` temiz; 214 test geçti |
+| Gerçek veri smoke | [x] | THYAO yfinance ve BTCUSDT Binance gerçek veri akışları çalıştırıldı |
+
+### Yeni Kalan Riskler
+
+| Risk | Açıklama | Sonraki İş |
+|---|---|---|
+| BIST gerçek zamanlı veri | Resmi canlı/derinlik verisi lisanslı vendor, VERDA veya Matriks gerektirir | Credential istenmeden provider stub ve sözleşme hazırlanmalı |
+| Streamlit pencere sınırı | Pencereler OS penceresi değil, terminal içi bağımsız sekmelerdir | React/lightweight-charts fazında gerçek çoklu pencere hissi güçlendirilmeli |
+| Veri cache/storage | Dashboard doğrudan provider cache kullanır; kalıcı OHLCV katmanı henüz tüm piyasalara bağlanmadı | Workspace JSON dataset tanımları Parquet/DuckDB ingest akışına bağlanmalı |

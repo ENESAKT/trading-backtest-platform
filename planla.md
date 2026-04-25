@@ -32,7 +32,7 @@ Bu dosya projede bundan sonra uygulanacak ana sözleşmedir. `planlama.md` okund
 | Forex | `USDTRY`, `EURTRY`, `EURUSD` | Yahoo: `=X` formatı | 4-5 | [x] |
 | Emtia | `XAUUSD`, `XAGUSD`, `BRENT`, `WTI` | Yahoo futures/commodity ticker | 2 | [x] |
 | VİOP | `F_XU030`, kontratlar | Matriks/BIST/Foreks gerekir | sözleşmeye göre | [ ] |
-| Kripto | `BTCUSDT` | Binance/ccxt gibi ayrı provider gerekir | 4-8 | [ ] |
+| Kripto | `BTCUSDT`, `ETHUSDT` | Binance public kline provider | 2-4 | [x] |
 
 ### Workspace İzolasyonu
 
@@ -165,6 +165,16 @@ quant_engine/app/ui_streamlit/
 | 4 | Gerçek veri cache/storage workspace'e bağlanacak | Her tıklamada API yükü oluşmasın |
 | 5 | Matriks/BIST/Foreks provider adaptörleri tasarlanacak | VİOP ve profesyonel veri yolu açılsın |
 | 6 | TradingView Lightweight Charts frontend prototipi değerlendirilecek | Plotly araştırma ekranı yanında terminal hissi güçlensin |
+
+## 13. 2026-04-25 Uygulama Ekleri
+
+| Ek | Durum | Açıklama |
+|---|---|---|
+| Ana Dashboard | [x] | Piyasa özeti ve aç/kapat yapılabilen sembol analiz pencereleri eklendi |
+| Binance Provider | [x] | Kripto liderleri için gerçek public OHLCV kaynağı eklendi |
+| Workspace JSON Store | [x] | API kaynakları, sembol grupları ve veri setleri arayüzden yönetiliyor |
+| SQLite Strategy Store | [x] | Strateji kayıtları append-only tutuluyor; silme akışı yok |
+| Test | [x] | `pytest -q`: 214 passed, `ruff check .`: temiz |
 
 ## 10. Test ve Kalite Kabulü
 

@@ -128,11 +128,29 @@ class BinanceProvider(BaseProvider):
             rate_limit_per_minute=1200,
         )
 
+    def health_check(self) -> bool:
+        try:
+            req = Request(
+                f"{self.base_url}/api/v3/ping",
+                headers={"User-Agent": "QuantEngine/0.1"},
+            )
+            with urlopen(req, timeout=self.timeout):
+                return True
+        except Exception:
+            return False
+
     def _fetch_bars_impl(self, request: BarRequest) -> FetchResult:
         symbol = _to_binance_symbol(request.symbol)
         interval = _to_binance_interval(request.timeframe)
         start_ms = _date_to_millis(request.start)
-        end_ms = _date_to_millis(request.end or dt.date.today() + dt.timedelta(days=1))
+        # Binance endTime dahil çalışır; bugünün barını kaçırmamak için üst sınırı
+        # yarına alıyoruz. Bu, yfinance tarafındaki end-exclusive korumayla uyumlu.
+        end_date = (
+            request.end + dt.timedelta(days=1)
+            if request.end
+            else dt.date.today() + dt.timedelta(days=1)
+        )
+        end_ms = _date_to_millis(end_date)
 
         all_rows: list[list] = []
         next_start = start_ms

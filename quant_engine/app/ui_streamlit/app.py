@@ -107,8 +107,13 @@ def _registered_strategy_map() -> dict[str, type[BaseStrategy]]:
         "Al ve Tut": BuyAndHold,
     }
     mapped: dict[str, type[BaseStrategy]] = {}
+    for internal_name, label in STRATEGY_LABELS.items():
+        if internal_name in registry:
+            mapped[label] = registry.get_class(internal_name)
     for item in registry.list_strategies():
         internal_name = item["name"]
+        if internal_name in STRATEGY_LABELS:
+            continue
         label = STRATEGY_LABELS.get(internal_name, internal_name.replace("_", " ").title())
         mapped[label] = registry.get_class(internal_name)
     return mapped or fallback
@@ -196,6 +201,18 @@ class TradeOverlay:
 
 def _symbol_label(symbol: str) -> str:
     return f"{symbol} - {BIST_SYMBOLS.get(symbol, symbol)}"
+
+
+def _asset_display_name(symbol: str, market: Market) -> str:
+    if market == Market.BIST:
+        return _symbol_label(symbol)
+    if market == Market.FOREX:
+        return f"{symbol} - {FOREX_INSTRUMENTS.get(symbol, symbol)}"
+    if market == Market.COMMODITY:
+        return f"{symbol} - {COMMODITY_INSTRUMENTS.get(symbol, (symbol, symbol))[0]}"
+    if market == Market.CRYPTO:
+        return f"{symbol} - {CRYPTO_INSTRUMENTS.get(symbol, (symbol, symbol))[0]}"
+    return symbol
 
 
 def _selected_symbol(label: str) -> str:
@@ -1820,26 +1837,88 @@ def page_market_matrix():
 
 def page_backtest_lab():
     st.markdown("## Strateji Laboratuvarı")
+    strategy_store = StrategyStore()
+    saved_records = strategy_store.list_strategies()
+    loaded_record = None
 
     with st.sidebar:
+        st.markdown("### Kalıcı Stratejiler")
+        if saved_records:
+            saved_options = {"Yeni çalışma": None}
+            saved_options.update(
+                {
+                    f"#{record.id} {record.name} ({record.symbol})": record.id
+                    for record in saved_records
+                }
+            )
+            saved_label = st.selectbox("Kayıtlı strateji", list(saved_options))
+            selected_record_id = saved_options[saved_label]
+            if selected_record_id is not None:
+                loaded_record = strategy_store.get_strategy(selected_record_id)
+                if loaded_record is not None:
+                    st.caption(
+                        f"Yüklendi: {loaded_record.base_strategy} | "
+                        f"{loaded_record.created_at}"
+                    )
+        else:
+            st.caption("Henüz kaydedilmiş strateji yok.")
+
         st.markdown("### Veri ve Sembol")
-        symbol_label = st.selectbox(
-            "BIST sembolü",
-            [_symbol_label(symbol) for symbol in BIST_SYMBOLS],
-            index=list(BIST_SYMBOLS).index("THYAO"),
+        market_labels = ["BIST 100", "Forex", "Emtia", "Kripto"]
+        loaded_market = (loaded_record.market if loaded_record else Market.BIST.value).lower()
+        market_default = {
+            "bist": "BIST 100",
+            "forex": "Forex",
+            "commodity": "Emtia",
+            "crypto": "Kripto",
+        }.get(loaded_market, "BIST 100")
+        market_label = st.selectbox(
+            "Piyasa",
+            market_labels,
+            index=market_labels.index(market_default),
         )
-        symbol = _selected_symbol(symbol_label)
+        if market_label == "Forex":
+            market = Market.FOREX
+            symbol_options = list(FOREX_INSTRUMENTS)
+            symbol_labels = symbol_options
+        elif market_label == "Emtia":
+            market = Market.COMMODITY
+            symbol_options = list(COMMODITY_INSTRUMENTS)
+            symbol_labels = symbol_options
+        elif market_label == "Kripto":
+            market = Market.CRYPTO
+            symbol_options = list(CRYPTO_INSTRUMENTS)
+            symbol_labels = symbol_options
+        else:
+            market = Market.BIST
+            symbol_options = list(BIST_SYMBOLS)
+            symbol_labels = [_symbol_label(symbol) for symbol in symbol_options]
+
+        loaded_symbol = loaded_record.symbol if loaded_record else "THYAO"
+        symbol_index = symbol_options.index(loaded_symbol) if loaded_symbol in symbol_options else 0
+        symbol_label = st.selectbox(
+            "Sembol",
+            symbol_labels,
+            index=symbol_index,
+        )
+        symbol = _selected_symbol(symbol_label) if market == Market.BIST else symbol_label
         custom_symbol = st.text_input(
-            "Özel BIST sembolü",
+            "Özel sembol",
             value="",
-            help="Listede yoksa THYAO, EREGL, SASA gibi kod gir. Veri gelmezse grafik çizilmez.",
+            help="Listede yoksa THYAO, EREGL, SASA, USDTRY, XAUUSD, BTCUSDT gibi kod gir.",
         )
         if custom_symbol.strip():
             symbol = custom_symbol.strip().upper().replace(".IS", "")
+        loaded_timeframe = loaded_record.timeframe if loaded_record else "Günlük"
+        timeframe_index = (
+            list(TIMEFRAME_OPTIONS).index(loaded_timeframe)
+            if loaded_timeframe in TIMEFRAME_OPTIONS
+            else 0
+        )
         timeframe_label = st.selectbox(
             "Zaman dilimi",
             list(TIMEFRAME_OPTIONS),
-            index=0,
+            index=timeframe_index,
         )
         start_raw = st.text_input(
             "Başlangıç tarihi",
@@ -1865,21 +1944,45 @@ def page_backtest_lab():
         max_pos = st.slider("Maksimum pozisyon (%)", 10, 100, 95) / 100
 
         st.markdown("### Strateji")
-        strategy_name = st.selectbox("Strateji", list(STRATEGY_MAP))
+        loaded_strategy = loaded_record.base_strategy if loaded_record else "SMA Kesişimi"
+        strategy_names = list(STRATEGY_MAP)
+        strategy_index = (
+            strategy_names.index(loaded_strategy)
+            if loaded_strategy in strategy_names
+            else 0
+        )
+        strategy_name = st.selectbox("Strateji", strategy_names, index=strategy_index)
         params: dict[str, Any] = {}
+        loaded_params = loaded_record.params if loaded_record else {}
         if strategy_name == "SMA Kesişimi":
-            params["fast_period"] = st.slider("Hızlı SMA", 3, 50, 10)
-            params["slow_period"] = st.slider("Yavaş SMA", 10, 200, 30)
+            params["fast_period"] = st.slider(
+                "Hızlı SMA", 3, 50, int(loaded_params.get("fast_period", 10))
+            )
+            params["slow_period"] = st.slider(
+                "Yavaş SMA", 10, 200, int(loaded_params.get("slow_period", 30))
+            )
         elif strategy_name == "RSI Dönüşü":
-            params["rsi_period"] = st.slider("RSI periyodu", 5, 30, 14)
-            params["oversold"] = st.slider("Aşırı satış", 10, 40, 30)
-            params["overbought"] = st.slider("Aşırı alım", 60, 90, 70)
+            params["rsi_period"] = st.slider(
+                "RSI periyodu", 5, 30, int(loaded_params.get("rsi_period", 14))
+            )
+            params["oversold"] = st.slider(
+                "Aşırı satış", 10, 40, int(loaded_params.get("oversold", 30))
+            )
+            params["overbought"] = st.slider(
+                "Aşırı alım", 60, 90, int(loaded_params.get("overbought", 70))
+            )
         elif strategy_name == "Bollinger Dönüşü":
-            params["period"] = st.slider("Bollinger periyodu", 10, 60, 20)
-            params["num_std"] = st.slider("Standart sapma", 1.0, 3.5, 2.0, 0.1)
+            params["period"] = st.slider(
+                "Bollinger periyodu", 10, 60, int(loaded_params.get("period", 20))
+            )
+            params["num_std"] = st.slider(
+                "Standart sapma", 1.0, 3.5, float(loaded_params.get("num_std", 2.0)), 0.1
+            )
+            loaded_exit = loaded_params.get("exit_band", "middle")
             exit_label = st.selectbox(
                 "Çıkış bandı",
                 ["Orta bant", "Üst bant"],
+                index=1 if loaded_exit == "upper" else 0,
             )
             params["exit_band"] = "upper" if exit_label == "Üst bant" else "middle"
 
@@ -1898,12 +2001,45 @@ def page_backtest_lab():
             ),
         )
         st.markdown("### JSON Grafik Planı")
+        loaded_indicators = (
+            loaded_record.indicators
+            if loaded_record
+            else list(DEFAULT_BLUEPRINT_INDICATORS)
+        )
         blueprint_indicators = st.multiselect(
             "Planlanacak indikatörler",
             BLUEPRINT_INDICATOR_OPTIONS,
-            default=DEFAULT_BLUEPRINT_INDICATORS,
+            default=[
+                item
+                for item in loaded_indicators
+                if item in BLUEPRINT_INDICATOR_OPTIONS
+            ]
+            or list(DEFAULT_BLUEPRINT_INDICATORS),
             help="Karar motoru bu listeyi TradingView benzeri grafik katman JSON'una çevirir.",
         )
+        st.markdown("### Kaydet")
+        strategy_save_name = st.text_input(
+            "Strateji adı",
+            value=loaded_record.name if loaded_record else f"{symbol} {strategy_name}",
+        )
+        strategy_notes = st.text_area(
+            "Not",
+            value=loaded_record.notes if loaded_record else "",
+            height=80,
+        )
+        save_btn = st.button("Stratejiyi kalıcı kaydet", width="stretch")
+        if save_btn:
+            saved = strategy_store.save_strategy(
+                name=strategy_save_name,
+                base_strategy=strategy_name,
+                params=params,
+                indicators=list(blueprint_indicators),
+                symbol=symbol,
+                market=market.value,
+                timeframe=timeframe_label,
+                notes=strategy_notes,
+            )
+            st.success(f"Strateji silinmez kayıt olarak saklandı: #{saved.id}")
         run_btn = st.button("Backtest çalıştır", type="primary", width="stretch")
 
     if not run_btn:
@@ -1918,6 +2054,7 @@ def page_backtest_lab():
         symbol=symbol,
         start_date=start_date,
         timeframe=timeframe,
+        market=market,
     )
     for warning in warnings:
         st.warning(warning)
@@ -1956,7 +2093,7 @@ def page_backtest_lab():
 
     left, right = st.columns([0.72, 0.28])
     with left:
-        st.markdown(f"### {_symbol_label(symbol)}")
+        st.markdown(f"### {_asset_display_name(symbol, market)}")
     with right:
         st.metric("Veri Kalitesi", f"{validation.quality_score:.0f}/100")
 
@@ -2012,7 +2149,7 @@ def page_backtest_lab():
             is_real_data=True,
             symbol=symbol,
             timeframe=timeframe_label,
-            source_label="Yahoo Finance",
+            source_label="Binance" if market == Market.CRYPTO else "Yahoo Finance",
         )
         render_decision_report(decision_report)
     with tab_blueprint:
@@ -2026,7 +2163,7 @@ def page_backtest_lab():
             symbol=symbol,
             timeframe=timeframe_label,
             selected_indicators=tuple(blueprint_indicators),
-            source_label="Yahoo Finance",
+            source_label="Binance" if market == Market.CRYPTO else "Yahoo Finance",
         )
         render_strategy_blueprint_json(blueprint)
     with tab_metrics:
@@ -2391,8 +2528,14 @@ def page_data_station():
         crypto_status = "Erişilebilir" if b_provider.health_check() else "Kontrol edilemedi"
         render_metric_card("Binance Durumu", crypto_status, tone="good")
 
-    tab_json, tab_sources, tab_groups, tab_catalog = st.tabs(
-        ["Workspace JSON", "API Kaynakları", "Sembol Grupları", "BIST Kataloğu"]
+    tab_json, tab_sources, tab_groups, tab_datasets, tab_catalog = st.tabs(
+        [
+            "Workspace JSON",
+            "API Kaynakları",
+            "Sembol Grupları",
+            "Veri Setleri",
+            "BIST Kataloğu",
+        ]
     )
 
     with tab_json:
@@ -2466,6 +2609,48 @@ def page_data_station():
                     symbols=symbols,
                 )
                 st.success("Sembol grubu Workspace JSON'a kaydedildi.")
+                st.rerun()
+
+    with tab_datasets:
+        dataset_rows = [
+            {
+                "Ad": item.get("name"),
+                "Kaynak": item.get("source"),
+                "Piyasa": item.get("market"),
+                "Periyot": item.get("timeframe"),
+                "Katman": item.get("layer"),
+                "Sembol": ", ".join(item.get("symbols", [])),
+            }
+            for item in workspace_doc["datasets"]
+        ]
+        st.dataframe(pd.DataFrame(dataset_rows), width="stretch", hide_index=True)
+        with st.form("workspace_dataset_form"):
+            st.markdown("### Yeni Veri Seti")
+            dataset_name = st.text_input("Veri seti adı", value="BIST Günlük Raw")
+            dataset_source = st.text_input("Kaynak adı", value="Yahoo Finance")
+            dataset_market = st.selectbox(
+                "Piyasa",
+                ["bist", "forex", "commodity", "crypto"],
+                key="dataset_market",
+            )
+            dataset_timeframe = st.selectbox(
+                "Periyot",
+                ["1m", "5m", "15m", "30m", "1h", "4h", "1d", "1wk", "1mo"],
+                index=6,
+            )
+            dataset_layer = st.selectbox("Katman", ["raw", "clean", "adjusted", "features"])
+            dataset_symbols = st.text_area("Semboller", value="THYAO, EREGL, SASA")
+            submitted = st.form_submit_button("Veri setini kaydet", type="primary")
+            if submitted:
+                workspace_store.upsert_dataset(
+                    name=dataset_name,
+                    source=dataset_source,
+                    market=dataset_market,
+                    timeframe=dataset_timeframe,
+                    layer=dataset_layer,
+                    symbols=[item.strip() for item in dataset_symbols.split(",")],
+                )
+                st.success("Veri seti Workspace JSON'a kaydedildi.")
                 st.rerun()
 
     with tab_catalog:
@@ -2620,10 +2805,10 @@ def main():
         menu_items={
             "Get Help": None,
             "Report a bug": None,
-            "About": (
-                "Quant Trading Terminali\n\n"
-                "BIST, Forex ve Emtia için gerçek veri odaklı araştırma ekranı."
-            ),
+                "About": (
+                    "Quant Trading Terminali\n\n"
+                    "BIST, Forex, Emtia ve Kripto için gerçek veri odaklı araştırma ekranı."
+                ),
         },
     )
     apply_theme()
@@ -2633,7 +2818,7 @@ def main():
             <div>
                 <h1 class="qe-title">Quant Trading Terminali</h1>
                 <div class="qe-subtitle">
-                    BIST, Forex ve Emtia için gerçek veri odaklı araştırma terminali
+                    BIST, Forex, Emtia ve Kripto için gerçek veri odaklı araştırma terminali
                 </div>
             </div>
             <div class="qe-badge">v0.3 araştırma modu</div>
@@ -2645,6 +2830,7 @@ def main():
     page = st.sidebar.radio(
         "Sayfa",
         [
+            "Ana Dashboard",
             "Strateji Laboratuvarı",
             "Çalışma Alanları",
             "BIST Matrisi",
@@ -2652,7 +2838,9 @@ def main():
             "Veri İstasyonu",
         ],
     )
-    if page == "Strateji Laboratuvarı":
+    if page == "Ana Dashboard":
+        page_dashboard()
+    elif page == "Strateji Laboratuvarı":
         page_backtest_lab()
     elif page == "Çalışma Alanları":
         page_workspace_manager()

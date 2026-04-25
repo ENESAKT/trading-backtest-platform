@@ -306,6 +306,7 @@ class TestStrategyRegistry:
 
         instance = registry.create("test_strat", {"period": 20})
         assert instance.get_param("period") == 20
+        assert registry.get_class("test_strat") is TestStrat
 
     def test_duplicate_registration_fails(self):
         registry = StrategyRegistry()
