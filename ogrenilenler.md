@@ -49,3 +49,15 @@
 - **`pandas-ta>=0.3.14b1` pip'te bulunamıyor.** Ya `pandas-ta-classic` paketine geçmeli, ya da indikatörleri doğrudan NumPy/Polars ile kendimiz yazmalıyız. İkinci seçenek daha iyi çünkü dış bağımlılığı azaltır.
 
 - **Bağımlılıkları `>=` ile serbest bırakmak tehlikeli.** Major versiyon atlaması API kırılmasına neden olabilir. `pip-tools` veya `uv.lock` ile sürüm sabitlenmeli.
+
+## Mimari Yeniden Yapılanma
+
+- **"Modüler monolit + temiz çekirdek" kararı alındı.** Core katmanı (order, fill, portfolio, clock) hiçbir dış bağımlılığı (yfinance, Streamlit, DuckDB) bilmemeli. Bağımlılık akışı tek yönlü: `core ← data ← strategy ← backtest ← research ← reporting ← app`. Tersi asla olmamalı.
+
+- **Interface/Protocol pattern zorunlu.** `DataProvider`, `StorageBackend`, `Strategy`, `ExecutionModel`, `CostModel` soyut arayüzleri tanımlanacak. Böylece yeni veri kaynağı, yeni strateji veya yeni UI eklerken motor bozulmaz.
+
+- **Referans projeler incelendi.** VectorBT'den vektörize hız, Backtrader'dan strategy/indicator yapısı, LEAN'den katman ayrımı, Freqtrade'den reproducibility, Backtesting.py'den basit API dersleri alınacak. Hiçbirinin tamamı kopyalanmayacak.
+
+- **orders.parquet ve fills.parquet ayrı olmalı.** Sadece trades.parquet yetmez. Emir verme anı ile dolum anı farklı veriler taşır (slippage, partial fill, rejected order). Audit trail bunların hepsini zincirlemeli.
+
+- **UI grafik performansı için downsample şart.** 10K+ bar'ı tarayıcıya ham göndermek sayfayı kilitler. Resample/downsample yapılmalı. Matrix ekranında da her hücreyi canlı hesaplama yerine snapshot tablo üretilip UI onu okumalı.
