@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Sanal ortam
+.venv/
+venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Veriler (yerel veritabanı — git'e dahil edilmez)
+data/bist/
+data/viop/
+data/*.duckdb
+
+# Loglar
+logs/
+
+# OS
+.DS_Store
+Thumbs.db
