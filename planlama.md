@@ -211,13 +211,57 @@
 - [ ] Out-of-sample, parameter stability, cost sensitivity
 - [ ] Search budget, seed kontrolü, erken durdurma
 
-### Sprint 10+ — İleri Seviye
-- [ ] Feature cache, universe selection, portfolio constructor
-- [ ] Anti-leakage guardrails, transaction cost hierarchy
-- [ ] Instrument model, VİOP margin engine
-- [ ] CLI (Typer)
-- [ ] UI — Streamlit MVP
-- [ ] Paper trading → canlı trading
+### Sprint 10 — İleri Seviye Motor
+- [ ] Feature cache (aynı SMA/RSI optimizasyonda tekrar hesaplanmasın)
+- [ ] Universe selection (min hacim, min fiyat, point-in-time membership)
+- [ ] Portfolio constructor (exposure caps, correlation-aware sizing)
+- [ ] Anti-leakage guardrails (feature_ts ≤ decision_ts < execution_ts)
+- [ ] Transaction cost model hierarchy (fixed bps → spread+bps → participation)
+- [ ] Instrument model (EquityInstrument, FuturesInstrument)
+- [ ] VİOP margin engine, rollover
+- [ ] CLI (Typer): `quant fetch`, `quant backtest`, `quant optimize`
+
+### ─── MOTOR BİTTİ, UI BAŞLAR ───
+
+### Sprint 11 — Streamlit MVP (Faz A)
+> Detaylı tasarım: `arayuz.md`
+
+- [ ] **Dashboard:** Sistem durumu, veri sağlığı, son koşular, hızlı listeler
+- [ ] **Data Station:** Sembol bazlı coverage, boşluk haritası, veri güvenilirlik kapısı
+- [ ] **Strategy Builder:** Strateji seçimi, slider parametreler, universe, tarih, backtest butonu
+- [ ] **Backtest Lab:** Equity curve (Plotly), drawdown, heatmap, trade tablosu, assumptions panel
+- [ ] **Run Compare:** Koşu karşılaştırma tablosu, equity overlay
+- [ ] **Trade Inspector:** Audit trail, sinyal sebebi, dolum detayı
+- [ ] Arka plan backtest: Progress bar, iptal butonu (Streamlit sınırında)
+
+### Sprint 12 — Matrix Tarama Paneli
+- [ ] **Matrix ekranı:** Sembol × metrik tablosu (trend, RSI, hacim, sinyal, BT sonucu)
+- [ ] Hücre renkleri: yeşil/kırmızı/gri/sarı
+- [ ] Tıkla → grafik aç, sütun sırala, filtrele
+- [ ] Sinyal tarayıcı: "Bugün AL verenler", "Hacim patlayanlar"
+- [ ] Akıllı listeler: En iyi 10 hisse, en düşük DD stratejiler
+
+### Sprint 13 — Grafik + İşlem Gösterimi
+- [ ] Candlestick grafik (Plotly MVP / lightweight-charts nihai)
+- [ ] Volume barları, SMA/EMA/Bollinger overlay, RSI/MACD alt panel
+- [ ] Grafik üzerinde AL/SAT okları, stop-loss/take-profit çizgileri
+- [ ] Mouse hover OHLCV tooltip
+- [ ] Zaman dilimi değiştirici (1D | 1H | 15M | 5M)
+
+### Sprint 14 — Optimizasyon Ekranı
+- [ ] Parametre heatmap, walk-forward fold sonuçları
+- [ ] Stability grafiği, cost sensitivity
+- [ ] Overfit uyarısı, parameter clustering
+
+### ─── STREAMLIT SINIRA GELDİ ───
+
+### Sprint 15+ — FastAPI + React Terminal (Faz B)
+- [ ] FastAPI backend API
+- [ ] React + lightweight-charts (TradingView kalitesi)
+- [ ] Çoklu grafik penceresi (2x2 grid)
+- [ ] Keyboard shortcuts, WebSocket canlı güncelleme
+- [ ] Background job queue (Celery/RQ)
+- [ ] Paper trading bridge → canlı trading
 
 ---
 
