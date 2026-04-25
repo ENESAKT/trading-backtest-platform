@@ -37,17 +37,24 @@ pip install -r requirements.txt
 # 3. Gerçek veri kontrolünü çalıştır (tek hisse)
 python real_data_check.py --symbol THYAO
 
-# 4. Streamlit terminalini aç
+# 4. PiyasaPilot HTML canlı veri panelini aç
+python live_server.py
+# Tarayıcı: http://localhost:8000
+# 8000 doluysa: python live_server.py --port 8001
+
+# 5. Streamlit terminalini aç
 streamlit run quant_engine/app/ui_streamlit/app.py --server.port 8502
 ```
 
 ## Terminal Özellikleri
 
 - Ana dashboard: BIST 100, USD/TRY, XAU/USD, BTC/USDT ve ETH/USDT gerçek veri özeti.
+- PiyasaPilot HTML paneli: BIST 100, USD/TRY, BTC/USDT ve Altın için read-only canlı grafikler.
 - Bağımsız pencereler: seçilen sembol için aç/kapat yapılabilen analiz sekmeleri.
 - Veri İstasyonu: API kaynakları, sembol grupları ve veri setleri için Workspace JSON.
 - Strateji Laboratuvarı: SQLite append-only strateji kaydı ve geri çağırma.
 - Sıfır demo veri politikası: provider veri vermezse grafik bekleme/hata durumunda kalır.
+- Canlı işlem motoru kapalıdır; paper trading kayıtları yalnızca sanal işlem olarak `data/workspaces/workspace.json` içine yazılır.
 
 ## 📁 Proje Yapısı
 

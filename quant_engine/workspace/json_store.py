@@ -56,6 +56,8 @@ def default_workspace_document() -> dict[str, Any]:
             }
         ],
         "datasets": [],
+        "data_metadata": {},
+        "paper_trades": [],
     }
 
 

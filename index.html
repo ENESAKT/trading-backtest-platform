@@ -1,0 +1,2693 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PiyasaPilot MVP</title>
+  <script src="https://unpkg.com/lightweight-charts@4.2.3/dist/lightweight-charts.standalone.production.js"></script>
+  <style>
+    :root {
+      --bg: #08111f;
+      --surface: #0f1b2d;
+      --surface-soft: #132238;
+      --surface-raised: #172940;
+      --border: #263852;
+      --border-strong: #38506e;
+      --text: #edf5ff;
+      --muted: #9fb0c4;
+      --soft: #c9d8ea;
+      --green: #28c76f;
+      --red: #ff5c6c;
+      --yellow: #f6c85f;
+      --blue: #4db8ff;
+      --blue-soft: rgba(77, 184, 255, 0.14);
+      --green-soft: rgba(40, 199, 111, 0.12);
+      --red-soft: rgba(255, 92, 108, 0.12);
+      --yellow-soft: rgba(246, 200, 95, 0.14);
+      --shadow: 0 18px 50px rgba(0, 0, 0, 0.28);
+      --radius: 8px;
+      --sidebar: 288px;
+      --font: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        radial-gradient(circle at top left, rgba(77, 184, 255, 0.10), transparent 26rem),
+        linear-gradient(145deg, #08111f 0%, #0b1422 46%, #0a101a 100%);
+      color: var(--text);
+      font-family: var(--font);
+      font-size: 15px;
+      letter-spacing: 0;
+    }
+
+    button,
+    input,
+    select,
+    textarea {
+      font: inherit;
+      letter-spacing: 0;
+    }
+
+    button {
+      cursor: pointer;
+    }
+
+    .app-shell {
+      display: grid;
+      grid-template-columns: var(--sidebar) minmax(0, 1fr);
+      min-height: 100vh;
+    }
+
+    .sidebar {
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      border-right: 1px solid var(--border);
+      background: rgba(9, 18, 32, 0.92);
+      backdrop-filter: blur(18px);
+      padding: 20px 16px;
+      overflow: auto;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 8px 8px 18px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .brand-mark {
+      display: grid;
+      place-items: center;
+      width: 42px;
+      height: 42px;
+      border-radius: var(--radius);
+      background: linear-gradient(135deg, rgba(77, 184, 255, 0.22), rgba(40, 199, 111, 0.20));
+      color: var(--blue);
+      font-weight: 800;
+      border: 1px solid rgba(77, 184, 255, 0.24);
+    }
+
+    .brand-title {
+      font-size: 18px;
+      font-weight: 800;
+      margin: 0;
+    }
+
+    .brand-subtitle {
+      margin: 2px 0 0;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .nav {
+      display: grid;
+      gap: 6px;
+      padding: 18px 0;
+    }
+
+    .nav-button {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      width: 100%;
+      min-height: 42px;
+      padding: 10px 10px;
+      color: var(--soft);
+      background: transparent;
+      border: 1px solid transparent;
+      border-radius: var(--radius);
+      text-align: left;
+    }
+
+    .nav-button:hover,
+    .nav-button.active {
+      color: var(--text);
+      background: rgba(77, 184, 255, 0.10);
+      border-color: rgba(77, 184, 255, 0.20);
+    }
+
+    .nav-label {
+      min-width: 0;
+      overflow-wrap: anywhere;
+    }
+
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 22px;
+      padding: 3px 8px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 700;
+      white-space: nowrap;
+      border: 1px solid transparent;
+    }
+
+    .tag.info {
+      color: #cfeeff;
+      background: var(--blue-soft);
+      border-color: rgba(77, 184, 255, 0.22);
+    }
+
+    .tag.safe {
+      color: #bff7d7;
+      background: var(--green-soft);
+      border-color: rgba(40, 199, 111, 0.22);
+    }
+
+    .tag.warn {
+      color: #ffe7aa;
+      background: var(--yellow-soft);
+      border-color: rgba(246, 200, 95, 0.24);
+    }
+
+    .tag.danger {
+      color: #ffd2d8;
+      background: var(--red-soft);
+      border-color: rgba(255, 92, 108, 0.24);
+    }
+
+    .sidebar-footer {
+      margin-top: auto;
+      padding: 14px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: rgba(19, 34, 56, 0.72);
+    }
+
+    .sidebar-footer strong {
+      display: block;
+      margin-bottom: 6px;
+    }
+
+    .sidebar-footer p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    .main {
+      min-width: 0;
+      padding: 24px;
+    }
+
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 20px;
+      padding: 14px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: rgba(15, 27, 45, 0.82);
+      box-shadow: var(--shadow);
+    }
+
+    .topbar-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-width: 0;
+    }
+
+    .menu-toggle {
+      display: none;
+      width: 42px;
+      height: 42px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      color: var(--text);
+      background: var(--surface-soft);
+    }
+
+    .screen-title {
+      min-width: 0;
+    }
+
+    .screen-title h1 {
+      margin: 0;
+      font-size: 22px;
+      line-height: 1.2;
+    }
+
+    .screen-title p {
+      margin: 4px 0 0;
+      color: var(--muted);
+      line-height: 1.4;
+    }
+
+    .status-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      justify-content: flex-end;
+    }
+
+    .view {
+      display: none;
+      animation: enter 180ms ease-out;
+    }
+
+    .view.active {
+      display: block;
+    }
+
+    @keyframes enter {
+      from {
+        opacity: 0;
+        transform: translateY(6px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .section-grid {
+      display: grid;
+      gap: 16px;
+    }
+
+    .grid-2 {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .grid-3 {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .grid-4 {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+
+    .card {
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: rgba(15, 27, 45, 0.90);
+      box-shadow: 0 12px 30px rgba(0, 0, 0, 0.18);
+      padding: 18px;
+      min-width: 0;
+    }
+
+    .card.soft {
+      background: rgba(19, 34, 56, 0.78);
+    }
+
+    .card-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+
+    .card h2,
+    .card h3 {
+      margin: 0;
+      line-height: 1.25;
+    }
+
+    .card h2 {
+      font-size: 18px;
+    }
+
+    .card h3 {
+      font-size: 16px;
+    }
+
+    .card p {
+      margin: 8px 0 0;
+      color: var(--muted);
+      line-height: 1.58;
+    }
+
+    .hero {
+      display: grid;
+      grid-template-columns: minmax(0, 1.2fr) minmax(280px, 0.8fr);
+      gap: 18px;
+      align-items: stretch;
+    }
+
+    .hero-copy {
+      padding: 28px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background:
+        linear-gradient(145deg, rgba(77, 184, 255, 0.14), rgba(40, 199, 111, 0.08)),
+        rgba(15, 27, 45, 0.92);
+      box-shadow: var(--shadow);
+    }
+
+    .hero-copy h2 {
+      margin: 0;
+      max-width: 860px;
+      font-size: 34px;
+      line-height: 1.12;
+    }
+
+    .hero-copy p {
+      margin: 14px 0 0;
+      max-width: 720px;
+      color: var(--soft);
+      font-size: 16px;
+      line-height: 1.7;
+    }
+
+    .action-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 16px;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      min-height: 42px;
+      padding: 10px 14px;
+      border-radius: var(--radius);
+      border: 1px solid var(--border-strong);
+      color: var(--text);
+      background: var(--surface-soft);
+      text-decoration: none;
+      font-weight: 750;
+      text-align: center;
+    }
+
+    .btn:hover {
+      border-color: rgba(77, 184, 255, 0.45);
+      background: #19304b;
+    }
+
+    .btn.primary {
+      color: #04111d;
+      background: linear-gradient(135deg, #79d4ff, #61f0a1);
+      border-color: transparent;
+    }
+
+    .btn.primary:hover {
+      background: linear-gradient(135deg, #9fe1ff, #7ff3b4);
+    }
+
+    .btn.warn {
+      color: #1b1304;
+      background: var(--yellow);
+      border-color: transparent;
+    }
+
+    .btn.danger {
+      background: rgba(255, 92, 108, 0.14);
+      border-color: rgba(255, 92, 108, 0.34);
+      color: #ffd2d8;
+    }
+
+    .btn.ghost {
+      background: transparent;
+    }
+
+    .btn[disabled],
+    .btn.disabled {
+      cursor: not-allowed;
+      opacity: 0.58;
+      background: #172334;
+      color: #97a5b6;
+      border-color: #29394f;
+    }
+
+    .empty-state {
+      display: grid;
+      gap: 8px;
+      min-height: 120px;
+      align-content: center;
+      padding: 18px;
+      border: 1px dashed var(--border-strong);
+      border-radius: var(--radius);
+      background: rgba(8, 17, 31, 0.42);
+      color: var(--muted);
+    }
+
+    .empty-state strong {
+      color: var(--text);
+      font-size: 15px;
+    }
+
+    .notice {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      padding: 12px 14px;
+      border-radius: var(--radius);
+      border: 1px solid;
+      line-height: 1.55;
+      color: var(--soft);
+      background: rgba(15, 27, 45, 0.82);
+    }
+
+    .notice.info {
+      border-color: rgba(77, 184, 255, 0.28);
+      background: var(--blue-soft);
+    }
+
+    .notice.warn {
+      border-color: rgba(246, 200, 95, 0.34);
+      background: var(--yellow-soft);
+    }
+
+    .notice.danger {
+      border-color: rgba(255, 92, 108, 0.34);
+      background: var(--red-soft);
+    }
+
+    .notice.safe {
+      border-color: rgba(40, 199, 111, 0.28);
+      background: var(--green-soft);
+    }
+
+    .form-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+    }
+
+    .form-field {
+      display: grid;
+      gap: 8px;
+    }
+
+    .form-field.full {
+      grid-column: 1 / -1;
+    }
+
+    label {
+      color: var(--soft);
+      font-weight: 720;
+      font-size: 13px;
+    }
+
+    input,
+    select,
+    textarea {
+      width: 100%;
+      min-height: 44px;
+      border-radius: var(--radius);
+      border: 1px solid var(--border-strong);
+      background: #0a1524;
+      color: var(--text);
+      padding: 10px 12px;
+      outline: none;
+    }
+
+    textarea {
+      min-height: 98px;
+      resize: vertical;
+      line-height: 1.5;
+    }
+
+    input:focus,
+    select:focus,
+    textarea:focus {
+      border-color: var(--blue);
+      box-shadow: 0 0 0 3px rgba(77, 184, 255, 0.16);
+    }
+
+    .field-hint {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.45;
+    }
+
+    .error-text {
+      color: #ffd2d8;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    .stepper {
+      display: grid;
+      grid-template-columns: repeat(8, minmax(0, 1fr));
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+
+    .step {
+      min-height: 8px;
+      border-radius: 999px;
+      background: #20314a;
+      border: 1px solid transparent;
+    }
+
+    .step.active {
+      background: var(--blue);
+    }
+
+    .step.done {
+      background: var(--green);
+    }
+
+    .data-list {
+      display: grid;
+      gap: 10px;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .data-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 12px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: rgba(8, 17, 31, 0.38);
+    }
+
+    .data-item span {
+      color: var(--muted);
+    }
+
+    .data-item strong {
+      overflow-wrap: anywhere;
+    }
+
+    .template-card {
+      display: grid;
+      gap: 12px;
+      min-height: 100%;
+    }
+
+    .template-card ul,
+    .help-card ul {
+      margin: 0;
+      padding-left: 18px;
+      color: var(--muted);
+      line-height: 1.65;
+    }
+
+    .status-list {
+      display: grid;
+      gap: 8px;
+      margin: 10px 0 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .status-list li {
+      padding: 10px 12px;
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+      color: var(--soft);
+      background: rgba(8, 17, 31, 0.34);
+    }
+
+    .placeholder-panel {
+      display: grid;
+      place-items: center;
+      min-height: 190px;
+      border: 1px dashed var(--border-strong);
+      border-radius: var(--radius);
+      color: var(--muted);
+      background: rgba(8, 17, 31, 0.34);
+      text-align: center;
+      padding: 18px;
+    }
+
+    .market-toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: flex-end;
+      gap: 12px;
+    }
+
+    .market-toolbar .form-field {
+      flex: 1 1 260px;
+    }
+
+    .chart-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 16px;
+    }
+
+    .live-chart-card {
+      min-height: 360px;
+    }
+
+    .live-chart-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+
+    .live-title {
+      min-width: 0;
+    }
+
+    .live-title h2 {
+      margin: 0;
+      font-size: 18px;
+      overflow-wrap: anywhere;
+    }
+
+    .live-title p {
+      margin: 4px 0 0;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .live-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      min-height: 24px;
+      padding: 4px 9px;
+      border-radius: 999px;
+      color: #bff7d7;
+      background: var(--green-soft);
+      border: 1px solid rgba(40, 199, 111, 0.28);
+      font-size: 12px;
+      font-weight: 800;
+      white-space: nowrap;
+    }
+
+    .live-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 999px;
+      background: var(--green);
+      box-shadow: 0 0 0 5px rgba(40, 199, 111, 0.12);
+    }
+
+    .chart-canvas {
+      width: 100%;
+      height: 230px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: #0a1524;
+      overflow: hidden;
+    }
+
+    .chart-error {
+      display: grid;
+      place-items: center;
+      height: 230px;
+      border: 1px dashed rgba(255, 92, 108, 0.36);
+      border-radius: var(--radius);
+      color: #ffd2d8;
+      background: var(--red-soft);
+      text-align: center;
+      padding: 16px;
+    }
+
+    .chart-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 12px;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    .chart-meta span {
+      padding: 6px 8px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: rgba(8, 17, 31, 0.32);
+    }
+
+    .exchange-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .exchange-card {
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px;
+      background: rgba(8, 17, 31, 0.42);
+    }
+
+    .exchange-card h3 {
+      margin-bottom: 10px;
+    }
+
+    .toast-root {
+      position: fixed;
+      right: 22px;
+      bottom: 22px;
+      display: grid;
+      gap: 10px;
+      z-index: 40;
+      width: min(380px, calc(100vw - 32px));
+    }
+
+    .toast {
+      padding: 12px 14px;
+      border-radius: var(--radius);
+      border: 1px solid var(--border-strong);
+      background: #101d30;
+      color: var(--text);
+      box-shadow: var(--shadow);
+      line-height: 1.5;
+    }
+
+    .toast.error {
+      border-color: rgba(255, 92, 108, 0.42);
+    }
+
+    .toast.success {
+      border-color: rgba(40, 199, 111, 0.42);
+    }
+
+    .toast.info {
+      border-color: rgba(77, 184, 255, 0.42);
+    }
+
+    .visually-hidden {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+
+    @media (max-width: 1180px) {
+      .grid-4,
+      .exchange-grid,
+      .chart-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .grid-3 {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .hero {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 900px) {
+      .app-shell {
+        grid-template-columns: 1fr;
+      }
+
+      .sidebar {
+        position: fixed;
+        inset: 0 auto 0 0;
+        z-index: 30;
+        width: min(86vw, 330px);
+        transform: translateX(-105%);
+        transition: transform 180ms ease;
+      }
+
+      body.sidebar-open .sidebar {
+        transform: translateX(0);
+      }
+
+      .main {
+        padding: 16px;
+      }
+
+      .menu-toggle {
+        display: inline-grid;
+        place-items: center;
+      }
+
+      .topbar {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+
+      .status-row {
+        justify-content: flex-start;
+      }
+
+      .grid-2,
+      .grid-3,
+      .grid-4,
+      .form-grid,
+      .exchange-grid,
+      .chart-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .hero-copy h2 {
+        font-size: 28px;
+      }
+
+      .stepper {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar" aria-label="Ana menü">
+      <div class="brand">
+        <div class="brand-mark">PP</div>
+        <div>
+          <p class="brand-title">PiyasaPilot</p>
+          <p class="brand-subtitle">Güvenli MVP paneli</p>
+        </div>
+      </div>
+
+      <nav class="nav" id="mainNav">
+        <button class="nav-button" data-screen="dashboard"><span class="nav-label">Ana Panel</span></button>
+        <button class="nav-button" data-screen="bots"><span class="nav-label">Kripto Botları</span></button>
+        <button class="nav-button" data-screen="bot-builder"><span class="nav-label">Bot Oluştur</span></button>
+        <button class="nav-button" data-screen="tradingview"><span class="nav-label">TradingView Sinyalleri</span></button>
+        <button class="nav-button" data-screen="paper"><span class="nav-label">Paper Trading</span></button>
+        <button class="nav-button" data-screen="backtest"><span class="nav-label">Backtest Özeti</span></button>
+        <button class="nav-button" data-screen="risk"><span class="nav-label">Risk Merkezi</span></button>
+        <button class="nav-button" data-screen="exchanges"><span class="nav-label">Borsa Bağlantıları</span></button>
+        <button class="nav-button" data-screen="strategies"><span class="nav-label">Strateji Kütüphanesi</span></button>
+        <button class="nav-button" data-screen="notifications"><span class="nav-label">Bildirimler</span></button>
+        <button class="nav-button" data-screen="education"><span class="nav-label">Eğitim / Yardım</span></button>
+        <button class="nav-button" data-screen="bist"><span class="nav-label">BIST Takip</span><span class="tag warn">Yakında</span></button>
+        <button class="nav-button" data-screen="viop"><span class="nav-label">VİOP Takip</span><span class="tag warn">Yakında</span></button>
+        <button class="nav-button" data-screen="admin"><span class="nav-label">Admin Paneli</span><span class="tag warn">Yakında</span></button>
+      </nav>
+
+      <div class="sidebar-footer">
+        <strong>Canlı işlem kapalı</strong>
+        <p>MVP yalnızca hazırlık, risk kontrolü, sinyal bağlantısı ve paper trading akışını gösterir.</p>
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div class="topbar-left">
+          <button class="menu-toggle" id="menuToggle" aria-label="Menüyü aç">☰</button>
+          <div class="screen-title">
+            <h1 id="pageTitle">Karşılama</h1>
+            <p id="pageSubtitle">PiyasaPilot MVP’ye hoş geldiniz.</p>
+          </div>
+        </div>
+        <div class="status-row">
+          <span class="tag danger">Canlı işlem kapalı</span>
+          <span class="tag info">Public veri okuma aktif</span>
+          <span class="tag warn">Veri yoksa sonuç yok</span>
+        </div>
+      </header>
+
+      <div class="toast-root" id="toastRoot" aria-live="polite"></div>
+
+      <section class="view active" data-view="onboarding">
+        <div class="hero">
+          <div class="hero-copy">
+            <span class="tag info">Türkçe yatırım otomasyon paneli</span>
+            <h2>Kod yazmadan kripto botunuzu hazırlayın, riski kontrol edin ve önce paper trading’de izleyin.</h2>
+            <p>PiyasaPilot MVP gerçek emir açmaz, sahte performans göstermez ve veri yokken sonuç üretmez. Bu sürüm, güvenli başlangıç akışını net şekilde deneyimlemek için hazırlanmıştır.</p>
+            <div class="action-row">
+              <button class="btn primary" data-go="bot-builder">Başlayalım</button>
+              <button class="btn ghost" data-go="dashboard">Paneli Gör</button>
+            </div>
+          </div>
+          <div class="card soft">
+            <div class="notice warn">
+              <strong>Uyarı:</strong>
+              <span>Canlı işlem MVP’de kapalıdır. Önce risksiz test modu kullanılır.</span>
+            </div>
+            <div class="section-grid" style="margin-top:16px;">
+              <button class="btn" data-go="bot-builder">İlk Botumu Oluştur</button>
+              <button class="btn" data-go="tradingview">TradingView Sinyali Bağla</button>
+              <button class="btn" data-go="paper">Paper Trading Başlat</button>
+              <button class="btn" data-go="backtest">Strateji Test Et</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="view" data-view="dashboard">
+        <div class="section-grid">
+          <div class="notice info">
+            <strong>Bilgi:</strong>
+            <span>Bu panel gerçek para hareketi göstermez. Canlı izleme read-only çalışır; veri gelmezse “Bağlantı Hatası” gösterilir.</span>
+          </div>
+          <article class="card">
+            <div class="card-header">
+              <div>
+                <h2>Canlı Piyasa İzleme</h2>
+                <p>Varsayılan grafikler: BIST 100, USD/TRY, BTC/USDT ve Altın. Her grafik gerçek veri sağlayıcıdan gelen son güncelleme zamanını gösterir.</p>
+              </div>
+              <span class="tag safe">Read-only</span>
+            </div>
+            <div class="market-toolbar">
+              <div class="form-field">
+                <label for="dynamicSymbol">Yeni sembol ekle</label>
+                <input id="dynamicSymbol" autocomplete="off" placeholder="Örn. ETHUSDT, EURTRY, THYAO">
+                <span class="field-hint">DynamicLoader gerçek veri bulamazsa grafik oluşturmaz, bağlantı hatası gösterir.</span>
+              </div>
+              <button class="btn primary" id="addSymbol">Sembolü Canlı İzle</button>
+              <button class="btn" id="refreshCharts">Grafikleri Yenile</button>
+            </div>
+          </article>
+          <div id="liveChartGrid" class="chart-grid"></div>
+          <div id="liveChartMessage" class="notice warn">
+            <strong>Bağlantı bekleniyor:</strong>
+            <span>Canlı veri için yerel sunucuyu çalıştırın: python3 live_server.py</span>
+          </div>
+          <div class="grid-3 section-grid">
+            <article class="card">
+              <div class="card-header">
+                <h2>Portföy Durumu</h2>
+                <span class="tag info">Hazırlık</span>
+              </div>
+              <div id="dashboardPortfolio"></div>
+            </article>
+            <article class="card">
+              <div class="card-header">
+                <h2>Paper Bot Durumu</h2>
+                <span class="tag info">Test</span>
+              </div>
+              <div id="dashboardPaper"></div>
+            </article>
+            <article class="card">
+              <div class="card-header">
+                <h2>Sinyal Durumu</h2>
+                <span class="tag info">TradingView</span>
+              </div>
+              <div id="dashboardSignal"></div>
+            </article>
+          </div>
+          <div class="grid-2 section-grid">
+            <article class="card">
+              <div class="card-header">
+                <h2>Risk Durumu</h2>
+                <span id="dashboardRiskTag" class="tag warn">Kontrol bekliyor</span>
+              </div>
+              <div id="dashboardRisk"></div>
+            </article>
+            <article class="card">
+              <div class="card-header">
+                <h2>Son Aktiviteler</h2>
+                <span class="tag info">Kullanıcı işlemleri</span>
+              </div>
+              <div id="dashboardActivities"></div>
+            </article>
+          </div>
+          <div class="action-row">
+            <button class="btn primary" data-go="bot-builder">Yeni Bot Oluştur</button>
+            <button class="btn" data-go="paper">Paper Trading’e Git</button>
+            <button class="btn" data-go="risk">Riskleri Kontrol Et</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="view" data-view="bots">
+        <div class="section-grid">
+          <div class="notice warn">
+            <strong>Uyarı:</strong>
+            <span>Canlı işlem bu sürümde kapalıdır.</span>
+          </div>
+          <article class="card">
+            <div class="card-header">
+              <div>
+                <h2>Kripto Botları</h2>
+                <p>Burada yalnızca kullanıcının oluşturduğu bot taslakları ve paper trading durumları gösterilir.</p>
+              </div>
+              <span class="tag danger">Canlı Mod Yakında</span>
+            </div>
+            <div id="botList"></div>
+            <div class="action-row">
+              <button class="btn primary" data-go="bot-builder">Yeni Bot Oluştur</button>
+              <button class="btn" data-go="bot-builder">Bot Ayarlarını Hazırla</button>
+              <button class="btn disabled" disabled>Canlı Mod Yakında</button>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <section class="view" data-view="bot-builder">
+        <div class="section-grid">
+          <div class="notice warn">
+            <strong>Uyarı:</strong>
+            <span>Risk ayarları tamamlanmadan bot başlatılamaz.</span>
+          </div>
+          <article class="card">
+            <div class="card-header">
+              <div>
+                <h2>Bot Oluşturma Sihirbazı</h2>
+                <p>Alanları adım adım doldurun. PiyasaPilot gerçek emir açmadan önce paper trading hazırlığı yapar.</p>
+              </div>
+              <span class="tag info" id="wizardStepLabel">Adım 1 / 8</span>
+            </div>
+            <div class="stepper" id="wizardStepper" aria-hidden="true"></div>
+            <form id="wizardForm" novalidate>
+              <div id="wizardBody"></div>
+              <div id="wizardError" class="error-text" role="alert" style="margin-top:12px;"></div>
+              <div class="action-row">
+                <button type="button" class="btn ghost" id="wizardBack">Geri</button>
+                <button type="button" class="btn primary" id="wizardNext">Sonraki Adım</button>
+              </div>
+            </form>
+          </article>
+        </div>
+      </section>
+
+      <section class="view" data-view="tradingview">
+        <div class="section-grid">
+          <div class="notice warn">
+            <strong>Uyarı:</strong>
+            <span>TradingView sinyalleri MVP’de gerçek emir açmaz.</span>
+          </div>
+          <div class="grid-2 section-grid">
+            <article class="card">
+              <div class="card-header">
+                <h2>Yeni Sinyal Bağlantısı</h2>
+                <span class="tag info">Form</span>
+              </div>
+              <form id="tvForm" class="form-grid" novalidate>
+                <div class="form-field">
+                  <label for="tvName">Sinyal adı</label>
+                  <input id="tvName" name="tvName" autocomplete="off" placeholder="Sinyalinize anlaşılır bir ad verin">
+                </div>
+                <div class="form-field">
+                  <label for="tvPair">İşlem çifti</label>
+                  <input id="tvPair" name="tvPair" autocomplete="off" placeholder="Örn. BTC/USDT">
+                </div>
+                <div class="form-field">
+                  <label for="tvLong">Long sinyali mesajı</label>
+                  <input id="tvLong" name="tvLong" autocomplete="off" placeholder="TradingView alert mesajı">
+                </div>
+                <div class="form-field">
+                  <label for="tvShort">Short sinyali mesajı</label>
+                  <input id="tvShort" name="tvShort" autocomplete="off" placeholder="TradingView alert mesajı">
+                </div>
+                <div class="form-field">
+                  <label for="tvClose">Pozisyon kapatma mesajı</label>
+                  <input id="tvClose" name="tvClose" autocomplete="off" placeholder="TradingView alert mesajı">
+                </div>
+                <div class="form-field">
+                  <label for="tvAction">Sinyal geldiğinde yapılacak işlem</label>
+                  <select id="tvAction" name="tvAction">
+                    <option value="">Seçin</option>
+                    <option value="notify">Sadece Bildirim Gönder</option>
+                    <option value="paper">Paper Trading Botuna Uygula</option>
+                  </select>
+                </div>
+                <div class="form-field full">
+                  <span class="field-hint">Bu ekran sinyal bağlantı hazırlığını gösterir. Gerçek webhook veya borsa emri çalıştırılmaz.</span>
+                </div>
+                <div class="form-field full">
+                  <div class="action-row">
+                    <button type="button" class="btn" id="tvNew">Yeni Sinyal Bağlantısı</button>
+                    <button type="button" class="btn" id="tvTest">Test Sinyali Gönder</button>
+                    <button type="button" class="btn primary" id="tvSave">Bağlantıyı Kaydet</button>
+                  </div>
+                  <div id="tvError" class="error-text"></div>
+                </div>
+              </form>
+            </article>
+            <article class="card">
+              <div class="card-header">
+                <h2>Sinyal Durumu</h2>
+                <span class="tag info">Bağlantı testi</span>
+              </div>
+              <div id="tvStatus"></div>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="view" data-view="paper">
+        <div class="section-grid">
+          <div class="notice warn">
+            <strong>Uyarı:</strong>
+            <span>Paper trading sonucu gerçek piyasa sonucunu garanti etmez.</span>
+          </div>
+          <article class="card">
+            <div class="card-header">
+              <div>
+                <h2>Manuel Paper Sinyali</h2>
+                <p>Bu alan yalnızca sanal kayıt oluşturur. Gerçek son fiyat alınamazsa işlem kaydedilmez.</p>
+              </div>
+              <span class="tag safe">Read-only</span>
+            </div>
+            <form class="form-grid" id="paperSignalForm" novalidate>
+              <div class="form-field">
+                <label for="paperSignalSymbol">Sembol</label>
+                <input id="paperSignalSymbol" autocomplete="off" placeholder="Örn. BTCUSDT">
+              </div>
+              <div class="form-field">
+                <label for="paperSignalSide">Sinyal yönü</label>
+                <select id="paperSignalSide">
+                  <option value="">Seçin</option>
+                  <option value="buy">Al sinyali</option>
+                  <option value="sell">Sat sinyali</option>
+                </select>
+              </div>
+              <div class="form-field">
+                <label for="paperSignalStrategy">Strateji adı</label>
+                <input id="paperSignalStrategy" autocomplete="off" placeholder="Stratejinizin adı">
+              </div>
+              <div class="form-field">
+                <label for="paperSignalBot">Bot adı</label>
+                <input id="paperSignalBot" autocomplete="off" placeholder="İsteğe bağlı">
+              </div>
+              <div class="form-field full">
+                <button type="button" class="btn primary" id="recordPaperSignal">Sinyali Canlı Fiyatla Paper İşleme Kaydet</button>
+                <div id="paperSignalMessage" class="error-text"></div>
+              </div>
+            </form>
+          </article>
+          <div class="grid-3 section-grid">
+            <article class="card">
+              <div class="card-header">
+                <h2>Simülasyon Durumu</h2>
+                <span id="paperStatusTag" class="tag warn">Beklemede</span>
+              </div>
+              <div id="paperSimulation"></div>
+            </article>
+            <article class="card">
+              <div class="card-header">
+                <h2>Sanal Bakiye</h2>
+                <span class="tag info">Kullanıcı girişi</span>
+              </div>
+              <div id="paperBalance"></div>
+            </article>
+            <article class="card">
+              <div class="card-header">
+                <h2>Risk Kontrolü</h2>
+                <span id="paperRiskTag" class="tag warn">Kontrol bekliyor</span>
+              </div>
+              <div id="paperRisk"></div>
+            </article>
+          </div>
+          <div class="grid-3 section-grid">
+            <article class="card">
+              <h2>Açık Sanal İşlemler</h2>
+              <div class="empty-state" style="margin-top:12px;">
+                <strong>Henüz açık sanal işlem yok</strong>
+                <span>Gerçek piyasa verisi bağlanmadan işlem sonucu üretilmez.</span>
+              </div>
+            </article>
+            <article class="card">
+              <h2>Son İşlemler</h2>
+              <div class="empty-state" style="margin-top:12px;">
+                <strong>Henüz sanal işlem geçmişi yok</strong>
+                <span>Bot çalışsa bile veri gelmeden geçmiş oluşturulmaz.</span>
+              </div>
+            </article>
+            <article class="card">
+              <h2>Canlıya Hazırlık Durumu</h2>
+              <div class="empty-state" style="margin-top:12px;">
+                <strong>Canlı işlem MVP’de kapalı</strong>
+                <span>Bu alan ileride risk özeti ve çift onay akışı için kullanılacak.</span>
+              </div>
+            </article>
+          </div>
+          <div class="action-row">
+            <button class="btn primary" id="paperStart">Simülasyonu Başlat</button>
+            <button class="btn danger" id="paperStop">Simülasyonu Durdur</button>
+            <button class="btn" data-go="backtest">Sonuçları İncele</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="view" data-view="backtest">
+        <div class="section-grid">
+          <div class="notice info">
+            <strong>Bilgi:</strong>
+            <span>Backtest sonucu için gerçek geçmiş piyasa verisi gerekir.</span>
+          </div>
+          <div class="grid-2 section-grid">
+            <article class="card">
+              <div class="card-header">
+                <h2>Backtest Durumu</h2>
+                <span class="tag info">Veri kontrolü</span>
+              </div>
+              <div id="backtestStatus"></div>
+              <div class="action-row">
+                <button class="btn primary" id="runBacktest">Backtest Çalıştır</button>
+                <button class="btn" data-go="paper">Paper Trading’de Dene</button>
+              </div>
+            </article>
+            <article class="card">
+              <div class="card-header">
+                <h2>Sonuç Alanı</h2>
+                <span class="tag warn">Sonuç yok</span>
+              </div>
+              <div class="placeholder-panel">
+                <div>
+                  <strong>Henüz backtest sonucu yok</strong>
+                  <p>Gerçek veri kaynağı bağlandığında grafik ve sonuçlar burada gösterilecek.</p>
+                </div>
+              </div>
+            </article>
+          </div>
+          <div class="grid-3 section-grid">
+            <article class="card">
+              <h2>Seçilen Strateji</h2>
+              <div id="backtestStrategy"></div>
+            </article>
+            <article class="card">
+              <h2>Veri Durumu</h2>
+              <div class="empty-state" style="margin-top:12px;">
+                <strong>Veri kaynağı bağlı değil</strong>
+                <span>Bu prototip gerçek geçmiş piyasa verisi çekmez.</span>
+              </div>
+            </article>
+            <article class="card">
+              <h2>Risk Yorumu</h2>
+              <div class="empty-state" style="margin-top:12px;">
+                <strong>Yorum için sonuç bekleniyor</strong>
+                <span>Gerçek backtest sonucu olmadan risk yorumu üretilmez.</span>
+              </div>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="view" data-view="risk">
+        <div class="section-grid">
+          <div class="notice danger">
+            <strong>Önemli:</strong>
+            <span>Bu platform yatırım tavsiyesi vermez. Günlük zarar limiti ve stop-loss olmadan bot başlatılamaz.</span>
+          </div>
+          <div class="grid-2 section-grid">
+            <article class="card">
+              <div class="card-header">
+                <h2>Genel Risk Durumu</h2>
+                <span id="riskOverallTag" class="tag warn">Eksik</span>
+              </div>
+              <div id="riskOverall"></div>
+            </article>
+            <article class="card">
+              <div class="card-header">
+                <h2>Eksik Risk Ayarları</h2>
+                <span class="tag warn">Zorunlu</span>
+              </div>
+              <div id="riskMissing"></div>
+            </article>
+          </div>
+          <article class="card">
+            <div class="card-header">
+              <div>
+                <h2>Risk Ayarları</h2>
+                <p>Bu değerler kullanıcının kendi belirlediği sınırlar olarak saklanır. PiyasaPilot değer dayatmaz.</p>
+              </div>
+              <span class="tag info">MVP</span>
+            </div>
+            <form id="riskForm" class="form-grid" novalidate>
+              <div class="form-field">
+                <label for="maxRisk">İşlem başına maksimum risk</label>
+                <input id="maxRisk" name="maxRisk" type="number" min="0" step="0.01" placeholder="Yüzde veya tutar olarak kendi sınırınız">
+              </div>
+              <div class="form-field">
+                <label for="dailyLoss">Günlük zarar limiti</label>
+                <input id="dailyLoss" name="dailyLoss" type="number" min="0" step="0.01" placeholder="Zorunlu">
+              </div>
+              <div class="form-field">
+                <label for="weeklyLoss">Haftalık zarar limiti</label>
+                <input id="weeklyLoss" name="weeklyLoss" type="number" min="0" step="0.01" placeholder="Önerilir">
+              </div>
+              <div class="form-field">
+                <label for="maxOpen">Maksimum açık işlem sayısı</label>
+                <input id="maxOpen" name="maxOpen" type="number" min="1" step="1" placeholder="Aynı anda kaç işlem açılabilir?">
+              </div>
+              <div class="form-field">
+                <label for="riskStopLoss">Stop-loss</label>
+                <input id="riskStopLoss" name="riskStopLoss" type="number" min="0" step="0.01" placeholder="Zorunlu">
+              </div>
+              <div class="form-field">
+                <label for="riskTakeProfit">Take-profit</label>
+                <input id="riskTakeProfit" name="riskTakeProfit" type="number" min="0" step="0.01" placeholder="Hedef kâr sınırı">
+              </div>
+              <div class="form-field">
+                <label for="lossPause">Arka arkaya zarar sonrası durdurma</label>
+                <input id="lossPause" name="lossPause" type="number" min="1" step="1" placeholder="Kaç zarar sonrası bot dursun?">
+              </div>
+              <div class="form-field">
+                <label for="allowedCoins">İzin verilen coinler</label>
+                <input id="allowedCoins" name="allowedCoins" autocomplete="off" placeholder="Virgülle ayırın">
+              </div>
+              <div class="form-field full">
+                <label for="blockedCoins">Engellenen coinler</label>
+                <input id="blockedCoins" name="blockedCoins" autocomplete="off" placeholder="Virgülle ayırın">
+              </div>
+              <div class="form-field full">
+                <div class="action-row">
+                  <button type="button" class="btn primary" id="saveRisk">Risk Ayarlarını Kaydet</button>
+                  <button type="button" class="btn" id="completeRisk">Eksikleri Tamamla</button>
+                  <button type="button" class="btn" id="suggestRisk">Güvenli Ayar Öner</button>
+                </div>
+                <div id="riskFormMessage" class="error-text"></div>
+              </div>
+            </form>
+          </article>
+          <div class="grid-3 section-grid">
+            <article class="card">
+              <h2>Bot Bazlı Riskler</h2>
+              <div id="botRiskList"></div>
+            </article>
+            <article class="card">
+              <h2>Otomatik Durdurma Kuralları</h2>
+              <div id="stopRules"></div>
+            </article>
+            <article class="card">
+              <h2>Coin Listeleri</h2>
+              <div id="coinLists"></div>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="view" data-view="exchanges">
+        <div class="section-grid">
+          <div class="notice warn">
+            <strong>Güvenlik:</strong>
+            <span>Para çekme izni olan API anahtarı kullanmayın. Bu prototip gerçek API testi yapmaz.</span>
+          </div>
+          <article class="card">
+            <div class="card-header">
+              <div>
+                <h2>Borsa Bağlantıları</h2>
+                <p>Hiçbir bağlantı gerçek borsaya gönderilmez. Bağlantı durumu gerçek bağlantı yapılana kadar “Bağlantı bekleniyor” olarak kalır.</p>
+              </div>
+              <span class="tag warn">Bağlantı bekleniyor</span>
+            </div>
+            <div id="exchangeCards" class="exchange-grid"></div>
+          </article>
+          <article class="card">
+            <div class="card-header">
+              <h2>API Bağlantısı Hazırla</h2>
+              <span class="tag info">Güvenli giriş</span>
+            </div>
+            <form id="exchangeForm" class="form-grid" novalidate>
+              <div class="form-field">
+                <label for="connectionName">Bağlantı adı</label>
+                <input id="connectionName" name="connectionName" autocomplete="off" placeholder="Kendi anlayacağınız bir ad">
+              </div>
+              <div class="form-field">
+                <label for="exchangeSelect">Borsa</label>
+                <select id="exchangeSelect" name="exchangeSelect">
+                  <option value="">Borsa seçin</option>
+                </select>
+              </div>
+              <div class="form-field">
+                <label for="apiKey">API anahtarı</label>
+                <input id="apiKey" name="apiKey" autocomplete="off" placeholder="Gerçek çağrı yapılmaz">
+              </div>
+              <div class="form-field">
+                <label for="apiSecret">Gizli anahtar</label>
+                <input id="apiSecret" name="apiSecret" type="password" autocomplete="off" placeholder="Şifreli alan">
+              </div>
+              <div class="form-field full">
+                <label for="permissionCheck">İzin kontrolü</label>
+                <select id="permissionCheck" name="permissionCheck">
+                  <option value="">İzin durumunu seçin</option>
+                  <option value="trade-only">Sadece işlem izni var</option>
+                  <option value="read-only">Sadece okuma izni var</option>
+                  <option value="unknown">Emin değilim</option>
+                </select>
+                <span class="field-hint">Para çekme izni güvenlik nedeniyle önerilmez ve bu prototipte desteklenmez.</span>
+              </div>
+              <div class="form-field full">
+                <div class="action-row">
+                  <button type="button" class="btn" id="testExchange">Bağlantıyı Test Et</button>
+                  <button type="button" class="btn primary" id="saveExchange">Kaydet</button>
+                </div>
+                <div id="exchangeMessage" class="error-text"></div>
+              </div>
+            </form>
+          </article>
+        </div>
+      </section>
+
+      <section class="view" data-view="strategies">
+        <div class="section-grid">
+          <div class="notice info">
+            <strong>Bilgi:</strong>
+            <span>Strateji kartları performans garantisi vermez. Canlı işlem bu sürümde kapalıdır.</span>
+          </div>
+          <div class="grid-3 section-grid" id="strategyGrid"></div>
+        </div>
+      </section>
+
+      <section class="view" data-view="notifications">
+        <div class="section-grid">
+          <article class="card">
+            <div class="card-header">
+              <div>
+                <h2>Bildirimler</h2>
+                <p>Bu alanda yalnızca bu panelde oluşan gerçek kullanıcı işlemleri gösterilir.</p>
+              </div>
+              <span class="tag info">Web panel</span>
+            </div>
+            <div class="action-row" style="margin-top:0;">
+              <button class="btn" data-filter="bot">Bot bildirimleri</button>
+              <button class="btn" data-filter="signal">Sinyal bildirimleri</button>
+              <button class="btn" data-filter="risk">Risk bildirimleri</button>
+              <button class="btn" data-filter="connection">Bağlantı bildirimleri</button>
+            </div>
+            <div id="notificationList" style="margin-top:16px;"></div>
+            <div class="action-row">
+              <button class="btn" id="markRead">Tümünü Okundu İşaretle</button>
+              <button class="btn" id="notificationSettings">Bildirim Ayarları</button>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <section class="view" data-view="education">
+        <div class="section-grid">
+          <div class="grid-4 section-grid" id="helpGrid"></div>
+        </div>
+      </section>
+
+      <section class="view" data-view="bist">
+        <div class="card">
+          <div class="card-header">
+            <h2>BIST Takip</h2>
+            <span class="tag warn">Yakında</span>
+          </div>
+          <div class="empty-state">
+            <strong>Bu modül sonraki sürümde eklenecek.</strong>
+            <span>BIST takip ekranı ileride hisse, endeks, alarm ve portföy takibi için hazırlanacaktır.</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="view" data-view="viop">
+        <div class="card">
+          <div class="card-header">
+            <h2>VİOP Takip</h2>
+            <span class="tag warn">Yakında</span>
+          </div>
+          <div class="empty-state">
+            <strong>Bu modül sonraki sürümde eklenecek.</strong>
+            <span>VİOP takip ekranı ileride kontrat, vade, teminat ve risk uyarıları için hazırlanacaktır.</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="view" data-view="admin">
+        <div class="card">
+          <div class="card-header">
+            <h2>Admin Paneli</h2>
+            <span class="tag warn">Yakında</span>
+          </div>
+          <div class="empty-state">
+            <strong>Bu modül sonraki sürümde eklenecek.</strong>
+            <span>Admin paneli sonraki sürümde platform yönetimi için eklenecektir.</span>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    // PiyasaPilot: read-only canlı veri izleme ve paper trading hazırlığı.
+    // Bu arayüz canlı emir göndermez; veri gelmezse sahte değer üretmez.
+    const storageKey = "piyasaPilotMvpState";
+    const API_BASES = window.location.protocol === "file:"
+      ? ["http://127.0.0.1:8000", "http://127.0.0.1:8001"]
+      : [""];
+    const DEFAULT_LIVE_SYMBOLS = ["XU100", "USDTRY", "BTCUSDT", "XAUUSD"];
+    const chartRegistry = new Map();
+
+    const exchanges = ["Binance", "Binance TR", "Bybit", "OKX", "KuCoin", "Gate.io", "Hyperliquid"];
+
+    const strategies = [
+      {
+        name: "Düşük Riskli Başlangıç Botu",
+        risk: "Düşük risk hedefleyen başlangıç şablonu",
+        suitable: "İlk kez bot hazırlayan kullanıcılar",
+        condition: "Daha sakin piyasa koşullarında izleme ve öğrenme için uygundur",
+        test: "Önce uzun süre paper trading’de takip edilmelidir"
+      },
+      {
+        name: "BTC Trend Takip",
+        risk: "Trend yönünü izlemeye odaklı orta risk yaklaşımı",
+        suitable: "BTC paritesini takip etmek isteyen kullanıcılar",
+        condition: "Net yön oluşan piyasalarda daha anlaşılır sinyal üretir",
+        test: "Backtest ve paper trading birlikte değerlendirilmelidir"
+      },
+      {
+        name: "ETH DCA",
+        risk: "Parçalı alım mantığı nedeniyle disiplinli takip gerektirir",
+        suitable: "Tek seferde işlem açmak istemeyen kullanıcılar",
+        condition: "Belirli aralıklarla pozisyon yaklaşımı kurgulamak isteyenler için uygundur",
+        test: "Sanal bakiye ve zarar limiti dikkatli belirlenmelidir"
+      },
+      {
+        name: "Grid Bot",
+        risk: "Yatay piyasada izlenebilir, sert trendlerde dikkat ister",
+        suitable: "Fiyat aralığı mantığını bilen kullanıcılar",
+        condition: "Dalgalı ama yönsüz piyasalarda daha anlamlı olabilir",
+        test: "Önce dar kapsamlı paper trading önerilir"
+      },
+      {
+        name: "TradingView Sinyal Botu",
+        risk: "Sinyal kalitesine ve risk ayarlarına bağlıdır",
+        suitable: "TradingView alert kullanan yatırımcılar",
+        condition: "Mevcut TradingView stratejisini panelde izlemek isteyenler için uygundur",
+        test: "Test sinyali ve paper trading bağlantısı kontrol edilmelidir"
+      },
+      {
+        name: "Sadece Bildirim Botu",
+        risk: "İşlem açmaz, yalnızca kullanıcıya haber verir",
+        suitable: "Otomatik işlem istemeyen kullanıcılar",
+        condition: "Sinyali önce görmek ve kararı kendisi vermek isteyenler için uygundur",
+        test: "Bildirim akışı kontrol edilmelidir"
+      }
+    ];
+
+    const helpItems = [
+      ["Bot nedir?", "Belirlenen kurallara göre sinyal izleyen veya işlem hazırlığı yapan otomasyon mantığıdır."],
+      ["Paper trading nedir?", "Gerçek para kullanmadan, bot davranışını sanal ortamda izleme modudur."],
+      ["Backtest nedir?", "Bir stratejinin geçmiş piyasa verisiyle nasıl davranabileceğini inceleme yöntemidir."],
+      ["Stop-loss nedir?", "Zarar belirli sınıra ulaştığında pozisyonu kapatmayı hedefleyen risk kuralıdır."],
+      ["Take-profit nedir?", "Kâr hedefi oluştuğunda pozisyonu kapatmayı hedefleyen kuraldır."],
+      ["TradingView sinyali nedir?", "TradingView’de kurulan alert mesajının PiyasaPilot’a iletilmesi için hazırlanan bağlantıdır."],
+      ["API anahtarı nasıl güvenli kullanılır?", "Para çekme izni olmayan, sınırlı yetkili anahtar kullanın ve kimseyle paylaşmayın."],
+      ["Canlı işlem öncesi kontrol listesi", "Risk limiti, stop-loss, paper trading süresi ve bağlantı izinleri kontrol edilmelidir."]
+    ];
+
+    const titles = {
+      onboarding: ["Karşılama", "PiyasaPilot MVP’ye hoş geldiniz."],
+      dashboard: ["Ana Panel", "Bot, sinyal, risk ve paper trading hazırlığını tek yerden izleyin."],
+      bots: ["Kripto Botları", "Kullanıcının oluşturduğu bot taslakları ve paper trading durumu."],
+      "bot-builder": ["Bot Oluştur", "Botunuzu adım adım hazırlayın ve güvenli test moduna geçin."],
+      tradingview: ["TradingView Sinyalleri", "TradingView alert mesajlarınızı sade bir bağlantı akışına dönüştürün."],
+      paper: ["Paper Trading", "Gerçek para kullanmadan botunuzu izleyin."],
+      backtest: ["Backtest Özeti", "Gerçek veri kaynağı olmadan sonuç üretilmez."],
+      risk: ["Risk Merkezi", "Bot başlamadan önce zorunlu risk kontrollerini tamamlayın."],
+      exchanges: ["Borsa Bağlantıları", "API bilgilerinizi güvenli biçimde hazırlayın; gerçek test yapılmaz."],
+      strategies: ["Strateji Kütüphanesi", "Performans garantisi içermeyen hazır strateji şablonları."],
+      notifications: ["Bildirimler", "Panelde oluşan gerçek kullanıcı işlemlerini takip edin."],
+      education: ["Eğitim / Yardım", "Kısa ve sade açıklamalarla temel kavramları öğrenin."],
+      bist: ["BIST Takip", "Sonraki sürüm için ayrılmış alan."],
+      viop: ["VİOP Takip", "Sonraki sürüm için ayrılmış alan."],
+      admin: ["Admin Paneli", "Sonraki sürüm için ayrılmış alan."]
+    };
+
+    const wizardSteps = [
+      { key: "name", title: "Bot adı", label: "Bot adı", placeholder: "Botunuzu ayırt etmek için ad verin" },
+      { key: "exchange", title: "Borsa seç", label: "Borsa", type: "select", options: exchanges },
+      { key: "pair", title: "İşlem çifti seç", label: "İşlem çifti", placeholder: "Örn. BTC/USDT" },
+      { key: "strategy", title: "Strateji seç", label: "Strateji tipi", type: "select", options: strategies.map((item) => item.name) },
+      { key: "virtualBalance", title: "Sanal bakiye belirle", label: "Sanal bakiye", type: "number", placeholder: "Paper trading için kendi belirlediğiniz sanal tutar" },
+      { key: "tradeAmount", title: "İşlem başı tutar gir", label: "İşlem başı tutar", type: "number", placeholder: "Her sanal işlem için üst sınır" },
+      { key: "stopLoss", title: "Stop-loss gir", label: "Stop-loss", type: "number", placeholder: "Zorunlu risk sınırı" },
+      { key: "takeProfit", title: "Take-profit gir", label: "Take-profit", type: "number", placeholder: "Kâr hedefi" }
+    ];
+
+    const emptyState = (title, text) => `
+      <div class="empty-state">
+        <strong>${title}</strong>
+        <span>${text}</span>
+      </div>
+    `;
+
+    const state = loadState();
+    let currentScreen = "onboarding";
+    let wizardIndex = 0;
+    let notificationFilter = "all";
+
+    function loadState() {
+      const defaults = {
+        bots: [],
+        activeBotId: null,
+        wizardDraft: {},
+        paper: { active: false, lastStatus: "" },
+        risk: {},
+        tradingView: { connection: null, testStatus: [] },
+        exchangeDraft: null,
+        backtest: { attempted: false },
+        notifications: [],
+        liveSymbols: []
+      };
+
+      try {
+        const saved = JSON.parse(localStorage.getItem(storageKey));
+        return saved ? { ...defaults, ...saved } : defaults;
+      } catch (error) {
+        return defaults;
+      }
+    }
+
+    function saveState() {
+      localStorage.setItem(storageKey, JSON.stringify(state));
+    }
+
+    function $(selector) {
+      return document.querySelector(selector);
+    }
+
+    function $all(selector) {
+      return Array.from(document.querySelectorAll(selector));
+    }
+
+    function getActiveBot() {
+      return state.bots.find((bot) => bot.id === state.activeBotId) || state.bots[0] || null;
+    }
+
+    function getLiveSymbols() {
+      return [...new Set([...DEFAULT_LIVE_SYMBOLS, ...(state.liveSymbols || [])])];
+    }
+
+    function safeDomId(symbol) {
+      return String(symbol).replace(/[^a-zA-Z0-9_-]/g, "_");
+    }
+
+    function formatClock(isoValue) {
+      if (!isoValue) return "--:--:--";
+      const date = new Date(isoValue);
+      if (Number.isNaN(date.getTime())) return "--:--:--";
+      return date.toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+    }
+
+    function secondsAgoText(isoValue) {
+      if (!isoValue) return "güncelleme bekleniyor";
+      const date = new Date(isoValue);
+      if (Number.isNaN(date.getTime())) return "güncelleme bekleniyor";
+      const seconds = Math.max(0, Math.floor((Date.now() - date.getTime()) / 1000));
+      return `${seconds} sn önce`;
+    }
+
+    async function apiGet(path) {
+      let lastError = null;
+      for (const base of API_BASES) {
+        try {
+          const response = await fetch(`${base}${path}`, { cache: "no-store" });
+          if (!response.ok) {
+            lastError = new Error(`Bağlantı Hatası: ${response.status}`);
+            continue;
+          }
+          return response.json();
+        } catch (error) {
+          lastError = error;
+        }
+      }
+      throw lastError || new Error("Bağlantı Hatası");
+    }
+
+    async function apiPost(path, payload) {
+      let lastError = null;
+      for (const base of API_BASES) {
+        try {
+          const response = await fetch(`${base}${path}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+          });
+          const json = await response.json().catch(() => ({}));
+          if (!response.ok || json.status === "error") {
+            lastError = new Error(json.error || json.message || "Bağlantı Hatası");
+            continue;
+          }
+          return json;
+        } catch (error) {
+          lastError = error;
+        }
+      }
+      throw lastError || new Error("Bağlantı Hatası");
+    }
+
+    function renderLiveChartShells() {
+      const symbols = getLiveSymbols();
+      const key = symbols.join("|");
+      if ($("#liveChartGrid").dataset.key === key) return;
+
+      chartRegistry.forEach((entry) => {
+        if (entry.chart && typeof entry.chart.remove === "function") entry.chart.remove();
+      });
+      chartRegistry.clear();
+      $("#liveChartGrid").dataset.key = key;
+      $("#liveChartGrid").innerHTML = symbols.map((symbol) => {
+        const id = safeDomId(symbol);
+        return `
+          <article class="card live-chart-card" data-live-card="${escapeHtml(symbol)}">
+            <div class="live-chart-head">
+              <div class="live-title">
+                <h2 id="chart-title-${id}">${escapeHtml(symbol)}</h2>
+                <p id="chart-source-${id}">Bağlantı bekleniyor</p>
+              </div>
+              <span class="live-badge" id="chart-badge-${id}">
+                <span class="live-dot"></span>
+                LIVE
+              </span>
+            </div>
+            <div class="chart-canvas" id="chart-${id}"></div>
+            <div class="chart-meta">
+              <span id="chart-updated-${id}">Son Güncelleme: --:--:--</span>
+              <span id="chart-age-${id}">güncelleme bekleniyor</span>
+              <span id="chart-lastbar-${id}">Son bar: bekleniyor</span>
+            </div>
+          </article>
+        `;
+      }).join("");
+    }
+
+    async function loadAllLiveCharts() {
+      renderLiveChartShells();
+      $("#liveChartMessage").className = "notice info";
+      $("#liveChartMessage").innerHTML = `<strong>Canlı veri okunuyor:</strong><span>Public veri sağlayıcılara bağlanılıyor.</span>`;
+      const symbols = getLiveSymbols();
+      await Promise.all(symbols.map((symbol) => loadLiveChart(symbol)));
+    }
+
+    async function DynamicLoader(symbol) {
+      const clean = String(symbol || "").trim().toUpperCase().replace(/[\s/.-]/g, "");
+      if (!clean) {
+        showToast("Sembol girmeden canlı izleme başlatılamaz.", "error");
+        return;
+      }
+      if (!state.liveSymbols.includes(clean) && !DEFAULT_LIVE_SYMBOLS.includes(clean)) {
+        state.liveSymbols.push(clean);
+        saveState();
+      }
+      renderLiveChartShells();
+      await loadLiveChart(clean);
+    }
+
+    async function loadLiveChart(symbol) {
+      try {
+        const payload = await apiGet(`/api/market/chart?symbol=${encodeURIComponent(symbol)}&limit=180`);
+        updateLiveChart(payload);
+      } catch (error) {
+        renderChartError(symbol, error.message || "Bağlantı Hatası");
+      }
+    }
+
+    function updateLiveChart(payload) {
+      const symbol = payload.symbol || "SEMBOL";
+      const id = safeDomId(symbol);
+      const title = $(`#chart-title-${id}`);
+      const source = $(`#chart-source-${id}`);
+      const canvas = $(`#chart-${id}`);
+      const badge = $(`#chart-badge-${id}`);
+      const updated = $(`#chart-updated-${id}`);
+      const age = $(`#chart-age-${id}`);
+      const lastBar = $(`#chart-lastbar-${id}`);
+
+      if (!canvas) return;
+      title.textContent = payload.display_name || symbol;
+      source.textContent = `${payload.metadata?.source || "Kaynak"} · ${payload.metadata?.provider || "provider"}`;
+
+      if (payload.status !== "ok" || !payload.bars || !payload.bars.length) {
+        renderChartError(symbol, payload.metadata?.error || payload.message || "Bağlantı Hatası", payload);
+        return;
+      }
+
+      if (!window.LightweightCharts) {
+        renderChartError(symbol, "Grafik kütüphanesi yüklenemedi.", payload);
+        return;
+      }
+
+      badge.className = "live-badge";
+      badge.innerHTML = `<span class="live-dot"></span>LIVE`;
+      updated.textContent = `Son Güncelleme: ${formatClock(payload.metadata.fetched_at)}`;
+      age.dataset.fetchedAt = payload.metadata.fetched_at;
+      age.textContent = secondsAgoText(payload.metadata.fetched_at);
+      lastBar.textContent = `Son bar: ${formatClock(payload.metadata.last_bar_at)}`;
+      canvas.innerHTML = "";
+
+      const chart = LightweightCharts.createChart(canvas, {
+        height: 230,
+        layout: {
+          background: { color: "#0a1524" },
+          textColor: "#c9d8ea"
+        },
+        grid: {
+          vertLines: { color: "rgba(38, 56, 82, 0.5)" },
+          horzLines: { color: "rgba(38, 56, 82, 0.5)" }
+        },
+        rightPriceScale: { borderColor: "#263852" },
+        timeScale: { borderColor: "#263852", timeVisible: true, secondsVisible: false },
+        crosshair: { mode: 1 }
+      });
+      const series = chart.addCandlestickSeries({
+        upColor: "#28c76f",
+        downColor: "#ff5c6c",
+        borderUpColor: "#28c76f",
+        borderDownColor: "#ff5c6c",
+        wickUpColor: "#28c76f",
+        wickDownColor: "#ff5c6c"
+      });
+      series.setData(payload.bars.map((bar) => ({
+        time: bar.time,
+        open: Number(bar.open),
+        high: Number(bar.high),
+        low: Number(bar.low),
+        close: Number(bar.close)
+      })));
+      chart.timeScale().fitContent();
+      chartRegistry.set(symbol, { chart, series, metadata: payload.metadata });
+      $("#liveChartMessage").className = "notice safe";
+      $("#liveChartMessage").innerHTML = `<strong>Canlı veri aktif:</strong><span>Grafikler public veri kaynaklarından güncelleniyor. Emir motoru pasif.</span>`;
+    }
+
+    function renderChartError(symbol, message, payload = null) {
+      const id = safeDomId(payload?.symbol || symbol);
+      const canvas = $(`#chart-${id}`);
+      const badge = $(`#chart-badge-${id}`);
+      const source = $(`#chart-source-${id}`);
+      const updated = $(`#chart-updated-${id}`);
+      const age = $(`#chart-age-${id}`);
+      const lastBar = $(`#chart-lastbar-${id}`);
+      if (!canvas) return;
+      if (source) source.textContent = payload?.metadata?.source || "Veri sağlayıcıya ulaşılamadı";
+      if (badge) {
+        badge.className = "tag danger";
+        badge.textContent = "Bağlantı Hatası";
+      }
+      if (updated) updated.textContent = `Son Güncelleme: ${formatClock(payload?.metadata?.fetched_at)}`;
+      if (age) {
+        age.dataset.fetchedAt = payload?.metadata?.fetched_at || "";
+        age.textContent = secondsAgoText(payload?.metadata?.fetched_at);
+      }
+      if (lastBar) lastBar.textContent = "Son bar: yok";
+      canvas.innerHTML = `
+        <div class="chart-error">
+          <div>
+            <strong>Bağlantı Hatası</strong>
+            <p>${escapeHtml(message || "Veri alınamadı.")}</p>
+          </div>
+        </div>
+      `;
+      $("#liveChartMessage").className = "notice danger";
+      $("#liveChartMessage").innerHTML = `<strong>Bağlantı Hatası:</strong><span>Canlı veri alınamadı. Yerel sunucu veya internet bağlantısını kontrol edin.</span>`;
+    }
+
+    function updateLiveAges() {
+      $all("[id^='chart-age-']").forEach((element) => {
+        if (element.dataset.fetchedAt) {
+          element.textContent = secondsAgoText(element.dataset.fetchedAt);
+        }
+      });
+    }
+
+    function isPositive(value) {
+      return value !== undefined && value !== null && value !== "" && Number(value) > 0;
+    }
+
+    function riskIsComplete() {
+      return isPositive(state.risk.dailyLoss) && isPositive(state.risk.stopLoss);
+    }
+
+    function showToast(message, type = "info") {
+      const toast = document.createElement("div");
+      toast.className = `toast ${type}`;
+      toast.textContent = message;
+      $("#toastRoot").appendChild(toast);
+      setTimeout(() => toast.remove(), 4200);
+    }
+
+    function addNotification(type, title, detail) {
+      state.notifications.unshift({
+        id: Date.now(),
+        type,
+        title,
+        detail,
+        read: false,
+        createdAt: new Date().toLocaleString("tr-TR")
+      });
+      saveState();
+    }
+
+    function navigate(screen) {
+      currentScreen = screen;
+      $all(".view").forEach((view) => {
+        view.classList.toggle("active", view.dataset.view === screen);
+      });
+      $all(".nav-button").forEach((button) => {
+        button.classList.toggle("active", button.dataset.screen === screen);
+      });
+      const [title, subtitle] = titles[screen] || titles.dashboard;
+      $("#pageTitle").textContent = title;
+      $("#pageSubtitle").textContent = subtitle;
+      document.body.classList.remove("sidebar-open");
+      renderAll();
+    }
+
+    function renderAll() {
+      renderDashboard();
+      renderBots();
+      renderWizard();
+      renderTradingView();
+      renderPaper();
+      renderBacktest();
+      renderRisk();
+      renderExchanges();
+      renderStrategies();
+      renderNotifications();
+      renderEducation();
+    }
+
+    function renderDashboard() {
+      renderLiveChartShells();
+      const activeBot = getActiveBot();
+      const riskComplete = riskIsComplete();
+
+      $("#dashboardPortfolio").innerHTML = activeBot && activeBot.virtualBalance
+        ? `
+          <ul class="data-list">
+            <li class="data-item"><span>Sanal bakiye</span><strong>${escapeHtml(activeBot.virtualBalance)}</strong></li>
+            <li class="data-item"><span>Durum</span><strong>Gerçek piyasa verisi bekleniyor</strong></li>
+          </ul>
+        `
+        : emptyState("Henüz sanal portföy oluşturulmadı", "Bot oluştururken girdiğiniz sanal bakiye burada gösterilir.");
+
+      $("#dashboardPaper").innerHTML = state.paper.active
+        ? `
+          <ul class="data-list">
+            <li class="data-item"><span>Simülasyon</span><strong>Aktif, veri bekleniyor</strong></li>
+            <li class="data-item"><span>Aktif bot</span><strong>${escapeHtml(activeBot?.name || "Bot seçilmedi")}</strong></li>
+          </ul>
+        `
+        : emptyState("Henüz aktif paper bot yok", "Paper trading başlatılmadı.");
+
+      $("#dashboardSignal").innerHTML = state.tradingView.connection
+        ? `
+          <ul class="data-list">
+            <li class="data-item"><span>Bağlantı taslağı</span><strong>${escapeHtml(state.tradingView.connection.name)}</strong></li>
+            <li class="data-item"><span>Gerçek sinyal</span><strong>Henüz sinyal alınmadı</strong></li>
+          </ul>
+        `
+        : emptyState("Henüz sinyal alınmadı", "TradingView bağlantısı kaydedilmedi.");
+
+      $("#dashboardRiskTag").className = `tag ${riskComplete ? "safe" : "warn"}`;
+      $("#dashboardRiskTag").textContent = riskComplete ? "Tamamlandı" : "Eksik";
+      $("#dashboardRisk").innerHTML = riskComplete
+        ? `
+          <ul class="data-list">
+            <li class="data-item"><span>Günlük zarar limiti</span><strong>${escapeHtml(state.risk.dailyLoss)}</strong></li>
+            <li class="data-item"><span>Stop-loss</span><strong>${escapeHtml(state.risk.stopLoss)}</strong></li>
+          </ul>
+        `
+        : emptyState("Risk ayarları tamamlanmadı", "Günlük zarar limiti ve stop-loss zorunludur.");
+
+      const activities = state.notifications.slice(0, 4);
+      $("#dashboardActivities").innerHTML = activities.length
+        ? `<ul class="data-list">${activities.map((item) => `
+          <li class="data-item">
+            <span>${escapeHtml(item.createdAt)}</span>
+            <strong>${escapeHtml(item.title)}</strong>
+          </li>`).join("")}</ul>`
+        : emptyState("Henüz aktivite yok", "Form kaydetme veya simülasyon başlatma gibi gerçek kullanıcı işlemleri burada görünür.");
+    }
+
+    function renderBots() {
+      if (!state.bots.length) {
+        $("#botList").innerHTML = emptyState("Henüz bot oluşturmadınız.", "İlk botunuzu oluşturmak için Bot Oluştur ekranına gidin.");
+        return;
+      }
+
+      $("#botList").innerHTML = `
+        <ul class="data-list">
+          ${state.bots.map((bot) => `
+            <li class="data-item">
+              <div>
+                <strong>${escapeHtml(bot.name)}</strong>
+                <p>${escapeHtml(bot.exchange)} · ${escapeHtml(bot.pair)} · ${escapeHtml(bot.strategy)}</p>
+              </div>
+              <div style="text-align:right;">
+                <span class="tag ${state.paper.active && state.activeBotId === bot.id ? "safe" : "warn"}">
+                  ${state.paper.active && state.activeBotId === bot.id ? "Simülasyon aktif, veri bekleniyor" : "Paper trading bekliyor"}
+                </span>
+              </div>
+            </li>
+          `).join("")}
+        </ul>
+      `;
+    }
+
+    function renderWizard() {
+      const step = wizardSteps[wizardIndex];
+      $("#wizardStepLabel").textContent = `Adım ${wizardIndex + 1} / ${wizardSteps.length}`;
+      $("#wizardStepper").innerHTML = wizardSteps.map((_, index) => `
+        <div class="step ${index === wizardIndex ? "active" : ""} ${index < wizardIndex ? "done" : ""}"></div>
+      `).join("");
+
+      const value = state.wizardDraft[step.key] || "";
+      let field = "";
+      if (step.type === "select") {
+        field = `
+          <select id="wizardInput" name="${step.key}">
+            <option value="">Seçin</option>
+            ${step.options.map((option) => `<option value="${escapeHtml(option)}" ${value === option ? "selected" : ""}>${escapeHtml(option)}</option>`).join("")}
+          </select>
+        `;
+      } else {
+        field = `<input id="wizardInput" name="${step.key}" type="${step.type || "text"}" min="0" step="0.01" value="${escapeHtml(value)}" placeholder="${escapeHtml(step.placeholder)}" autocomplete="off">`;
+      }
+
+      const hints = {
+        name: "Bu ad yalnızca panelde botunuzu ayırt etmeniz için kullanılır.",
+        exchange: "MVP’de gerçek borsa bağlantısı kurulmaz; seçim bot taslağında görünür.",
+        pair: "İşlem çifti kullanıcı tarafından girilir; piyasa fiyatı veya performans üretilmez.",
+        strategy: "Strateji şablonları performans garantisi vermez.",
+        virtualBalance: "Sanal bakiye sadece paper trading ekranında kullanıcı girdisi olarak gösterilir.",
+        tradeAmount: "İşlem başı tutar paper trading hazırlığı için kullanılır.",
+        stopLoss: "Stop-loss boş bırakılırsa bot başlatılamaz.",
+        takeProfit: "Take-profit hedefi işlem planını daha anlaşılır hale getirir."
+      };
+
+      $("#wizardBody").innerHTML = `
+        <div class="form-grid">
+          <div class="form-field full">
+            <label for="wizardInput">${escapeHtml(step.label)}</label>
+            ${field}
+            <span class="field-hint">${hints[step.key]}</span>
+          </div>
+        </div>
+      `;
+
+      $("#wizardBack").disabled = wizardIndex === 0;
+      $("#wizardNext").textContent = wizardIndex === wizardSteps.length - 1 ? "Paper Trading Başlat" : "Sonraki Adım";
+    }
+
+    function saveWizardValue() {
+      const step = wizardSteps[wizardIndex];
+      const input = $("#wizardInput");
+      state.wizardDraft[step.key] = input.value.trim();
+      saveState();
+    }
+
+    function validateWizardStep() {
+      saveWizardValue();
+      const step = wizardSteps[wizardIndex];
+      const value = state.wizardDraft[step.key];
+      if (!value) {
+        return `${step.label} alanı zorunludur.`;
+      }
+      if (["virtualBalance", "tradeAmount", "stopLoss", "takeProfit"].includes(step.key) && Number(value) <= 0) {
+        return `${step.label} sıfırdan büyük olmalıdır.`;
+      }
+      if (step.key === "stopLoss" && !isPositive(value)) {
+        return "Stop-loss olmadan bot başlatılamaz.";
+      }
+      return "";
+    }
+
+    function finishWizard() {
+      const draft = state.wizardDraft;
+      const required = wizardSteps.map((step) => step.key);
+      const missing = required.find((key) => !draft[key]);
+      if (missing) {
+        wizardIndex = required.indexOf(missing);
+        renderWizard();
+        $("#wizardError").textContent = "Devam etmek için eksik alanı tamamlayın.";
+        return;
+      }
+
+      const bot = {
+        id: Date.now(),
+        name: draft.name,
+        exchange: draft.exchange,
+        pair: draft.pair,
+        strategy: draft.strategy,
+        virtualBalance: draft.virtualBalance,
+        tradeAmount: draft.tradeAmount,
+        stopLoss: draft.stopLoss,
+        takeProfit: draft.takeProfit
+      };
+
+      state.bots.unshift(bot);
+      state.activeBotId = bot.id;
+      state.risk.stopLoss = state.risk.stopLoss || draft.stopLoss;
+      state.risk.takeProfit = state.risk.takeProfit || draft.takeProfit;
+      state.wizardDraft = {};
+      saveState();
+      addNotification("bot", "Bot taslağı oluşturuldu", "Paper trading için risk kontrolü bekleniyor.");
+
+      if (!isPositive(state.risk.dailyLoss)) {
+        showToast("Bot taslağı kaydedildi. Günlük zarar limiti tamamlanınca paper trading başlatılabilir.", "info");
+        navigate("risk");
+        return;
+      }
+
+      startPaperSimulation();
+    }
+
+    function renderTradingView() {
+      const connection = state.tradingView.connection;
+      if (connection) {
+        $("#tvName").value = connection.name || "";
+        $("#tvPair").value = connection.pair || "";
+        $("#tvLong").value = connection.long || "";
+        $("#tvShort").value = connection.short || "";
+        $("#tvClose").value = connection.close || "";
+        $("#tvAction").value = connection.action || "";
+      }
+
+      const testStatus = state.tradingView.testStatus || [];
+      const testHtml = testStatus.length
+        ? `<ul class="status-list">${testStatus.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>`
+        : emptyState("Henüz TradingView sinyali alınmadı.", "Test sinyali gönderirseniz yalnızca bağlantı kontrol adımları gösterilir.");
+
+      const connectionHtml = connection
+        ? `
+          <ul class="data-list" style="margin-top:12px;">
+            <li class="data-item"><span>Bağlantı adı</span><strong>${escapeHtml(connection.name)}</strong></li>
+            <li class="data-item"><span>İşlem çifti</span><strong>${escapeHtml(connection.pair)}</strong></li>
+            <li class="data-item"><span>Mod</span><strong>${connection.action === "paper" ? "Paper Trading Botuna Uygula" : "Sadece Bildirim Gönder"}</strong></li>
+          </ul>
+        `
+        : "";
+
+      $("#tvStatus").innerHTML = `
+        ${testHtml}
+        ${connectionHtml}
+        <div class="notice info" style="margin-top:14px;">
+          <strong>Gerçek sinyal durumu:</strong>
+          <span>Henüz gerçek TradingView sinyali alınmadı.</span>
+        </div>
+      `;
+    }
+
+    function renderPaper() {
+      const bot = getActiveBot();
+      const riskComplete = riskIsComplete();
+      if (bot) {
+        if (!$("#paperSignalSymbol").value) $("#paperSignalSymbol").value = bot.pair || "";
+        if (!$("#paperSignalStrategy").value) $("#paperSignalStrategy").value = bot.strategy || "";
+        if (!$("#paperSignalBot").value) $("#paperSignalBot").value = bot.name || "";
+      }
+
+      $("#paperStatusTag").className = `tag ${state.paper.active ? "safe" : "warn"}`;
+      $("#paperStatusTag").textContent = state.paper.active ? "Aktif" : "Beklemede";
+
+      $("#paperSimulation").innerHTML = !bot
+        ? emptyState("Paper trading başlatmak için önce bot oluşturun.", "Bot Oluştur ekranından bot taslağı hazırlayın.")
+        : state.paper.active
+          ? emptyState("Simülasyon aktif, veri bekleniyor", "Gerçek piyasa verisi olmadığı için performans sonucu üretilmez.")
+          : emptyState("Simülasyon henüz başlatılmadı", "Risk ayarları tamamlandıktan sonra simülasyonu başlatabilirsiniz.");
+
+      $("#paperBalance").innerHTML = bot?.virtualBalance
+        ? `<ul class="data-list"><li class="data-item"><span>Sanal bakiye</span><strong>${escapeHtml(bot.virtualBalance)}</strong></li></ul>`
+        : emptyState("Sanal bakiye belirlenmedi", "Bot oluşturma sihirbazında sanal bakiye girilmelidir.");
+
+      $("#paperRiskTag").className = `tag ${riskComplete ? "safe" : "warn"}`;
+      $("#paperRiskTag").textContent = riskComplete ? "Tamamlandı" : "Eksik";
+      $("#paperRisk").innerHTML = riskComplete
+        ? `<ul class="data-list">
+            <li class="data-item"><span>Günlük zarar limiti</span><strong>${escapeHtml(state.risk.dailyLoss)}</strong></li>
+            <li class="data-item"><span>Stop-loss</span><strong>${escapeHtml(state.risk.stopLoss)}</strong></li>
+          </ul>`
+        : emptyState("Risk ayarları tamamlanmadı", "Günlük zarar limiti ve stop-loss zorunludur.");
+    }
+
+    function startPaperSimulation() {
+      const bot = getActiveBot();
+      if (!bot) {
+        showToast("Paper trading başlatmak için önce bot oluşturun.", "error");
+        navigate("bot-builder");
+        return;
+      }
+      if (!riskIsComplete()) {
+        showToast("Günlük zarar limiti ve stop-loss tamamlanmadan simülasyon başlatılamaz.", "error");
+        navigate("risk");
+        return;
+      }
+      state.paper.active = true;
+      state.paper.lastStatus = "Simülasyon aktif, veri bekleniyor";
+      saveState();
+      addNotification("bot", "Paper trading başlatıldı", "Simülasyon aktif, veri bekleniyor.");
+      showToast("Simülasyon aktif, veri bekleniyor.", "success");
+      navigate("paper");
+    }
+
+    function stopPaperSimulation() {
+      if (!state.paper.active) {
+        showToast("Durdurulacak aktif simülasyon yok.", "info");
+        return;
+      }
+      state.paper.active = false;
+      state.paper.lastStatus = "Simülasyon durduruldu";
+      saveState();
+      addNotification("bot", "Paper trading durduruldu", "Kullanıcı simülasyonu durdurdu.");
+      showToast("Simülasyon durduruldu.", "info");
+      renderAll();
+    }
+
+    function renderBacktest() {
+      const bot = getActiveBot();
+      $("#backtestStatus").innerHTML = state.backtest.attempted
+        ? emptyState("Veri kaynağı bağlanmadığı için backtest sonucu üretilemedi", "Gerçek geçmiş piyasa verisi olmadan tahmini kâr, zarar, kazanma oranı veya grafik gösterilmez.")
+        : emptyState("Henüz backtest sonucu yok.", "Backtest çalıştırıldığında önce veri kaynağı kontrol edilir.");
+
+      $("#backtestStrategy").innerHTML = bot?.strategy
+        ? `<ul class="data-list" style="margin-top:12px;"><li class="data-item"><span>Strateji</span><strong>${escapeHtml(bot.strategy)}</strong></li></ul>`
+        : emptyState("Henüz strateji seçilmedi", "Bot oluşturma sihirbazından strateji seçebilirsiniz.");
+    }
+
+    function renderRisk() {
+      const riskComplete = riskIsComplete();
+      $("#riskOverallTag").className = `tag ${riskComplete ? "safe" : "warn"}`;
+      $("#riskOverallTag").textContent = riskComplete ? "Tamamlandı" : "Eksik";
+      $("#riskOverall").innerHTML = riskComplete
+        ? `<ul class="data-list">
+            <li class="data-item"><span>Günlük zarar limiti</span><strong>${escapeHtml(state.risk.dailyLoss)}</strong></li>
+            <li class="data-item"><span>Stop-loss</span><strong>${escapeHtml(state.risk.stopLoss)}</strong></li>
+          </ul>`
+        : emptyState("Risk ayarları tamamlanmadı", "Günlük zarar limiti ve stop-loss olmadan bot başlatılamaz.");
+
+      const missing = [];
+      if (!isPositive(state.risk.dailyLoss)) missing.push("Günlük zarar limiti belirlemeden bot başlatılamaz.");
+      if (!isPositive(state.risk.stopLoss)) missing.push("Stop-loss olmadan bot başlatılamaz.");
+      $("#riskMissing").innerHTML = missing.length
+        ? `<ul class="status-list">${missing.map((item) => `<li>${item}</li>`).join("")}</ul>`
+        : `<div class="notice safe"><strong>Tamam:</strong><span>Zorunlu risk ayarları girildi.</span></div>`;
+
+      fillRiskForm();
+
+      const bot = getActiveBot();
+      $("#botRiskList").innerHTML = bot
+        ? `<ul class="data-list" style="margin-top:12px;">
+            <li class="data-item"><span>Bot</span><strong>${escapeHtml(bot.name)}</strong></li>
+            <li class="data-item"><span>İşlem başı tutar</span><strong>${escapeHtml(bot.tradeAmount)}</strong></li>
+            <li class="data-item"><span>Stop-loss</span><strong>${escapeHtml(bot.stopLoss)}</strong></li>
+          </ul>`
+        : emptyState("Henüz bot oluşturulmadı", "Bot oluşturulduğunda bot bazlı riskler burada görünür.");
+
+      $("#stopRules").innerHTML = state.risk.lossPause
+        ? `<ul class="data-list" style="margin-top:12px;"><li class="data-item"><span>Arka arkaya zarar sonrası durdurma</span><strong>${escapeHtml(state.risk.lossPause)}</strong></li></ul>`
+        : emptyState("Otomatik durdurma kuralı girilmedi", "Arka arkaya zarar sonrası botu durdurma kuralı ekleyebilirsiniz.");
+
+      $("#coinLists").innerHTML = `
+        <ul class="data-list" style="margin-top:12px;">
+          <li class="data-item"><span>İzin verilen coinler</span><strong>${escapeHtml(state.risk.allowedCoins || "Liste girilmedi")}</strong></li>
+          <li class="data-item"><span>Engellenen coinler</span><strong>${escapeHtml(state.risk.blockedCoins || "Liste girilmedi")}</strong></li>
+        </ul>
+      `;
+    }
+
+    function fillRiskForm() {
+      const fields = {
+        maxRisk: state.risk.maxRisk,
+        dailyLoss: state.risk.dailyLoss,
+        weeklyLoss: state.risk.weeklyLoss,
+        maxOpen: state.risk.maxOpen,
+        riskStopLoss: state.risk.stopLoss,
+        riskTakeProfit: state.risk.takeProfit,
+        lossPause: state.risk.lossPause,
+        allowedCoins: state.risk.allowedCoins,
+        blockedCoins: state.risk.blockedCoins
+      };
+      Object.entries(fields).forEach(([id, value]) => {
+        const input = document.getElementById(id);
+        if (input && document.activeElement !== input) input.value = value || "";
+      });
+    }
+
+    function saveRiskSettings() {
+      const form = $("#riskForm");
+      const formData = new FormData(form);
+      state.risk = {
+        maxRisk: formData.get("maxRisk").trim(),
+        dailyLoss: formData.get("dailyLoss").trim(),
+        weeklyLoss: formData.get("weeklyLoss").trim(),
+        maxOpen: formData.get("maxOpen").trim(),
+        stopLoss: formData.get("riskStopLoss").trim(),
+        takeProfit: formData.get("riskTakeProfit").trim(),
+        lossPause: formData.get("lossPause").trim(),
+        allowedCoins: formData.get("allowedCoins").trim(),
+        blockedCoins: formData.get("blockedCoins").trim()
+      };
+
+      const messages = [];
+      if (!isPositive(state.risk.dailyLoss)) messages.push("Günlük zarar limiti belirlemeden bot başlatılamaz.");
+      if (!isPositive(state.risk.stopLoss)) messages.push("Stop-loss olmadan bot başlatılamaz.");
+      if (isPositive(state.risk.maxRisk) && Number(state.risk.maxRisk) > 5) messages.push("Bu ayarlar yüksek risk içeriyor.");
+
+      saveState();
+      addNotification("risk", "Risk ayarları kaydedildi", messages.length ? "Eksik veya dikkat gerektiren alanlar var." : "Zorunlu risk ayarları tamamlandı.");
+      $("#riskFormMessage").innerHTML = messages.length ? messages.join("<br>") : "Risk ayarları kaydedildi.";
+      $("#riskFormMessage").style.color = messages.length ? "#ffd2d8" : "#bff7d7";
+      showToast("Risk ayarları kaydedildi.", messages.length ? "info" : "success");
+      renderAll();
+    }
+
+    function renderExchanges() {
+      $("#exchangeCards").innerHTML = exchanges.map((exchange) => `
+        <div class="exchange-card">
+          <h3>${escapeHtml(exchange)}</h3>
+          <span class="tag warn">Bağlantı bekleniyor</span>
+          <p>API bağlantısı alanı hazır. Gerçek test veya bağlantı yapılmaz.</p>
+        </div>
+      `).join("");
+
+      const select = $("#exchangeSelect");
+      if (!select.dataset.ready) {
+        select.innerHTML = `<option value="">Borsa seçin</option>${exchanges.map((exchange) => `<option value="${escapeHtml(exchange)}">${escapeHtml(exchange)}</option>`).join("")}`;
+        select.dataset.ready = "true";
+      }
+
+      if (state.exchangeDraft) {
+        $("#connectionName").value = state.exchangeDraft.name || "";
+        $("#exchangeSelect").value = state.exchangeDraft.exchange || "";
+        $("#permissionCheck").value = state.exchangeDraft.permission || "";
+      }
+    }
+
+    function renderStrategies() {
+      $("#strategyGrid").innerHTML = strategies.map((strategy) => `
+        <article class="card template-card">
+          <div class="card-header">
+            <h2>${escapeHtml(strategy.name)}</h2>
+            <span class="tag info">Şablon</span>
+          </div>
+          <ul>
+            <li><strong>Risk:</strong> ${escapeHtml(strategy.risk)}</li>
+            <li><strong>Kimler için uygun:</strong> ${escapeHtml(strategy.suitable)}</li>
+            <li><strong>Ne zaman iyi çalışabilir:</strong> ${escapeHtml(strategy.condition)}</li>
+            <li><strong>Önerilen test yaklaşımı:</strong> ${escapeHtml(strategy.test)}</li>
+            <li>Performans garantisi yoktur.</li>
+          </ul>
+          <div class="action-row">
+            <button class="btn primary" data-start-strategy="${escapeHtml(strategy.name)}">Bu Stratejiyle Başla</button>
+            <button class="btn" data-detail-strategy="${escapeHtml(strategy.name)}">Detayları Gör</button>
+          </div>
+        </article>
+      `).join("");
+    }
+
+    function renderNotifications() {
+      let items = state.notifications;
+      if (notificationFilter !== "all") items = items.filter((item) => item.type === notificationFilter);
+
+      $("#notificationList").innerHTML = items.length
+        ? `<ul class="data-list">${items.map((item) => `
+          <li class="data-item">
+            <div>
+              <strong>${escapeHtml(item.title)}</strong>
+              <p>${escapeHtml(item.detail)}</p>
+            </div>
+            <span>${escapeHtml(item.createdAt)}</span>
+          </li>
+        `).join("")}</ul>`
+        : emptyState("Henüz bildiriminiz yok.", "Bot, sinyal, risk veya bağlantı işlemi oluştuğunda burada görünür.");
+    }
+
+    function renderEducation() {
+      $("#helpGrid").innerHTML = helpItems.map(([title, text]) => `
+        <article class="card help-card">
+          <h2>${escapeHtml(title)}</h2>
+          <p>${escapeHtml(text)}</p>
+          <div class="action-row">
+            <button class="btn" data-help="${escapeHtml(title)}">Bu Ne Demek?</button>
+            <button class="btn" data-help="${escapeHtml(title)}">Kısa Rehberi Oku</button>
+          </div>
+        </article>
+      `).join("") + `
+        <article class="card help-card">
+          <h2>Kontrol Listesi</h2>
+          <p>Canlı işlem bu sürümde kapalıdır. Yine de risk ayarları, stop-loss ve paper trading süreci kontrol edilmelidir.</p>
+          <div class="action-row">
+            <button class="btn" id="openChecklist">Kontrol Listesini Aç</button>
+          </div>
+        </article>
+      `;
+    }
+
+    function escapeHtml(value) {
+      return String(value ?? "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+
+    document.addEventListener("click", (event) => {
+      const navButton = event.target.closest("[data-screen]");
+      if (navButton) navigate(navButton.dataset.screen);
+
+      const goButton = event.target.closest("[data-go]");
+      if (goButton) navigate(goButton.dataset.go);
+
+      const strategyButton = event.target.closest("[data-start-strategy]");
+      if (strategyButton) {
+        state.wizardDraft.strategy = strategyButton.dataset.startStrategy;
+        saveState();
+        wizardIndex = 0;
+        showToast("Strateji seçildi. Bot oluşturma sihirbazı açılıyor.", "info");
+        navigate("bot-builder");
+      }
+
+      const detailButton = event.target.closest("[data-detail-strategy]");
+      if (detailButton) {
+        showToast("Bu şablon performans garantisi içermez. Önce paper trading önerilir.", "info");
+      }
+
+      const filterButton = event.target.closest("[data-filter]");
+      if (filterButton) {
+        notificationFilter = filterButton.dataset.filter;
+        renderNotifications();
+      }
+
+      const helpButton = event.target.closest("[data-help]");
+      if (helpButton) {
+        showToast(`${helpButton.dataset.help}: Eğitim içeriği kısa açıklama olarak kartta gösterilir.`, "info");
+      }
+
+      if (event.target.closest("#openChecklist")) {
+        showToast("Kontrol listesi: risk limiti, stop-loss, paper trading ve API izinleri canlı işlemden önce kontrol edilmelidir. Canlı işlem bu sürümde kapalıdır.", "info");
+      }
+    });
+
+    $("#menuToggle").addEventListener("click", () => {
+      document.body.classList.toggle("sidebar-open");
+    });
+
+    $("#addSymbol").addEventListener("click", async () => {
+      await DynamicLoader($("#dynamicSymbol").value);
+      $("#dynamicSymbol").value = "";
+    });
+
+    $("#dynamicSymbol").addEventListener("keydown", async (event) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        await DynamicLoader($("#dynamicSymbol").value);
+        $("#dynamicSymbol").value = "";
+      }
+    });
+
+    $("#refreshCharts").addEventListener("click", () => {
+      loadAllLiveCharts();
+    });
+
+    $("#wizardBack").addEventListener("click", () => {
+      saveWizardValue();
+      wizardIndex = Math.max(0, wizardIndex - 1);
+      $("#wizardError").textContent = "";
+      renderWizard();
+    });
+
+    $("#wizardNext").addEventListener("click", () => {
+      const error = validateWizardStep();
+      if (error) {
+        $("#wizardError").textContent = error;
+        return;
+      }
+      $("#wizardError").textContent = "";
+      if (wizardIndex < wizardSteps.length - 1) {
+        wizardIndex += 1;
+        renderWizard();
+      } else {
+        finishWizard();
+      }
+    });
+
+    $("#tvNew").addEventListener("click", () => {
+      $("#tvForm").reset();
+      state.tradingView = { connection: null, testStatus: [] };
+      saveState();
+      showToast("Yeni sinyal bağlantısı formu açıldı.", "info");
+      renderTradingView();
+    });
+
+    $("#tvSave").addEventListener("click", () => {
+      const name = $("#tvName").value.trim();
+      const pair = $("#tvPair").value.trim();
+      const action = $("#tvAction").value;
+      if (!name || !pair || !action) {
+        $("#tvError").textContent = "Sinyal adı, işlem çifti ve yapılacak işlem zorunludur.";
+        return;
+      }
+      state.tradingView.connection = {
+        name,
+        pair,
+        long: $("#tvLong").value.trim(),
+        short: $("#tvShort").value.trim(),
+        close: $("#tvClose").value.trim(),
+        action
+      };
+      $("#tvError").textContent = "";
+      saveState();
+      addNotification("signal", "TradingView bağlantısı kaydedildi", "Gerçek sinyal bekleniyor.");
+      showToast("TradingView bağlantısı kaydedildi. Henüz gerçek sinyal alınmadı.", "success");
+      renderAll();
+    });
+
+    $("#tvTest").addEventListener("click", () => {
+      const name = $("#tvName").value.trim();
+      const pair = $("#tvPair").value.trim();
+      const action = $("#tvAction").value;
+      if (!name || !pair || !action) {
+        $("#tvError").textContent = "Test için sinyal adı, işlem çifti ve yapılacak işlem zorunludur.";
+        return;
+      }
+      const paperReady = action === "paper"
+        ? (getActiveBot() ? "Paper trading bağlantısı hazır" : "Paper trading bağlantısı için bot bekleniyor")
+        : "Sadece bildirim modu seçildi";
+      state.tradingView.testStatus = [
+        "Test sinyali alındı",
+        "Mesaj formatı kontrol edildi",
+        "Risk kontrolü beklemede",
+        paperReady
+      ];
+      $("#tvError").textContent = "";
+      saveState();
+      showToast("Test sinyali yalnızca bağlantı kontrolü olarak işlendi.", "info");
+      renderTradingView();
+    });
+
+    $("#paperStart").addEventListener("click", startPaperSimulation);
+    $("#paperStop").addEventListener("click", stopPaperSimulation);
+
+    $("#recordPaperSignal").addEventListener("click", async () => {
+      const bot = getActiveBot();
+      if (!bot) {
+        $("#paperSignalMessage").style.color = "#ffd2d8";
+        $("#paperSignalMessage").textContent = "Sanal işlem kaydı için önce bot oluşturun.";
+        return;
+      }
+      if (!state.paper.active) {
+        $("#paperSignalMessage").style.color = "#ffd2d8";
+        $("#paperSignalMessage").textContent = "Sanal işlem kaydı için önce paper trading simülasyonunu başlatın.";
+        return;
+      }
+      const payload = {
+        symbol: $("#paperSignalSymbol").value.trim() || bot?.pair || "",
+        side: $("#paperSignalSide").value,
+        strategy: $("#paperSignalStrategy").value.trim() || bot?.strategy || "Manuel Paper Sinyali",
+        bot_name: $("#paperSignalBot").value.trim() || bot?.name || "",
+        virtual_balance: bot?.virtualBalance || ""
+      };
+      if (!payload.symbol || !payload.side) {
+        $("#paperSignalMessage").style.color = "#ffd2d8";
+        $("#paperSignalMessage").textContent = "Sembol ve sinyal yönü zorunludur.";
+        return;
+      }
+      try {
+        $("#paperSignalMessage").style.color = "#c9d8ea";
+        $("#paperSignalMessage").textContent = "Gerçek son fiyat okunuyor...";
+        const result = await apiPost("/api/paper/signal", payload);
+        $("#paperSignalMessage").style.color = "#bff7d7";
+        $("#paperSignalMessage").textContent = `${result.trade.display_name} için sanal paper trade kaydedildi. Canlı emir gönderilmedi.`;
+        addNotification("bot", "Sanal paper trade kaydedildi", "Kayıt gerçek son fiyatla oluşturuldu; canlı emir gönderilmedi.");
+        showToast("Sanal paper trade gerçek son fiyatla kaydedildi.", "success");
+        renderAll();
+      } catch (error) {
+        $("#paperSignalMessage").style.color = "#ffd2d8";
+        $("#paperSignalMessage").textContent = `Bağlantı Hatası: ${error.message}`;
+        showToast("Bağlantı Hatası: sanal trade kaydedilemedi.", "error");
+      }
+    });
+
+    $("#runBacktest").addEventListener("click", () => {
+      state.backtest.attempted = true;
+      saveState();
+      showToast("Veri kaynağı bağlanmadığı için backtest sonucu üretilemedi.", "info");
+      renderBacktest();
+    });
+
+    $("#saveRisk").addEventListener("click", saveRiskSettings);
+
+    $("#completeRisk").addEventListener("click", () => {
+      const firstMissing = !isPositive($("#dailyLoss").value) ? $("#dailyLoss") : !isPositive($("#riskStopLoss").value) ? $("#riskStopLoss") : null;
+      if (firstMissing) {
+        firstMissing.focus();
+        showToast("Eksik zorunlu risk alanını tamamlayın.", "info");
+      } else {
+        showToast("Zorunlu risk alanları formda doldurulmuş görünüyor. Kaydetmeyi unutmayın.", "info");
+      }
+    });
+
+    $("#suggestRisk").addEventListener("click", () => {
+      $("#riskFormMessage").style.color = "#c9d8ea";
+      $("#riskFormMessage").innerHTML = "Güvenli başlangıç için küçük işlem tutarı, net günlük zarar limiti, zorunlu stop-loss ve sınırlı açık işlem sayısı kullanın. Bu açıklama yatırım tavsiyesi değildir; nihai değerleri kullanıcı belirler.";
+    });
+
+    $("#testExchange").addEventListener("click", () => {
+      $("#exchangeMessage").style.color = "#c9d8ea";
+      $("#exchangeMessage").textContent = "Bu prototipte gerçek API testi yapılmaz.";
+      showToast("Gerçek API testi yapılmadı.", "info");
+    });
+
+    $("#saveExchange").addEventListener("click", () => {
+      const name = $("#connectionName").value.trim();
+      const exchange = $("#exchangeSelect").value;
+      const permission = $("#permissionCheck").value;
+      if (!name || !exchange || !permission) {
+        $("#exchangeMessage").style.color = "#ffd2d8";
+        $("#exchangeMessage").textContent = "Bağlantı adı, borsa ve izin kontrolü zorunludur.";
+        return;
+      }
+      state.exchangeDraft = { name, exchange, permission };
+      $("#apiKey").value = "";
+      $("#apiSecret").value = "";
+      saveState();
+      addNotification("connection", "Borsa bağlantı taslağı kaydedildi", "Gerçek API bağlantısı yapılmadı; bağlantı bekleniyor.");
+      $("#exchangeMessage").style.color = "#bff7d7";
+      $("#exchangeMessage").textContent = "Bağlantı taslağı kaydedildi. Gerçek API bağlantısı yapılmadı.";
+      showToast("Bağlantı taslağı kaydedildi. Bağlantı bekleniyor.", "success");
+      renderAll();
+    });
+
+    $("#markRead").addEventListener("click", () => {
+      state.notifications = state.notifications.map((item) => ({ ...item, read: true }));
+      saveState();
+      showToast("Bildirimler okundu olarak işaretlendi.", "info");
+      renderNotifications();
+    });
+
+    $("#notificationSettings").addEventListener("click", () => {
+      showToast("Bildirim ayarları sonraki adımda genişletilecek.", "info");
+    });
+
+    document.addEventListener("change", (event) => {
+      if (event.target && event.target.id === "wizardInput") {
+        saveWizardValue();
+      }
+    });
+
+    renderAll();
+    loadAllLiveCharts();
+    setInterval(updateLiveAges, 1000);
+    setInterval(loadAllLiveCharts, 30000);
+  </script>
+</body>
+</html>

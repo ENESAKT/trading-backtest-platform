@@ -134,3 +134,9 @@
 - **CAGR ve Metriklerin Zaman Bağımlılığı:** Yıllık bileşik getiri (CAGR) basitçe bar sayısından değil, `(Bitiş Tarihi - Başlangıç Tarihi)` gerçek takvim farkı kullanılarak hesaplandı. Sharpe ve Sortino oranları `timeframe` (1d, 1h, vs.) aware hale getirildi.
 - **Optimizasyon ve Overfitting Uyarısı:** `GridSearchOptimizer` modülü geliştirilirken, çok yüksek Sharpe oranları (>3.0) veya aşırı az sayıda gerçekleşen trade (<5) durumlarında overfitting uyarısı verecek mekanizmalar sisteme eklendi.
 - **Data Validation Skoru:** Gelen finansal verilerin (OHLCV) tutarlılığını ölçen bir kalite skorlama sistemi eklendi (0-100 arası). Sadece `checks_passed` / `checks_total` üzerinden değil, tespit edilen her hata (error) ve uyarı (warning) için eksi puan uygulandı.
+
+## Master Plan ve Canlı Veri Mimarisi (v2)
+
+- **Dev Fitiller (Anomalous Spikes) İçin IQR+VWAP Filtresi:** Düşük hacimli sığ BIST hisseleri ve bazı FX paritelerindeki anormal kotasyon sıçramaları (dev fitiller) klasik Z-Score yöntemini bozmaktadır. Çözüm olarak çeyreklik açıklık (IQR) ve Hacim Ağırlıklı (VWAP) anomali tespitinin birlikte kullanılması, hatalı verilerin silinmek yerine sınırlandırılmasına (Winsorization) veya doldurulmasına (Imputation) karar verildi.
+- **Canlı Veride Hibrit Gateway Modeli:** API Limitlerine (Rate Limit) takılmamak için arayüzlerin doğrudan BIST/ABD verilerine gitmesi yasaklandı. Kripto için sınırsız WebSocket bağlantısı kullanılırken, limitli piyasalar için Merkezi Polling (Data Worker) + Cache-Aside modeli (verinin Redis/Memory'de tutulup oradan client'lara WebSockets/SSE ile dağıtılması) mimari kural olarak kabul edildi.
+- **Konsolidasyon:** Projedeki eski, dağınık ve çakışan planlama dosyaları silinerek, geliştirme hedefleri konsolide edilmiş `MASTER_PLAN_v2.md` altında sprint bazlı net adımlara döküldü.
