@@ -85,41 +85,41 @@ Core'un dış dünyayı bilmemesi için soyut arayüzler:
 ```python
 # quant_engine/core/protocols.py
 
-class DataProvider(Protocol):
-    """yfinance, Matriks, Foreks hepsi bunu implemente eder"""
-    def fetch(self, symbols, timeframe, start, end) -> FetchResult: ...
+class MarketDataProvider(Protocol):
+    """yfinance, Matriks, BIST VERDA — hepsi bunu implemente eder"""
+    def capabilities(self) -> ProviderCapabilities: ...
+    def fetch_bars(self, request: BarRequest) -> FetchResult: ...
+    def fetch_instruments(self) -> list[Instrument]: ...
+    # Opsiyonel (canlı veri sağlayıcılar için):
+    # def fetch_trades(self, request: TradeRequest) -> FetchResult: ...
+    # def subscribe(self, symbols, callback) -> Subscription: ...
 
 class StorageBackend(Protocol):
-    """Parquet, DuckDB, hatta ileride S3"""
-    def read(self, symbol, timeframe, start, end) -> DataFrame: ...
+    def read(self, symbol, timeframe, layer, start, end) -> DataFrame: ...
     def write(self, data, symbol, layer, metadata) -> WriteResult: ...
-    def list_symbols(self) -> list[str]: ...
+    def list_symbols(self, market, timeframe) -> list[str]: ...
+    def get_metadata(self, symbol, layer) -> DatasetMetadata: ...
 
 class Strategy(Protocol):
-    """Her strateji bunu implemente eder"""
     def generate_signals(self, data, params) -> SignalFrame: ...
     def get_params(self) -> dict: ...
     def get_warm_up_bars(self) -> int: ...
 
 class ExecutionModel(Protocol):
-    """Emir doldurma simülasyonu"""
     def simulate(self, order, bar, context) -> Fill: ...
 
 class CostModel(Protocol):
-    """Maliyet hesaplama"""
     def calculate(self, fill) -> Cost: ...
 
 class Instrument(Protocol):
-    """Equity, Futures, FX"""
     def tick_size(self) -> float: ...
     def lot_size(self) -> int: ...
+    def contract_multiplier(self) -> float: ...  # VİOP için
 
 class BrokerAdapter(Protocol):
-    """İleride canlı/paper trading"""
     def submit_order(self, order) -> OrderResult: ...
 
 class ReportRenderer(Protocol):
-    """HTML, JSON, UI API"""
     def render(self, backtest_result) -> Report: ...
 ```
 
@@ -127,14 +127,105 @@ Bu sayede: yeni veri kaynağı eklerken motor bozulmaz. VİOP eklerken strateji 
 
 ---
 
+## 📡 Çoklu Veri Sağlayıcı Mimarisi
+
+### Veri Kaynakları Karşılaştırması
+
+| Kaynak | Maliyet | BIST Günlük | BIST 1dk | VİOP | Canlı |
+|:---|:---:|:---:|:---:|:---:|:---:|
+| **Yahoo Finance** | 🆓 Ücretsiz | 2000→bugün | Son 7 gün | ❌ Yok | ❌ |
+| **Stooq** | 🆓 Ücretsiz | 10+ yıl | ❌ | ❌ | ❌ |
+| **Matriks CSV** | ~₺200-500/ay | Kas. 2010+ | Oca. 2017+ | Ağu. 2017+ | ❌ |
+| **Matriks API** | ~₺200-500/ay | Kas. 2010+ | Oca. 2017+ | Ağu. 2017+ | ✅ MQTT/WS |
+| **BIST VERDA** | Kurumsal lisans | Tam | Tam | Tam | ✅ |
+| **TCMB EVDS** | 🆓 Ücretsiz | ❌ | ❌ | ❌ | ❌ (makro) |
+
+### Matriks Tarihsel Veri Başlangıçları
+
+| Piyasa | 1 Dakika | 5 Dakika | 60 Dakika | Günlük |
+|:---|:---:|:---:|:---:|:---:|
+| BIST Pay | Oca. 2017 | Oca. 2017 | Oca. 2010 | Kas. 2010 |
+| VİOP | Ağu. 2017 | Ağu. 2017 | Ağu. 2012 | Şub. 2012 |
+
+> Yahoo'nun intraday limiti (7 gün/60 gün) karşısında Matriks ile 1 dakikalık 8+ yıl BIST/VİOP geçmişi ciddi avantaj.
+
+### Provider Dosya Yapısı
+
+```
+quant_engine/data/providers/
+├── base.py                    # MarketDataProvider protocol + ProviderCapabilities
+├── yfinance_provider.py       # Ücretsiz, ilk faz — BIST günlük/saatlik
+├── stooq_provider.py          # Ücretsiz yedek/cross-check
+├── matriks_csv_provider.py    # Matriks tarihsel CSV import (en kolay entegrasyon)
+├── matriks_api_provider.py    # Matriks REST/MQTT canlı veri
+├── bist_verda_provider.py     # Borsa İstanbul resmi VERDA API
+└── tcmb_evds_provider.py      # Merkez Bankası makro veriler (faiz, döviz)
+```
+
+### SymbolMaster (Sembol Eşleme)
+
+Her provider farklı sembol formatı kullanır. Kanonical mapping şart:
+
+```python
+# quant_engine/core/symbol_master.py
+# Proje içi standart sembol → provider sembolü eşlemesi
+
+SYMBOL_MAP = {
+    "THYAO": {
+        "yfinance": "THYAO.IS",
+        "matriks": "THYAO",
+        "bist_verda": "THYAO.E.BIST",
+        "stooq": "THY.IS",
+    },
+    "F_XU030": {  # VİOP BIST30 vadeli
+        "matriks": "F_XU0300824",  # Ağustos 2024 kontratı
+        "bist_verda": "F_XU030.0824",
+    },
+}
+```
+
+### Genişletilmiş Bar Şeması
+
+Şu anki basit OHLCV şeması günlük veri için yeterli ama çoklu kaynak ve intraday için yetersiz:
+
+```python
+# Mevcut (yetersiz):     date, open, high, low, close, volume, symbol
+# Hedef (genişletilmiş):
+BAR_SCHEMA = {
+    "instrument_id": str,       # Kanonical sembol
+    "symbol": str,              # Provider sembolü
+    "market": str,              # "bist" | "viop"
+    "asset_class": str,         # "equity" | "futures" | "index"
+    "timeframe": str,           # "1m" | "5m" | "1h" | "1d"
+    "timestamp_open_utc": datetime,  # Bar açılış zamanı (UTC)
+    "timestamp_close_utc": datetime, # Bar kapanış zamanı (UTC)
+    "open": float,
+    "high": float,
+    "low": float,
+    "close": float,
+    "volume": int,
+    "trade_count": int | None,  # İşlem sayısı (varsa)
+    "vwap": float | None,      # Hacim ağırlıklı ort. fiyat (varsa)
+    "source": str,              # "yfinance" | "matriks" | "bist_verda"
+    "is_adjusted": bool,        # Split/temettü düzeltilmiş mi?
+    "ingested_at": datetime,    # Ne zaman çekildi?
+}
+```
+
+> **Geçiş stratejisi:** Mevcut basit şema (date, OHLCV, symbol) ile başla. Yeni provider eklendiğinde genişletilmiş şemaya geç. Eski veriler migration script ile dönüştürülür.
+
+---
+
 ## 📁 Hedef Veri Yapısı
 
 ```
 data/
-├── raw/bist/1d/symbol=THYAO/year=2024/part.parquet     # Kaynaktan geldiği gibi
-├── clean/bist/1d/symbol=THYAO/year=2024/part.parquet   # Tip, timezone, NaN temiz
-├── adjusted/bist/1d/symbol=THYAO/year=2024/part.parquet # Split, temettü düzeltilmiş
-└── features/bist/1d/symbol=THYAO/year=2024/features.parquet # İndikatörler
+├── raw/source=yfinance/market=bist/timeframe=1d/symbol=THYAO/year=2024/part.parquet
+├── raw/source=matriks/market=bist/timeframe=1m/symbol=THYAO/year=2024/part.parquet
+├── raw/source=matriks/market=viop/timeframe=1d/symbol=F_XU030/year=2024/part.parquet
+├── clean/market=bist/timeframe=1d/symbol=THYAO/year=2024/part.parquet
+├── adjusted/market=bist/timeframe=1d/symbol=THYAO/year=2024/part.parquet
+└── features/market=bist/timeframe=1d/symbol=THYAO/year=2024/features.parquet
 
 artifacts/
 ├── runs/<run_id>/

@@ -61,3 +61,15 @@
 - **orders.parquet ve fills.parquet ayrı olmalı.** Sadece trades.parquet yetmez. Emir verme anı ile dolum anı farklı veriler taşır (slippage, partial fill, rejected order). Audit trail bunların hepsini zincirlemeli.
 
 - **UI grafik performansı için downsample şart.** 10K+ bar'ı tarayıcıya ham göndermek sayfayı kilitler. Resample/downsample yapılmalı. Matrix ekranında da her hücreyi canlı hesaplama yerine snapshot tablo üretilip UI onu okumalı.
+
+## Çoklu Veri Sağlayıcı
+
+- **SymbolMaster (kanonical sembol eşleme) zorunlu.** yfinance `THYAO.IS` kullanır, Matriks `THYAO`, BIST VERDA `THYAO.E.BIST`, Stooq `THY.IS`. Proje içi standart sembol tanımlanıp her provider'a mapping yapılmalı.
+
+- **Raw katmanında `source=` partition olmalı.** Aynı sembolün farklı kaynaklardan gelen verisi karışmamalı. `raw/source=yfinance/...` ve `raw/source=matriks/...` ayrı. Clean/adjusted katmanında kaynak farkı erir (ortak formata dönüşür).
+
+- **Matriks 1 dakikalık BIST verisi Ocak 2017'den, VİOP Ağustos 2017'den başlıyor.** Yahoo'nun 7 gün/60 gün intraday limiti karşısında ciddi avantaj. İntraday strateji geliştirmek için Matriks aboneliği gerekecek.
+
+- **BIST VERDA API authentication ve lisans gerektiriyor.** Herkese açık bedava API değil, kurumsal sözleşme gerekir. Bireysel kullanıcı için Matriks daha erişilebilir.
+
+- **Genişletilmiş bar şeması (instrument_id, timestamp_open/close_utc, asset_class, source, is_adjusted) ileride zorunlu olacak.** Şu anki basit `date, OHLCV, symbol` şeması günlük yfinance verisi için yeterli ama çoklu kaynak, intraday ve VİOP geldiğinde yetersiz kalır. Migration script ile dönüşüm yapılabilir.
