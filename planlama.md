@@ -1,320 +1,258 @@
-# Quant Engine — Ana Planlama Dokümanı (v2 — Revize)
+# Quant Engine — Ana Planlama Dokümanı (v3 — Code Review Sonrası)
 
 ## 📊 Proje İlerleme Tablosu
 
 | # | Modül / Görev | Durum | İlerleme |
 |:--|:---|:---:|:---:|
 | 1 | Proje Scaffold & Sanal Ortam | ✅ | %100 |
-| 2 | Config Sistemi (Pydantic+TOML) | ✅ | %100 |
-| 3 | Data Pipeline — Fetcher (ilk versiyon) | ⚠️ Bug var | %70 |
-| 4 | Data Pipeline — Storage Manager (ilk versiyon) | ⚠️ Bug var | %70 |
-| 5 | Data Pipeline — Data Validator | ✅ | %100 |
-| 6 | Data Pipeline — Orchestrator | ✅ | %100 |
-| 7 | Pip Bağımlılık Kurulumu | ⏳ İnternet gerekli | %0 |
-| 8 | **Bug Düzeltmeleri (4 adet)** | 📋 | %0 |
-| 9 | **Test Altyapısı (pytest + golden fixture)** | 📋 | %0 |
-| 10 | **Veri Omurgası (raw/clean/adjusted/features)** | 📋 | %0 |
-| 11 | **BIST Trading Calendar** | 📋 | %0 |
-| 12 | **Execution Semantics Spec** | 📋 | %0 |
-| 13 | **Minimal Backtest Motoru (tek sembol, long-only)** | 📋 | %0 |
-| 14 | **Run Registry & Experiment Tracking** | 📋 | %0 |
-| 15 | **Raporlama (equity, drawdown, benchmark)** | 📋 | %0 |
-| 16 | **Optimizasyon + Research Governance** | 📋 | %0 |
-| 17 | İndikatör + Feature Cache | 📋 | %0 |
-| 18 | Universe Selection | 📋 | %0 |
-| 19 | Portfolio Constructor & Risk Budget | 📋 | %0 |
-| 20 | Anti-Leakage Guardrails | 📋 | %0 |
-| 21 | Transaction Cost Model Hierarchy | 📋 | %0 |
-| 22 | Instrument Model (Equity + Futures) | 📋 | %0 |
-| 23 | VİOP Margin Engine & Rollover | 📋 | %0 |
-| 24 | Invariant & Regression Tests | 📋 | %0 |
-| 25 | CLI (Typer) | 📋 | %0 |
-| 26 | UI — Streamlit MVP | 📋 | %0 |
-| 27 | Paper Trading Bridge | 📋 | %0 |
-| 28 | Canlı Trading (Broker + Redis) | 📋 | %0 |
+| 2 | Config Sistemi (Pydantic+TOML) | 🐛 6 bug | %50 |
+| 3 | Data Pipeline — Fetcher | 🐛 9 bug | %40 |
+| 4 | Data Pipeline — Storage Manager | 🐛 11 bug | %30 |
+| 5 | Data Pipeline — Data Validator | 🐛 7 bug | %50 |
+| 6 | Data Pipeline — Orchestrator | 🐛 3 bug | %60 |
+| 7 | Demo Script | 🐛 3 bug | %60 |
+| 8 | Pip Bağımlılık Kurulumu | ⏳ İnternet + pandas-ta fix gerekli | %0 |
+| 9 | Test Altyapısı (pytest + fixture) | 📋 | %0 |
+| 10 | Veri Omurgası (raw/clean/adjusted/features) | 📋 | %0 |
+| 11 | BIST Trading Calendar | 📋 | %0 |
+| 12 | Execution Semantics Spec | 📋 | %0 |
+| 13 | Minimal Backtest Motoru | 📋 | %0 |
+| 14 | Run Registry & Experiment Tracking | 📋 | %0 |
+| 15 | Raporlama | 📋 | %0 |
+| 16 | Optimizasyon + Governance | 📋 | %0 |
+| 17-28 | İleri seviye modüller | 📋 | %0 |
 
-**Toplam İlerleme: ~%12 (temel scaffold hazır, bug'lar ve test eksik)**
+**Gerçek İlerleme: ~%8 (scaffold hazır, mevcut kod ciddi bug'lı)**
 
 ---
 
-## 🐛 Bilinen Bug'lar (Acil Düzeltilecek)
+## 🐛 KOD İNCELEME RAPORU — Tüm Tespit Edilen Sorunlar
 
-Mevcut kodda tespit edilen 4 kritik sorun:
+### requirements.txt (2 sorun)
 
-### BUG-1: Append sırasında tüm Parquet okunuyor
-**Dosya:** `storage_manager.py` — `write_symbol_data()` metodu  
-**Sorun:** Append modunda mevcut Parquet dosyasının tamamını RAM'e okuyup, yeni veriyle birleştirip, hepsini tekrar yazıyor. 100K+ satırlık dosyalarda gereksiz yavaş.  
-**Çözüm:** Yıl/sembol bazlı partition yapısı: `data/clean/bist/THYAO/2024.parquet`. Append sadece ilgili yıl dosyasına dokunur.
+| ID | Satır | Sorun | Çözüm |
+|:--|:--|:--|:--|
+| REQ-1 | 19 | `pandas-ta>=0.3.14b1` kurulumu kırıyor, paket bulunamıyor | Kaldır veya `pandas-ta-classic` kullan veya indikatörleri kendimiz yazalım |
+| REQ-2 | * | `>=` ile serbest bağımlılık tehlikeli; major versiyon atlayabilir | `pip-tools` veya `uv.lock` ile sürüm sabitle |
 
-### BUG-2: fetch_watchlist() sıralı çalışıyor
-**Dosya:** `fetcher.py` — `fetch_watchlist()` metodu  
-**Sorun:** Config'te `max_workers=4` tanımlı ama kod sıralı `for` döngüsü ile tek tek çekiyor. 30 hisse × 3 saniye = 90 saniye.  
-**Çözüm:** `concurrent.futures.ThreadPoolExecutor` ile paralel fetch, veya `yf.download(tickers=list, threads=True)` bulk akışı.
+### pyproject.toml (1 sorun)
 
-### BUG-3: Polars planlandı ama kod %100 Pandas
-**Dosya:** Tüm pipeline  
-**Sorun:** "Polars birincil kütüphane" dedik ama tek satır Polars kodu yok. Her şey `pd.DataFrame` döndürüyor.  
-**Çözüm:** Storage okuma katmanında Polars LazyFrame, feature hesaplamada Polars expression API. Pandas sadece yfinance çıktısında kalacak.
+| ID | Satır | Sorun | Çözüm |
+|:--|:--|:--|:--|
+| PYP-1 | 15 | `testpaths = ["tests"]` ama root'ta `tests/` yok, pytest test bulamıyor | `testpaths = ["quant_engine/tests"]` veya root'ta `tests/` aç |
 
-### BUG-4: Parquet yazımı atomic değil
-**Dosya:** `storage_manager.py` — `write_symbol_data()`  
-**Sorun:** Yazma sırasında işlem kesilirse bozuk Parquet dosyası kalır, veri kaybı olur.  
-**Çözüm:** Temp dosyaya yaz → `os.rename()` ile atomic taşı. Rename başarısız olursa temp silinir, orijinal bozulmaz.
+### config_manager.py (6 sorun)
+
+| ID | Satır | Sorun | Çözüm |
+|:--|:--|:--|:--|
+| CFG-1 | 132 | `get_config()` env override uygulamıyor. `apply_env_overrides()` hiç çağrılmıyor | `get_config()` içinde `apply_env_overrides()` çağır veya `pydantic-settings`'e geç |
+| CFG-2 | 26-85 | Modellerde `extra="forbid"` yok; yanlış TOML key'leri sessizce yutulur | Tüm modellere `model_config = ConfigDict(extra="forbid")` ekle |
+| CFG-3 | 42-49 | Numeric alanlara sınır yok; negatif komisyon, %200 pozisyon mümkün | `Field(ge=0)`, `Field(le=1)`, `Field(ge=1)` ekle |
+| CFG-4 | 30 | `db_path` config'te var ama hiçbir yerde kullanılmıyor | Ya DuckDB dosyasına bağlan ya config'ten çıkar |
+| CFG-5 | 29,64 | `data_dir` CWD'ye göre çözülüyor; farklı dizinden çalışınca yanlış yol | `Path(__file__).resolve()` ile proje köküne göre çöz |
+| CFG-6 | * | timezone, calendar, data_layer, retry, timeout, rate_limit ayarları eksik | Config'e ekle |
+
+### fetcher.py (9 sorun)
+
+| ID | Satır | Sorun | Çözüm |
+|:--|:--|:--|:--|
+| FET-1 | 80 | `end = today` — yfinance end'i exclusive kullanır; kapanış sonrası bugünün verisini kaçırabilir | `end = tomorrow` veya BIST takvimine göre hesapla |
+| FET-2 | 124 | Delta fetch takvim bilmiyor; hafta sonu, tatil, seans kapanışı kontrolü yok | Trading calendar modülüne bağla |
+| FET-3 | 97 | Intraday (1h, 5m) çağrılarında `KeyError: 'date'` — kolon adı `Datetime` oluyor | Date/Datetime kolonlarını normalize et |
+| FET-4 | 255 | `fetch_bulk_yfinance()` tek sembolde kırılıyor (tuple parse hatası) | Single vs multi-symbol parse ayrı ele al |
+| FET-5 | 160 | `fetch_watchlist()` sıralı; `max_workers` config'te var ama kullanılmıyor | `ThreadPoolExecutor` veya bulk `yf.download` kullan |
+| FET-6 | 120 | Hata durumunda boş DataFrame dönüyor; hata tipi kayboluyor | `FetchResult(success, data, error_type, message)` döndür |
+| FET-7 | 86 | `auto_adjust` politikası net değil; raw vs adjusted veri karışıyor | Raw ayrı sakla, adjusted ayrı transform et |
+| FET-8 | 106 | `tz_localize(None)` timezone bilgisini siliyor | Exchange timezone koru, depoda UTC normalize et |
+| FET-9 | * | Retry, timeout, backoff, rate-limit, sembol whitelist yok | Ağ dayanıklılığı ekle |
+
+### storage_manager.py (11 sorun)
+
+| ID | Satır | Sorun | Çözüm |
+|:--|:--|:--|:--|
+| STR-1 | 126 | Append tüm Parquet'i okuyup yeniden yazıyor | `layer/market/symbol/year.parquet` partition yapısı |
+| STR-2 | 150 | Dönüş değeri yanıltıcı — kaç satır eklendi belli değil | `WriteResult(rows_added, rows_total, duplicates_removed)` döndür |
+| STR-3 | 93 | `mode="nonsense"` sessizce overwrite gibi davranıyor | `Literal["append", "overwrite"]` veya enum ile validate et |
+| STR-4 | 77-81 | `_symbol_path()` read çağrılarında bile klasör oluşturuyor (mkdir) | Read/exists işlemleri filesystem mutate etmemeli |
+| STR-5 | 216,263 | SQL string interpolation — injection riski + path escape sorunu | Parametreli sorgu veya allow-list kullan |
+| STR-6 | 215 | `columns` parametresi validate edilmiyor; kötü input SQL'i bozar | Allow-list kontrolü ekle |
+| STR-7 | 79 | `market` validate edilmiyor; "bist" dışı her şey otomatik VİOP | `Literal["bist", "viop"]` veya enum |
+| STR-8 | 137-143 | Parquet yazımı atomic değil; yarıda kesilirse veri kaybı | Temp dosya → checksum → rename |
+| STR-9 | * | Concurrent write için file lock yok | `fcntl.flock` veya `filelock` ekle |
+| STR-10 | 137 | Schema doğrulaması yazmadan önce yok; eksik volume PyArrow error | Yazmadan önce schema validate et |
+| STR-11 | 305 | `get_symbol_stats()` dosya dosya loop; yavaş | Tek DuckDB glob query ile çöz |
+
+### data_validator.py (7 sorun)
+
+| ID | Satır | Sorun | Çözüm |
+|:--|:--|:--|:--|
+| VAL-1 | 132 | NaN fiyatları yakalamıyor (`<= 0` NaN'ı geçer) | `isna()`, `isfinite()`, dtype kontrolü ekle |
+| VAL-2 | 153 | Negatif volume yakalamıyor | `volume >= 0` zorunlu kontrol |
+| VAL-3 | 140 | OHLC kuralı eksik: `low > close` veya `low > open` kontrol edilmiyor | `low <= min(open, close)` ve `high >= max(open, close)` |
+| VAL-4 | 128 | Duplicate kontrolü sadece `date`; multi-symbol veride `date + symbol` olmalı | Subset'e `symbol` ekle |
+| VAL-5 | 145-151 | Ağır OHLC tutarsızlıkları warning, error olmalı | `High < Low` → error'a yükselt |
+| VAL-6 | 177 | Gap kontrolü takvim günüyle; BIST trading calendar'a göre olmalı | Trading calendar modülüne bağla |
+| VAL-7 | 227 | `auto_fix()` sınırsız forward-fill — veri uydurma riski, leakage | Limitli ffill (max 3 gün), sembol bazlı, re-validation zorunlu |
+
+### pipeline.py (3 sorun)
+
+| ID | Satır | Sorun | Çözüm |
+|:--|:--|:--|:--|
+| PIP-1 | 84 | Validasyon başarısız → auto-fix → write; hard error'da yazma durmalı | Error seviyesinde yazma engelle |
+| PIP-2 | * | "0 satır" ile "fetch hatası" ayırt edilemiyor | Sonuç modeli (FetchResult) kullan |
+| PIP-3 | * | Sıralı işleme, retry ve partial failure raporu yok | Toplu hata raporu ekle |
+
+### demo.py (3 sorun)
+
+| ID | Satır | Sorun | Çözüm |
+|:--|:--|:--|:--|
+| DEM-1 | * | Exception'da storage kapanmayabilir | `with` context manager kullan |
+| DEM-2 | 148 | `results` değişkeni kullanılmıyor (unused) | Lint temizle |
+| DEM-3 | * | Gerçek data dizinine yazıyor; smoke test için temp dir lazım | `--temp-dir` opsiyonu ekle |
+
+### Kullanılmayan importlar
+
+| Dosya | Import | Durum |
+|:--|:--|:--|
+| data_validator.py:20 | `import numpy as np` | np hiçbir yerde kullanılmıyor → kaldır |
+
+**Toplam: 45 tespit (2 req + 1 pyp + 6 cfg + 9 fet + 11 str + 7 val + 3 pip + 3 dem + 1 lint + 2 genel)**
 
 ---
 
-## SPRINT 1 — Çalıştırılabilir Ortam & Bug Düzeltme
+## YENİ SPRİNT PLANI (Code Review Sonrası)
 
-> Hedef: Kodu çalışır hale getir, bug'ları düzelt, testlerle doğrula.
+### Sprint 0 — Acil Düzeltmeler (Blocker)
+> Bunlar olmadan hiçbir şey çalışmaz.
 
-### 1.1 Bağımlılık Kurulumu
-- [ ] `pip install -r requirements.txt`
-- [ ] `python demo.py --symbol THYAO` ile smoke test
+- [ ] REQ-1: pandas-ta kaldır veya değiştir
+- [ ] REQ-2: Bağımlılık sürümlerini sabitle (pip-tools/uv)
+- [ ] PYP-1: testpaths düzelt
+- [ ] `pip install` başarılı şekilde çalışsın
+- [ ] Ruff ile 240 lint sorununu temizle
 
-### 1.2 Bug Düzeltmeleri
-- [ ] BUG-1: Partition yapısına geç (yıl/sembol/timeframe)
-- [ ] BUG-2: Paralel fetch (ThreadPoolExecutor veya bulk yf.download)
-- [ ] BUG-3: Storage okuma katmanını Polars'a taşı
-- [ ] BUG-4: Atomic Parquet yazımı (temp → rename)
+### Sprint 1 — Config & Fetcher Düzeltmeleri
+- [ ] CFG-1: get_config() env override
+- [ ] CFG-2: extra="forbid"
+- [ ] CFG-3: Field sınırları
+- [ ] CFG-5: data_dir deterministic resolve
+- [ ] FET-1: end tarih exclusive fix
+- [ ] FET-3: Intraday kolon normalize
+- [ ] FET-4: Bulk tek-sembol fix
+- [ ] FET-5: Paralel fetch
+- [ ] FET-6: FetchResult sonuç nesnesi
+- [ ] FET-8: Timezone UTC normalize
 
-### 1.3 Geliştirici Altyapısı
-- [ ] `pre-commit` config: ruff + black + mypy
-- [ ] pytest yapısı: `tests/unit/`, `tests/integration/`, `tests/fixtures/`
+### Sprint 2 — Storage & Validator Düzeltmeleri
+- [ ] STR-1: Partition yapısı (year/symbol)
+- [ ] STR-3: mode validation (Literal)
+- [ ] STR-4: _symbol_path read'de mkdir kaldır
+- [ ] STR-5: SQL injection düzelt
+- [ ] STR-7: market validation
+- [ ] STR-8: Atomic write (temp → rename)
+- [ ] STR-10: Schema validation before write
+- [ ] VAL-1: NaN/inf fiyat kontrolü
+- [ ] VAL-2: Negatif volume kontrolü
+- [ ] VAL-3: Tam OHLC kuralı
+- [ ] VAL-5: Ağır tutarsızlık → error
+- [ ] VAL-7: Limitli auto_fix + re-validation
+- [ ] PIP-1: Hard error'da yazma engelle
+
+### Sprint 3 — Test Altyapısı
+- [ ] Root'ta `tests/` klasörü oluştur (unit, integration, fixtures)
 - [ ] 5-10 satırlık golden fixture CSV (elle doğrulanmış OHLCV)
-- [ ] `test_storage.py`: fixture'dan yaz → oku → karşılaştır
-- [ ] `test_validator.py`: bilinen hatalı veri → hata tespit kontrolü
+- [ ] `test_storage.py`: fixture → write → read → karşılaştır
+- [ ] `test_validator.py`: bilinen hatalı veri → hata tespit
+- [ ] `test_config.py`: geçersiz config → hata fırlatma
+- [ ] pytest yeşil, ruff temiz, CI baseline
 
----
+### Sprint 4 — Veri Omurgası (raw/clean/adjusted/features)
+- [ ] 4 katmanlı dizin yapısı
+- [ ] Her dosya yanında `_metadata.json` (source, checksum, lineage)
+- [ ] Schema contract (PyArrow schema her katmanda)
+- [ ] Transform pipeline: raw → clean → adjusted
 
-## SPRINT 2 — Veri Omurgası
+### Sprint 5 — BIST Trading Calendar
+- [ ] İşlem günleri, tatiller, yarım günler
+- [ ] Açılış/kapanış müzayede dönemleri
+- [ ] Timezone standardı (Europe/Istanbul → UTC)
+- [ ] Seans dışı işlem yasağı
+- [ ] `is_trading_day()`, `next_trading_day()`, `trading_days_between()`
+- [ ] Validator ve fetcher'a entegre et (gap kontrolü, delta fetch)
 
-> Hedef: Verinin nereden geldiği, ne kadar temizlendiği, hangi düzeltmelerin uygulandığı her zaman izlenebilir olmalı.
+### Sprint 6 — Execution Semantics Spec
+- [ ] Signal → Execution timing kuralı
+- [ ] Intrabar ambiguity politikası
+- [ ] Fill policy (full, partial, no fill)
+- [ ] Order types (Market, Limit, Stop)
+- [ ] Warm-up bars standardı
+- [ ] Assumptions registry (her koşuya snapshot)
 
-### 2.1 Katmanlı Veri Yapısı
-```
-data/
-├── raw/bist/THYAO/2024.parquet      # Kaynaktan geldiği gibi, dokunulmaz
-├── clean/bist/THYAO/2024.parquet    # Tip, timezone, duplicate, NaN temiz
-├── adjusted/bist/THYAO/2024.parquet # Split, temettü, bedelsiz düzeltilmiş
-└── features/bist/THYAO/2024.parquet # İndikatörler eklenmiş
-```
+### Sprint 7 — Minimal Backtest Motoru
+- [ ] Tek sembol, long-only, market order
+- [ ] Komisyon + slippage
+- [ ] Equity curve hesaplama
+- [ ] Invariant: `cash + position_value == total_equity` her barda
+- [ ] Audit trail: signal → order → fill → position → pnl
+- [ ] Anti-leakage: `feature_ts ≤ decision_ts < execution_ts`
+- [ ] Golden fixture ile elle doğrulanmış sonuç eşleşmesi
+- [ ] Buy & Hold baseline ile karşılaştırma
 
-### 2.2 Metadata & Lineage
-- [ ] Her Parquet dosyası yanında `_metadata.json`:
-  ```json
-  {
-    "source": "yfinance",
-    "ingest_time": "2026-04-24T19:00:00Z",
-    "schema_version": "1.0",
-    "row_count": 245,
-    "checksum_sha256": "a1b2c3...",
-    "transform_from": "raw/bist/THYAO/2024.parquet",
-    "transform_date": "2026-04-24T19:01:00Z"
-  }
-  ```
-- [ ] Schema contract: PyArrow şeması her katman için tanımlı ve doğrulanmış
-- [ ] Her transform adımı lineage zincirinde kayıtlı (raw → clean → adjusted → features)
-
----
-
-## SPRINT 3 — BIST Trading Calendar & Execution Spec
-
-### 3.1 Trading Calendar
-**Dosya:** `quant_engine/core/trading_calendar.py`
-
-- [ ] BIST işlem günleri (tatiller hariç)
-- [ ] Resmi tatiller listesi (Ramazan, Kurban, 29 Ekim, 1 Ocak vb.)
-- [ ] Yarım gün seanslar
-- [ ] Açılış müzayedesi (09:40-10:00) ve kapanış müzayedesi (17:50-18:00)
-- [ ] Timezone: veri girişinde `Europe/Istanbul` → depolamada UTC normalize
-- [ ] `is_trading_day(date)`, `next_trading_day(date)`, `trading_days_between(start, end)`
-- [ ] Seans dışı işlem yasağı (backtest'te zorunlu kontrol)
-
-### 3.2 Execution Semantics Spec
-**Dosya:** `quant_engine/backtest_engine/execution_spec.py`
-
-Kurallar:
-```
-SINYAL ÜRETİMİ:     Bar[t] kapanışında (close) sinyal üretilir
-EMİR OLUŞTURMA:     Sinyal anında order nesnesi oluşur
-EMİR DOLDURMA:      Bar[t+1] açılışında (open) execute edilir
-KAYMA (SLIPPAGE):    open ± slippage_bps
-KOMİSYON:           fill_price × quantity × commission_rate
-WARM-UP:             İlk N bar sinyal üretmez (varsayılan: 200)
-```
-
-- [ ] **Signal → Execution Timing:** `signal_bar.close → next_bar.open ± slippage`
-- [ ] **Intrabar Ambiguity:** Aynı barda stop ve target tetiklenirse → kötü senaryo (conservative fill)
-- [ ] **Fill Policy:** Varsayılan full fill. Limit order bar range dışındaysa dolmaz.
-- [ ] **Order Types:**
-  - `MarketOrder` → next bar open
-  - `LimitOrder` → bar.low ≤ limit ≤ bar.high ise dolar
-  - `StopOrder` → stop kırılınca market'e döner
-- [ ] **Assumptions Registry:** Her koşuya snapshot yazılır (slippage model, fee model, fill model, warm-up bars)
-
----
-
-## SPRINT 4 — Minimal Backtest Motoru
-
-> Hedef: Tek sembol, long-only, market order ile güvenilir sonuç üreten en basit motor.
-
-### 4.1 Motor Bileşenleri
-- [ ] `engine.py` — ana orkestratör
-- [ ] Adjusted katmandan veri yükle
-- [ ] Strateji sinyali üret (basit SMA crossover)
-- [ ] Execution spec'e göre emir doldur
-- [ ] Komisyon ve slippage uygula
-- [ ] Equity curve hesapla
-- [ ] `cash + positions_value = total_equity` (her barda invariant check)
-
-### 4.2 Invariant Testler (Motor Doğrulama)
-- [ ] Trade yoksa equity sabit kalmalı
-- [ ] `cash + positions = total_equity` her adımda doğru olmalı
-- [ ] Aynı sinyal iki kez işlenmemeli
-- [ ] Golden fixture ile elle hesaplanmış sonuçla birebir eşleşme
-
-### 4.3 İlk Strateji: SMA Crossover
-```python
-# Basit kural:
-# SMA(fast) > SMA(slow) → AL sinyali
-# SMA(fast) < SMA(slow) → SAT sinyali
-```
-- [ ] `base_strategy.py` — abstract sınıf
-- [ ] `examples/sma_crossover.py` — ilk somut strateji
-- [ ] Buy & Hold baseline ile karşılaştır
-
----
-
-## SPRINT 5 — Run Registry & Raporlama
-
-### 5.1 Experiment Tracking
-```
-artifacts/<run_id>/
-├── config.toml           # Config snapshot
-├── assumptions.json      # Execution spec snapshot
-├── metrics.json          # Sharpe, Sortino, MaxDD, WinRate...
-├── trades.parquet        # İşlem dökümü
-├── equity_curve.parquet  # Günlük bakiye
-└── report.html           # Görsel rapor
-```
-
-- [ ] `run_id` = otomatik UUID
-- [ ] Git commit hash kaydı
-- [ ] Python/paket versiyonları
-- [ ] Input data checksum
-- [ ] Random seed
-- [ ] `run_registry.duckdb` — tüm koşuları sorgulayabilir tablo
-
-### 5.2 Raporlama
-- [ ] Equity curve (interaktif Plotly grafik)
-- [ ] Drawdown grafiği
-- [ ] Aylık getiri ısı haritası (heatmap)
-- [ ] Trade tablosu (giriş/çıkış/kâr/zarar)
-- [ ] Gross vs Net performans ayrımı
-- [ ] Benchmark kıyası (Buy & Hold, BIST100)
-- [ ] Yıl bazlı getiri tablosu
+### Sprint 8 — Run Registry & Raporlama
+- [ ] Run ID, config snapshot, git hash, data hash, seed
+- [ ] `artifacts/<run_id>/` yapısı
+- [ ] `run_registry.duckdb`
+- [ ] Equity curve, drawdown, aylık heatmap, trade tablosu
+- [ ] Gross vs net ayrımı, benchmark kıyası
 - [ ] HTML rapor çıktısı
 
----
+### Sprint 9 — Optimizasyon + Governance
+- [ ] Grid search, walk-forward, Optuna
+- [ ] Out-of-sample, parameter stability, cost sensitivity
+- [ ] Search budget, seed kontrolü, erken durdurma
 
-## SPRINT 6 — Optimizasyon & Research Governance
-
-### 6.1 Optimizasyon
-- [ ] Grid Search — parametre taraması
-- [ ] Walk-forward analiz — in-sample/out-of-sample döngüsel
-- [ ] Bayesian (Optuna) — akıllı arama + erken durdurma
-
-### 6.2 Governance Kuralları (Overfit Koruması)
-- [ ] **Sadece en yüksek Sharpe'ı alma** — selection criteria:
-  - Out-of-sample performans
-  - Parameter stability (benzer parametreler benzer sonuç mu?)
-  - Turnover cezası
-  - Cost robustness (2bps/5bps/10bps'de sonuç ne olur?)
-- [ ] Search budget: maks deneme sayısı + seed kontrolü
-- [ ] Walk-forward aggregation: tüm fold'ların medyan performansı
-- [ ] Parameter clustering: iyi sonuç tek noktada mı geniş bölgede mi?
-
----
-
-## SPRINT 7+ — İleri Seviye (Sıralama Esnektir)
-
-### İndikatör + Feature Cache
-- [ ] Feature cache: aynı SMA/RSI/ATR optimizasyonda tekrar hesaplanmasın
-- [ ] Parametreli isimlendirme: `sma_20`, `atr_14`, `ret_5d`
-- [ ] Disk cache + versioning
-
-### Universe Selection
-- [ ] Min hacim, min fiyat, min işlem günü
-- [ ] Point-in-time membership
-- [ ] Günlük tekrar hesaplanabilir
-
-### Portfolio Constructor
-- [ ] Exposure caps (tek hisse max %10, sektör max %25)
-- [ ] Correlation-aware sizing
-- [ ] Volatility targeting
-- [ ] Signal ranking mekanizması
-
-### Anti-Leakage Guardrails
-- [ ] `feature_timestamp ≤ decision_timestamp < execution_timestamp`
-- [ ] Delist olmuş hisseleri veri dışında bırakma
-- [ ] Warm-up bars standardı
-
-### Transaction Cost Model
-- [ ] Fixed BPS → Spread + BPS → Participation Rate Impact
-- [ ] Cost sensitivity analizi
-
-### Instrument Model & VİOP
-- [ ] EquityInstrument / FuturesInstrument
-- [ ] Margin engine, rollover, forced liquidation
-
-### CLI (Typer)
-- [ ] `quant fetch`, `quant backtest`, `quant optimize`, `quant report`
-
-### UI — Streamlit MVP
-- [ ] Dashboard, Data Station, Backtest Lab, Run Compare, Trade Inspector
-
-### Paper Trading → Canlı Trading
-- [ ] Shadow execution → Broker API → Redis
+### Sprint 10+ — İleri Seviye
+- [ ] Feature cache, universe selection, portfolio constructor
+- [ ] Anti-leakage guardrails, transaction cost hierarchy
+- [ ] Instrument model, VİOP margin engine
+- [ ] CLI (Typer)
+- [ ] UI — Streamlit MVP
+- [ ] Paper trading → canlı trading
 
 ---
 
 ## ❌ Kasıtlı Ertelenenler
-
 | Ne | Neden |
-|:---|:---|
+|:--|:--|
 | Order book simülasyonu | Overengineering |
 | Mikrosaniye execution | HFT değiliz |
 | Distributed compute | Tek makine yeterli |
 | Full React/Next.js UI | Önce Streamlit MVP |
-| Glassmorphism / fütüristik efektler | Güven ve okunabilirlik önce |
+| Glassmorphism / efektler | Güven ve okunabilirlik önce |
+| Web UI genel | Motor kanıtlanmadan arayüz anlamsız |
 
 ---
 
 ## 🔧 Mevcut Dosya Haritası
-
 ```
 /Users/enes/AgentWorkspace/Backtest/
-├── ✅ .gitignore, README.md, requirements.txt, pyproject.toml
-├── ✅ demo.py, ogrenilenler.md
-├── ✅ planlama.md (bu dosya)
-├── ✅ arayuz.md
+├── ✅ .gitignore, README.md, pyproject.toml (🐛 PYP-1)
+├── ⚠️ requirements.txt (🐛 REQ-1, REQ-2)
+├── 🐛 demo.py (DEM-1,2,3)
+├── ✅ ogrenilenler.md, planlama.md, arayuz.md
 ├── ✅ config/settings.toml
 ├── quant_engine/
-│   ├── ✅ config/config_manager.py
-│   ├── ⚠️ data_pipeline/            ← BUG-1,2,3,4 burada
-│   │   ├── fetcher.py               ← BUG-2,3
-│   │   ├── storage_manager.py       ← BUG-1,4
-│   │   ├── data_validator.py        ✅
-│   │   └── pipeline.py              ✅
-│   ├── 📋 core/                     ← YENİ (calendar, instruments)
-│   ├── 📋 backtest_engine/          ← execution_spec, engine
-│   ├── 📋 strategy/
-│   ├── 📋 optimization/
-│   ├── 📋 validation/
-│   ├── 📋 reporting/
-│   ├── 📋 live_execution/
-│   └── 📋 cli/
-└── 📋 tests/
+│   ├── 🐛 config/config_manager.py (CFG-1→6)
+│   ├── 🐛 data_pipeline/
+│   │   ├── fetcher.py (FET-1→9)
+│   │   ├── storage_manager.py (STR-1→11)
+│   │   ├── data_validator.py (VAL-1→7)
+│   │   └── pipeline.py (PIP-1→3)
+│   ├── 📋 core/ (calendar, instruments)
+│   ├── 📋 backtest_engine/ (execution_spec, engine)
+│   ├── 📋 strategy/, optimization/, validation/
+│   ├── 📋 reporting/, live_execution/, cli/
+│   └── 📋 tests/ (boş)
 ```
 
-**Semboller:** ✅ Tamamlandı | ⚠️ Bug var | 📋 Planlandı | ⏳ Bekliyor
+**Semboller:** ✅ Hazır | 🐛 Bug var | ⚠️ Blocker | 📋 Planlandı

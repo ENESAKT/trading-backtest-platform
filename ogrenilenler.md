@@ -41,3 +41,11 @@
 - **Önce motor doğru hesaplasın, sonra güzel görünsün.** UI planlamak erken aşamada dikkat dağıtıyor. Strateji sonuçlarının doğruluğu kanıtlanmadan arayüze geçmek, yanlış sonuçları güzel göstermek demek.
 
 - **"Alttan yukarı" düşün, "üstten aşağı" değil.** Modül listesi yazmak kolay, ama "bu satır gerçekten doğru mu?" sorusunu sormak zor. Golden fixture + invariant testler olmadan motorun doğruluğu kanıtlanamaz.
+
+- **Detaylı code review 45 sorun ortaya çıkardı.** İlk yazdığım kodda SQL injection riski (`storage_manager.py` f-string ile SQL oluşturma), veri uydurma riski (`auto_fix()` sınırsız ffill), filesystem mutation on read (`_symbol_path()` her çağrıda mkdir), geçersiz mode parametresinin sessizce kabul edilmesi (`mode="nonsense"`), timezone bilgisinin silinmesi (`tz_localize(None)`) gibi ciddi sorunlar vardı. Bunların hiçbirini yazdığım an fark etmedim. Ders: kod yazdıktan sonra her fonksiyonu "bu nasıl kötüye kullanılabilir?" gözüyle oku.
+
+- **yfinance `end` parametresi exclusive (dışlayıcı) çalışıyor.** `end="2024-01-15"` derseniz 15 Ocak dahil olmaz. BIST kapanış sonrası çağırırken bugünün verisini kaçırmamak için `end = tomorrow` kullanılmalı.
+
+- **`pandas-ta>=0.3.14b1` pip'te bulunamıyor.** Ya `pandas-ta-classic` paketine geçmeli, ya da indikatörleri doğrudan NumPy/Polars ile kendimiz yazmalıyız. İkinci seçenek daha iyi çünkü dış bağımlılığı azaltır.
+
+- **Bağımlılıkları `>=` ile serbest bırakmak tehlikeli.** Major versiyon atlaması API kırılmasına neden olabilir. `pip-tools` veya `uv.lock` ile sürüm sabitlenmeli.
