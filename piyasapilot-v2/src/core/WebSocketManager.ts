@@ -37,6 +37,10 @@ const BINANCE_WS_BASE = 'wss://stream.binance.com:9443/ws';
 const LOCAL_CANDLES_ENDPOINT = '/api/v2/candles';
 const HEARTBEAT_INTERVAL_MS = 30_000;
 const MAX_BACKOFF_MS = 30_000;
+// Geo-blok altında Binance WS hiç açılmayabilir. Sonsuz reconnect döngüsü
+// console'u kırmızıya boğup pil tüketiyordu; 6 deneme = ~1+2+4+8+16+30 = 61s
+// sonra sessizce vazgeç ve status 'delayed' kalsın.
+const MAX_RECONNECT_ATTEMPTS = 6;
 const MAX_QUEUE = 200;
 const KLINES_LIMIT = 500;
 
@@ -196,6 +200,15 @@ export class WebSocketManager {
   // ─── Exponential backoff reconnect ────────────────────────────────────────
 
   private scheduleReconnect(): void {
+    if (this.reconnectAttempt >= MAX_RECONNECT_ATTEMPTS) {
+      console.warn(
+        `[WebSocketManager] ${this.symbol}: ${MAX_RECONNECT_ATTEMPTS} reconnect ` +
+        `denemesi başarısız, vazgeçiliyor. Tarihsel veri kullanılmaya devam.`
+      );
+      this.destroyed = true;
+      return;
+    }
+
     const delay = Math.min(
       1000 * 2 ** this.reconnectAttempt,
       MAX_BACKOFF_MS
