@@ -288,7 +288,7 @@ Tek `Notifier` servisi tüm kanalları soyutlar; sinyal motoru fan-out ile hepsi
 - [x] 1.6 Yahoo Finance poller (BIST endeks + FX + emtia, 15s). _PR #4_
 - [x] 1.7 ~~borsapy~~ yfinance `.IS` poller (BIST hisse, 60s). _PR #4 — borsapy değerlendirmesi Sprint 5'e ertelendi (ağır transitif deps)._
 - [x] 1.8 `/api/v2/candles?symbol=&interval=&limit=` endpoint (cache-aside). _PR #3_
-- [ ] 1.9 `/ws/quotes` WebSocket (canlı tick fan-out). _PR #5'e bırakıldı_
+- [x] 1.9 `/ws/quotes` WebSocket (canlı tick fan-out). _PR #5_
 - [x] 1.10 Healthcheck endpoint (cache stats + worker durumu). Prometheus → Sprint 7. _PR #3 + #4_
 - [x] 1.11 `tests/integration/test_gateway.py` + `test_lifespan.py` — uçtan uca cache-aside ve worker lifecycle. _PR #3 + #4_
 
