@@ -30,3 +30,7 @@ logs/
 # OS
 .DS_Store
 Thumbs.db
+
+# Claude Code (lokal kullanıcı ayarları)
+.claude/settings.local.json
+
