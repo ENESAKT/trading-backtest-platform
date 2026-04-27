@@ -1,9 +1,9 @@
 import type { OHLCV } from '../types.js';
 
-// Backend ``/ws/quotes`` fan-out client'ı. Sprint 1.9.
-// Mevcut ``WebSocketManager`` doğrudan Binance WS'sine gidiyor (geo-blok riski);
-// ``QuoteStream`` lokal Python backend üzerinden cache değişikliklerini alır.
-// Sprint 2'de Market Explorer çoklu sembol akışı için bu client kullanılacak.
+// Backend ``/ws/quotes`` fan-out client'ı. Sprint 1.9 + Sprint 2.7.
+// Tüm canlı bar yayını lokal Python backend üzerinden geçer; tarayıcı
+// hiçbir yerden ``api.binance.com``/``corsproxy.io``'ya doğrudan çıkmaz
+// (CLAUDE.md kuralı 10).
 
 export interface QuoteMessage {
   type: 'bars';
