@@ -2,8 +2,9 @@ import type {
   OHLCV, SymbolInfo, Timeframe, ConnectionStatus,
   DataUpdateEvent, PriceUpdateEvent,
 } from '../types.js';
-import { WebSocketManager } from './WebSocketManager.js';
 import { PollingManager } from './PollingManager.js';
+import { QuoteStream, type QuoteMessage } from './QuoteStream.js';
+import { loadHistorical } from './HistoricalLoader.js';
 import { DEFAULT_SYMBOL } from '../constants/symbols.js';
 
 // ─── Simple EventEmitter ──────────────────────────────────────────────────────
@@ -30,8 +31,12 @@ class EventEmitter {
 
 // ─── DataEngine ───────────────────────────────────────────────────────────────
 
+const MAX_CANDLES = 1000;
+const TRIM_TO = 500;
+
 export class DataEngine extends EventEmitter {
-  private wsManager  = new WebSocketManager();
+  private quoteStream: QuoteStream | null = null;
+  private quoteUnsubscribe: (() => void) | null = null;
   private pollManager = new PollingManager();
 
   private activeSymbol: SymbolInfo = DEFAULT_SYMBOL;
@@ -75,54 +80,63 @@ export class DataEngine extends EventEmitter {
     void this.setActiveSymbol(this.activeSymbol, tf);
   }
 
-  // ─── Crypto path (WebSocket + REST history) ───────────────────────────────
+  // ─── Crypto path: lokal backend + /ws/quotes fan-out ─────────────────────
 
   private async connectCrypto(symbol: string, tf: Timeframe): Promise<void> {
     this.status = 'connecting' as ConnectionStatus;
     this.emit('statusChange', 'connecting');
 
+    // 1) Tarihsel snapshot — /api/v2/candles cache-aside.
     try {
-      const candles = await this.wsManager.fetchHistorical(symbol, tf);
+      const candles = await loadHistorical(symbol, tf, { assetType: 'crypto' });
       this.activeCandles = candles;
       this.lastUpdate = Date.now();
-      // Tarihsel veri geldi ama henüz WebSocket tick'i alınmadı.
-      // Geo-blok/ağ sorunlarında WS hiç açılmayabilir; o sürede 'live' demek
-      // yanıltıcı. İlk gerçek tick gelene kadar 'delayed' olarak yayınla.
+      // Tarihsel veri var ama backend worker'dan henüz live tick alınmadı;
+      // ilk QuoteStream mesajı gelene kadar 'delayed' kalsın.
       this.status = 'delayed';
       this.emitDataUpdate(candles, 'delayed');
     } catch {
       this.emit('statusChange', 'offline');
+      return;
     }
 
-    // Subscribe to live tick updates
-    this.wsManager.connect(symbol, tf);
-    this.wsManager.onKline((candle, isClosed) => {
-      this.lastUpdate = Date.now();
-      this.status = 'live';
-
-      if (isClosed) {
-        // Replace or append
-        const idx = this.activeCandles.findIndex(c => c.time === candle.time);
-        if (idx >= 0) {
-          this.activeCandles[idx] = candle;
-        } else {
-          this.activeCandles = [...this.activeCandles, candle];
-          if (this.activeCandles.length > 1000) {
-            this.activeCandles = this.activeCandles.slice(-500);
-          }
-        }
-        this.emitDataUpdate(this.activeCandles, 'live');
-      } else {
-        // Live tick: emit price update only
-        this.priceCache.set(symbol, candle.close);
-        const prev = this.activeCandles[this.activeCandles.length - 2]?.close ?? candle.close;
-        const changePct = prev !== 0 ? ((candle.close - prev) / prev) * 100 : 0;
-        this.emitPriceUpdate(symbol, candle.close, changePct);
-      }
+    // 2) Live update — QuoteStream subscribe.
+    this.quoteStream = new QuoteStream({
+      symbols: [symbol],
+      intervals: [tf],
     });
+    this.quoteUnsubscribe = this.quoteStream.onBars(msg => this.handleQuoteMessage(symbol, msg));
+    this.quoteStream.connect();
   }
 
-  // ─── REST polling path (Yahoo Finance) ───────────────────────────────────
+  private handleQuoteMessage(activeSymbol: string, msg: QuoteMessage): void {
+    if (msg.symbol !== activeSymbol.toUpperCase() || msg.interval !== this.activeTimeframe) {
+      return;
+    }
+    this.lastUpdate = Date.now();
+    this.status = 'live';
+
+    for (const bar of msg.bars) {
+      const idx = this.activeCandles.findIndex(c => c.time === bar.time);
+      if (idx >= 0) {
+        this.activeCandles[idx] = bar;
+      } else {
+        this.activeCandles = [...this.activeCandles, bar];
+        if (this.activeCandles.length > MAX_CANDLES) {
+          this.activeCandles = this.activeCandles.slice(-TRIM_TO);
+        }
+      }
+    }
+
+    const last = msg.bars[msg.bars.length - 1]!;
+    this.priceCache.set(activeSymbol, last.close);
+    const prev = this.activeCandles[this.activeCandles.length - 2]?.close ?? last.close;
+    const changePct = prev !== 0 ? ((last.close - prev) / prev) * 100 : 0;
+    this.emitPriceUpdate(activeSymbol, last.close, changePct);
+    this.emitDataUpdate(this.activeCandles, 'live');
+  }
+
+  // ─── REST polling path (BIST / FX / Commodity / US) ──────────────────────
 
   private connectPolling(symbol: string, tf: Timeframe, assetType: typeof this.activeSymbol.assetType): void {
     this.pollManager.start(symbol, tf, assetType);
@@ -149,7 +163,14 @@ export class DataEngine extends EventEmitter {
   // ─── Cleanup ─────────────────────────────────────────────────────────────
 
   private disconnect(): void {
-    this.wsManager.disconnect();
+    if (this.quoteUnsubscribe) {
+      this.quoteUnsubscribe();
+      this.quoteUnsubscribe = null;
+    }
+    if (this.quoteStream) {
+      this.quoteStream.disconnect();
+      this.quoteStream = null;
+    }
     this.pollManager.stop();
   }
 

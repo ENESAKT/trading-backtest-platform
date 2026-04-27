@@ -299,7 +299,7 @@ Tek `Notifier` servisi tüm kanalları soyutlar; sinyal motoru fan-out ile hepsi
 - [x] 2.4 Fullscreen düğmesi. _Mevcut: `ChartPanel.ts:158` `<button id="fullscreen-btn">` + F kısayolu + `requestFullscreen`/CSS fallback. PR #6'da retroaktif tick._
 - [ ] 2.5 Streamlit'in Strateji Lab → TS'te `StrategyPanel` v2 (parametre form + sonuç). _PR #9_
 - [ ] 2.6 Streamlit'in Veri İstasyonu → TS'te `DataStation` (sembol grupları yönetimi). _PR #9_
-- [ ] 2.7 `DataEngine` → yeni FastAPI gateway WS'ine bağla; CORS proxy'yi sök. _PR #7 (sıradaki)_
+- [x] 2.7 `DataEngine` → yeni FastAPI gateway WS'ine bağla; CORS proxy'yi sök. _PR #7: WebSocketManager.ts (Binance-direct) sökündü, kripto path artık `/ws/quotes` üzerinden; tüm tarihsel fetch `HistoricalLoader.ts`'da merkezi._
 - [ ] 2.8 Streamlit kalkar (`quant_engine/app/ui_streamlit/` arşive taşı, repodan sil). _PR #10_
 
 ### Sprint 3 — Strateji & Backtest Birleşimi
