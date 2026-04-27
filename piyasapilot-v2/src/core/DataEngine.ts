@@ -85,8 +85,11 @@ export class DataEngine extends EventEmitter {
       const candles = await this.wsManager.fetchHistorical(symbol, tf);
       this.activeCandles = candles;
       this.lastUpdate = Date.now();
-      this.status = 'live';
-      this.emitDataUpdate(candles, 'live');
+      // Tarihsel veri geldi ama henüz WebSocket tick'i alınmadı.
+      // Geo-blok/ağ sorunlarında WS hiç açılmayabilir; o sürede 'live' demek
+      // yanıltıcı. İlk gerçek tick gelene kadar 'delayed' olarak yayınla.
+      this.status = 'delayed';
+      this.emitDataUpdate(candles, 'delayed');
     } catch {
       this.emit('statusChange', 'offline');
     }
