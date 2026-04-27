@@ -10,12 +10,19 @@ from __future__ import annotations
 # Binance WS kline stream'ine subscribe edilecek kripto pariteleri.
 # Frontend ``BTCUSDT`` formatıyla gönderir, /api/v2/candles aynı string ile
 # yazar; worker da aynı kanonik form kullanmalı.
+# Frontend ``constants/symbols.ts::CRYPTO_SYMBOLS`` ile birebir senkron —
+# QuoteStream tüm 10 paritede live update versin.
 CRYPTO_WS_SYMBOLS: tuple[str, ...] = (
     "BTCUSDT",
     "ETHUSDT",
-    "BNBUSDT",
     "SOLUSDT",
+    "BNBUSDT",
     "XRPUSDT",
+    "AVAXUSDT",
+    "DOTUSDT",
+    "ADAUSDT",
+    "DOGEUSDT",
+    "MATICUSDT",
 )
 
 # yfinance üzerinden çekilen BIST endeks + FX + emtia.
