@@ -21,17 +21,19 @@ devreye alındı.
 
 from __future__ import annotations
 
+import asyncio
 import datetime as dt
 import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any, AsyncIterator
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
+from backend.api.quote_bus import QuoteBus
 from backend.data.cache import OHLCVCache
 from backend.data.spike_filter import filter_bars
 from backend.data.symbols import (
@@ -61,6 +63,22 @@ def _utc_iso() -> str:
     return dt.datetime.now(dt.UTC).replace(microsecond=0).isoformat()
 
 
+async def _drain_client_messages(ws: WebSocket) -> None:
+    """Client-side mesajları boşaltarak disconnect tespitini sağla.
+
+    Protokol bu PR'da sadece "subscribe" başlangıç kanalı; client'tan gelen
+    diğer mesajlar şimdilik yutulur. Disconnect olunca ``WebSocketDisconnect``
+    fırlar ve ana döngü ``recv_task.done()`` üzerinden çıkar.
+    """
+    try:
+        while True:
+            await ws.receive_text()
+    except WebSocketDisconnect:
+        return
+    except Exception:  # noqa: BLE001
+        return
+
+
 def _interval_to_seconds(interval: str) -> int:
     """Interval stringini saniyeye çevir (cache age kararı için)."""
     table = {
@@ -71,27 +89,37 @@ def _interval_to_seconds(interval: str) -> int:
 
 
 def _build_default_supervisor(
-    cache: OHLCVCache, data_service: LiveDataService
+    cache: OHLCVCache,
+    data_service: LiveDataService,
+    quote_bus: QuoteBus | None = None,
 ) -> WorkerSupervisor:
-    """Üretim modunda kullanılan varsayılan worker seti."""
+    """Üretim modunda kullanılan varsayılan worker seti.
+
+    ``quote_bus`` verilirse her worker bar yazdığında ``bus.publish``
+    çağrılır → ``/ws/quotes`` üzerinden tarayıcı client'larına fan-out.
+    """
+    on_bar = quote_bus.publish if quote_bus is not None else None
     return WorkerSupervisor(
         [
             BinanceKlineWorker(
                 cache=cache,
                 symbols=CRYPTO_WS_SYMBOLS,
                 interval=DEFAULT_INTERVAL,
+                on_bar=on_bar,
             ),
             YahooPoller(
                 cache=cache,
                 data_service=data_service,
                 symbols=YAHOO_INDEX_FX_COMMODITY,
                 interval=DEFAULT_INTERVAL,
+                on_bar=on_bar,
             ),
             BistStockPoller(
                 cache=cache,
                 data_service=data_service,
                 symbols=BIST_STOCKS,
                 interval=DEFAULT_INTERVAL,
+                on_bar=on_bar,
             ),
         ]
     )
@@ -103,13 +131,14 @@ def create_app(
     workspace_store: WorkspaceJsonStore | None = None,
     paper_recorder: PaperTradingRecorder | None = None,
     supervisor: WorkerSupervisor | None = None,
+    quote_bus: QuoteBus | None = None,
 ) -> FastAPI:
     """FastAPI app factory.
 
     Bağımlılıklar dışarıdan enjekte edilebilir → testte mock'lu örnek
     kurmayı kolaylaştırır. ``supervisor=None`` + ``PIYASAPILOT_DISABLE_WORKERS``
-    setli değilse varsayılan worker seti kurulur. Test fikstürleri boş
-    ``WorkerSupervisor([])`` geçer → lifespan worker başlatmaz.
+    setli değilse varsayılan worker seti kurulur. ``quote_bus`` verilmezse
+    yeni bir tane yaratılır ve worker'lar buna ``on_bar`` ile bağlanır.
     """
     cache = cache or OHLCVCache()
     data_service = data_service or LiveDataService()
@@ -120,11 +149,12 @@ def create_app(
         data_service=data_service,
         workspace_path=ROOT / "data" / "workspaces" / "workspace.json",
     )
+    quote_bus = quote_bus if quote_bus is not None else QuoteBus()
     if supervisor is None:
         if os.environ.get("PIYASAPILOT_DISABLE_WORKERS") == "1":
             supervisor = WorkerSupervisor([])
         else:
-            supervisor = _build_default_supervisor(cache, data_service)
+            supervisor = _build_default_supervisor(cache, data_service, quote_bus)
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
@@ -142,6 +172,7 @@ def create_app(
     )
     app.state.supervisor = supervisor
     app.state.cache = cache
+    app.state.quote_bus = quote_bus
 
     app.add_middleware(
         CORSMiddleware,
@@ -164,9 +195,57 @@ def create_app(
                 "last_inserted_at": stats.last_inserted_at,
             },
             "workers": supervisor.health(),
+            "quote_bus": quote_bus.stats(),
             "fetched_at": _utc_iso(),
             "message": "PiyasaPilot gateway çalışıyor. Emir motoru pasif.",
         }
+
+    # ── WebSocket fan-out ────────────────────────────────────────────────
+    @app.websocket("/ws/quotes")
+    async def ws_quotes(ws: WebSocket) -> None:
+        """Canlı bar fan-out kanalı.
+
+        Protokol:
+          * Server bağlantı kabul eder, ``{"type": "ready", "client_id": ...}``
+            yollar.
+          * Client opsiyonel olarak ``{"type": "subscribe", "symbols": [...],
+            "intervals": [...]}`` yollayabilir; boş listeler "hepsi" demek.
+            Şu an PR #5 için subscribe **bağlantı sırasında bir kez** uygulanır
+            (query param + ilk mesaj). Sembol/interval değiştirmek için
+            yeniden bağlan.
+          * Server worker'lardan gelen her bar paketini ``{"type": "bars",
+            "symbol", "interval", "bars": [...], "ts"}`` formatında yollar.
+        """
+        symbols_q = ws.query_params.get("symbols", "")
+        intervals_q = ws.query_params.get("intervals", "")
+        symbols = [s for s in symbols_q.split(",") if s] or None
+        intervals = [s for s in intervals_q.split(",") if s] or None
+
+        await ws.accept()
+        client_id, queue = await quote_bus.subscribe(
+            symbols=symbols, intervals=intervals
+        )
+        await ws.send_json({"type": "ready", "client_id": client_id})
+
+        recv_task = asyncio.create_task(_drain_client_messages(ws))
+        try:
+            while True:
+                msg = await queue.get()
+                await ws.send_json(msg)
+                if recv_task.done():
+                    break
+        except WebSocketDisconnect:
+            pass
+        except Exception:  # noqa: BLE001
+            # Sessizce kapat; daemon süreçleri etkilemesin.
+            pass
+        finally:
+            recv_task.cancel()
+            await quote_bus.unsubscribe(client_id)
+            try:
+                await ws.close()
+            except Exception:  # noqa: BLE001
+                pass
 
     # ── Eski v1 endpoint'leri (geriye dönük) ─────────────────────────────
     @app.get("/api/market/defaults")
