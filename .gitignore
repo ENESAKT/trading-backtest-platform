@@ -23,6 +23,7 @@ env/
 data/bist/
 data/viop/
 data/*.duckdb
+data/cache/
 
 # Loglar
 logs/
