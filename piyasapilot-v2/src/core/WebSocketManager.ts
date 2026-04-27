@@ -32,7 +32,9 @@ const TF_TO_BINANCE: Record<Timeframe, string> = {
 };
 
 const BINANCE_WS_BASE = 'wss://stream.binance.com:9443/ws';
-const BINANCE_REST_BASE = 'https://api.binance.com/api/v3/klines';
+// Tarihsel veri artık lokal Python backend üzerinden çekiliyor (api.binance.com TR'de
+// geo-blok altında; corsproxy.io sık down). WS ile canlı tick yine doğrudan Binance.
+const LOCAL_CANDLES_ENDPOINT = '/api/v2/candles';
 const HEARTBEAT_INTERVAL_MS = 30_000;
 const MAX_BACKOFF_MS = 30_000;
 const MAX_QUEUE = 200;
@@ -65,20 +67,30 @@ export class WebSocketManager {
 
   async fetchHistorical(symbol: string, timeframe: Timeframe): Promise<OHLCV[]> {
     const interval = TF_TO_BINANCE[timeframe];
-    const url = `${BINANCE_REST_BASE}?symbol=${symbol}&interval=${interval}&limit=${KLINES_LIMIT}`;
+    const url = `${LOCAL_CANDLES_ENDPOINT}?symbol=${encodeURIComponent(symbol)}&interval=${interval}&limit=${KLINES_LIMIT}`;
 
     const resp = await fetch(url);
-    if (!resp.ok) throw new Error(`Binance REST ${resp.status}: ${resp.statusText}`);
+    if (!resp.ok) {
+      throw new Error(`Bağlantı Hatası: backend ${resp.status} ${resp.statusText}`);
+    }
 
-    const raw: [number, string, string, string, string, string][] = await resp.json();
+    const payload: {
+      status?: string;
+      message?: string;
+      bars?: Array<{ time: number; open: number; high: number; low: number; close: number; volume: number }>;
+    } = await resp.json();
 
-    const candles: OHLCV[] = raw.map(k => ({
-      time:   Math.floor(k[0] / 1000),
-      open:   parseFloat(k[1]),
-      high:   parseFloat(k[2]),
-      low:    parseFloat(k[3]),
-      close:  parseFloat(k[4]),
-      volume: parseFloat(k[5]),
+    if (payload.status === 'error' || !Array.isArray(payload.bars)) {
+      throw new Error(payload.message || 'Bağlantı Hatası: backend boş yanıt verdi');
+    }
+
+    const candles: OHLCV[] = payload.bars.map(b => ({
+      time:   b.time,
+      open:   b.open,
+      high:   b.high,
+      low:    b.low,
+      close:  b.close,
+      volume: b.volume,
     }));
 
     this.candles = filterAnomalies(candles, 'crypto');

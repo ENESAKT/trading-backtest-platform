@@ -16,5 +16,12 @@ export default defineConfig({
   server: {
     port: 5173,
     open: true,
+    proxy: {
+      // v2 API: tüm tarihsel/poll çağrıları lokal Python backend'e (live_server.py)
+      '/api/v2': {
+        target: 'http://127.0.0.1:8000',
+        changeOrigin: true,
+      },
+    },
   },
 });

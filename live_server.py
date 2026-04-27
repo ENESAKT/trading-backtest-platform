@@ -71,6 +71,21 @@ class PiyasaPilotHandler(SimpleHTTPRequestHandler):
             self._send_json(self.data_service.fetch_chart(symbol, limit=limit))
             return
 
+        if parsed.path == "/api/v2/candles":
+            params = parse_qs(parsed.query)
+            symbol = (params.get("symbol") or [""])[0]
+            interval = (params.get("interval") or ["15m"])[0]
+            try:
+                limit = int((params.get("limit") or ["500"])[0])
+            except ValueError:
+                limit = 500
+            payload = self.data_service.fetch_candles(
+                symbol=symbol, interval=interval, limit=limit
+            )
+            status = 400 if payload.get("status") == "error" and not symbol else 200
+            self._send_json(payload, status=status)
+            return
+
         if parsed.path == "/api/workspace":
             self._send_json(self.workspace_store.load())
             return
