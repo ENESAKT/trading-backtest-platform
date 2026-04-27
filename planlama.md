@@ -293,14 +293,14 @@ Tek `Notifier` servisi tüm kanalları soyutlar; sinyal motoru fan-out ile hepsi
 - [x] 1.11 `tests/integration/test_gateway.py` + `test_lifespan.py` — uçtan uca cache-aside ve worker lifecycle. _PR #3 + #4_
 
 ### Sprint 2 — Frontend Birleşimi (TS Tek Terminal)
-- [ ] 2.1 PiyasaPilot v2'ye Market Explorer (sol panel tree/accordion).
-- [ ] 2.2 BIST 100 / Kripto / Forex-Emtia kategorileri.
-- [ ] 2.3 Çoklu pencere layout (split / grid; her pencere kendi sembol/timeframe).
-- [ ] 2.4 Fullscreen düğmesi (zaten F kısayolu var, buton ekle).
-- [ ] 2.5 Streamlit'in Strateji Lab → TS'te `StrategyPanel` v2 (parametre form + sonuç).
-- [ ] 2.6 Streamlit'in Veri İstasyonu → TS'te `DataStation` (sembol grupları yönetimi).
-- [ ] 2.7 `DataEngine` → yeni FastAPI gateway WS'ine bağla; CORS proxy'yi sök.
-- [ ] 2.8 Streamlit kalkar (`quant_engine/app/ui_streamlit/` arşive taşı, repodan sil).
+- [x] 2.1 PiyasaPilot v2'ye Market Explorer (sol panel tree/accordion). _PR öncesi mevcut: `Sidebar.ts` kategori-akordeon + arama + ticker._
+- [~] 2.2 BIST 100 / Kripto / Forex-Emtia kategorileri. _PR #6: dublike+yanlış sembol temizliği, BIST 100'e doğru genişletme (BIST30 30 + BIST100_EXTRA 58 = 88 sembol). Tam 100'e tamamlama Sprint 2.7 yfinance batch eklendiğinde live doğrulanmış olarak kapanacak._
+- [ ] 2.3 Çoklu pencere layout (split / grid; her pencere kendi sembol/timeframe). _PR #8_
+- [x] 2.4 Fullscreen düğmesi. _Mevcut: `ChartPanel.ts:158` `<button id="fullscreen-btn">` + F kısayolu + `requestFullscreen`/CSS fallback. PR #6'da retroaktif tick._
+- [ ] 2.5 Streamlit'in Strateji Lab → TS'te `StrategyPanel` v2 (parametre form + sonuç). _PR #9_
+- [ ] 2.6 Streamlit'in Veri İstasyonu → TS'te `DataStation` (sembol grupları yönetimi). _PR #9_
+- [ ] 2.7 `DataEngine` → yeni FastAPI gateway WS'ine bağla; CORS proxy'yi sök. _PR #7 (sıradaki)_
+- [ ] 2.8 Streamlit kalkar (`quant_engine/app/ui_streamlit/` arşive taşı, repodan sil). _PR #10_
 
 ### Sprint 3 — Strateji & Backtest Birleşimi
 - [ ] 3.1 TS'teki dahili backtest implementasyonunu sök.

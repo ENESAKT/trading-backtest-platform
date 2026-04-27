@@ -29,18 +29,43 @@ YAHOO_INDEX_FX_COMMODITY: tuple[str, ...] = (
     "SI=F",       # Gümüş futures
 )
 
-# BIST hisseler (yfinance .IS suffix). Sprint 2'de tam BIST 100'e genişler.
+# BIST hisseler (yfinance .IS suffix). Frontend ``BIST30`` listesiyle birebir
+# senkron; arka plan ısıtması için worker bu seti 60s'de bir tarar (~30 req/dk,
+# yfinance limiti 60/dk altında). Tam BIST 100 worker setine geçiş Sprint 2.7
+# yfinance batch download eklenince yapılacak; o zamana kadar BIST 100'ün
+# kalan ~50 sembolü ``/api/v2/candles`` üzerinden on-demand cache miss ile
+# çekilir.
 BIST_STOCKS: tuple[str, ...] = (
-    "THYAO.IS",
-    "GARAN.IS",
-    "AKBNK.IS",
-    "ASELS.IS",
-    "EREGL.IS",
-    "TUPRS.IS",
-    "BIMAS.IS",
-    "KCHOL.IS",
-    "SISE.IS",
-    "FROTO.IS",
+    "AKBNK.IS",   # Akbank
+    "ARCLK.IS",   # Arçelik
+    "ASELS.IS",   # Aselsan
+    "BIMAS.IS",   # BİM
+    "DOHOL.IS",   # Doğan Holding
+    "EKGYO.IS",   # Emlak Konut GYO
+    "ENKAI.IS",   # Enka İnşaat
+    "EREGL.IS",   # Ereğli Demir Çelik
+    "FROTO.IS",   # Ford Otosan
+    "GARAN.IS",   # Garanti BBVA
+    "HALKB.IS",   # Halkbank
+    "ISCTR.IS",   # İş Bankası C
+    "KCHOL.IS",   # Koç Holding
+    "KOZAL.IS",   # Koza Altın
+    "KRDMD.IS",   # Kardemir D
+    "MAVI.IS",    # Mavi Giyim
+    "PETKM.IS",   # Petkim
+    "PGSUS.IS",   # Pegasus
+    "SAHOL.IS",   # Sabancı Holding
+    "SASA.IS",    # SASA Polyester
+    "SISE.IS",    # Şişe Cam
+    "TAVHL.IS",   # TAV
+    "TCELL.IS",   # Turkcell
+    "THYAO.IS",   # Türk Hava Yolları
+    "TOASO.IS",   # Tofaş
+    "TTKOM.IS",   # Türk Telekom
+    "TUPRS.IS",   # Tüpraş
+    "VAKBN.IS",   # Vakıfbank
+    "VESTL.IS",   # Vestel
+    "YKBNK.IS",   # Yapı Kredi
 )
 
 # Worker varsayılan timeframe'i — cache cache-aside ile aynı interval.
