@@ -280,17 +280,17 @@ Tek `Notifier` servisi tüm kanalları soyutlar; sinyal motoru fan-out ile hepsi
 - [x] 0.5 Seviye 2 (Planlayıcı) tamam; Ultraplan #1 onaylandı + PR #1 merge edildi.
 
 ### Sprint 1 — Backend Data Gateway
-- [ ] 1.1 `live_server.py` → FastAPI'ye taşı (`backend/api/main.py`).
-- [ ] 1.2 SQLite cache şeması (`bars`, `quotes`, `meta`) + Parquet dizini.
-- [ ] 1.3 IQR + hacim ağırlıklı spike filter (`backend/data/spike_filter.py`) + pytest.
-- [ ] 1.4 Worker iskeleti (`backend/workers/base.py`).
-- [ ] 1.5 Binance WS daemon (kripto canlı bar).
-- [ ] 1.6 Yahoo Finance poller (BIST endeks + FX + emtia, 15s).
-- [ ] 1.7 borsapy poller (BIST 100 hisse).
-- [ ] 1.8 `/api/chart?symbol=&interval=&period=` endpoint (cache-aside).
-- [ ] 1.9 `/ws/quotes` WebSocket (canlı tick fan-out).
-- [ ] 1.10 Healthcheck endpoint + Prometheus metrics (basit).
-- [ ] 1.11 `tests/integration/test_gateway.py` — 30 günlük 15dk veri dönmeli.
+- [x] 1.1 `live_server.py` → FastAPI'ye taşı (`backend/api/main.py`). _PR #3_
+- [x] 1.2 SQLite cache şeması (`bars`, `quotes`, `meta`) + Parquet dizini. _PR #3_
+- [x] 1.3 IQR + hacim ağırlıklı spike filter (`backend/data/spike_filter.py`) + pytest. _PR #3_
+- [x] 1.4 Worker iskeleti (`backend/workers/base.py`). _PR #4_
+- [x] 1.5 Binance WS daemon (kripto canlı bar). _PR #4_
+- [x] 1.6 Yahoo Finance poller (BIST endeks + FX + emtia, 15s). _PR #4_
+- [x] 1.7 ~~borsapy~~ yfinance `.IS` poller (BIST hisse, 60s). _PR #4 — borsapy değerlendirmesi Sprint 5'e ertelendi (ağır transitif deps)._
+- [x] 1.8 `/api/v2/candles?symbol=&interval=&limit=` endpoint (cache-aside). _PR #3_
+- [ ] 1.9 `/ws/quotes` WebSocket (canlı tick fan-out). _PR #5'e bırakıldı_
+- [x] 1.10 Healthcheck endpoint (cache stats + worker durumu). Prometheus → Sprint 7. _PR #3 + #4_
+- [x] 1.11 `tests/integration/test_gateway.py` + `test_lifespan.py` — uçtan uca cache-aside ve worker lifecycle. _PR #3 + #4_
 
 ### Sprint 2 — Frontend Birleşimi (TS Tek Terminal)
 - [ ] 2.1 PiyasaPilot v2'ye Market Explorer (sol panel tree/accordion).

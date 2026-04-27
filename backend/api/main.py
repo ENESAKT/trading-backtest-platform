@@ -1,28 +1,31 @@
-"""FastAPI gateway — Sprint 1 foundation.
+"""FastAPI gateway — Sprint 1 foundation + workers.
 
 Eski ``live_server.py`` (stdlib ``http.server`` tabanlı) bu modüle terfi etti.
-Yeni özellikler:
+Sprint 1.4–1.7 ile birlikte canlı veri daemon'ları ``lifespan`` üzerinden
+devreye alındı.
+
+Özellikler:
 
 * **Cache-aside** ``/api/v2/candles``: önce SQLite cache (``OHLCVCache``), miss
   olursa ``LiveDataService.fetch_candles`` → ``filter_bars`` → cache'e yaz →
   yanıt.
-* **Detaylı ``/api/health``**: cache stats (rows, distinct_symbols, last
-  inserted), en son bar yaşı (TTL aşımı izleme), v1/v2 mod durumu.
-* **CORS** açık (``*``); read-only mod, emir endpoint'i yok.
-* Eski v1 endpoint'leri (``/api/health``, ``/api/market/defaults``,
-  ``/api/market/chart``, ``/api/workspace``, ``POST /api/paper/signal``) aynen
-  korunuyor — backward compatible.
-* Statik dosya serve (``index.html`` ve diğer dosyalar) ``StaticFiles`` ile.
-
-Worker daemon'ları (Binance WS, yfinance/borsapy poller) sonraki PR'da
-``app.lifespan`` üzerinden devreye alınacak.
+* **Worker supervisor** (``backend.workers``): Binance WS kline daemon +
+  Yahoo poller + BIST hisse poller. Lifespan açılışında başlar, kapanışta
+  durur. Sağlık verisi ``/api/health`` içinde.
+* **Detaylı ``/api/health``**: cache stats, worker listesi (iter sayısı, son
+  hata), v1/v2 mod durumu.
+* **CORS** açık (``*``); read-only mod.
+* Eski v1 endpoint'leri (``/api/market/defaults``, ``/api/market/chart``,
+  ``/api/workspace``, ``POST /api/paper/signal``) aynen korunuyor.
 """
 
 from __future__ import annotations
 
 import datetime as dt
+import os
+from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Any
+from typing import Any, AsyncIterator
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -31,6 +34,16 @@ from fastapi.staticfiles import StaticFiles
 
 from backend.data.cache import OHLCVCache
 from backend.data.spike_filter import filter_bars
+from backend.data.symbols import (
+    BIST_STOCKS,
+    CRYPTO_WS_SYMBOLS,
+    DEFAULT_INTERVAL,
+    YAHOO_INDEX_FX_COMMODITY,
+)
+from backend.workers import WorkerSupervisor
+from backend.workers.binance_ws import BinanceKlineWorker
+from backend.workers.bist_poller import BistStockPoller
+from backend.workers.yahoo_poller import YahooPoller
 from quant_engine.data.live_feed import (
     LiveDataService,
     PaperTradingRecorder,
@@ -57,16 +70,46 @@ def _interval_to_seconds(interval: str) -> int:
     return table.get(interval, 900)
 
 
+def _build_default_supervisor(
+    cache: OHLCVCache, data_service: LiveDataService
+) -> WorkerSupervisor:
+    """Üretim modunda kullanılan varsayılan worker seti."""
+    return WorkerSupervisor(
+        [
+            BinanceKlineWorker(
+                cache=cache,
+                symbols=CRYPTO_WS_SYMBOLS,
+                interval=DEFAULT_INTERVAL,
+            ),
+            YahooPoller(
+                cache=cache,
+                data_service=data_service,
+                symbols=YAHOO_INDEX_FX_COMMODITY,
+                interval=DEFAULT_INTERVAL,
+            ),
+            BistStockPoller(
+                cache=cache,
+                data_service=data_service,
+                symbols=BIST_STOCKS,
+                interval=DEFAULT_INTERVAL,
+            ),
+        ]
+    )
+
+
 def create_app(
     cache: OHLCVCache | None = None,
     data_service: LiveDataService | None = None,
     workspace_store: WorkspaceJsonStore | None = None,
     paper_recorder: PaperTradingRecorder | None = None,
+    supervisor: WorkerSupervisor | None = None,
 ) -> FastAPI:
     """FastAPI app factory.
 
     Bağımlılıklar dışarıdan enjekte edilebilir → testte mock'lu örnek
-    kurmayı kolaylaştırır.
+    kurmayı kolaylaştırır. ``supervisor=None`` + ``PIYASAPILOT_DISABLE_WORKERS``
+    setli değilse varsayılan worker seti kurulur. Test fikstürleri boş
+    ``WorkerSupervisor([])`` geçer → lifespan worker başlatmaz.
     """
     cache = cache or OHLCVCache()
     data_service = data_service or LiveDataService()
@@ -77,12 +120,28 @@ def create_app(
         data_service=data_service,
         workspace_path=ROOT / "data" / "workspaces" / "workspace.json",
     )
+    if supervisor is None:
+        if os.environ.get("PIYASAPILOT_DISABLE_WORKERS") == "1":
+            supervisor = WorkerSupervisor([])
+        else:
+            supervisor = _build_default_supervisor(cache, data_service)
+
+    @asynccontextmanager
+    async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+        await supervisor.start_all()
+        try:
+            yield
+        finally:
+            await supervisor.stop_all()
 
     app = FastAPI(
         title="PiyasaPilot Gateway",
         version="2.0.0",
         description="Read-only canlı/tarihsel piyasa veri kapısı. Emir motoru kapalı.",
+        lifespan=lifespan,
     )
+    app.state.supervisor = supervisor
+    app.state.cache = cache
 
     app.add_middleware(
         CORSMiddleware,
@@ -104,6 +163,7 @@ def create_app(
                 "distinct_symbols": stats.distinct_symbols,
                 "last_inserted_at": stats.last_inserted_at,
             },
+            "workers": supervisor.health(),
             "fetched_at": _utc_iso(),
             "message": "PiyasaPilot gateway çalışıyor. Emir motoru pasif.",
         }
