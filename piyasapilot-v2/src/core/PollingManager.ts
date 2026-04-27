@@ -1,21 +1,10 @@
 import type { OHLCV, AssetType, Timeframe, CacheEntry, ConnectionStatus } from '../types.js';
 import { filterAnomalies } from './AnomalyFilter.js';
 
-// ─── Yahoo Finance interval & range mapping ───────────────────────────────────
-
-const TF_TO_YF: Record<Timeframe, { interval: string; range: string }> = {
-  '1m':  { interval: '1m',   range: '1d'  },
-  '5m':  { interval: '5m',   range: '5d'  },
-  '15m': { interval: '15m',  range: '5d'  },
-  '30m': { interval: '30m',  range: '1mo' },
-  '1h':  { interval: '60m',  range: '1mo' },
-  '4h':  { interval: '1d',   range: '3mo' }, // YF has no 4h; fall back to 1d for non-crypto
-  '1d':  { interval: '1d',   range: '1y'  },
-  '1w':  { interval: '1wk',  range: '5y'  },
-};
-
-const CORS_PROXY = 'https://corsproxy.io/?';
-const YF_BASE = 'https://query1.finance.yahoo.com/v8/finance/chart/';
+// Frontend artık corsproxy.io + Yahoo Finance'a doğrudan çıkmıyor; tüm OHLCV
+// çağrıları lokal Python backend'in v2 endpoint'i üzerinden geçiyor.
+const LOCAL_CANDLES_ENDPOINT = '/api/v2/candles';
+const CANDLES_LIMIT = 500;
 const POLL_INTERVAL_EQUITY = 15_000;  // ms
 const POLL_INTERVAL_CRYPTO  = 10_000;
 const RATE_LIMIT_PER_SEC = 2;
@@ -23,24 +12,17 @@ const TOKEN_REFILL_MS = Math.floor(1000 / RATE_LIMIT_PER_SEC);
 const MAX_QUEUE_SIZE = 50;
 const MAX_RETRY = 3;
 
-// ─── Yahoo Finance response types ────────────────────────────────────────────
-
-interface YFChartResponse {
-  chart: {
-    result: Array<{
-      timestamp: number[];
-      indicators: {
-        quote: Array<{
-          open: (number | null)[];
-          high: (number | null)[];
-          low:  (number | null)[];
-          close: (number | null)[];
-          volume: (number | null)[];
-        }>;
-      };
-    }> | null;
-    error: { code: string; description: string } | null;
-  };
+interface BackendCandlesResponse {
+  status?: string;
+  message?: string;
+  bars?: Array<{
+    time: number;
+    open: number;
+    high: number;
+    low: number;
+    close: number;
+    volume: number;
+  }>;
 }
 
 type PollListener = (candles: OHLCV[], status: ConnectionStatus) => void;
@@ -225,47 +207,31 @@ export class PollingManager {
     tf: Timeframe,
     assetType: AssetType
   ): Promise<OHLCV[]> {
-    const { interval, range } = TF_TO_YF[tf];
-    const yfUrl = `${YF_BASE}${encodeURIComponent(symbol)}?interval=${interval}&range=${range}&includePrePost=false`;
-    const url = `${CORS_PROXY}${encodeURIComponent(yfUrl)}`;
+    const url =
+      `${LOCAL_CANDLES_ENDPOINT}` +
+      `?symbol=${encodeURIComponent(symbol)}` +
+      `&interval=${encodeURIComponent(tf)}` +
+      `&limit=${CANDLES_LIMIT}`;
 
     const resp = await fetch(url, { signal: AbortSignal.timeout(10_000) });
-    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    if (!resp.ok) throw new Error(`backend HTTP ${resp.status}`);
 
-    const json: YFChartResponse = await resp.json();
+    const json: BackendCandlesResponse = await resp.json();
 
-    if (json.chart.error) {
-      throw new Error(json.chart.error.description);
+    if (json.status === 'error' || !Array.isArray(json.bars)) {
+      throw new Error(json.message || 'Bağlantı Hatası: backend boş yanıt');
     }
 
-    const result = json.chart.result?.[0];
-    if (!result) throw new Error('No chart data returned');
+    if (json.bars.length === 0) throw new Error('Empty OHLCV result');
 
-    const timestamps = result.timestamp;
-    const q = result.indicators.quote[0]!;
-
-    const candles: OHLCV[] = [];
-    for (let i = 0; i < timestamps.length; i++) {
-      const o = q.open[i];
-      const h = q.high[i];
-      const l = q.low[i];
-      const c = q.close[i];
-      const v = q.volume[i];
-
-      // Skip bars with null/NaN prices
-      if (o == null || h == null || l == null || c == null || isNaN(o)) continue;
-
-      candles.push({
-        time:   timestamps[i]!,
-        open:   o,
-        high:   h,
-        low:    l,
-        close:  c,
-        volume: v ?? 0,
-      });
-    }
-
-    if (candles.length === 0) throw new Error('Empty OHLCV result');
+    const candles: OHLCV[] = json.bars.map(b => ({
+      time:   b.time,
+      open:   b.open,
+      high:   b.high,
+      low:    b.low,
+      close:  b.close,
+      volume: b.volume,
+    }));
 
     return filterAnomalies(candles, assetType);
   }

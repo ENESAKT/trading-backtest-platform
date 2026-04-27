@@ -4,6 +4,7 @@ import pytest
 
 from quant_engine.data.live_feed import (
     DataMetadata,
+    LiveDataService,
     PaperTradingRecorder,
     normalize_symbol,
     resolve_symbol,
@@ -85,3 +86,76 @@ def test_paper_recorder_rejects_invalid_side(tmp_path):
 
     with pytest.raises(ValueError):
         recorder.record_signal({"symbol": "BTCUSDT", "side": "hold"})
+
+
+# ── v2 fetch_candles validation & routing ──────────────────────────────────────
+
+
+def test_fetch_candles_rejects_empty_symbol():
+    svc = LiveDataService()
+    payload = svc.fetch_candles("", interval="15m", limit=100)
+    assert payload["status"] == "error"
+    assert payload["bars"] == []
+    assert payload["metadata"]["error"] == "symbol_required"
+
+
+def test_fetch_candles_rejects_invalid_interval():
+    svc = LiveDataService()
+    payload = svc.fetch_candles("BTCUSDT", interval="bogus", limit=100)
+    assert payload["status"] == "error"
+    assert payload["bars"] == []
+    assert payload["metadata"]["error"] == "invalid_interval"
+    assert "15m" in payload["metadata"]["supported"]
+
+
+def test_fetch_candles_clamps_below_minimum_limit(monkeypatch):
+    svc = LiveDataService()
+    captured: dict[str, int] = {}
+
+    def fake_yfinance(spec, interval, safe_limit):
+        captured["limit"] = safe_limit
+        return {"status": "ok", "bars": [], "quote": None, "metadata": {}}
+
+    monkeypatch.setattr(svc, "_fetch_yfinance_candles", fake_yfinance)
+    svc.fetch_candles("THYAO.IS", interval="15m", limit=5)
+    assert captured["limit"] == 20  # min floor
+
+
+def test_fetch_candles_clamps_above_maximum_limit(monkeypatch):
+    svc = LiveDataService()
+    captured: dict[str, int] = {}
+
+    def fake_yfinance(spec, interval, safe_limit):
+        captured["limit"] = safe_limit
+        return {"status": "ok", "bars": [], "quote": None, "metadata": {}}
+
+    monkeypatch.setattr(svc, "_fetch_yfinance_candles", fake_yfinance)
+    svc.fetch_candles("THYAO.IS", interval="15m", limit=99999)
+    assert captured["limit"] == 1000  # max ceiling
+
+
+@pytest.mark.parametrize(
+    "raw,expected_provider,expected_source,expected_market",
+    [
+        ("BTCUSDT", "ccxt", "BTC/USDT", "crypto"),
+        ("ETHUSDT", "ccxt", "ETH/USDT", "crypto"),
+        ("THYAO.IS", "yfinance", "THYAO.IS", "bist"),
+        ("USDTRY=X", "yfinance", "USDTRY=X", "fx"),
+        ("GC=F", "yfinance", "GC=F", "commodity"),
+        ("AAPL", "yfinance", "AAPL", "us_equity"),
+    ],
+)
+def test_v2_resolve_routes_native_symbol_to_correct_provider(
+    raw, expected_provider, expected_source, expected_market
+):
+    spec = LiveDataService._resolve_v2(raw)
+    assert spec.provider == expected_provider
+    assert spec.source_symbol == expected_source
+    assert spec.market == expected_market
+
+
+def test_v2_resolve_xu100_alias_maps_to_yfinance():
+    spec = LiveDataService._resolve_v2("XU100")
+    assert spec.provider == "yfinance"
+    assert spec.source_symbol == "XU100.IS"
+    assert spec.market == "bist"

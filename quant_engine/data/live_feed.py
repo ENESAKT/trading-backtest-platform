@@ -194,6 +194,265 @@ class LiveDataService:
             },
         }
 
+    _SUPPORTED_INTERVALS: tuple[str, ...] = (
+        "1m", "5m", "15m", "30m", "1h", "4h", "1d", "1w",
+    )
+
+    _CCXT_INTERVAL_MAP: dict[str, str] = {
+        "1m": "1m", "5m": "5m", "15m": "15m", "30m": "30m",
+        "1h": "1h", "4h": "4h", "1d": "1d", "1w": "1w",
+    }
+
+    _YF_INTERVAL_MAP: dict[str, tuple[str, str]] = {
+        "1m":  ("1m",  "1d"),
+        "5m":  ("5m",  "5d"),
+        "15m": ("15m", "5d"),
+        "30m": ("30m", "1mo"),
+        "1h":  ("60m", "1mo"),
+        "4h":  ("1d",  "3mo"),
+        "1d":  ("1d",  "1y"),
+        "1w":  ("1wk", "5y"),
+    }
+
+    @staticmethod
+    def _resolve_v2(raw_symbol: str) -> SymbolSpec:
+        """Frontend'in ham (Yahoo / Binance native) sembolünü provider'a yönlendir.
+
+        ``resolve_symbol`` v1 dashboard içindir ve normalize edip kanonik
+        forma çevirir; v2 endpoint frontend'in gönderdiği native suffix'li
+        sembolü ('THYAO.IS', 'USDTRY=X', 'GC=F', 'AAPL', 'BTCUSDT') olduğu
+        gibi alır ve yine yfinance/ccxt'ye verir.
+        """
+        s = raw_symbol.strip().upper()
+        if not s:
+            raise ValueError("symbol_required")
+
+        if s in ("XU100", "^XU100", "BIST100"):
+            return SymbolSpec(
+                symbol="XU100", display_name="BIST 100",
+                provider="yfinance", source_symbol="XU100.IS",
+                source="Yahoo Finance", market="bist",
+            )
+
+        # Crypto: *USDT (7+ char, alphanumeric, no Yahoo suffix)
+        if (
+            s.endswith("USDT")
+            and len(s) >= 7
+            and "=" not in s
+            and "." not in s
+            and s.replace("USDT", "").isalnum()
+        ):
+            base = s[:-4]
+            return SymbolSpec(
+                symbol=s, display_name=f"{base}/USDT",
+                provider="ccxt", source_symbol=f"{base}/USDT",
+                source="Binance Public API", market="crypto",
+            )
+
+        if s.endswith("=X"):
+            return SymbolSpec(
+                symbol=s, display_name=s.replace("=X", ""),
+                provider="yfinance", source_symbol=s,
+                source="Yahoo Finance", market="fx",
+            )
+
+        if s.endswith("=F"):
+            return SymbolSpec(
+                symbol=s, display_name=s.replace("=F", ""),
+                provider="yfinance", source_symbol=s,
+                source="Yahoo Finance", market="commodity",
+            )
+
+        if s.endswith(".IS"):
+            return SymbolSpec(
+                symbol=s, display_name=s.replace(".IS", ""),
+                provider="yfinance", source_symbol=s,
+                source="Yahoo Finance", market="bist",
+            )
+
+        # US equity (suffix'siz, native yfinance — örn AAPL, MSFT, BRK-B)
+        return SymbolSpec(
+            symbol=s, display_name=s,
+            provider="yfinance", source_symbol=s,
+            source="Yahoo Finance", market="us_equity",
+        )
+
+    def fetch_candles(
+        self, symbol: str, interval: str = "15m", limit: int = 500
+    ) -> dict[str, Any]:
+        """v2 endpoint için sembol/interval bazlı OHLCV döndürür.
+
+        v1 ``fetch_chart`` sadece BIST için 5m hardcoded barlar veriyordu;
+        bu method timeframe seçimi destekler ve frontend'in tarayıcıdan
+        Binance/Yahoo'ya doğrudan çıkmasını gerektirmez.
+        """
+        if not symbol or not str(symbol).strip():
+            return {
+                "status": "error",
+                "message": "Sembol zorunludur.",
+                "bars": [],
+                "quote": None,
+                "metadata": {"error": "symbol_required", "read_only": True},
+            }
+
+        if interval not in self._SUPPORTED_INTERVALS:
+            return {
+                "status": "error",
+                "message": f"Geçersiz interval: {interval}",
+                "bars": [],
+                "quote": None,
+                "metadata": {
+                    "error": "invalid_interval",
+                    "read_only": True,
+                    "supported": list(self._SUPPORTED_INTERVALS),
+                },
+            }
+
+        try:
+            safe_limit = int(limit)
+        except (TypeError, ValueError):
+            safe_limit = 500
+        safe_limit = max(20, min(safe_limit, 1000))
+
+        try:
+            spec = self._resolve_v2(symbol)
+        except ValueError:
+            return {
+                "status": "error",
+                "message": "Sembol zorunludur.",
+                "bars": [],
+                "quote": None,
+                "metadata": {"error": "symbol_required", "read_only": True},
+            }
+
+        try:
+            if spec.provider == "ccxt":
+                return self._fetch_crypto_candles(spec, interval, safe_limit)
+            return self._fetch_yfinance_candles(spec, interval, safe_limit)
+        except Exception as exc:
+            return self._error_payload(spec, str(exc))
+
+    def _fetch_crypto_candles(
+        self, spec: SymbolSpec, interval: str, limit: int
+    ) -> dict[str, Any]:
+        exchange = self._get_ccxt_exchange()
+        tf = self._CCXT_INTERVAL_MAP[interval]
+        ohlcv = exchange.fetch_ohlcv(spec.source_symbol, timeframe=tf, limit=limit)
+        if not ohlcv:
+            return self._error_payload(
+                spec, "Bağlantı Hatası: Binance public veri boş döndü."
+            )
+
+        ticker = exchange.fetch_ticker(spec.source_symbol)
+        bars = [
+            {
+                "time": int(row[0] / 1000),
+                "open": float(row[1]),
+                "high": float(row[2]),
+                "low": float(row[3]),
+                "close": float(row[4]),
+                "volume": float(row[5]),
+            }
+            for row in ohlcv
+        ]
+        last_bar_time = dt.datetime.fromtimestamp(bars[-1]["time"], tz=dt.UTC)
+        last_price = ticker.get("last") or bars[-1]["close"]
+        fetched_at = iso_utc()
+        metadata = DataMetadata(
+            symbol=spec.symbol,
+            normalized_symbol=spec.symbol,
+            provider="ccxt",
+            source=spec.source,
+            fetched_at=fetched_at,
+            last_bar_at=iso_utc(last_bar_time),
+            status="live",
+        )
+        return {
+            "symbol": spec.symbol,
+            "display_name": spec.display_name,
+            "market": spec.market,
+            "interval": interval,
+            "status": "ok",
+            "message": "",
+            "bars": bars,
+            "quote": {
+                "last": float(last_price) if last_price is not None else bars[-1]["close"],
+                "timestamp": fetched_at,
+            },
+            "metadata": metadata.to_dict(),
+        }
+
+    def _fetch_yfinance_candles(
+        self, spec: SymbolSpec, interval: str, limit: int
+    ) -> dict[str, Any]:
+        import yfinance as yf
+
+        yf_interval, yf_range = self._YF_INTERVAL_MAP[interval]
+        ticker = yf.Ticker(spec.source_symbol)
+        try:
+            frame = ticker.history(
+                period=yf_range, interval=yf_interval, timeout=self.timeout
+            )
+        except TypeError:
+            frame = ticker.history(period=yf_range, interval=yf_interval)
+
+        if frame.empty:
+            return self._error_payload(
+                spec, f"Bağlantı Hatası: {spec.display_name} için veri alınamadı."
+            )
+
+        frame = frame.reset_index().tail(limit)
+        time_column = "Datetime" if "Datetime" in frame.columns else "Date"
+        bars: list[dict[str, float | int]] = []
+        for _, row in frame.iterrows():
+            close = row.get("Close")
+            open_price = row.get("Open")
+            high = row.get("High")
+            low = row.get("Low")
+            if close is None or str(close) == "nan":
+                continue
+            bars.append(
+                {
+                    "time": _to_unix_seconds(row[time_column]),
+                    "open": float(open_price if open_price == open_price else close),
+                    "high": float(high if high == high else close),
+                    "low": float(low if low == low else close),
+                    "close": float(close),
+                    "volume": float(row.get("Volume") or 0),
+                }
+            )
+
+        if not bars:
+            return self._error_payload(
+                spec, f"Bağlantı Hatası: {spec.display_name} için geçerli fiyat satırı yok."
+            )
+
+        last_bar_at = _to_iso_datetime(frame.iloc[-1][time_column])
+        fetched_at = iso_utc()
+        metadata = DataMetadata(
+            symbol=spec.symbol,
+            normalized_symbol=spec.symbol,
+            provider="yfinance",
+            source=spec.source,
+            fetched_at=fetched_at,
+            last_bar_at=last_bar_at,
+            status="live",
+        )
+        return {
+            "symbol": spec.symbol,
+            "display_name": spec.display_name,
+            "market": spec.market,
+            "interval": interval,
+            "status": "ok",
+            "message": "",
+            "bars": bars,
+            "quote": {
+                "last": bars[-1]["close"],
+                "timestamp": fetched_at,
+            },
+            "metadata": metadata.to_dict(),
+        }
+
     def _get_ccxt_exchange(self):
         if self._ccxt_exchange is None:
             import ccxt
