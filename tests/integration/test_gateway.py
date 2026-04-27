@@ -12,6 +12,7 @@ from fastapi.testclient import TestClient
 
 from backend.api.main import create_app
 from backend.data.cache import OHLCVCache
+from backend.workers import WorkerSupervisor
 
 
 class FakeLiveDataService:
@@ -83,7 +84,11 @@ class FakeLiveDataService:
 def _build_client(tmp_path) -> tuple[TestClient, FakeLiveDataService, OHLCVCache]:
     cache = OHLCVCache(db_path=tmp_path / "ohlcv.sqlite3")
     fake = FakeLiveDataService()
-    app = create_app(cache=cache, data_service=fake)
+    app = create_app(
+        cache=cache,
+        data_service=fake,
+        supervisor=WorkerSupervisor([]),  # gerçek WS/poller başlatma
+    )
     return TestClient(app), fake, cache
 
 
@@ -95,6 +100,7 @@ def test_health_returns_cache_stats(tmp_path):
     assert body["status"] == "ok"
     assert body["read_only"] is True
     assert body["cache"]["rows"] == 0
+    assert body["workers"] == []
     assert "fetched_at" in body
 
 
