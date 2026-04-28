@@ -306,10 +306,10 @@ Tek `Notifier` servisi tüm kanalları soyutlar; sinyal motoru fan-out ile hepsi
 - [x] 2.8 Streamlit kalkar (`quant_engine/app/ui_streamlit/` repodan silindi). _PR #9: 2856 satır Streamlit + test_ui_overlays.py + requirements.txt streamlit girişi + README/CLAUDE.md port 8502 referansları temizlendi._
 
 ### Sprint 3 — Strateji & Backtest Birleşimi
-- [ ] 3.1 TS'teki dahili backtest implementasyonunu sök. _PR #12: frontend `StrategyPanel` API'ye geçirildikten sonra._
+- [x] 3.1 TS'teki dahili backtest implementasyonunu sök. _PR #12: `piyasapilot-v2/src/strategies/` (TrendFollowing, MeanReversion, BreakoutDetector + `runBacktestById`/`generateSignals`) silindi; tüm backtest artık API üzerinden._
 - [x] 3.2 `POST /api/backtest/run` endpoint (Python `BacktestEngine`). _PR #11: cache-aware runner + Pydantic istek modeli + 4 hata durumu (unknown strategy / yetersiz data / invalid params / unknown key)._
 - [x] 3.3 Strateji blueprint formatı (parametre şeması + meta). _PR #11: `backend/backtest/blueprints.py` — id/label/description/default_params/schema; `GET /api/backtest/strategies` ile expose._
-- [ ] 3.4 TS'te `StrategyPanel` → API'ye `POST` atıyor, equity eğrisini Chart.js ile çiziyor. _PR #12_
+- [x] 3.4 TS'te `StrategyPanel` → API'ye `POST` atıyor, equity eğrisini Chart.js ile çiziyor. _PR #12: `fetch('/api/backtest/run')` + 30s timeout + hata mesajı + `lastRunKey` debounce (her tick yerine sembol/strategy değişiminde tetikler); equity eğrisi backend `equity_curve[].total_equity` üzerinden çizilir; `signals[]` ChartPanel marker'a doğal akış._
 - [ ] 3.5 Live signal feed: `/ws/signals` (DecisionEngine her bar kapanışında çalışır).
 - [ ] 3.6 TS'te `SignalFeed` panel.
 - [ ] 3.7 Eski 4 strateji + yeni 4 strateji (toplam 8): EMA cross, RSI mean-rev, BB rev, breakout, **donchian breakout, MACD div, supertrend, mean-reversion VWAP**. _PR #11: 4 mevcut strateji blueprint'lendi (sma_crossover, rsi_reversion, bollinger_reversion, buy_and_hold); 4 yeni Sprint 3.7 ile gelecek._

@@ -1,9 +1,20 @@
 import Chart from 'chart.js/auto';
-import type { OHLCV, Signal, BacktestResult } from '../types.js';
-import type { StrategyId } from '../strategies/index.js';
-import { generateSignals, runBacktestById } from '../strategies/index.js';
-import { computeIndicators } from '../indicators/index.js';
+import type { OHLCV, Signal, BacktestResult, BacktestTrade, Timeframe } from '../types.js';
 import { TR, formatNumber, formatPct, formatDateTime } from '../constants/tr.js';
+
+// Backend ``POST /api/backtest/run`` endpoint'i. Sprint 3.4 — TS-içi
+// ``runBacktestById``/``generateSignals`` sökündü; tüm metrikler ve
+// equity eğrisi Python ``BacktestEngine``'den gelir, marker'lar
+// signals[] üzerinden ChartPanel'e fan-out edilir.
+
+const BACKTEST_RUN_ENDPOINT = '/api/backtest/run';
+const BACKTEST_TIMEOUT_MS = 30_000;
+const MIN_BARS_FOR_RUN = 50;
+
+// Sabit liste — backend ``backend/backtest/blueprints.py`` ile birebir
+// senkron. ``GET /api/backtest/strategies`` ile dinamik fetch ileride
+// (parametre formu eklendiğinde) yapılır; şimdilik kart UI yeterli.
+type StrategyId = 'sma_crossover' | 'rsi_reversion' | 'bollinger_reversion' | 'buy_and_hold';
 
 interface StrategyCard {
   id: StrategyId;
@@ -12,9 +23,9 @@ interface StrategyCard {
 }
 
 const STRATEGIES: StrategyCard[] = [
-  { id: 'trend',    nameKey: 'STRATEGY_TREND',    descKey: 'STRATEGY_DESC_TREND'    },
-  { id: 'mean',     nameKey: 'STRATEGY_MEAN',     descKey: 'STRATEGY_DESC_MEAN'     },
-  { id: 'breakout', nameKey: 'STRATEGY_BREAKOUT', descKey: 'STRATEGY_DESC_BREAKOUT' },
+  { id: 'sma_crossover',       nameKey: 'STRATEGY_TREND',    descKey: 'STRATEGY_DESC_TREND'    },
+  { id: 'rsi_reversion',       nameKey: 'STRATEGY_MEAN',     descKey: 'STRATEGY_DESC_MEAN'     },
+  { id: 'bollinger_reversion', nameKey: 'STRATEGY_BREAKOUT', descKey: 'STRATEGY_DESC_BREAKOUT' },
 ];
 
 // ─── StrategyPanel ────────────────────────────────────────────────────────────
@@ -23,11 +34,15 @@ type SignalsListener = (signals: Signal[]) => void;
 
 export class StrategyPanel {
   private container: HTMLElement;
-  private activeStrategy: StrategyId = 'trend';
+  private activeStrategy: StrategyId = 'sma_crossover';
   private candles: OHLCV[] = [];
+  private activeSymbol = '';
+  private activeInterval: Timeframe = '1d';
   private equityChart: Chart | null = null;
   private signalListeners: Set<SignalsListener> = new Set();
   private lastSignals: Signal[] = [];
+  private lastRunKey = '';
+  private runInFlight = false;
 
   constructor(container: HTMLElement) {
     this.container = container;
@@ -36,17 +51,23 @@ export class StrategyPanel {
 
   // ─── Data update ────────────────────────────────────────────────────────
 
-  setCandles(candles: OHLCV[]): void {
+  setCandles(candles: OHLCV[], symbol?: string, interval?: Timeframe): void {
     this.candles = candles;
-    this.runAnalysis();
+    if (symbol)   this.activeSymbol = symbol;
+    if (interval) this.activeInterval = interval;
+
+    // Aynı sembol+strateji için tick güncellemelerinde re-run yapma —
+    // backend POST'u her tick'te tetiklemek istemiyoruz.
+    const key = `${this.activeSymbol}|${this.activeInterval}|${this.activeStrategy}`;
+    if (key === this.lastRunKey) return;
+    this.lastRunKey = key;
+    void this.runAnalysis();
   }
 
   // ─── Sinyal yayını (chart üstünde marker çizmek için) ──────────────────
 
   onSignalsUpdate(listener: SignalsListener): () => void {
     this.signalListeners.add(listener);
-    // Yeni dinleyiciye en son durumu hemen ver — sembol değişiminde
-    // chart yeniden çizildiğinde marker'lar geç gelmesin.
     listener(this.lastSignals);
     return () => this.signalListeners.delete(listener);
   }
@@ -111,14 +132,17 @@ export class StrategyPanel {
       cardsEl.querySelectorAll('.strategy-card').forEach(c =>
         c.classList.toggle('active', (c as HTMLElement).dataset['strategy'] === this.activeStrategy)
       );
-      this.runAnalysis();
+      // Strateji değişti — re-run zorla.
+      this.lastRunKey = '';
+      void this.runAnalysis();
     });
   }
 
-  // ─── Analysis ───────────────────────────────────────────────────────────
+  // ─── Analysis (backend POST) ─────────────────────────────────────────────
 
-  private runAnalysis(): void {
-    if (this.candles.length < 30) {
+  private async runAnalysis(): Promise<void> {
+    if (this.runInFlight) return;
+    if (this.candles.length < MIN_BARS_FOR_RUN || !this.activeSymbol) {
       this.showEmpty();
       return;
     }
@@ -126,21 +150,47 @@ export class StrategyPanel {
     const metricsEl = this.container.querySelector('#backtest-metrics');
     if (metricsEl) metricsEl.innerHTML = `<div class="loading">${TR.RUNNING_BACKTEST}</div>`;
 
-    // Defer to next tick to allow loading state to render
-    requestAnimationFrame(() => {
-      try {
-        const inds    = computeIndicators(this.candles);
-        const signals = generateSignals(this.activeStrategy, this.candles, inds);
-        const result  = runBacktestById(this.activeStrategy, this.candles);
+    this.runInFlight = true;
+    try {
+      const result = await this.fetchBacktest();
+      this.renderMetrics(result);
+      this.renderSignals(result.signals);
+      this.renderEquityCurve(result);
+      this.emitSignals(result.signals);
+    } catch (err) {
+      this.showError(err instanceof Error ? err.message : String(err));
+    } finally {
+      this.runInFlight = false;
+    }
+  }
 
-        this.renderMetrics(result);
-        this.renderSignals(signals);
-        this.renderEquityCurve(result);
-        this.emitSignals(signals);
-      } catch {
-        this.showEmpty();
-      }
+  private async fetchBacktest(): Promise<BacktestResult> {
+    const resp = await fetch(BACKTEST_RUN_ENDPOINT, {
+      method:  'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        symbol:        this.activeSymbol,
+        interval:      this.activeInterval,
+        strategy_id:   this.activeStrategy,
+        params:        {},
+        capital:       100_000,
+        lookback_bars: Math.min(this.candles.length, 1000),
+      }),
+      signal: AbortSignal.timeout(BACKTEST_TIMEOUT_MS),
     });
+
+    if (!resp.ok) {
+      let detail = `HTTP ${resp.status}`;
+      try {
+        const errorBody = (await resp.json()) as { detail?: string };
+        if (errorBody.detail) detail = errorBody.detail;
+      } catch {
+        // ignore — detail HTTP status'ta kalır
+      }
+      throw new Error(detail);
+    }
+
+    return await resp.json() as BacktestResult;
   }
 
   private showEmpty(): void {
@@ -151,20 +201,44 @@ export class StrategyPanel {
     this.emitSignals([]);
   }
 
+  private showError(message: string): void {
+    const metricsEl = this.container.querySelector('#backtest-metrics');
+    const signalsEl = this.container.querySelector('#signals-list');
+    if (metricsEl) metricsEl.innerHTML = `<div class="empty-state error">${message}</div>`;
+    if (signalsEl) signalsEl.innerHTML = `<div class="empty-state">${TR.NO_SIGNALS}</div>`;
+    this.emitSignals([]);
+  }
+
+  // ─── Render: metrics / signals / equity curve ────────────────────────────
+
+  private profitFactor(trades: BacktestTrade[]): number {
+    let gross = 0;
+    let loss = 0;
+    for (const t of trades) {
+      if (t.net_pnl > 0) gross += t.net_pnl;
+      else loss += Math.abs(t.net_pnl);
+    }
+    if (loss === 0) return gross > 0 ? Infinity : 0;
+    return gross / loss;
+  }
+
   private renderMetrics(r: BacktestResult): void {
     const el = this.container.querySelector('#backtest-metrics');
     if (!el) return;
+
+    const m = r.metrics;
+    const pf = this.profitFactor(r.trades);
 
     const metric = (label: string, value: string, cls = '') =>
       `<div class="metric-card"><div class="metric-label">${label}</div><div class="metric-value ${cls}">${value}</div></div>`;
 
     el.innerHTML = [
-      metric(TR.RETURN,       formatPct(r.totalReturn),         r.totalReturn >= 0 ? 'pos' : 'neg'),
-      metric(TR.SHARPE,       formatNumber(r.sharpeRatio, 2)),
-      metric(TR.MAX_DRAWDOWN, formatPct(-r.maxDrawdown),        'neg'),
-      metric(TR.WIN_RATE,     formatPct(r.winRate)),
-      metric(TR.TOTAL_TRADES, String(r.totalTrades)),
-      metric(TR.PROFIT_FACTOR, formatNumber(r.profitFactor, 2), r.profitFactor >= 1 ? 'pos' : 'neg'),
+      metric(TR.RETURN,       formatPct(m.total_return_pct),       m.total_return_pct >= 0 ? 'pos' : 'neg'),
+      metric(TR.SHARPE,       formatNumber(m.sharpe_ratio, 2)),
+      metric(TR.MAX_DRAWDOWN, formatPct(-m.max_drawdown_pct),      'neg'),
+      metric(TR.WIN_RATE,     formatPct(m.win_rate)),
+      metric(TR.TOTAL_TRADES, String(m.total_trades)),
+      metric(TR.PROFIT_FACTOR, isFinite(pf) ? formatNumber(pf, 2) : '∞', pf >= 1 ? 'pos' : 'neg'),
     ].join('');
   }
 
@@ -177,7 +251,6 @@ export class StrategyPanel {
       return;
     }
 
-    // Show last 10 signals, most recent first
     const recent = [...signals].reverse().slice(0, 10);
 
     el.innerHTML = recent.map(s => `
@@ -199,10 +272,10 @@ export class StrategyPanel {
 
   private renderEquityCurve(result: BacktestResult): void {
     const canvas = this.container.querySelector<HTMLCanvasElement>('#equity-canvas');
-    if (!canvas || result.equityCurve.length === 0) return;
+    if (!canvas || result.equity_curve.length === 0) return;
 
-    const labels = result.equityCurve.map(p => formatDateTime(p.time));
-    const data   = result.equityCurve.map(p => p.value);
+    const labels = result.equity_curve.map(p => formatDateTime(p.time));
+    const data   = result.equity_curve.map(p => p.total_equity);
 
     const maxStep = 200;
     const step    = Math.max(1, Math.floor(labels.length / maxStep));

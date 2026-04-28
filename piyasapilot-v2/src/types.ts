@@ -68,19 +68,69 @@ export interface Signal {
   strength: number;   // 1–10
 }
 
-export interface BacktestResult {
-  totalReturn: number;        // percent
-  sharpeRatio: number;
-  maxDrawdown: number;        // percent (positive number)
-  winRate: number;            // percent
-  totalTrades: number;
-  profitFactor: number;
-  equityCurve: EquityPoint[];
+// Backend ``POST /api/backtest/run`` payload — Sprint 3.4'te frontend
+// doğrudan API'den dönen JSON'u tüketir (eski TS-içi backtest sökündü).
+
+export interface BacktestMetrics {
+  final_equity: number;
+  total_return_pct: number;
+  max_drawdown_pct: number;
+  total_trades: number;
+  total_commission: number;
+  sharpe_ratio: number;
+  win_rate: number;
+  has_open_position: boolean;
 }
 
 export interface EquityPoint {
-  time: number;
-  value: number;
+  time: number;            // unix saniye
+  bar_index: number;
+  cash: number;
+  position_value: number;
+  total_equity: number;
+  drawdown: number;
+}
+
+export interface BacktestTrade {
+  symbol: string;
+  entry_time: number;
+  exit_time: number;
+  entry_price: number;
+  exit_price: number;
+  quantity: number;
+  net_pnl: number;
+  return_pct: number;
+  is_winner: boolean;
+}
+
+export interface BacktestResult {
+  symbol: string;
+  interval: string;
+  strategy_id: string;
+  params: Record<string, unknown>;
+  capital: number;
+  lookback_bars: number;
+  metrics: BacktestMetrics;
+  equity_curve: EquityPoint[];
+  trades: BacktestTrade[];
+  signals: Signal[];
+}
+
+export interface StrategyBlueprint {
+  id: string;
+  label: string;
+  description: string;
+  default_params: Record<string, unknown>;
+  schema: Array<{
+    key: string;
+    label: string;
+    type: 'int' | 'float';
+    default: number;
+    min?: number;
+    max?: number;
+    step?: number;
+    help?: string;
+  }>;
 }
 
 // ─── Portfolio ────────────────────────────────────────────────────────────────
