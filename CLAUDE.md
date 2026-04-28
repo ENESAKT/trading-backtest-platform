@@ -33,8 +33,7 @@ Detaylı mimari ve sprint planı: `planlama.md` (özellikle bölüm 4, 7, 11, 17
 
 | Port | Servis | Komut |
 |------|--------|-------|
-| 8000 | Python live server | `python3 live_server.py` |
-| 8502 | Streamlit terminal (kalkacak — Sprint 2'de sökülecek) | `streamlit run quant_engine/app/ui_streamlit/app.py --server.port 8502` |
+| 8000 | FastAPI gateway | `python3 live_server.py` |
 | 5173 | Vite dev (SPA) | `cd piyasapilot-v2 && npm run dev` |
 
 Vite, `/api/v2/*` çağrılarını `127.0.0.1:8000`'a proxy eder (vite.config.ts).
@@ -124,6 +123,6 @@ cd piyasapilot-v2 && npx vite build
 
 - `git push --force` main'e — yasak.
 - `--no-verify` ile hook bypass — yasak.
-- Streamlit'e yeni özellik ekleme — kalkacak.
+- Streamlit kullanma — Sprint 2.8'de söküldü (PR #9).
 - TS tarafında bağımsız backtest mantığı — Sprint 3'te tek motor (Python) olacak.
 - API'ye doğrudan erişim (corsproxy.io, api.binance.com fetch) — `/api/v2/candles` üzerinden.

@@ -9,12 +9,14 @@
 
 ## 1. Context (Neden bu proje?)
 
-`/Users/enes/AgentWorkspace/Backtest` reposu bugün **iki kopuk arayüze sahip**:
+> Sprint 2.8'de (PR #9) Streamlit söküldü; aşağıdaki "iki kopuk arayüz" tasviri tarihseldir, planın çıkış motivasyonunu hatırlatır.
 
-- **Streamlit terminal** (`quant_engine/app/ui_streamlit/app.py`, port 8502) — backtest, Strateji Lab, Veri İstasyonu.
-- **PiyasaPilot v2 TS terminali** (`piyasapilot-v2/`, lightweight-charts) — canlı grafik, indikatörler, paper-trading widget.
+`/Users/enes/AgentWorkspace/Backtest` reposu **eskiden iki kopuk arayüze sahipti**:
 
-Aynı veri kaynaklarını farklı yollardan kullanıyorlar; sonuçlar zaman zaman tutmuyor (desync). Ayrıca:
+- ~~**Streamlit terminal** (`quant_engine/app/ui_streamlit/app.py`, port 8502)~~ — Sprint 2.8'de söküldü.
+- **PiyasaPilot v2 TS terminali** (`piyasapilot-v2/`, lightweight-charts) — canlı grafik, indikatörler, paper-trading widget. **Tek arayüz.**
+
+Aynı veri kaynaklarını farklı yollardan kullanıyorlardı; sonuçlar zaman zaman tutmuyordu (desync). Ayrıca:
 - yfinance 15 dk bar verisini sadece 5 gün, Binance ~7 gün veriyor → **1 ay tarihsel** elde etmek için backend cache şart.
 - BIST için gerçek anlık veri yok; 15 dk gecikmeli çözüm aranıyor.
 - Sistem manuel başlatılıyor; çökerse kalkmıyor.
@@ -297,11 +299,11 @@ Tek `Notifier` servisi tüm kanalları soyutlar; sinyal motoru fan-out ile hepsi
 - [~] 2.2 BIST 100 / Kripto / Forex-Emtia kategorileri. _PR #6: dublike+yanlış sembol temizliği, BIST 100'e doğru genişletme (BIST30 30 + BIST100_EXTRA 58 = 88 sembol). Tam 100'e tamamlama Sprint 2.7 yfinance batch eklendiğinde live doğrulanmış olarak kapanacak._
 - [ ] 2.3 Çoklu pencere layout (split / grid; her pencere kendi sembol/timeframe). _PR #8_
 - [x] 2.4 Fullscreen düğmesi. _Mevcut: `ChartPanel.ts:158` `<button id="fullscreen-btn">` + F kısayolu + `requestFullscreen`/CSS fallback. PR #6'da retroaktif tick._
-- [ ] 2.5 Streamlit'in Strateji Lab → TS'te `StrategyPanel` v2 (parametre form + sonuç). _PR #9_
-- [ ] 2.6 Streamlit'in Veri İstasyonu → TS'te `DataStation` (sembol grupları yönetimi). _PR #9_
+- [~] 2.5 Streamlit'in Strateji Lab → TS'te. _Mevcut TS `StrategyPanel` çekirdek özellikleri kapsıyor (3 strateji + backtest metrics + equity curve + sinyal listesi + chart marker'ları). Advanced parametre formu (ema fast/slow input vs.) Sprint 3'te API tabanlı `POST /api/backtest/run`'la birlikte gelecek; oraya kadar TS-içi yeterli._
+- [~] 2.6 Streamlit'in Veri İstasyonu → TS'te. _Sidebar zaten kategori-akordeon + arama yönetimi sağlıyor. Sembol grup persistence (custom watchlist'ler) Sprint 4 paper portfolio ile birlikte JSON store üzerinden gelecek._
 - [x] 2.7 `DataEngine` → yeni FastAPI gateway WS'ine bağla; CORS proxy'yi sök. _PR #7: WebSocketManager.ts (Binance-direct) sökündü, kripto path artık `/ws/quotes` üzerinden; tüm tarihsel fetch `HistoricalLoader.ts`'da merkezi._
 - [x] 2.7+ Backtest BUY/SELL marker'ları chart üstünde. _PR #8 (mini): `ChartPanel.setSignals/clearSignals` lightweight-charts `setMarkers` ile; ▲ AL ▼ SAT, sembol değişiminde temizlenir; pipeline `StrategyPanel.onSignalsUpdate` → `ChartPanel.setSignals`._
-- [ ] 2.8 Streamlit kalkar (`quant_engine/app/ui_streamlit/` arşive taşı, repodan sil). _PR #10_
+- [x] 2.8 Streamlit kalkar (`quant_engine/app/ui_streamlit/` repodan silindi). _PR #9: 2856 satır Streamlit + test_ui_overlays.py + requirements.txt streamlit girişi + README/CLAUDE.md port 8502 referansları temizlendi._
 
 ### Sprint 3 — Strateji & Backtest Birleşimi
 - [ ] 3.1 TS'teki dahili backtest implementasyonunu sök.
