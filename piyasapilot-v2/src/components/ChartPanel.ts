@@ -9,8 +9,9 @@ import {
   type LineData,
   type HistogramData,
   type BarData,
+  type SeriesMarker,
 } from 'lightweight-charts';
-import type { OHLCV, Timeframe, ChartType, IndicatorSet } from '../types.js';
+import type { OHLCV, Timeframe, ChartType, IndicatorSet, Signal } from '../types.js';
 import { computeIndicators, lastValid } from '../indicators/index.js';
 import { TR, formatNumber, formatDateTime } from '../constants/tr.js';
 
@@ -290,6 +291,27 @@ export class ChartPanel {
     this.renderIndicators(candles);
 
     this.mainChart.timeScale().fitContent();
+  }
+
+  // ─── Backtest / strateji sinyallerini mum üstünde göster ─────────────────
+  // ▲ yeşil = AL (mumun altında), ▼ kırmızı = SAT (mumun üstünde).
+  // Sembol ya da timeframe değişince çağrı tarafı `clearSignals()` etmeli.
+
+  setSignals(signals: Signal[]): void {
+    const markers: SeriesMarker<UTCTimestamp>[] = signals
+      .filter(s => s.type === 'BUY' || s.type === 'SELL')
+      .map(s => ({
+        time: s.timestamp as UTCTimestamp,
+        position: s.type === 'BUY' ? 'belowBar' : 'aboveBar',
+        color: s.type === 'BUY' ? C.green : C.red,
+        shape: s.type === 'BUY' ? 'arrowUp' : 'arrowDown',
+        text: `${s.type === 'BUY' ? '▲' : '▼'} ${formatNumber(s.price)}`,
+      }));
+    this.candleSeries.setMarkers(markers);
+  }
+
+  clearSignals(): void {
+    this.candleSeries.setMarkers([]);
   }
 
   updateLastCandle(candle: OHLCV): void {

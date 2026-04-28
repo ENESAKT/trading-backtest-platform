@@ -19,11 +19,15 @@ const STRATEGIES: StrategyCard[] = [
 
 // ─── StrategyPanel ────────────────────────────────────────────────────────────
 
+type SignalsListener = (signals: Signal[]) => void;
+
 export class StrategyPanel {
   private container: HTMLElement;
   private activeStrategy: StrategyId = 'trend';
   private candles: OHLCV[] = [];
   private equityChart: Chart | null = null;
+  private signalListeners: Set<SignalsListener> = new Set();
+  private lastSignals: Signal[] = [];
 
   constructor(container: HTMLElement) {
     this.container = container;
@@ -35,6 +39,21 @@ export class StrategyPanel {
   setCandles(candles: OHLCV[]): void {
     this.candles = candles;
     this.runAnalysis();
+  }
+
+  // ─── Sinyal yayını (chart üstünde marker çizmek için) ──────────────────
+
+  onSignalsUpdate(listener: SignalsListener): () => void {
+    this.signalListeners.add(listener);
+    // Yeni dinleyiciye en son durumu hemen ver — sembol değişiminde
+    // chart yeniden çizildiğinde marker'lar geç gelmesin.
+    listener(this.lastSignals);
+    return () => this.signalListeners.delete(listener);
+  }
+
+  private emitSignals(signals: Signal[]): void {
+    this.lastSignals = signals;
+    this.signalListeners.forEach(l => l(signals));
   }
 
   // ─── Render ─────────────────────────────────────────────────────────────
@@ -117,6 +136,7 @@ export class StrategyPanel {
         this.renderMetrics(result);
         this.renderSignals(signals);
         this.renderEquityCurve(result);
+        this.emitSignals(signals);
       } catch {
         this.showEmpty();
       }
@@ -128,6 +148,7 @@ export class StrategyPanel {
     const signalsEl = this.container.querySelector('#signals-list');
     if (metricsEl) metricsEl.innerHTML = `<div class="empty-state">${TR.WAITING_DATA}</div>`;
     if (signalsEl) signalsEl.innerHTML = `<div class="empty-state">${TR.NO_SIGNALS}</div>`;
+    this.emitSignals([]);
   }
 
   private renderMetrics(r: BacktestResult): void {
