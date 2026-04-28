@@ -46,10 +46,7 @@ void _screener;
 
 // ─── Tab routing ──────────────────────────────────────────────────────────────
 
-let activeTab = 'chart';
-
 function showTab(tab: string): void {
-  activeTab = tab;
   tabBtns.forEach(btn => btn.classList.toggle('active', btn.dataset['tab'] === tab));
   chartEl.style.display     = tab === 'chart'     ? 'flex' : 'none';
   portfolioEl.style.display = tab === 'portfolio' ? 'flex' : 'none';
@@ -94,8 +91,16 @@ chartEl.addEventListener('timeframeChange', (e) => {
 sidebar.onSymbolSelect(async (info) => {
   symbolTitle.textContent = `${info.name} (${info.symbol})`;
   sidebar.setActiveSymbol(info.symbol);
+  // Sembol değişti — eski stratejinin marker'ları yeni mum grafiğinde
+  // saçma duracak, yeni veri gelene kadar temizle.
+  chartPanel.clearSignals();
   await dataEngine.setActiveSymbol(info);
 });
+
+// Strateji panelinin ürettiği BUY/SELL sinyallerini chart üstünde marker
+// olarak çiz. Aktif tab strategy değil olsa bile pipeline bağlı kalır;
+// kullanıcı chart sekmesindeyken de stratejinin işaretlerini görür.
+strategyPanel.onSignalsUpdate(signals => chartPanel.setSignals(signals));
 
 // ─── Data Engine events ───────────────────────────────────────────────────────
 
@@ -104,9 +109,9 @@ dataEngine.onDataUpdate((evt: DataUpdateEvent) => {
 
   chartPanel.setData(evt.candles);
 
-  if (activeTab === 'strategy') {
-    strategyPanel.setCandles(evt.candles);
-  }
+  // Strateji panelini her zaman besle — chart sekmesindeyken de
+  // marker'lar görünür kalsın diye signal pipeline bağlı tutulur.
+  strategyPanel.setCandles(evt.candles);
 
   // Update portfolio prices
   const priceMap = new Map<string, number>();
