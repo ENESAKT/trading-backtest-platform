@@ -32,8 +32,16 @@ from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconn
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel, Field
 
 from backend.api.quote_bus import QuoteBus
+from backend.backtest import (
+    BacktestNotEnoughData,
+    BacktestRunError,
+    UnknownStrategy,
+    list_blueprints,
+    run_backtest,
+)
 from backend.data.cache import OHLCVCache
 from backend.data.spike_filter import filter_bars
 from backend.data.symbols import (
@@ -199,6 +207,31 @@ def create_app(
             "fetched_at": _utc_iso(),
             "message": "PiyasaPilot gateway çalışıyor. Emir motoru pasif.",
         }
+
+    # ── Backtest API (Sprint 3.2 + 3.3) ──────────────────────────────────
+    @app.get("/api/backtest/strategies")
+    def backtest_strategies() -> dict[str, Any]:
+        """Mevcut strateji blueprint'lerini listele (frontend form üretir)."""
+        return {"strategies": list_blueprints()}
+
+    @app.post("/api/backtest/run")
+    def backtest_run(req: BacktestRequest) -> dict[str, Any]:
+        try:
+            return run_backtest(
+                cache=cache,
+                symbol=req.symbol,
+                interval=req.interval,
+                strategy_id=req.strategy_id,
+                params=req.params,
+                capital=req.capital,
+                lookback_bars=req.lookback_bars,
+            )
+        except UnknownStrategy as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+        except BacktestNotEnoughData as exc:
+            raise HTTPException(status_code=409, detail=str(exc))
+        except BacktestRunError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
 
     # ── WebSocket fan-out ────────────────────────────────────────────────
     @app.websocket("/ws/quotes")
@@ -369,6 +402,17 @@ def create_app(
         app.mount("/data", StaticFiles(directory=static_dir), name="data")
 
     return app
+
+
+class BacktestRequest(BaseModel):
+    """``POST /api/backtest/run`` gövdesi."""
+
+    symbol: str = Field(..., description="Sembol — frontend native (örn. BTCUSDT, THYAO.IS)")
+    interval: str = Field("15m", description="Timeframe — 1m..1w")
+    strategy_id: str = Field(..., description="Blueprint id (sma_crossover, rsi_reversion, ...)")
+    params: dict[str, Any] = Field(default_factory=dict)
+    capital: float = Field(100_000.0, gt=0, description="Başlangıç sermayesi (TL)")
+    lookback_bars: int = Field(500, ge=50, le=5000, description="Cache'ten alınacak son bar sayısı")
 
 
 # Uvicorn entry point: `uvicorn backend.api.main:app`
