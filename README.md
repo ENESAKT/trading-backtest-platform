@@ -37,13 +37,9 @@ pip install -r requirements.txt
 # 3. Gerçek veri kontrolünü çalıştır (tek hisse)
 python real_data_check.py --symbol THYAO
 
-# 4. PiyasaPilot HTML canlı veri panelini aç
-python live_server.py
-# Tarayıcı: http://localhost:8000
-# 8000 doluysa: python live_server.py --port 8001
-
-# 5. Streamlit terminalini aç
-streamlit run quant_engine/app/ui_streamlit/app.py --server.port 8502
+# 4. PiyasaPilot v2 stack'ini başlat
+python live_server.py            # Backend gateway → http://localhost:8000
+cd piyasapilot-v2 && npm run dev # Vite dev server → http://localhost:5173
 ```
 
 ## Terminal Özellikleri
