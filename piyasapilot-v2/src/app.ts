@@ -55,7 +55,11 @@ function showTab(tab: string): void {
 
   // Trigger backtest when strategy tab becomes visible
   if (tab === 'strategy' && dataEngine.getActiveCandles().length > 0) {
-    strategyPanel.setCandles(dataEngine.getActiveCandles());
+    strategyPanel.setCandles(
+      dataEngine.getActiveCandles(),
+      dataEngine.getActiveSymbol().symbol,
+      dataEngine.getActiveTimeframe(),
+    );
   }
 }
 
@@ -111,7 +115,7 @@ dataEngine.onDataUpdate((evt: DataUpdateEvent) => {
 
   // Strateji panelini her zaman besle — chart sekmesindeyken de
   // marker'lar görünür kalsın diye signal pipeline bağlı tutulur.
-  strategyPanel.setCandles(evt.candles);
+  strategyPanel.setCandles(evt.candles, evt.symbol, dataEngine.getActiveTimeframe());
 
   // Update portfolio prices
   const priceMap = new Map<string, number>();
