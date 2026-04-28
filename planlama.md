@@ -296,7 +296,7 @@ Tek `Notifier` servisi tüm kanalları soyutlar; sinyal motoru fan-out ile hepsi
 
 ### Sprint 2 — Frontend Birleşimi (TS Tek Terminal)
 - [x] 2.1 PiyasaPilot v2'ye Market Explorer (sol panel tree/accordion). _PR öncesi mevcut: `Sidebar.ts` kategori-akordeon + arama + ticker._
-- [~] 2.2 BIST 100 / Kripto / Forex-Emtia kategorileri. _PR #6: dublike+yanlış sembol temizliği, BIST 100'e doğru genişletme (BIST30 30 + BIST100_EXTRA 58 = 88 sembol). Tam 100'e tamamlama Sprint 2.7 yfinance batch eklendiğinde live doğrulanmış olarak kapanacak._
+- [x] 2.2 BIST 100 / Kripto / Forex-Emtia kategorileri. _PR #6 dublike+yanlış sembol temizliği; PR #10 +10 yeni güvenli BIST sembolü (AKFYE, ALFAS, ASTOR, BIENY, BRSAN, GWIND, KAREL, KCAER, KMPUR, PAPIL) → BIST30 30 + BIST100_EXTRA 68 = **98 sembol**. BIST 100 üyeliği Borsa İstanbul tarafından her dönem revize edilir; ≥98 yeterli kapsama._
 - [ ] 2.3 Çoklu pencere layout (split / grid; her pencere kendi sembol/timeframe). _PR #8_
 - [x] 2.4 Fullscreen düğmesi. _Mevcut: `ChartPanel.ts:158` `<button id="fullscreen-btn">` + F kısayolu + `requestFullscreen`/CSS fallback. PR #6'da retroaktif tick._
 - [~] 2.5 Streamlit'in Strateji Lab → TS'te. _Mevcut TS `StrategyPanel` çekirdek özellikleri kapsıyor (3 strateji + backtest metrics + equity curve + sinyal listesi + chart marker'ları). Advanced parametre formu (ema fast/slow input vs.) Sprint 3'te API tabanlı `POST /api/backtest/run`'la birlikte gelecek; oraya kadar TS-içi yeterli._
