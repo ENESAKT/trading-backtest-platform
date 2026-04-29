@@ -36,18 +36,58 @@ export class SignalFeed {
   private signals: LiveSignal[] = [];
   private reconnectDelay = RECONNECT_BASE_MS;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  private statusTimer: ReturnType<typeof setInterval> | null = null;
   private destroyed = false;
 
   constructor(container: HTMLElement) {
     this.container = container;
     this.render();
     this.connect();
+    this.pollTelegramStatus();
   }
 
   destroy(): void {
     this.destroyed = true;
     if (this.reconnectTimer !== null) clearTimeout(this.reconnectTimer);
+    if (this.statusTimer !== null) clearInterval(this.statusTimer);
     this.ws?.close();
+  }
+
+  private pollTelegramStatus(): void {
+    const fetch_status = () => {
+      if (this.destroyed) return;
+      const base = window.location.origin.replace(/^ws/, 'http');
+      fetch(`${base}/api/notifier/status`)
+        .then(r => r.json())
+        .then((d: Record<string, unknown>) => this.renderTelegramStatus(d))
+        .catch(() => this.renderTelegramStatus(null));
+    };
+    fetch_status();
+    this.statusTimer = setInterval(fetch_status, 30_000);
+  }
+
+  private renderTelegramStatus(d: Record<string, unknown> | null): void {
+    const el = this.container.querySelector<HTMLElement>('#tg-status');
+    if (!el) return;
+    if (!d) {
+      el.innerHTML = `<span class="tg-dot tg-unknown"></span> Telegram: bilinmiyor`;
+      return;
+    }
+    const yapilandirildi = d['telegram_yapilandirildi'] as boolean;
+    if (!yapilandirildi) {
+      el.innerHTML = `<span class="tg-dot tg-off"></span> Telegram: yapılandırılmamış`;
+      el.title = '.env dosyasında TELEGRAM_BOT_TOKEN eksik';
+      return;
+    }
+    const sonBildirim = d['son_bildirim'] as string | null;
+    const sonHata = d['son_hata'] as string | null;
+    const toplam = (d['toplam_bildirim'] as number) ?? 0;
+    const zamanStr = sonBildirim
+      ? new Date(sonBildirim).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })
+      : '—';
+    const dotClass = sonHata ? 'tg-warn' : 'tg-on';
+    el.innerHTML = `<span class="tg-dot ${dotClass}"></span> Telegram aktif · son: ${zamanStr} · ${toplam} bildirim`;
+    el.title = sonHata ? `Son hata: ${sonHata}` : `Token: ${d['token_son4']} · Chat: ${d['chat_id']}`;
   }
 
   private resolveBase(): string {
@@ -155,6 +195,9 @@ export class SignalFeed {
           <h2>${TR.SIGNAL_FEED}</h2>
           <span id="signal-feed-status" class="status-badge status-offline">${TR.OFFLINE}</span>
         </div>
+        <div id="tg-status" class="tg-status-bar">
+          <span class="tg-dot tg-unknown"></span> Telegram: yükleniyor…
+        </div>
         <div class="signal-feed-info">${TR.SIGNAL_FEED_INFO}</div>
         <div id="signal-feed-list" class="signal-feed-list">
           <div class="signal-feed-empty">${TR.CONNECTING}…</div>
@@ -174,9 +217,25 @@ export class SignalFeed {
   }
 
   private signalHTML(sig: LiveSignal): string {
-    const isBuy = sig.signal_type === 'BUY';
-    const badgeClass = isBuy ? 'badge-buy' : 'badge-sell';
-    const badgeLabel = isBuy ? TR.SIGNAL_BUY : TR.SIGNAL_SELL;
+    const isStrong = sig.signal_type === 'STRONG_BUY' || sig.signal_type === 'STRONG_SELL';
+    const isBuy = sig.signal_type === 'BUY' || sig.signal_type === 'STRONG_BUY';
+
+    let badgeClass: string;
+    let badgeLabel: string;
+    if (sig.signal_type === 'STRONG_BUY') {
+      badgeClass = 'badge-strong-buy';
+      badgeLabel = TR.SIGNAL_STRONG_BUY;
+    } else if (sig.signal_type === 'STRONG_SELL') {
+      badgeClass = 'badge-strong-sell';
+      badgeLabel = TR.SIGNAL_STRONG_SELL;
+    } else if (isBuy) {
+      badgeClass = 'badge-buy';
+      badgeLabel = TR.SIGNAL_BUY;
+    } else {
+      badgeClass = 'badge-sell';
+      badgeLabel = TR.SIGNAL_SELL;
+    }
+
     const stars = '★'.repeat(Math.min(Math.max(sig.strength, 1), 10));
     const time = new Date(sig.ts).toLocaleTimeString('tr-TR', {
       hour: '2-digit',
@@ -184,8 +243,27 @@ export class SignalFeed {
       second: '2-digit',
     });
     const decimals = sig.price < 1 ? 6 : sig.price < 100 ? 4 : 2;
+
+    // Konsensüs metadata satırı
+    let metadataHTML = '';
+    if (isStrong && sig.metadata) {
+      const parts: string[] = [];
+      if (sig.metadata.consensus_ratio !== undefined) {
+        parts.push(`Oran: ${(sig.metadata.consensus_ratio * 100).toFixed(0)}%`);
+      }
+      if (sig.metadata.buy_count !== undefined && sig.metadata.total_strategies !== undefined) {
+        const count = isBuy ? sig.metadata.buy_count : (sig.metadata.sell_count ?? 0);
+        parts.push(`${count}/${sig.metadata.total_strategies} strateji`);
+      }
+      if (sig.metadata.rsi !== undefined) parts.push(`RSI: ${sig.metadata.rsi}`);
+      if (sig.metadata.trend) parts.push(`Trend: ${sig.metadata.trend}`);
+      if (parts.length > 0) {
+        metadataHTML = `<div class="signal-consensus">${parts.join(' · ')}</div>`;
+      }
+    }
+
     return `
-      <div class="signal-item">
+      <div class="signal-item ${isStrong ? 'signal-strong' : ''}">
         <div class="signal-header">
           <span class="signal-badge ${badgeClass}">${badgeLabel}</span>
           <span class="signal-symbol">${sig.symbol}</span>
@@ -198,6 +276,7 @@ export class SignalFeed {
           <span class="signal-strength">${stars}</span>
         </div>
         <div class="signal-reason">${sig.reason}</div>
+        ${metadataHTML}
       </div>
     `;
   }

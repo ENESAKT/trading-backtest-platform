@@ -97,6 +97,8 @@ export const TR = {
   NO_SIGNALS: 'Henüz sinyal yok',
   SIGNAL_BUY: 'AL',
   SIGNAL_SELL: 'SAT',
+  SIGNAL_STRONG_BUY: 'GÜÇLÜ AL',
+  SIGNAL_STRONG_SELL: 'GÜÇLÜ SAT',
   SIGNAL_HOLD: 'TUT',
   STRATEGY_DESC_TREND: 'EMA çakışması + RSI momentum tabanlı trend takip stratejisi',
   STRATEGY_DESC_MEAN: 'Bollinger Bandı alt/üst dokunuşlarında ortalamaya dönüş',

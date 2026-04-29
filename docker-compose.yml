@@ -1,5 +1,17 @@
 version: "3.9"
 
+# ─── Mimari Notu ────────────────────────────────────────────────────────────
+# Worker'lar (Binance WS + Yahoo poller + BIST poller) varsayılan olarak
+# `api` servisi içinde FastAPI lifespan üzerinden çalışır. Bu sayede
+# /ws/quotes ve /ws/signals gerçek zamanlı fan-out çalışır.
+#
+# İsteğe bağlı ayrı `workers` servisi yalnızca SQLite önbelleğini doldurur
+# (WS yayını olmadan). Bunu etkinleştirmek için:
+#   1. api servisine `PIYASAPILOT_DISABLE_WORKERS: "1"` ekle
+#   2. workers servisinin `profiles` satırını kaldır
+# Not: Bu modda /ws/quotes ve /ws/signals pasif olur.
+# ────────────────────────────────────────────────────────────────────────────
+
 services:
   api:
     build:
@@ -54,6 +66,21 @@ services:
         condition: service_healthy
     restart: unless-stopped
     mem_limit: 64m
+
+  # Bağımsız cache-filler (varsayılan profilde kapalı — yukarıdaki notu oku)
+  workers:
+    build:
+      context: .
+      dockerfile: Dockerfile.workers
+    container_name: piyasapilot-workers
+    volumes:
+      - ./data:/app/data
+    env_file:
+      - .env
+    restart: unless-stopped
+    mem_limit: 256m
+    profiles:
+      - split  # `docker compose --profile split up` ile etkinleştir
 
 volumes:
   data:

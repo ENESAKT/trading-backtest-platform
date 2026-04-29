@@ -452,10 +452,58 @@ h3 { font-family: var(--font-sans); font-size: 13px; font-weight: 600; color: va
 }
 .badge-buy  { background: #3fb95033; color: var(--green); border: 1px solid var(--green); }
 .badge-sell { background: #f8514933; color: var(--red);   border: 1px solid var(--red);   }
+.badge-strong-buy {
+  background: linear-gradient(135deg, #3fb95055, #3fb95033);
+  color: var(--green);
+  border: 1px solid var(--green);
+  box-shadow: 0 0 6px #3fb95044;
+  text-transform: uppercase;
+}
+.badge-strong-sell {
+  background: linear-gradient(135deg, #f8514955, #f8514933);
+  color: var(--red);
+  border: 1px solid var(--red);
+  box-shadow: 0 0 6px #f8514944;
+  text-transform: uppercase;
+}
+.signal-item.signal-strong {
+  border-left: 3px solid var(--yellow);
+  background: #d2992208;
+}
+.signal-consensus {
+  font-size: 9px;
+  color: var(--yellow);
+  margin-top: 3px;
+  padding-top: 3px;
+  border-top: 1px solid var(--border);
+  letter-spacing: 0.2px;
+}
 .signal-price { font-size: 11px; font-weight: 700; color: var(--text-bold); }
 .signal-time  { font-size: 9px;  color: var(--text-dim); margin-left: auto; }
 .signal-strength { font-size: 8px; color: var(--yellow); letter-spacing: -1px; width: 100%; }
 .signal-reason { font-size: 10px; color: var(--text); line-height: 1.4; }
+
+/* ─── Telegram durum çubuğu ─────────────────────────────────────────────── */
+.tg-status-bar {
+  font-size: 10px;
+  color: var(--text-dim);
+  padding: 3px 8px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 20px;
+}
+.tg-dot {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  display: inline-block;
+  flex-shrink: 0;
+}
+.tg-on      { background: #22c55e; box-shadow: 0 0 4px #22c55e88; }
+.tg-warn    { background: #f59e0b; }
+.tg-off     { background: #ef4444; }
+.tg-unknown { background: #6b7280; }
 
 /* ─── Screener ─────────────────────────────────────────────────────────────── */
 .screener-wrap { padding: 10px; height: 100%; overflow-y: auto; }
