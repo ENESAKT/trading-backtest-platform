@@ -140,3 +140,9 @@
 - **Dev Fitiller (Anomalous Spikes) İçin IQR+VWAP Filtresi:** Düşük hacimli sığ BIST hisseleri ve bazı FX paritelerindeki anormal kotasyon sıçramaları (dev fitiller) klasik Z-Score yöntemini bozmaktadır. Çözüm olarak çeyreklik açıklık (IQR) ve Hacim Ağırlıklı (VWAP) anomali tespitinin birlikte kullanılması, hatalı verilerin silinmek yerine sınırlandırılmasına (Winsorization) veya doldurulmasına (Imputation) karar verildi.
 - **Canlı Veride Hibrit Gateway Modeli:** API Limitlerine (Rate Limit) takılmamak için arayüzlerin doğrudan BIST/ABD verilerine gitmesi yasaklandı. Kripto için sınırsız WebSocket bağlantısı kullanılırken, limitli piyasalar için Merkezi Polling (Data Worker) + Cache-Aside modeli (verinin Redis/Memory'de tutulup oradan client'lara WebSockets/SSE ile dağıtılması) mimari kural olarak kabul edildi.
 - **Konsolidasyon:** Projedeki eski, dağınık ve çakışan planlama dosyaları silinerek, geliştirme hedefleri konsolide edilmiş `MASTER_PLAN_v2.md` altında sprint bazlı net adımlara döküldü.
+
+## Sprint 2 — Çoklu Pencere Layout
+
+- **Her pane kendi ChartPanel instance'ı + veri yönetimi almalı.** Tek DataEngine singleton'ı çoklu pane'e hizmet edemez çünkü `activeSymbol/activeTimeframe/activeCandles` tek sembol tutar. Çözüm: `MultiChartLayout` bileşeni her pane için bağımsız tarihsel veri fetch + opsiyonel WS bağlantısı yönetiyor; ana DataEngine sadece sidebar ticker + portfolio + screener beslemek için kullanılıyor.
+- **CSS Grid + flex layout kombinasyonu performanslı çalışıyor.** `grid-template-columns: repeat(N, 1fr)` + `grid-template-rows: repeat(M, 1fr)` ile pane sayısı dinamik ayarlanabiliyor. Her pane'in `chart-pane-body` div'i `flex: 1` ile kalan alanı dolduruyor.
+- **`<select>` ile sembol seçici, `<optgroup>` ile kategori gruplama kullanıcı deneyimini iyileştiriyor.** Sidebar'daki arama + accordion yapısının yanında, her pane'in kendi dropdown'u olması çoklu pencere modunda hızlı sembol değişimi sağlıyor.

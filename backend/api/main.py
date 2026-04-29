@@ -45,6 +45,7 @@ from backend.backtest import (
 )
 from backend.data.cache import OHLCVCache
 from backend.data.spike_filter import filter_bars
+from backend.paper import PaperDB, PaperExecutor
 from backend.signals import SignalGenerator
 from backend.data.symbols import (
     BIST_STOCKS,
@@ -63,6 +64,7 @@ from quant_engine.data.live_feed import (
 from quant_engine.workspace.json_store import WorkspaceJsonStore
 
 ROOT = Path(__file__).resolve().parents[2]
+_PAPER_DB_PATH = "data/cache/ohlcv.sqlite3"
 
 # Cache miss eşiği: cache'teki en yeni bar'dan beri bu süreden uzun zaman
 # geçmişse provider'a yeniden git. 15dk barlar için 90s mantıklı.
@@ -103,6 +105,7 @@ def _build_default_supervisor(
     data_service: LiveDataService,
     quote_bus: QuoteBus | None = None,
     signal_generator: SignalGenerator | None = None,
+    paper_executor: PaperExecutor | None = None,
 ) -> WorkerSupervisor:
     """Üretim modunda kullanılan varsayılan worker seti.
 
@@ -117,8 +120,12 @@ def _build_default_supervisor(
             await quote_bus.publish(symbol, interval, bars)
         if signal_generator is not None:
             await signal_generator.evaluate(symbol, interval, bars)
+        if paper_executor is not None and bars:
+            last_close = float(bars[-1].get("close", 0))
+            if last_close > 0:
+                paper_executor.update_prices({symbol.upper(): last_close})
 
-    on_bar = _on_bar if (quote_bus is not None or signal_generator is not None) else None
+    on_bar = _on_bar if (quote_bus is not None or signal_generator is not None or paper_executor is not None) else None
     return WorkerSupervisor(
         [
             BinanceKlineWorker(
@@ -154,6 +161,7 @@ def create_app(
     quote_bus: QuoteBus | None = None,
     signal_bus: SignalBus | None = None,
     signal_generator: SignalGenerator | None = None,
+    paper_executor: PaperExecutor | None = None,
 ) -> FastAPI:
     """FastAPI app factory.
 
@@ -178,20 +186,37 @@ def create_app(
         if signal_generator is not None
         else SignalGenerator(cache=cache, bus=signal_bus)
     )
+    paper_db = PaperDB(ROOT / _PAPER_DB_PATH)
+    paper_db.ensure_tables()
+    paper_executor = paper_executor or PaperExecutor(db=paper_db)
+
     if supervisor is None:
         if os.environ.get("PIYASAPILOT_DISABLE_WORKERS") == "1":
             supervisor = WorkerSupervisor([])
         else:
             supervisor = _build_default_supervisor(
-                cache, data_service, quote_bus, signal_generator,
+                cache, data_service, quote_bus, signal_generator, paper_executor,
             )
+
+    async def _paper_executor_loop() -> None:
+        client_id, queue = await signal_bus.subscribe()
+        try:
+            while True:
+                msg = await queue.get()
+                await paper_executor.process_signal(msg)
+        except asyncio.CancelledError:
+            pass
+        finally:
+            await signal_bus.unsubscribe(client_id)
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         await supervisor.start_all()
+        executor_task = asyncio.create_task(_paper_executor_loop())
         try:
             yield
         finally:
+            executor_task.cancel()
             await supervisor.stop_all()
 
     app = FastAPI(
@@ -205,6 +230,8 @@ def create_app(
     app.state.quote_bus = quote_bus
     app.state.signal_bus = signal_bus
     app.state.signal_generator = signal_generator
+    app.state.paper_db = paper_db
+    app.state.paper_executor = paper_executor
 
     app.add_middleware(
         CORSMiddleware,
@@ -230,6 +257,7 @@ def create_app(
             "quote_bus": quote_bus.stats(),
             "signal_bus": signal_bus.stats(),
             "signal_generator": signal_generator.stats(),
+            "paper_executor": paper_executor.stats(),
             "fetched_at": _utc_iso(),
             "message": "PiyasaPilot gateway çalışıyor. Emir motoru pasif.",
         }
@@ -258,6 +286,41 @@ def create_app(
             raise HTTPException(status_code=409, detail=str(exc))
         except BacktestRunError as exc:
             raise HTTPException(status_code=400, detail=str(exc))
+
+    # ── Paper Trading API (Sprint 4) ─────────────────────────────────────
+
+    @app.get("/api/paper/wallets")
+    def paper_wallets() -> dict[str, Any]:
+        return {"wallets": paper_db.all_wallets()}
+
+    @app.get("/api/paper/trades")
+    def paper_trades(strategy_id: str = "", limit: int = 50) -> dict[str, Any]:
+        sid = strategy_id or None
+        return {"trades": paper_db.get_trades(sid, limit=limit)}
+
+    @app.get("/api/paper/trades/export")
+    def paper_trades_export(strategy_id: str = "") -> dict[str, Any]:
+        sid = strategy_id or None
+        return {"trades": paper_db.export_trades(sid)}
+
+    @app.get("/api/paper/equity")
+    def paper_equity(strategy_id: str, limit: int = 200) -> dict[str, Any]:
+        return {"equity_curve": paper_db.get_equity_curve(strategy_id, limit=limit)}
+
+    @app.post("/api/paper/reset/{strategy_id}")
+    def paper_reset(strategy_id: str) -> dict[str, Any]:
+        paper_db.reset_wallet(strategy_id)
+        return {"status": "ok", "strategy_id": strategy_id}
+
+    @app.post("/api/paper/halt/{strategy_id}")
+    def paper_halt(strategy_id: str) -> dict[str, Any]:
+        paper_db.halt_strategy(strategy_id)
+        return {"status": "ok", "strategy_id": strategy_id, "halted": True}
+
+    @app.post("/api/paper/resume/{strategy_id}")
+    def paper_resume(strategy_id: str) -> dict[str, Any]:
+        paper_db.resume_strategy(strategy_id)
+        return {"status": "ok", "strategy_id": strategy_id, "halted": False}
 
     # ── WebSocket fan-out: signals (Sprint 3.5) ──────────────────────────
     @app.websocket("/ws/signals")

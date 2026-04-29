@@ -14,7 +14,15 @@ const MIN_BARS_FOR_RUN = 50;
 // Sabit liste — backend ``backend/backtest/blueprints.py`` ile birebir
 // senkron. ``GET /api/backtest/strategies`` ile dinamik fetch ileride
 // (parametre formu eklendiğinde) yapılır; şimdilik kart UI yeterli.
-type StrategyId = 'sma_crossover' | 'rsi_reversion' | 'bollinger_reversion' | 'buy_and_hold';
+type StrategyId =
+  | 'sma_crossover'
+  | 'rsi_reversion'
+  | 'bollinger_reversion'
+  | 'buy_and_hold'
+  | 'donchian_breakout'
+  | 'macd_divergence'
+  | 'supertrend'
+  | 'mean_reversion_vwap';
 
 interface StrategyCard {
   id: StrategyId;
@@ -23,9 +31,13 @@ interface StrategyCard {
 }
 
 const STRATEGIES: StrategyCard[] = [
-  { id: 'sma_crossover',       nameKey: 'STRATEGY_TREND',    descKey: 'STRATEGY_DESC_TREND'    },
-  { id: 'rsi_reversion',       nameKey: 'STRATEGY_MEAN',     descKey: 'STRATEGY_DESC_MEAN'     },
-  { id: 'bollinger_reversion', nameKey: 'STRATEGY_BREAKOUT', descKey: 'STRATEGY_DESC_BREAKOUT' },
+  { id: 'sma_crossover',       nameKey: 'STRATEGY_TREND',      descKey: 'STRATEGY_DESC_TREND'      },
+  { id: 'rsi_reversion',       nameKey: 'STRATEGY_MEAN',       descKey: 'STRATEGY_DESC_MEAN'       },
+  { id: 'bollinger_reversion', nameKey: 'STRATEGY_BREAKOUT',   descKey: 'STRATEGY_DESC_BREAKOUT'   },
+  { id: 'donchian_breakout',   nameKey: 'STRATEGY_DONCHIAN',   descKey: 'STRATEGY_DESC_DONCHIAN'   },
+  { id: 'macd_divergence',     nameKey: 'STRATEGY_MACD',       descKey: 'STRATEGY_DESC_MACD'       },
+  { id: 'supertrend',          nameKey: 'STRATEGY_SUPERTREND', descKey: 'STRATEGY_DESC_SUPERTREND' },
+  { id: 'mean_reversion_vwap', nameKey: 'STRATEGY_VWAP',       descKey: 'STRATEGY_DESC_VWAP'       },
 ];
 
 // ─── StrategyPanel ────────────────────────────────────────────────────────────

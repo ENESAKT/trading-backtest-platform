@@ -24,7 +24,7 @@ BIST + kripto + döviz + emtia için **TradingView benzeri**, **Türkçe**, tara
 | Backend gateway | ✅ Hazır | FastAPI, SQLite cache, IQR spike filter, `/api/v2/candles` cache-aside, `/api/health` |
 | Worker'lar | ✅ Çalışıyor | Binance WS (10 kripto), Yahoo poller (BIST endeks + FX + emtia), BIST 30 hisse poller |
 | WS fan-out | ✅ Çalışıyor | `/ws/quotes` — worker'ların yazdığı her bar tarayıcıya broadcast |
-| Frontend tek terminal | 🟡 %60 | Sidebar 88 sembol, ChartPanel + indikatörler, fullscreen, DataEngine artık QuoteStream'e bağlı |
+| Frontend tek terminal | ✅ %85 | Sidebar 98 sembol, MultiChartLayout (1×1/1×2/2×1/2×2), fullscreen, DataEngine→QuoteStream |
 | Backtest (TS) | 🟡 Var | TS-içi 4 strateji, sinyaller liste olarak; **chart üstünde marker yok** |
 | Backtest (Python API) | ❌ Yok | Sprint 3'te |
 | Paper trading | 🟡 İskelet | JSON store mevcut; SQLite şeması ve otonom executor Sprint 4'te |
@@ -86,14 +86,16 @@ Plan, CLAUDE.md, `.claude/` iskelet klasörleri, kararların kayda geçmesi.
 
 **Yapılanlar:**
 - ✅ 2.1 Market Explorer (kategori-akordeon sidebar) — zaten vardı
-- 🟡 2.2 BIST 100 katalogu (88/100 sembol; PR #6) — kalanı PR #11'de
+- ✅ 2.2 BIST 100 katalogu (98/100 sembol; PR #6 + PR #10)
+- ✅ 2.3 Çoklu pencere layout — `MultiChartLayout.ts`, 4 layout modu (1×1/1×2/2×1/2×2), G kısayolu
 - ✅ 2.4 Fullscreen butonu — zaten vardı, retroaktif tick
 - ✅ 2.7 DataEngine → QuoteStream (PR #7); WebSocketManager.ts sökündü
+- ✅ 2.7+ BUY/SELL marker'ları — `setSignals/clearSignals` pipeline
+- ✅ 2.8 Streamlit söküm (PR #9)
 
 **Kalanlar:**
-- ⏳ **2.3 Çoklu pencere layout** — split/grid container; her pencere kendi sembol+timeframe. PR #9.
-- ⏳ **2.5 Strateji Lab port** — Streamlit'teki strategy form'u TS'e taşı. PR #10.
-- ⏳ **2.6 Veri İstasyonu port** — sembol grupları yönetimi. PR #10.
+- [~] **2.5 Strateji Lab port** — StrategyPanel temel özellikleri kapsıyor; advanced param formu Sprint 3'te
+- [~] **2.6 Veri İstasyonu port** — Sidebar + her pane dropdown ile kapsanıyor; watchlist Sprint 4'te
 - ⏳ **2.8 Streamlit söküm** — `quant_engine/app/ui_streamlit/` arşivle. PR #12.
 
 **Mini PR (sıradaki):**
@@ -284,9 +286,9 @@ Plan, CLAUDE.md, `.claude/` iskelet klasörleri, kararların kayda geçmesi.
 
 ## Sıradaki Adım
 
-**PR #8 mini — Chart üstünde BUY/SELL marker'ları.** 30-45 dakika, görsel kazanç büyük. "Devam" dersen başlatırım.
+**Sprint 2 büyük ölçüde tamamlandı.** Sprint 3 de tamamlandı (backtest API + 8 strateji + sinyal feed).
 
-Sonra plan sırası: PR #9 (çoklu pencere) → PR #10 (Streamlit features port) → PR #11 (BIST 100 son) → PR #12 (Streamlit söküm) → **Sprint 3 başlar**.
+**Sıradaki: Sprint 4 — Paper Trading & Portföy.** SQLite paper_trades/paper_portfolio şemaları, strateji-bazlı izole sandık, otonom robot-executor, canlı PnL hesabı.
 
 ---
 

@@ -297,7 +297,7 @@ Tek `Notifier` servisi tüm kanalları soyutlar; sinyal motoru fan-out ile hepsi
 ### Sprint 2 — Frontend Birleşimi (TS Tek Terminal)
 - [x] 2.1 PiyasaPilot v2'ye Market Explorer (sol panel tree/accordion). _PR öncesi mevcut: `Sidebar.ts` kategori-akordeon + arama + ticker._
 - [x] 2.2 BIST 100 / Kripto / Forex-Emtia kategorileri. _PR #6 dublike+yanlış sembol temizliği; PR #10 +10 yeni güvenli BIST sembolü (AKFYE, ALFAS, ASTOR, BIENY, BRSAN, GWIND, KAREL, KCAER, KMPUR, PAPIL) → BIST30 30 + BIST100_EXTRA 68 = **98 sembol**. BIST 100 üyeliği Borsa İstanbul tarafından her dönem revize edilir; ≥98 yeterli kapsama._
-- [ ] 2.3 Çoklu pencere layout (split / grid; her pencere kendi sembol/timeframe). _PR #8_
+- [x] 2.3 Çoklu pencere layout (split / grid; her pencere kendi sembol/timeframe). _PR #8: `MultiChartLayout.ts` — 4 layout modu (1×1, 1×2, 2×1, 2×2), her pane kendi ChartPanel + sembol dropdown + opsiyonel WS bağlantısı; G kısayolu ile layout döngüsü; aktif pane mavi border + strateji paneli senkronizasyonu._
 - [x] 2.4 Fullscreen düğmesi. _Mevcut: `ChartPanel.ts:158` `<button id="fullscreen-btn">` + F kısayolu + `requestFullscreen`/CSS fallback. PR #6'da retroaktif tick._
 - [~] 2.5 Streamlit'in Strateji Lab → TS'te. _Mevcut TS `StrategyPanel` çekirdek özellikleri kapsıyor (3 strateji + backtest metrics + equity curve + sinyal listesi + chart marker'ları). Advanced parametre formu (ema fast/slow input vs.) Sprint 3'te API tabanlı `POST /api/backtest/run`'la birlikte gelecek; oraya kadar TS-içi yeterli._
 - [~] 2.6 Streamlit'in Veri İstasyonu → TS'te. _Sidebar zaten kategori-akordeon + arama yönetimi sağlıyor. Sembol grup persistence (custom watchlist'ler) Sprint 4 paper portfolio ile birlikte JSON store üzerinden gelecek._
@@ -310,9 +310,9 @@ Tek `Notifier` servisi tüm kanalları soyutlar; sinyal motoru fan-out ile hepsi
 - [x] 3.2 `POST /api/backtest/run` endpoint (Python `BacktestEngine`). _PR #11: cache-aware runner + Pydantic istek modeli + 4 hata durumu (unknown strategy / yetersiz data / invalid params / unknown key)._
 - [x] 3.3 Strateji blueprint formatı (parametre şeması + meta). _PR #11: `backend/backtest/blueprints.py` — id/label/description/default_params/schema; `GET /api/backtest/strategies` ile expose._
 - [x] 3.4 TS'te `StrategyPanel` → API'ye `POST` atıyor, equity eğrisini Chart.js ile çiziyor. _PR #12: `fetch('/api/backtest/run')` + 30s timeout + hata mesajı + `lastRunKey` debounce (her tick yerine sembol/strategy değişiminde tetikler); equity eğrisi backend `equity_curve[].total_equity` üzerinden çizilir; `signals[]` ChartPanel marker'a doğal akış._
-- [ ] 3.5 Live signal feed: `/ws/signals` (DecisionEngine her bar kapanışında çalışır).
-- [ ] 3.6 TS'te `SignalFeed` panel.
-- [ ] 3.7 Eski 4 strateji + yeni 4 strateji (toplam 8): EMA cross, RSI mean-rev, BB rev, breakout, **donchian breakout, MACD div, supertrend, mean-reversion VWAP**. _PR #11: 4 mevcut strateji blueprint'lendi (sma_crossover, rsi_reversion, bollinger_reversion, buy_and_hold); 4 yeni Sprint 3.7 ile gelecek._
+- [x] 3.5 Live signal feed: `/ws/signals` (DecisionEngine her bar kapanışında çalışır). _PR #13: `SignalBus` + `SignalGenerator`; `on_bar` hook tüm worker'lara bağlı._
+- [x] 3.6 TS'te `SignalFeed` panel. _PR #14: `SignalFeed.ts` — `/ws/signals` WS, otomatik yeniden bağlanma, max 50 sinyal, en yeni üstte; "Sinyaller" tab (klavye kısayolu 5)._
+- [x] 3.7 Eski 4 strateji + yeni 4 strateji (toplam 8): EMA cross, RSI mean-rev, BB rev, breakout, **donchian breakout, MACD div, supertrend, mean-reversion VWAP**. _PR #14: `donchian_breakout`, `macd_divergence`, `supertrend`, `mean_reversion_vwap` eklendi; `blueprints.py` 8 stratejiye güncellendi; `StrategyPanel.ts` 8 kart._
 
 ### Sprint 4 — Paper Trading & Portföy
 - [ ] 4.1 SQLite şeması: `paper_trades`, `paper_portfolio`, `paper_equity_curve`.

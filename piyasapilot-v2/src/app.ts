@@ -1,11 +1,12 @@
 import type { Timeframe, DataUpdateEvent, PriceUpdateEvent } from './types.js';
 import { dataEngine } from './core/DataEngine.js';
 import { PortfolioEngine } from './core/PortfolioEngine.js';
-import { ChartPanel } from './components/ChartPanel.js';
+import { MultiChartLayout, type LayoutMode } from './components/MultiChartLayout.js';
 import { Sidebar } from './components/Sidebar.js';
 import { PortfolioPanel } from './components/PortfolioPanel.js';
 import { StrategyPanel } from './components/StrategyPanel.js';
 import { Screener } from './components/Screener.js';
+import { SignalFeed } from './components/SignalFeed.js';
 import { TR, formatAgo } from './constants/tr.js';
 
 // ─── App shell elements ───────────────────────────────────────────────────────
@@ -32,17 +33,21 @@ const chartEl     = createPanel('panel-chart');
 const portfolioEl = createPanel('panel-portfolio');
 const strategyEl  = createPanel('panel-strategy');
 const screenerEl  = createPanel('panel-screener');
+const signalsEl   = createPanel('panel-signals');
 
 // ─── Component instances ──────────────────────────────────────────────────────
 
 const portfolioEngine = new PortfolioEngine();
 const sidebar         = new Sidebar(sidebarEl);
-const chartPanel      = new ChartPanel(chartEl);
+const multiChart      = new MultiChartLayout(chartEl);
 const portfolioPanel  = new PortfolioPanel(portfolioEl, portfolioEngine);
 const strategyPanel   = new StrategyPanel(strategyEl);
 // Screener is self-contained; reference kept to prevent GC
 const _screener = new Screener(screenerEl, () => dataEngine.getAllCached());
 void _screener;
+// SignalFeed connects on instantiation; reference kept to prevent GC
+const _signalFeed = new SignalFeed(signalsEl);
+void _signalFeed;
 
 // ─── Tab routing ──────────────────────────────────────────────────────────────
 
@@ -52,13 +57,14 @@ function showTab(tab: string): void {
   portfolioEl.style.display = tab === 'portfolio' ? 'flex' : 'none';
   strategyEl.style.display  = tab === 'strategy'  ? 'flex' : 'none';
   screenerEl.style.display  = tab === 'screener'  ? 'flex' : 'none';
+  signalsEl.style.display   = tab === 'signals'   ? 'flex' : 'none';
 
   // Trigger backtest when strategy tab becomes visible
-  if (tab === 'strategy' && dataEngine.getActiveCandles().length > 0) {
+  if (tab === 'strategy' && multiChart.getActivePaneCandles().length > 0) {
     strategyPanel.setCandles(
-      dataEngine.getActiveCandles(),
-      dataEngine.getActiveSymbol().symbol,
-      dataEngine.getActiveTimeframe(),
+      multiChart.getActivePaneCandles(),
+      multiChart.getActivePaneSymbol().symbol,
+      multiChart.getActivePaneTimeframe(),
     );
   }
 }
@@ -70,23 +76,36 @@ tabBtns.forEach(btn => {
 // Default tab
 showTab('chart');
 
-// ─── Keyboard shortcuts (1–4 = tabs, F = fullscreen) ─────────────────────────
+// ─── Keyboard shortcuts (1–5 = tabs, F = fullscreen, G = cycle layout) ──────
 
 document.addEventListener('keydown', (e) => {
-  if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+  if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement) return;
   switch (e.key) {
     case '1': showTab('chart');     break;
     case '2': showTab('portfolio'); break;
     case '3': showTab('strategy');  break;
     case '4': showTab('screener');  break;
+    case '5': showTab('signals');   break;
+    case 'g':
+    case 'G': {
+      // Layout döngüsü: 1x1 → 1x2 → 2x2 → 1x1
+      const cycle: LayoutMode[] = ['1x1', '1x2', '2x2'];
+      const current = multiChart.getLayout();
+      const idx = cycle.indexOf(current);
+      const next = cycle[(idx + 1) % cycle.length]!;
+      multiChart.setLayout(next);
+      break;
+    }
     // 'F' and timeframe shortcuts are handled within ChartPanel
   }
 });
 
-// ─── Timeframe change from ChartPanel ─────────────────────────────────────────
+// ─── Timeframe change from active ChartPanel ─────────────────────────────────
 
 chartEl.addEventListener('timeframeChange', (e) => {
   const tf = (e as CustomEvent<Timeframe>).detail;
+  multiChart.setActivePaneTimeframe(tf);
+  // Ana DataEngine'i de güncelle (sidebar ticker'lar için)
   dataEngine.setTimeframe(tf);
 });
 
@@ -95,23 +114,42 @@ chartEl.addEventListener('timeframeChange', (e) => {
 sidebar.onSymbolSelect(async (info) => {
   symbolTitle.textContent = `${info.name} (${info.symbol})`;
   sidebar.setActiveSymbol(info.symbol);
-  // Sembol değişti — eski stratejinin marker'ları yeni mum grafiğinde
-  // saçma duracak, yeni veri gelene kadar temizle.
-  chartPanel.clearSignals();
+  // Aktif pane'in sembolünü değiştir
+  multiChart.clearSignals();
+  await multiChart.setActivePaneSymbol(info);
+  // Ana DataEngine'i de güncelle (portfolio ve screener için)
   await dataEngine.setActiveSymbol(info);
 });
 
-// Strateji panelinin ürettiği BUY/SELL sinyallerini chart üstünde marker
-// olarak çiz. Aktif tab strategy değil olsa bile pipeline bağlı kalır;
-// kullanıcı chart sekmesindeyken de stratejinin işaretlerini görür.
-strategyPanel.onSignalsUpdate(signals => chartPanel.setSignals(signals));
+// Aktif pane değiştiğinde sembol başlığını güncelle
+multiChart.onActivePaneChange(() => {
+  const sym = multiChart.getActivePaneSymbol();
+  symbolTitle.textContent = `${sym.name} (${sym.symbol})`;
+  sidebar.setActiveSymbol(sym.symbol);
 
-// ─── Data Engine events ───────────────────────────────────────────────────────
+  // Strateji panelini yeni pane'in verisiyle güncelle
+  const candles = multiChart.getActivePaneCandles();
+  if (candles.length > 0) {
+    strategyPanel.setCandles(candles, sym.symbol, multiChart.getActivePaneTimeframe());
+  }
+});
+
+// Pane'de sembol değiştiğinde strateji panelini güncelle
+multiChart.onSymbolChange((_paneId, info) => {
+  const activePane = multiChart.getActivePane();
+  if (activePane && activePane.symbol.symbol === info.symbol) {
+    symbolTitle.textContent = `${info.name} (${info.symbol})`;
+    sidebar.setActiveSymbol(info.symbol);
+  }
+});
+
+// Strateji panelinin ürettiği BUY/SELL sinyallerini aktif pane'in chart'ına çiz.
+strategyPanel.onSignalsUpdate(signals => multiChart.setSignals(signals));
+
+// ─── Data Engine events (sidebar ticker + portfolio + screener) ──────────────
 
 dataEngine.onDataUpdate((evt: DataUpdateEvent) => {
   if (evt.candles.length === 0) return;
-
-  chartPanel.setData(evt.candles);
 
   // Strateji panelini her zaman besle — chart sekmesindeyken de
   // marker'lar görünür kalsın diye signal pipeline bağlı tutulur.
@@ -162,4 +200,4 @@ setInterval(() => {
 
 // Sidebar will trigger setActiveSymbol from restoreLastSymbol() internally.
 // If nothing is in localStorage the default symbol (BTCUSDT) fires automatically.
-console.info('PiyasaPilot v2.0 başlatıldı');
+console.info('PiyasaPilot v2.0 başlatıldı — çoklu pencere layout aktif');

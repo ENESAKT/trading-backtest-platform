@@ -64,7 +64,10 @@ def test_strategies_endpoint_lists_blueprints(tmp_path):
     client, _ = _build_client(tmp_path)
     body = client.get("/api/backtest/strategies").json()
     ids = {s["id"] for s in body["strategies"]}
-    assert ids == {"sma_crossover", "rsi_reversion", "bollinger_reversion", "buy_and_hold"}
+    assert ids == {
+        "sma_crossover", "rsi_reversion", "bollinger_reversion", "buy_and_hold",
+        "donchian_breakout", "macd_divergence", "supertrend", "mean_reversion_vwap",
+    }
     sma = next(s for s in body["strategies"] if s["id"] == "sma_crossover")
     assert sma["default_params"] == {"fast_period": 10, "slow_period": 30}
     assert any(f["key"] == "fast_period" for f in sma["schema"])
