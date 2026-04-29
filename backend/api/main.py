@@ -214,10 +214,20 @@ def create_app(
         await supervisor.start_all()
         executor_task = asyncio.create_task(_paper_executor_loop())
         try:
+            from backend.notifier.telegram import bildir_bot_basladi
+            asyncio.create_task(bildir_bot_basladi())
+        except Exception:  # noqa: BLE001
+            pass
+        try:
             yield
         finally:
             executor_task.cancel()
             await supervisor.stop_all()
+            try:
+                from backend.notifier.telegram import bildir_bot_durdu
+                await bildir_bot_durdu()
+            except Exception:  # noqa: BLE001
+                pass
 
     app = FastAPI(
         title="PiyasaPilot Gateway",

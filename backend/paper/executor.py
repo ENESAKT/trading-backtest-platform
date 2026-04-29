@@ -5,7 +5,6 @@ from __future__ import annotations
 import asyncio
 import datetime as dt
 import logging
-from pathlib import Path
 from typing import Any
 
 from backend.paper.db import PaperDB
@@ -16,19 +15,14 @@ COMMISSION_RATE = 0.001   # %0.1
 POSITION_SIZE_PCT = 0.10  # her işlemde cüzdanın %10'u
 DAILY_LOSS_LIMIT_PCT = 0.10  # günlük max %10 zarar → dondur
 
-_DEFAULT_DB = "data/cache/ohlcv.sqlite3"
-
 
 class PaperExecutor:
     """Strateji-bazlı izole sanal cüzdan yöneticisi."""
 
     def __init__(self, db: PaperDB) -> None:
         self.db = db
-        # strategy_id → {symbol → trade_id}
         self._open_positions: dict[str, dict[str, int]] = {}
-        # strategy_id → entry_price
         self._entry_prices: dict[str, dict[str, float]] = {}
-        # strategy_id → quantity
         self._quantities: dict[str, dict[str, float]] = {}
         self._processed = 0
         self._executed = 0
@@ -46,10 +40,7 @@ class PaperExecutor:
             wallet["daily_loss"] = 0.0
             wallet["daily_reset_date"] = today
             self.db.update_wallet(
-                wallet["strategy_id"],
-                wallet["cash"],
-                0.0,
-                today,
+                wallet["strategy_id"], wallet["cash"], 0.0, today
             )
         return wallet
 
@@ -61,82 +52,112 @@ class PaperExecutor:
         )
         total = wallet["cash"] + positions_val
         self.db.record_equity_snapshot(
-            strategy_id,
-            self._utc_now(),
-            total,
-            wallet["cash"],
-            positions_val,
+            strategy_id, self._utc_now(), total, wallet["cash"], positions_val
         )
 
     async def process_signal(self, signal: dict[str, Any]) -> None:
         if signal.get("type") != "signal":
             return
         self._processed += 1
+
         strategy_id: str = signal.get("strategy_id", "")
         symbol: str = signal.get("symbol", "").upper()
         sig_type: str = signal.get("signal_type", "").upper()
         price: float = float(signal.get("price", 0))
-        reason: str = signal.get("reason", "")
 
         if not strategy_id or not symbol or price <= 0 or sig_type not in ("BUY", "SELL"):
             return
 
+        # Sinyali bildirimlere ilet (STRONG sinyallerde)
+        if sig_type in ("STRONG_BUY", "STRONG_SELL") or signal.get("strength", 0) >= 7:
+            try:
+                from backend.notifier.telegram import bildir_yeni_sinyal
+                asyncio.create_task(bildir_yeni_sinyal(signal))
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("telegram sinyal bildirimi gönderilemedi: %s", exc)
+
         loop = asyncio.get_running_loop()
-        await loop.run_in_executor(None, self._handle, strategy_id, symbol, sig_type, price, reason)
+        bildirim = await loop.run_in_executor(
+            None, self._handle, strategy_id, symbol, sig_type, price,
+            signal.get("reason", "")
+        )
+
+        if bildirim:
+            await self._gonder_bildirim(bildirim)
+
+    async def _gonder_bildirim(self, bildirim: dict[str, Any]) -> None:
+        try:
+            tur = bildirim.get("tur")
+            if tur == "alim":
+                from backend.notifier.telegram import bildir_alim
+                await bildir_alim(
+                    bildirim["strategy_id"], bildirim["symbol"],
+                    bildirim["price"], bildirim["quantity"],
+                    bildirim["tutar"], bildirim["reason"],
+                )
+            elif tur == "satim":
+                from backend.notifier.telegram import bildir_satim
+                await bildir_satim(
+                    bildirim["strategy_id"], bildirim["symbol"],
+                    bildirim["price"], bildirim["quantity"],
+                    bildirim["pnl"], bildirim["reason"],
+                )
+            elif tur == "donduruldu":
+                from backend.notifier.telegram import bildir_cuzdан_donduruldu
+                await bildir_cuzdан_donduruldu(
+                    bildirim["strategy_id"],
+                    bildirim["daily_loss"],
+                    bildirim["initial_capital"],
+                )
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("telegram bildirim hatası: %s", exc)
 
     def _handle(
-        self, strategy_id: str, symbol: str, sig_type: str, price: float, reason: str
-    ) -> None:
+        self, strategy_id: str, symbol: str, sig_type: str,
+        price: float, reason: str,
+    ) -> dict[str, Any] | None:
         wallet = self.db.get_or_create_wallet(strategy_id)
         wallet = self._reset_daily_if_needed(wallet)
 
         if wallet["is_halted"]:
             self._halted += 1
-            return
+            return None
 
         if sig_type == "BUY":
-            self._handle_buy(strategy_id, symbol, price, reason, wallet)
-        else:
-            self._handle_sell(strategy_id, symbol, price, reason, wallet)
+            return self._handle_buy(strategy_id, symbol, price, reason, wallet)
+        return self._handle_sell(strategy_id, symbol, price, reason, wallet)
 
     def _handle_buy(
-        self,
-        strategy_id: str,
-        symbol: str,
-        price: float,
-        reason: str,
-        wallet: dict[str, Any],
-    ) -> None:
-        # Zaten açık pozisyon varsa al
+        self, strategy_id: str, symbol: str, price: float,
+        reason: str, wallet: dict[str, Any],
+    ) -> dict[str, Any] | None:
         open_pos = self._open_positions.get(strategy_id, {})
         if symbol in open_pos:
-            return
+            return None
 
         allocation = wallet["cash"] * POSITION_SIZE_PCT
         if allocation < price:
-            return  # yetersiz nakit
+            return None
 
         quantity = allocation / price
         commission = allocation * COMMISSION_RATE
         total_cost = allocation + commission
 
         if wallet["cash"] < total_cost:
-            return
+            return None
 
         now = self._utc_now()
         trade_id = self.db.record_trade(
-            strategy_id=strategy_id,
-            symbol=symbol,
-            side="BUY",
-            price=price,
-            quantity=quantity,
-            commission=commission,
-            opened_at=now,
-            reason=reason,
+            strategy_id=strategy_id, symbol=symbol, side="BUY",
+            price=price, quantity=quantity, commission=commission,
+            opened_at=now, reason=reason,
         )
 
         wallet["cash"] -= total_cost
-        self.db.update_wallet(strategy_id, wallet["cash"], wallet["daily_loss"], wallet["daily_reset_date"])
+        self.db.update_wallet(
+            strategy_id, wallet["cash"],
+            wallet["daily_loss"], wallet["daily_reset_date"]
+        )
 
         if strategy_id not in self._open_positions:
             self._open_positions[strategy_id] = {}
@@ -151,17 +172,23 @@ class PaperExecutor:
         self._executed += 1
         logger.info("paper BUY %s %s @ %.4f qty=%.4f", strategy_id, symbol, price, quantity)
 
+        return {
+            "tur": "alim",
+            "strategy_id": strategy_id,
+            "symbol": symbol,
+            "price": price,
+            "quantity": quantity,
+            "tutar": allocation,
+            "reason": reason,
+        }
+
     def _handle_sell(
-        self,
-        strategy_id: str,
-        symbol: str,
-        price: float,
-        reason: str,
-        wallet: dict[str, Any],
-    ) -> None:
+        self, strategy_id: str, symbol: str, price: float,
+        reason: str, wallet: dict[str, Any],
+    ) -> dict[str, Any] | None:
         open_pos = self._open_positions.get(strategy_id, {})
         if symbol not in open_pos:
-            return
+            return None
 
         trade_id = open_pos[symbol]
         entry_price = self._entry_prices[strategy_id][symbol]
@@ -177,33 +204,48 @@ class PaperExecutor:
 
         wallet["cash"] += net_proceeds
         new_daily_loss = wallet["daily_loss"] + (pnl if pnl < 0 else 0)
-        self.db.update_wallet(strategy_id, wallet["cash"], new_daily_loss, wallet["daily_reset_date"])
+        self.db.update_wallet(
+            strategy_id, wallet["cash"],
+            new_daily_loss, wallet["daily_reset_date"]
+        )
 
-        # Risk limit kontrolü
+        donduruldu = False
         initial = wallet["initial_capital"]
         if abs(new_daily_loss) / initial >= DAILY_LOSS_LIMIT_PCT:
             self.db.halt_strategy(strategy_id)
             logger.warning("paper executor: %s donduruldu (günlük zarar limiti)", strategy_id)
+            donduruldu = True
 
         del self._open_positions[strategy_id][symbol]
         del self._entry_prices[strategy_id][symbol]
         del self._quantities[strategy_id][symbol]
 
-        wallet["cash"] = wallet["cash"]
         wallet["daily_loss"] = new_daily_loss
         self._equity_snapshot(strategy_id, wallet)
         self._executed += 1
-        logger.info(
-            "paper SELL %s %s @ %.4f pnl=%.2f", strategy_id, symbol, price, pnl
-        )
+        logger.info("paper SELL %s %s @ %.4f pnl=%.2f", strategy_id, symbol, price, pnl)
+
+        if donduruldu:
+            return {
+                "tur": "donduruldu",
+                "strategy_id": strategy_id,
+                "daily_loss": new_daily_loss,
+                "initial_capital": initial,
+            }
+
+        return {
+            "tur": "satim",
+            "strategy_id": strategy_id,
+            "symbol": symbol,
+            "price": price,
+            "quantity": quantity,
+            "pnl": pnl,
+            "reason": reason,
+        }
 
     def update_prices(self, price_map: dict[str, float]) -> None:
-        """Unrealized PnL takibi için fiyatları güncelle (loglama yok)."""
-        for strategy_id, positions in self._open_positions.items():
-            for symbol in list(positions):
-                if symbol in price_map:
-                    # Sadece in-memory güncelle — gerçek PnL SELL'de hesaplanır
-                    pass  # entry_prices kasıtlı olarak değiştirilmiyor
+        """Unrealized PnL takibi için fiyatları güncelle."""
+        pass  # entry_prices kasıtlı olarak değiştirilmiyor; PnL SELL'de hesaplanır
 
     def stats(self) -> dict[str, Any]:
         return {

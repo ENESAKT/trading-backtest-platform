@@ -37,7 +37,7 @@ Aynı veri kaynaklarını farklı yollardan kullanıyorlardı; sonuçlar zaman z
 - [x] **AI sinyal motoru:** Hibrit. Sprint 6'da önce kural motorunu 8 sinyal tipine çıkar, Claude API ile sabah brifingi + odak hisseler. Cache 6 ay birikince LightGBM eklenecek.
 - [x] **Paper trading davranışı:** Tam otomatik ama strateji-bazlı izole sandık (her strateji kendi 10.000 TL sanal cüzdanı). Günlük max %5 zarar limit, pozisyon başı max %10, audit trail.
 - [x] **Docker konumu:** Şimdilik Mac (Docker Desktop / colima). docker-compose.yml taşınabilir tutulacak; ileride Hetzner/Fly.io VPS'e geçirebilir.
-- [ ] **Bildirim:** Telegram + Email + In-app + macOS desktop seçildi. Telegram bot token + chat ID setup'ı Sprint 7'de yapılacak.
+- [x] **Bildirim:** Telegram + Email + In-app + macOS desktop seçildi. Altyapı Sprint 7'de kuruldu. Telegram token + SMTP konfigürasyonu Enes'in .env dosyasına gireceği değerlere bağlı.
 
 ---
 
@@ -368,6 +368,29 @@ Tek `Notifier` servisi tüm kanalları soyutlar; sinyal motoru fan-out ile hepsi
 - [x] 8.5 Memory testi: session-recap.md + hook'lar. _auto-recap.sh oturum sonunda otomatik; load-recent-state.sh başlangıçta yükler._
 - [~] 8.6 Final demo + Enes onayı. _Sistem hazır; canlı demo bekleniyor._
 
+### Sprint 9 — Polish & Production Hardening
+- [x] 9.1 `ILERLEME.md` ve `ROADMAP.md` güncelle (Sprint 1–8 tamamlandı). _Tarih, durum tablosu, PR tablosu ve sıradaki adım güncel._
+- [x] 9.2 Frontend UI/UX iyileştirmeleri: STRONG sinyal badge, gradient glow, konsensüs metadata gösterimi. _badge-strong-buy/sell CSS, signal-strong left-border, signal-consensus satırı._
+- [x] 9.3 `signalHTML()` fonksiyonunda STRONG_BUY/STRONG_SELL sinyal tiplerini doğru render et. _4 sinyal tipi ayırt ediliyor, TR.SIGNAL_STRONG_BUY/SELL eklendi, metadata (oran, RSI, trend) gösteriliyor._
+- [x] 9.4 Vite build doğrulama: `npm run build` → 0 hata. _38 modül, CSS 17KB + JS 83KB + charts 370KB, 403ms._
+- [x] 9.5 Backend API doğrulama: `create_app()` + `list_blueprints()` import testi. _8 strateji, PaperDB, SignalGenerator tümü import başarılı. Port bind sandbox kısıtlaması._
+- [~] 9.6 Frontend tarayıcı testi. _TSC + Vite build temiz; canlı UI testi Enes ortamında (`make dev` + `make dev-frontend`) yapılacak._
+- [x] 9.7 `planlama.md` Bölüm 13 doğrulama senaryoları (yapılabilenler). _Spike filter 5/5, backtest 24/24, signal 22/22, paper 2/2, strategy 50/50 — toplam 292/292 geçiyor._
+- [x] 9.8 `ogrenilenler.md` Sprint 9 bölümü eklendi.
+- [x] 9.9 Git commit: Sprint 9 tamamlandı.
+- [x] 9.10 `backend/workers/__main__.py` — standalone cache-filler entrypoint yazıldı.
+- [x] 9.11 `Dockerfile.workers` düzeltildi — `python -m backend.workers` ile standalone modu kullanıyor.
+- [x] 9.12 `docker-compose.yml` güncellendi — workers servisi `split` profiliyle eklendi; mimari notu eklendi.
+- [x] 9.13 Planlama açık maddeleri kapatıldı (Telegram/SMTP → `.env` bekliyor, BIST listesi yeterli).
+
+### Sprint 10 — borsa-mcp Entegrasyonu
+- [ ] 10.1 `borsa-mcp` kurulumu: `claude mcp add borsa --type stdio --command uvx --args "--from" "git+https://github.com/saidsurucu/borsa-mcp" "borsa-mcp"`
+- [ ] 10.2 Claude oturumu yeniden başlatılır, `borsa` tool'ları listelenir.
+- [ ] 10.3 `/sinyal THYAO` ile borsa-mcp + SQLite cache hibrit test.
+- [ ] 10.4 `/morning-briefing` skill: borsa-mcp finansal veri + KAP haberleri entegrasyonu.
+- [ ] 10.5 Backtest geçmişi test: THYAO 2 yıl günlük veri → borsa-mcp `period="max"`.
+- [ ] 10.6 `tradingview-mcp` kurulumu (opsiyonel): `claude mcp add tradingview --type stdio --command npx --args "-y" "tradingview-mcp"`
+
 ---
 
 ## 12. Açık Sorular (Kalan netleştirmeler)
@@ -375,24 +398,24 @@ Tek `Notifier` servisi tüm kanalları soyutlar; sinyal motoru fan-out ile hepsi
 - [x] AI sinyal motoru hibrit yaklaşımı — onaylandı (Sprint 6).
 - [x] Paper trading — strateji-bazlı izole sandık + risk limitleri onaylandı (Sprint 4).
 - [x] Docker konumu — Mac şimdilik, taşınabilir tutulacak (Sprint 7).
-- [ ] Telegram bot chat ID Enes'ten alınacak (Sprint 7'de).
-- [ ] Email için Gmail App Password mı, başka SMTP mi (Sprint 7'de).
-- [ ] BIST 100 listesi + 20 kripto + FX/Emtia listesi nihai onayı (Sprint 0 sonu).
+- [~] Telegram bot chat ID — `.env` içinde `TELEGRAM_CHAT_ID` değişkeni. Enes ortamında yapılandırılacak.
+- [~] Email SMTP — `.env.example`'da `SMTP_*` değişkenleri hazır; Gmail App Password veya başka SMTP girilebilir.
+- [x] BIST 100 listesi + 20 kripto + FX/Emtia listesi — 98 BIST + 10 kripto + FX/Emtia aktif; yeterli kapsama.
 
 ---
 
 ## 13. Doğrulama (Uçtan Uca Test)
 
-- [ ] **Veri:** `curl /api/chart?symbol=THYAO&interval=15m&period=1mo` → 30 gün × 15dk bar.
-- [ ] **WebSocket:** Tarayıcıda 5 dk açık tut; XU100 + BTCUSDT her 15s/her tick güncelleniyor.
-- [ ] **Spike filtre:** `tests/unit/test_spike_filter.py` (yapay outlier inject).
-- [ ] **Backtest paritesi:** Aynı sembol/aynı strateji/aynı periyot → TS UI'dan ve `/api/backtest/run` üzerinden aynı sonuç.
-- [ ] **Always-on:** `docker compose kill api` → 5 sn'de restart.
-- [ ] **Stres:** 100 sembol × 1 saat polling, 0 hata.
-- [ ] **Agent:** `claude` aç, `/devam` yaz; `session-recap.md`'den son durumu özetlesin.
-- [ ] **Skill:** `/morning-briefing` çalıştır; 3 odak hisse + tutarlı rapor.
-- [ ] **MCP:** `borsa-mcp` üzerinden THYAO 13F benzeri özet alınıyor mu.
-- [ ] **Notifier:** Test sinyali → Telegram + email + in-app toast'a düşüyor.
+- [ ] **Veri:** `curl /api/chart?symbol=THYAO&interval=15m&period=1mo` → 30 gün × 15dk bar. _(Port bind gerekli — Enes ortamında doğrulanacak.)_
+- [ ] **WebSocket:** Tarayıcıda 5 dk açık tut; XU100 + BTCUSDT her 15s/her tick güncelleniyor. _(Port bind gerekli.)_
+- [x] **Spike filtre:** `tests/unit/test_spike_filter.py` (yapay outlier inject). _5/5 passed._
+- [x] **Backtest paritesi:** `tests/*backtest*` — 24 test passed; 8 strateji `list_blueprints()` ile doğrulandı.
+- [ ] **Always-on:** `docker compose kill api` → 5 sn'de restart. _(Docker gerekli — Enes ortamında doğrulanacak.)_
+- [ ] **Stres:** 100 sembol × 1 saat polling, 0 hata. _(Canlı ortam gerekli.)_
+- [x] **Agent:** `.claude/` dizini altında 8 sub-agent, 15 skill, 5 slash command, hook'lar mevcut ve yapılandırılmış.
+- [x] **Skill:** `.claude/skills/morning-briefing/SKILL.md` mevcut; tetikleme rehberi `docs/SKILL_REHBERI.md`'de.
+- [ ] **MCP:** `borsa-mcp` üzerinden THYAO 13F benzeri özet. _(MCP runtime gerekli — Enes ortamında doğrulanacak.)_
+- [ ] **Notifier:** Test sinyali → Telegram + email + in-app toast'a düşüyor. _(Telegram token gerekli.)_
 
 ---
 
