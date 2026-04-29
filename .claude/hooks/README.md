@@ -1,23 +1,29 @@
 # Hooks
 
-Bu klasör shell script formundaki hook'ları tutar. Hook'lar `.claude/settings.json` üzerinden bağlanır.
+Bu klasor hook scriptleri icindir. Su an aktif hook yoktur.
 
-## Sprint 5'te kurulacak 5 hook (planlama.md §7.4)
+Guvenli varsayilan:
 
-| Event | Hook | Amaç |
-|-------|------|------|
-| `SessionStart` | `check-services.sh` | Docker + cache + planlama.md durumunu kontrol et |
-| `UserPromptSubmit` | `load-recent-state.sh` | `session-recap.md`'yi sistem mesajı olarak inject et |
-| `PostToolUse` (Edit/Write) | `lint.sh` | `ruff check --fix` + `npm run lint` |
-| `SubagentStop` | `persist-agent-output.sh` | Agent çıktısını `.claude/agent-logs/` altına yaz |
-| `Stop` | `auto-recap.sh` | `session-recap.md`'yi yenile, `planlama.md` checkbox'larını güncelle |
+- Hook'lar onaysiz aktif edilmez.
+- `SessionStart` ve `UserPromptSubmit` context inject edecekse 30-50 satirlik
+  kisa ozetle sinirlanir.
+- `PostToolUse` hook'u otomatik `ruff`, `npm`, test veya format calistirmaz.
+- `Stop` hook'u dosya yazmaz, checkbox guncellemez, commit/PR islemi yapmaz.
+- `SubagentStop` hook'u agent ciktisini ana context'e otomatik yuklemez.
 
-## Hook script formatı
+Riskli hook ornekleri:
 
-```bash
-#!/bin/bash
-# .claude/hooks/example.sh
-# stdin: JSON event payload
-# stdout: opsiyonel JSON systemMessage
-# exit 0: devam | exit 2: blok et + stderr'i kullanıcıya göster
-```
+- Otomatik full test suite.
+- Otomatik lint/fix.
+- Otomatik session recap yazimi.
+- Otomatik planlama checkbox guncellemesi.
+- Otomatik commit, push, PR veya merge.
+
+Hook eklenirse once bu sorular cevaplanmali:
+
+1. Hangi event?
+2. Hangi komut?
+3. Maksimum calisma suresi?
+4. Context'e kac satir donecek?
+5. Dosya yazacak mi?
+6. Enes onayi olmadan test/git islemi yapacak mi?

@@ -1,128 +1,80 @@
-# Backtest + PiyasaPilot — Claude Çalışma Rehberi
+# Backtest + PiyasaPilot - Claude Calisma Rehberi
 
-> Bu dosya yeni bir Claude Code oturumunda **otomatik yüklenir**. Kalıcı bağlam.
-> Detaylı sprint listesi ve karar geçmişi: `planlama.md`. Her zaman önce bu iki dosyayı oku.
+> Bu dosya yeni Claude Code oturumunda otomatik yuklenir. Varsayilan mod
+> guvenlidir: once plan, sonra kullanici onayi, sonra sinirli uygulama.
 
----
+## Proje Ozeti
 
-## 1. Proje tek cümlede
+`/Users/enes/AgentWorkspace/Backtest` Python backend (`quant_engine/`,
+`backend/`) ve TypeScript/Vite SPA (`piyasapilot-v2/`) iceren trading terminali
+reposudur.
 
-`/Users/enes/AgentWorkspace/Backtest` — BIST, Kripto, Forex ve Emtia için **TradingView benzeri** tek bir trading terminali. Python backend (`quant_engine/`) + TypeScript SPA (`piyasapilot-v2/`). Hedef: canlı veri (15dk gecikmeli yeterli), 1 ay tarihsel cache, otomatik strateji + paper-trading, kesintisiz çalışan stack.
+Aktif servisler:
 
----
+- FastAPI gateway: `backend/api/main.py`, yerelde port 8000.
+- Frontend: `piyasapilot-v2`, yerelde port 5173.
+- Backtest motoru: `quant_engine/backtest/engine.py`.
+- Sinyal pipeline: `backend/api/signal_bus.py`, `backend/signals/generator.py`,
+  `/ws/signals`.
 
-## 2. Mimari Snapshot
+## Guvenli Varsayilanlar
 
-```
-Tarayıcı (Vite SPA, lightweight-charts)
-   │
-   ▼  /api/v2/candles + WS  (vite dev proxy → :8000)
-FastAPI / live_server (Python)  ← v1 endpoint'ler de korunuyor
-   │
-   ├─ LiveDataService.fetch_candles  (ccxt + yfinance)
-   ├─ BacktestEngine                  (lookahead-free, testli)
-   ├─ DecisionEngine                  (EMA200+BB+RSI, kural tabanlı)
-   └─ Workspace JSON store            (paper trades + cache stub)
-```
+1. Sonnet kullan. Opus ve xhigh yalnizca Enes acikca isterse kullanilir.
+2. Once en fazla 3 ilgili dosya oku ve kisa plan yaz.
+3. Kod yazmadan, test/build calistirmadan, commit/PR/push/merge yapmadan once
+   Enes'ten acik onay al.
+4. Otomatik ilerleme, otomatik PR, otomatik merge ve auto-merge yok.
+5. Uzun sureli shell, watcher, dev server, package install ve full test suite
+   onaysiz calistirilmaz.
+6. Yalnizca is icin gerekli dosyalari oku. Buyuk klasor ve dosyalardan uzak dur:
+   `node_modules`, `.git`, `dist`, `build`, `.next`, `venv`, `.venv`,
+   `__pycache__`, `vendor`, `.pytest_cache`, SQLite/DB dosyalari, lock dosyalari.
+7. Mevcut kullanici degisikliklerini geri alma. Dirty worktree varsa once durumu
+   raporla.
 
-Detaylı mimari ve sprint planı: `planlama.md` (özellikle bölüm 4, 7, 11, 17).
+## Yeni Oturum Baslangici
 
----
+Varsayilan ilk adimlar:
 
-## 3. Port Haritası
+1. `git status --short --branch` ile calisma durumunu ozetle.
+2. Kullanici istegine gore en fazla 3 dosya sec ve nedenini yaz.
+3. Plan ver; uygulama icin onay bekle.
 
-| Port | Servis | Komut |
-|------|--------|-------|
-| 8000 | FastAPI gateway | `python3 live_server.py` |
-| 5173 | Vite dev (SPA) | `cd piyasapilot-v2 && npm run dev` |
+`planlama.md`, `ROADMAP.md`, handoff dosyalari ve test dosyalari yalnizca gerekli
+oldugunda okunur. Her oturumda otomatik olarak buyuk plan dosyalari okunmaz.
 
-Vite, `/api/v2/*` çağrılarını `127.0.0.1:8000`'a proxy eder (vite.config.ts).
+## Test ve Build Politikasi
 
----
+Test/build komutlari referans amaclidir; otomatik calistirilmaz:
 
-## 4. Çalışma Kuralları (Enes'in Kuralları)
+- Python hedefli test: `python -m pytest <hedef-test> -q`
+- Python full suite: `python -m pytest tests/ -q`
+- TS typecheck: `cd piyasapilot-v2 && npm run typecheck`
+- Frontend build: `cd piyasapilot-v2 && npm run build`
 
-1. **6 seviyeli orkestratör akışı:** Komutçu → Planlayıcı → Bağlam Mühendisi → Araç Ustası → Yetenekli Usta → Orkestratör. Her seviye geçişinde "devam" onayı gerekli.
-2. **Sub-agent maliyeti:** Düşük model (Haiku) tercih et; ana orkestratör için Sonnet/Opus.
-3. **DOKUNMA listesi:**
-   - `quant_engine/backtest/engine.py` — sağlam BacktestEngine
-   - `quant_engine/data/providers/{binance,yfinance}_provider.py`
-   - `quant_engine/data/live_feed.py` — `fetch_chart` v1 (paper trading bağımlı)
-4. **Sıfır demo veri:** Provider veri vermezse "Bağlantı Hatası" döndür. Sahte veri yok.
-5. **Tick takibi:** Her sprint görevi `planlama.md`'de checkbox. İş bitince `- [ ]` → `- [x]`.
-6. **Sprint geçişi:** Bir sprint bitmeden sonrakine geçme. Enes açık onay verir.
+Full suite, build, dev server ve watcher icin Enes'ten ayrica onay al.
 
----
+## Git ve PR Politikasi
 
-## 5. Yeni Oturum Açıldığında — İlk 3 Adım
+- Commit, push, PR acma, merge ve auto-merge icin her seferinde acik onay gerekir.
+- `git reset`, `git checkout`, `git clean`, force push ve destructive islemler
+  onaysiz kullanilmaz.
+- PR body ve commit mesaji hazirlanabilir, ancak Enes onaylamadan uygulanmaz.
 
-```bash
-# 1. planlama.md oku → bölüm 17 (Öğrenilenler) + bölüm 11 (Sprint listesi)
-# 2. .claude/memory/session-recap.md oku (varsa) → son oturumun özeti
-# 3. git log --oneline -10 → son commit'lerden durumu doğrula
-```
+## Claude Ekosistemi Politikasi
 
-Sonra `planlama.md` Sprint listesinde ilk açık (`- [ ]`) tick'i bul, oradan başla.
+- Agent, skill, hook, MCP ve slash command kurulumlari varsayilan olarak kapali
+  dusunulur.
+- Yeni agent/skill/hook/MCP eklenirse minimum yetkiyle, Sonnet/Haiku seviyesinde
+  ve otomatik test/commit/PR/merge yapmayacak sekilde tasarlanir.
+- `SessionStart`, `UserPromptSubmit`, `PostToolUse`, `Stop`, `SubagentStop`
+  hook'lari onaysiz aktif edilmez.
 
----
+## Dokunma Listesi
 
-## 6. Veri Sağlayıcıları (Kritik Sınırlar)
+Bu dosyalara degismeden once ekstra dikkat et ve kapsam disi refaktor yapma:
 
-| Sağlayıcı | 15dk barlar | Notlar |
-|-----------|-------------|--------|
-| yfinance | sadece **5 gün** | `period="5d"` hardcoded; rate 60 req/dk |
-| Binance public REST | ~**7 gün** | 1000 kline × 15dk; rate 1200 req/dk |
-| borsapy (saidsurucu) | uzun geçmiş | BIST native; ~15dk gecikmeli |
-
-**1 ay tarihsel için backend rolling cache şart** (Sprint 1).
-
----
-
-## 7. Mevcut v2 API (Aktif)
-
-```
-GET /api/v2/candles?symbol=&interval=&limit=
-```
-
-Sembol formatları (frontend native, backend `_resolve_v2` ile yönlendirir):
-- `BTCUSDT`, `ETHUSDT` → ccxt (Binance)
-- `THYAO.IS`, `XU100` → yfinance BIST
-- `USDTRY=X`, `EURTRY=X` → yfinance FX
-- `GC=F`, `CL=F` → yfinance commodity
-- `AAPL`, `MSFT` → yfinance US equity
-
-Interval: `1m | 5m | 15m | 30m | 1h | 4h | 1d | 1w`. Limit clamp: 20 ≤ x ≤ 1000.
-
----
-
-## 8. Test ve Build Komutları
-
-```bash
-# Python testler
-source .venv/bin/activate && python -m pytest tests/ -v
-
-# TS compile
-cd piyasapilot-v2 && npx tsc --noEmit
-
-# Vite production build
-cd piyasapilot-v2 && npx vite build
-```
-
----
-
-## 9. Git Akışı
-
-- Branch adı: `fix/...`, `feat/...`, `docs/...`, `chore/...`
-- Commit mesajı: kısa imperative başlık + boş satır + ayrıntılar
-- Co-author: `Co-Authored-By: Claude Opus 4.7 <noreply@anthropic.com>`
-- PR body Türkçe, `## Summary`, `## Commits`, `## Test plan` başlıklı
-
----
-
-## 10. Yapılmaması Gerekenler
-
-- `git push --force` main'e — yasak.
-- `--no-verify` ile hook bypass — yasak.
-- Streamlit kullanma — Sprint 2.8'de söküldü (PR #9).
-- TS tarafında bağımsız backtest mantığı — Sprint 3'te tek motor (Python) olacak.
-- API'ye doğrudan erişim (corsproxy.io, api.binance.com fetch) — `/api/v2/candles` üzerinden.
+- `quant_engine/backtest/engine.py`
+- `quant_engine/data/providers/binance_provider.py`
+- `quant_engine/data/providers/yfinance_provider.py`
+- `quant_engine/data/live_feed.py`

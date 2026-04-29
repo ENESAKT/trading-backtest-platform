@@ -1,32 +1,39 @@
 # Skills
 
-Bu klasör projeye özel skill'leri ve tradermonty/claude-trading-skills'ten kopyalanan skill'leri içerir.
+Bu klasor projeye ozel skill'ler icindir. Su an aktif skill yoktur.
 
-```
-.claude/skills/<skill-name>/SKILL.md
-```
+Guvenli varsayilan:
 
-## Frontmatter şablonu
+- Skill'ler otomatik preload edilmez.
+- Skill body kisa tutulur; buyuk referans dosyalari context'e otomatik
+  yuklenmez.
+- `Bash`, test, build, WebSearch ve external API kullanimi acik onay gerektirir.
+- Skill commit, push, PR, merge veya auto-merge yapmaz.
+- Trading/news skill'leri genis web aramasi yapmadan once kapsam sorar.
+
+## Frontmatter sablonu
 
 ```yaml
 ---
-name: skill-adı
-description: Skill ne işe yarar (otomatik invocation için).
-disable-model-invocation: false
-allowed-tools: Read, Bash(pytest *)
+name: skill-adi
+description: Dar kapsamli tetikleme aciklamasi.
+disable-model-invocation: true
+allowed-tools: Read, Grep, Glob
 model: inherit
 ---
-
-Skill prompt body burada.
 ```
 
-## Sprint 5'te kurulacak skill seti (planlama.md §7.2)
+`disable-model-invocation: true` tercih edilir; boylece skill otomatik degil,
+kullanici istegiyle kullanilir.
 
-### tradermonty'den kopyalananlar
-- `backtest-expert`, `position-sizer`, `technical-analyst`
-- `market-news-analyst`, `signal-postmortem`
-- `strategy-pivot-designer`, `scenario-analyzer`, `exposure-coach`
+## Ertelenen sprint fikri
 
-### Projeye özel
-- `validate-spike-filter`, `run-backtest`, `health-check`
-- `morning-briefing`, `paper-trade-status`, `deploy-stack`, `session-recap`
+Eski plan 15 skill oneriyordu. Kurulum yapilacaksa once 2-3 kucuk skill ile
+basla:
+
+- `safe-status`
+- `targeted-review`
+- `handoff-summary`
+
+`market-news-analyst`, `morning-briefing`, `scenario-analyzer`, `run-backtest`
+gibi token veya shell tuketimi yuksek skill'ler onaysiz aktif edilmez.

@@ -35,6 +35,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from backend.api.quote_bus import QuoteBus
+from backend.api.signal_bus import SignalBus
 from backend.backtest import (
     BacktestNotEnoughData,
     BacktestRunError,
@@ -44,6 +45,7 @@ from backend.backtest import (
 )
 from backend.data.cache import OHLCVCache
 from backend.data.spike_filter import filter_bars
+from backend.signals import SignalGenerator
 from backend.data.symbols import (
     BIST_STOCKS,
     CRYPTO_WS_SYMBOLS,
@@ -100,13 +102,23 @@ def _build_default_supervisor(
     cache: OHLCVCache,
     data_service: LiveDataService,
     quote_bus: QuoteBus | None = None,
+    signal_generator: SignalGenerator | None = None,
 ) -> WorkerSupervisor:
     """Üretim modunda kullanılan varsayılan worker seti.
 
-    ``quote_bus`` verilirse her worker bar yazdığında ``bus.publish``
-    çağrılır → ``/ws/quotes`` üzerinden tarayıcı client'larına fan-out.
+    Worker bar yazdığında iki ayrı fan-out tetiklenir:
+      * ``quote_bus.publish`` → ``/ws/quotes`` (canlı bar)
+      * ``signal_generator.evaluate`` → cache'ten son N barı çek,
+        kayıtlı stratejileri koştur, AL/SAT varsa ``signal_bus`` →
+        ``/ws/signals``.
     """
-    on_bar = quote_bus.publish if quote_bus is not None else None
+    async def _on_bar(symbol: str, interval: str, bars: list[dict[str, Any]]) -> None:
+        if quote_bus is not None:
+            await quote_bus.publish(symbol, interval, bars)
+        if signal_generator is not None:
+            await signal_generator.evaluate(symbol, interval, bars)
+
+    on_bar = _on_bar if (quote_bus is not None or signal_generator is not None) else None
     return WorkerSupervisor(
         [
             BinanceKlineWorker(
@@ -140,6 +152,8 @@ def create_app(
     paper_recorder: PaperTradingRecorder | None = None,
     supervisor: WorkerSupervisor | None = None,
     quote_bus: QuoteBus | None = None,
+    signal_bus: SignalBus | None = None,
+    signal_generator: SignalGenerator | None = None,
 ) -> FastAPI:
     """FastAPI app factory.
 
@@ -158,11 +172,19 @@ def create_app(
         workspace_path=ROOT / "data" / "workspaces" / "workspace.json",
     )
     quote_bus = quote_bus if quote_bus is not None else QuoteBus()
+    signal_bus = signal_bus if signal_bus is not None else SignalBus()
+    signal_generator = (
+        signal_generator
+        if signal_generator is not None
+        else SignalGenerator(cache=cache, bus=signal_bus)
+    )
     if supervisor is None:
         if os.environ.get("PIYASAPILOT_DISABLE_WORKERS") == "1":
             supervisor = WorkerSupervisor([])
         else:
-            supervisor = _build_default_supervisor(cache, data_service, quote_bus)
+            supervisor = _build_default_supervisor(
+                cache, data_service, quote_bus, signal_generator,
+            )
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
@@ -181,6 +203,8 @@ def create_app(
     app.state.supervisor = supervisor
     app.state.cache = cache
     app.state.quote_bus = quote_bus
+    app.state.signal_bus = signal_bus
+    app.state.signal_generator = signal_generator
 
     app.add_middleware(
         CORSMiddleware,
@@ -204,6 +228,8 @@ def create_app(
             },
             "workers": supervisor.health(),
             "quote_bus": quote_bus.stats(),
+            "signal_bus": signal_bus.stats(),
+            "signal_generator": signal_generator.stats(),
             "fetched_at": _utc_iso(),
             "message": "PiyasaPilot gateway çalışıyor. Emir motoru pasif.",
         }
@@ -233,7 +259,44 @@ def create_app(
         except BacktestRunError as exc:
             raise HTTPException(status_code=400, detail=str(exc))
 
-    # ── WebSocket fan-out ────────────────────────────────────────────────
+    # ── WebSocket fan-out: signals (Sprint 3.5) ──────────────────────────
+    @app.websocket("/ws/signals")
+    async def ws_signals(ws: WebSocket) -> None:
+        """Canlı sinyal fan-out kanalı (DecisionEngine + StrategyRegistry).
+
+        Query params:
+          * ``symbols=BTCUSDT,ETHUSDT`` (boş = hepsi)
+          * ``types=BUY,SELL`` (boş = hepsi)
+        """
+        symbols_q = ws.query_params.get("symbols", "")
+        types_q = ws.query_params.get("types", "")
+        symbols = [s for s in symbols_q.split(",") if s] or None
+        types = [s for s in types_q.split(",") if s] or None
+
+        await ws.accept()
+        client_id, queue = await signal_bus.subscribe(symbols=symbols, types=types)
+        await ws.send_json({"type": "ready", "client_id": client_id})
+
+        recv_task = asyncio.create_task(_drain_client_messages(ws))
+        try:
+            while True:
+                msg = await queue.get()
+                await ws.send_json(msg)
+                if recv_task.done():
+                    break
+        except WebSocketDisconnect:
+            pass
+        except Exception:  # noqa: BLE001
+            pass
+        finally:
+            recv_task.cancel()
+            await signal_bus.unsubscribe(client_id)
+            try:
+                await ws.close()
+            except Exception:  # noqa: BLE001
+                pass
+
+    # ── WebSocket fan-out: quotes ────────────────────────────────────────
     @app.websocket("/ws/quotes")
     async def ws_quotes(ws: WebSocket) -> None:
         """Canlı bar fan-out kanalı.

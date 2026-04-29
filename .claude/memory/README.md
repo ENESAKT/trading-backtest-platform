@@ -1,19 +1,19 @@
-# Memory (Oturumlar Arası Bellek)
+# Memory
 
-Bu klasör, oturum geçişlerinde context'i kaybetmemek için kullanılan dosyaları tutar.
+Bu klasor oturumlar arasi kisa ozetler icindir. Su an aktif otomatik memory
+hook'u yoktur.
 
-## Beklenen dosyalar (Sprint 5'te otomasyonu kurulacak)
+Guvenli varsayilan:
 
-- **`session-recap.md`** — `Stop` hook'u her oturum sonunda otomatik yazar:
-  - Son commit'ler (git log özeti)
-  - Tamamlanan checkbox'lar
-  - Tool kullanım sayıları
-  - Açık kalan iş
-  - Sıradaki Sprint adımı
-- **`agent-logs/<agent-name>/<timestamp>.json`** — `SubagentStop` hook'u sub-agent çıktılarını biriktirir.
+- Memory dosyalari otomatik systemMessage olarak inject edilmez.
+- Ozetler 30-50 satirla sinirli tutulur.
+- Agent loglari ana context'e otomatik eklenmez.
+- Tool loglari, full diff, test ciktisi ve uzun plan dosyalari memory'ye
+  kopyalanmaz.
 
-## Yeni oturum açıldığında
+Onerilen dosyalar:
 
-`SessionStart` hook → `load-recent-state.sh` → `session-recap.md`'yi systemMessage olarak inject eder. Yeni Claude penceresi sıfırdan repo keşfi yapmadan kaldığı yerden devam eder.
+- `session-recap.md` - manuel, kisa son durum.
+- `handoff.md` - manuel, bir sonraki oturum icin net adimlar.
 
-Detay: `planlama.md` §8 (Memory & Context Persistence).
+Yeni oturumda once kullanici istegi dinlenir; memory yalnizca gerekirse okunur.

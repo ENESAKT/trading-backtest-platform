@@ -1,31 +1,35 @@
 # Sub-Agents
 
-Bu klasör projeye özel sub-agent tanımlarını içerir. Her agent ayrı bir Markdown dosyasıdır:
+Bu klasor projeye ozel sub-agent tanimlari icindir. Su an aktif agent yoktur.
 
-```
-.claude/agents/<name>.md
-```
+Guvenli varsayilan:
 
-## Frontmatter şablonu
+- Agent sayisini az tut: ayni anda 1-2 agent yeterlidir.
+- Model: `sonnet` veya ucuz isler icin `haiku`; `opus` kullanma.
+- `Write`, `Edit`, `Bash`, `Task` yalnizca acik gerekceyle verilir.
+- Agent test, commit, push, PR, merge veya auto-merge yapmaz.
+- Agent buyuk dosya/klasor okumaz: `node_modules`, `.git`, `.pytest_cache`,
+  SQLite/DB, lock dosyalari.
+- Agent sonucu kisa ozetler; tum loglari ana context'e basmaz.
+
+## Frontmatter sablonu
 
 ```yaml
 ---
-name: agent-adı
-description: Bu agent ne işe yarar; ne zaman tetiklenir.
-tools: Read, Write, Edit, Bash, Grep, Glob
-model: haiku    # haiku (ucuz) | sonnet (denge) | opus (derin)
+name: agent-adi
+description: Ne zaman kullanilacagini dar ve net yaz.
+tools: Read, Grep, Glob
+model: sonnet
 ---
-
-Agent system prompt'u burada (Markdown body).
 ```
 
-## Sprint 5'te yazılacak ekip (planlama.md §7.1)
+`Bash`, `Write`, `Edit` veya `Task` gerekiyorsa neden gerektigini agent body
+icinde yaz ve Enes onayi olmadan test/commit/PR/merge yapmayacagini belirt.
 
-- `data-validator` — IQR spike filter testi, OHLCV doğrulama (Haiku)
-- `quant-researcher` — strateji fikirleri, parametre tarama (Sonnet)
-- `backtest-runner` — BacktestEngine'i çalıştır, raporla (Haiku)
-- `frontend-builder` — TS/Vite/lightweight-charts (Sonnet)
-- `backend-builder` — FastAPI/SQLite/worker (Sonnet)
-- `robot-executor` — paper-trading otonom executor (Haiku)
-- `code-reviewer` — commit öncesi kalite gate (Sonnet)
-- `devops-engineer` — Docker Compose, healthcheck (Haiku)
+## Ertelenen sprint fikri
+
+Eski plan 8 agent oneriyordu. Bu repo icin daha guvenli yaklasim:
+
+- `backend-helper` - sadece hedefli backend okuma/onerme.
+- `frontend-helper` - sadece hedefli frontend okuma/onerme.
+- `review-helper` - sadece diff inceleme, test veya git islemi yok.
