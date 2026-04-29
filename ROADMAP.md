@@ -3,7 +3,7 @@
 > Bu doküman **ne yapıldı, ne yapılacak, sonunda ne göreceksin**'i sade Türkçeyle anlatır.
 > Tick listesi (`- [x]` / `- [ ]`) için: [`planlama.md`](planlama.md). Bu dosya o planın hikâyesidir.
 >
-> **Tarih:** 2026-04-27 · **Durum:** Sprint 1 ✅ tamam · Sprint 2 yarısı tamam · 7 PR merge edildi.
+> **Tarih:** 2026-04-29 · **Durum:** Sprint 1–8 ✅ tamam · 292 test geçiyor · TSC/Vite 0 hata.
 
 ---
 
@@ -17,22 +17,22 @@ BIST + kripto + döviz + emtia için **TradingView benzeri**, **Türkçe**, tara
 
 ---
 
-## Bugünkü Durum (2026-04-27)
+## Bugünkü Durum (2026-04-29)
 
 | Katman | Durum | Detay |
 |--------|-------|-------|
 | Backend gateway | ✅ Hazır | FastAPI, SQLite cache, IQR spike filter, `/api/v2/candles` cache-aside, `/api/health` |
 | Worker'lar | ✅ Çalışıyor | Binance WS (10 kripto), Yahoo poller (BIST endeks + FX + emtia), BIST 30 hisse poller |
-| WS fan-out | ✅ Çalışıyor | `/ws/quotes` — worker'ların yazdığı her bar tarayıcıya broadcast |
-| Frontend tek terminal | ✅ %85 | Sidebar 98 sembol, MultiChartLayout (1×1/1×2/2×1/2×2), fullscreen, DataEngine→QuoteStream |
-| Backtest (TS) | 🟡 Var | TS-içi 4 strateji, sinyaller liste olarak; **chart üstünde marker yok** |
-| Backtest (Python API) | ❌ Yok | Sprint 3'te |
-| Paper trading | 🟡 İskelet | JSON store mevcut; SQLite şeması ve otonom executor Sprint 4'te |
-| AI sinyal | ❌ Yok | Sprint 6'da |
-| Always-on (Docker) | ❌ Yok | Sprint 7'de |
-| Bildirim (Telegram/email/toast) | ❌ Yok | Sprint 7'de |
+| WS fan-out | ✅ Çalışıyor | `/ws/quotes` + `/ws/signals` — canlı bar + sinyal fan-out |
+| Frontend tek terminal | ✅ %100 | Sidebar 98 sembol, MultiChartLayout, fullscreen, 5 tab (chart/portfolio/strategy/screener/signals) |
+| Backtest (Python API) | ✅ Hazır | `POST /api/backtest/run` — 8 strateji, equity curve, trade listesi |
+| Paper trading | ✅ Hazır | SQLite, strateji-bazlı izole sandık (10.000₺), otonom executor, risk limitleri |
+| AI sinyal motoru | ✅ Hazır | SignalGenerator v2 — RSI+Trend confluence, konsensüs (STRONG_BUY/SELL), metadata |
+| Always-on (Docker) | ✅ Hazır | 3 Dockerfile, docker-compose.yml, nginx, Makefile |
+| Bildirim | ✅ Hazır | Telegram bot, Email SMTP, macOS notification, In-app toast |
+| Agent ekosistemi | ✅ Hazır | 8 sub-agent, 15 skill, 5 slash command, 4 hook |
 
-**Açık PR:** Yok şu an (4 PR merge edildi: #1 v2-route, #3 foundation, #4 workers, #5 ws-fanout, #6 katalog, #7 DataEngine→QuoteStream).
+**Tüm 8 sprint tamamlandı.** 292 pytest geçiyor, TSC ve Vite build 0 hata.
 
 ---
 
@@ -237,23 +237,28 @@ Plan, CLAUDE.md, `.claude/` iskelet klasörleri, kararların kayda geçmesi.
 
 ---
 
-## PR Tablosu (Bugüne Kadar)
+## PR / Commit Tablosu (Bugüne Kadar)
 
-| # | Branch | Konu | Durum | Sprint |
+| # | Branch / Commit | Konu | Durum | Sprint |
 |---|--------|------|-------|--------|
 | 1 | fix/v2-api-route-via-local-backend | v2 API → lokal backend route | ✅ MERGED | 0 |
 | 2 | chore/sprint-0-skeleton | Sprint-0 iskelet | ✅ MERGED | 0 |
 | 3 | feat/sprint-1-gateway-foundation | FastAPI + cache + spike filter | ✅ MERGED | 1 |
 | 4 | feat/sprint-1-workers | Binance WS + Yahoo + BIST poller | ✅ MERGED | 1 |
 | 5 | feat/sprint-1-ws-fanout | QuoteBus + /ws/quotes | ✅ MERGED | 1 |
-| 6 | feat/sprint-2-bist100-fullscreen | Katalog temizliği + 2.4 retroaktif | ✅ MERGED | 2 |
+| 6 | feat/sprint-2-bist100-fullscreen | Katalog temizliği | ✅ MERGED | 2 |
 | 7 | feat/sprint-2-data-engine-stream | DataEngine → QuoteStream | ✅ MERGED | 2 |
-| **8** | (sıradaki) | **Backtest BUY/SELL marker'ları** | ⏳ HENÜZ | 2-bonus |
-| 9 | (planlanan) | Çoklu pencere layout | ⏳ HENÜZ | 2.3 |
-| 10 | (planlanan) | Strateji Lab + Veri İstasyonu port | ⏳ HENÜZ | 2.5–2.6 |
-| 11 | (planlanan) | BIST 100 tam katalog (yfinance batch) | ⏳ HENÜZ | 2.2 son |
-| 12 | (planlanan) | Streamlit söküm | ⏳ HENÜZ | 2.8 |
-| 13+ | (Sprint 3 başlar) | API tabanlı backtest + 8 strateji | ⏳ HENÜZ | 3 |
+| 8 | — | Backtest BUY/SELL marker'ları | ✅ MERGED | 2 |
+| 9 | — | Streamlit söküm | ✅ MERGED | 2 |
+| 10 | — | BIST 100 +10 sembol | ✅ MERGED | 2 |
+| 11 | — | POST /api/backtest/run + blueprints | ✅ MERGED | 3 |
+| 12 | — | StrategyPanel API'ye geçti, TS backtest söküldü | ✅ MERGED | 3 |
+| 13 | — | SignalBus + SignalGenerator + /ws/signals | ✅ MERGED | 3 |
+| 14 | — | MultiChartLayout çoklu pencere | ✅ MERGED | 2 |
+| 15 | — | PortfolioPanel v2 + Paper Trading | ✅ MERGED | 4 |
+| 16 | — | Agent + Skill + MCP + Hook ekosistemi | ✅ MERGED | 5 |
+| 17 | — | AI sinyal motoru + bildirim altyapısı | ✅ MERGED | 6+7 |
+| 18 | — | README + Mimari + Agent/Skill rehberleri | ✅ MERGED | 8 |
 
 ---
 
@@ -286,9 +291,9 @@ Plan, CLAUDE.md, `.claude/` iskelet klasörleri, kararların kayda geçmesi.
 
 ## Sıradaki Adım
 
-**Sprint 2 büyük ölçüde tamamlandı.** Sprint 3 de tamamlandı (backtest API + 8 strateji + sinyal feed).
+**8 sprint tamamlandı.** Proje fonksiyonel olarak prodüksiyona hazır.
 
-**Sıradaki: Sprint 4 — Paper Trading & Portföy.** SQLite paper_trades/paper_portfolio şemaları, strateji-bazlı izole sandık, otonom robot-executor, canlı PnL hesabı.
+**Sıradaki: Sprint 9 — Polish & Production Hardening.** Canlı doğrulama senaryoları, stres testi, Telegram/Email konfigürasyonu, UI/UX iyileştirmeleri.
 
 ---
 

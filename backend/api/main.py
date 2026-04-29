@@ -250,6 +250,50 @@ def create_app(
         allow_headers=["*"],
     )
 
+    # ── Assistant durumu ──────────────────────────────────────────────────
+    @app.get("/api/assistant/status")
+    def assistant_status() -> dict[str, Any]:
+        """Telegram listener ve proje asistanının anlık durumu."""
+        try:
+            from backend.notifier.telegram_listener import get_listener_status
+            listener = get_listener_status()
+        except Exception:
+            listener = {}
+        return {
+            "listener_aktif": listener.get("aktif", False),
+            "islenen_mesaj": listener.get("islenen_mesaj", 0),
+            "son_mesaj_ozet": listener.get("son_mesaj"),
+            "son_hata": listener.get("son_hata"),
+            "komutlar": [
+                "/yardim", "/durum", "/fiyat", "/sinyal", "/strateji",
+                "/ozet", "/son", "/hata", "/kontrol", "/gorev", "/duzelt",
+            ],
+            "llm_aktif": bool(os.getenv("ANTHROPIC_API_KEY")),
+        }
+
+    # ── Notifier durumu ───────────────────────────────────────────────────
+    @app.get("/api/notifier/status")
+    def notifier_status() -> dict[str, Any]:
+        """Telegram bildirim servisinin anlık durumu."""
+        import os
+        token_var = os.getenv("TELEGRAM_BOT_TOKEN", "")
+        chat_var = os.getenv("TELEGRAM_CHAT_ID", "")
+        telegram_configured = bool(token_var and chat_var)
+        try:
+            from backend.notifier.main import get_notifier_status
+            durum = get_notifier_status()
+        except Exception:
+            durum = {}
+        return {
+            "telegram_yapilandirildi": telegram_configured,
+            "token_son4": f"...{token_var[-4:]}" if token_var else None,
+            "chat_id": chat_var if chat_var else None,
+            "aktif": durum.get("aktif", False),
+            "son_bildirim": durum.get("son_bildirim"),
+            "son_hata": durum.get("son_hata"),
+            "toplam_bildirim": durum.get("toplam_bildirim", 0),
+        }
+
     # ── Health ────────────────────────────────────────────────────────────
     @app.get("/api/health")
     def health() -> dict[str, Any]:

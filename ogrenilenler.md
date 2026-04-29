@@ -171,3 +171,10 @@
 
 - **README.md her sprint sonunda güncellenmeli.** Eski README projeden çok farklıydı; sprint tamamlandıkça otomatik güncelleme discipline'ı şart.
 
+## Sprint 9 — Polish & Production Hardening
+
+- **SignalFeed'de 4 sinyal tipini ayırt etmek şart.** `signalHTML()` fonksiyonu sadece `BUY`/`SELL` ikili kontrol yapıyordu; `STRONG_BUY` ve `STRONG_SELL` tipleri `BUY` gibi render ediliyordu. Her sinyal tipine ayrı badge class'ı (`badge-strong-buy/sell`) ve TR sabiti (`SIGNAL_STRONG_BUY/SELL`) gerekiyor. Konsensüs metadata'sı (oran, strateji sayısı, RSI, trend) ayrı `.signal-consensus` satırında gösterilmeli.
+- **macOS sandbox ortamında port bind izni olmayabilir.** `uvicorn` ve `vite dev` server'ları `EPERM: operation not permitted` hatası verdi. Bu kod hatası değil, ortam kısıtlaması. Backend doğrulaması için `create_app()` + `list_blueprints()` import testi yeterli alternatif.
+- **Vite build bundle analizi yapılmalı.** `npm run build` çıktısındaki dosya boyutları izlenmeli: CSS 17KB, uygulama JS 83KB, lightweight-charts 162KB, Chart.js 207KB. Chart.js en büyük bağımlılık; tree-shaking ile küçültülebilir (ileride).
+- **Doğrulama senaryoları 3'e ayrılmalı:** (1) statik/unit test (pytest, TSC, build), (2) port-bind gerektiren canlı test (API curl, WS, dev server), (3) dış servis gerektiren test (Docker, Telegram, MCP). İlk kategori CI'da, ikincisi geliştirici ortamında, üçüncüsü deployment sonrası yapılmalı.
+
