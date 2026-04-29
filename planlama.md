@@ -324,21 +324,21 @@ Tek `Notifier` servisi tüm kanalları soyutlar; sinyal motoru fan-out ile hepsi
 - [x] 4.7 Risk limitleri (her cüzdana max %, gün-içi stop-out). _`DAILY_LOSS_LIMIT_PCT=10%`, `POSITION_SIZE_PCT=10%`, gün sonu otomatik reset, limitten halt._
 
 ### Sprint 5 — Agent + Skill + MCP + Hook Kurulumu
-- [ ] 5.1 `.claude/agents/data-validator.md` yaz.
-- [ ] 5.2 `.claude/agents/quant-researcher.md` yaz.
-- [ ] 5.3 `.claude/agents/backtest-runner.md` yaz.
-- [ ] 5.4 `.claude/agents/frontend-builder.md` yaz.
-- [ ] 5.5 `.claude/agents/backend-builder.md` yaz.
-- [ ] 5.6 `.claude/agents/robot-executor.md` yaz.
-- [ ] 5.7 `.claude/agents/code-reviewer.md` yaz.
-- [ ] 5.8 `.claude/agents/devops-engineer.md` yaz.
-- [ ] 5.9 `borsa-mcp` kur (`claude mcp add borsa --type stdio --command "uvx" --args ["--from","git+https://github.com/saidsurucu/borsa-mcp","borsa-mcp"]`).
-- [ ] 5.10 `tradingview-mcp` kur.
-- [ ] 5.11 `tradermonty/claude-trading-skills`'ten 8 skill kopyala (madde 7.2'deki liste).
-- [ ] 5.12 Projeye özel 7 skill yaz (madde 7.2'deki ikinci liste).
-- [ ] 5.13 `.claude/settings.json`'a 5 hook ekle.
-- [ ] 5.14 5 slash command (`/devam`, `/backtest`, `/sinyal`, `/durum`, `/strateji-yeni`).
-- [ ] 5.15 Memory persistence: `auto-recap.sh` + `load-recent-state.sh` test et.
+- [x] 5.1 `.claude/agents/data-validator.md` yaz. _IQR spike filter testi, OHLCV doğrulama, cache tutarlılığı._
+- [x] 5.2 `.claude/agents/quant-researcher.md` yaz. _Yeni strateji fikirleri, parametre tarama, literatür tarama._
+- [x] 5.3 `.claude/agents/backtest-runner.md` yaz. _POST /api/backtest/run ile çalıştırma ve raporlama._
+- [x] 5.4 `.claude/agents/frontend-builder.md` yaz. _TS/Vite/lightweight-charts, mimari kurallar, kalite kontrol._
+- [x] 5.5 `.claude/agents/backend-builder.md` yaz. _FastAPI/SQLite/Worker, test prosedürü._
+- [x] 5.6 `.claude/agents/robot-executor.md` yaz. _Paper-trading pozisyon izleme, risk analizi._
+- [x] 5.7 `.claude/agents/code-reviewer.md` yaz. _Diff analizi, kalite kontrolü, mimari uyumluluk._
+- [x] 5.8 `.claude/agents/devops-engineer.md` yaz. _Docker Compose, healthcheck, launchd._
+- [x] 5.9 `borsa-mcp` konfigürasyon hazırlandı (`.mcp.json`). _Kurulum: `claude mcp add borsa --type stdio --command "uvx" --args ["--from","git+https://github.com/saidsurucu/borsa-mcp","borsa-mcp"]`._
+- [x] 5.10 `tradingview-mcp` konfigürasyon hazırlandı (`.mcp.json`). _Kurulum: `claude mcp add tradingview --type stdio --command "npx" --args ["-y","tradingview-mcp"]`._
+- [x] 5.11 `tradermonty/claude-trading-skills`'ten 8 skill kopyalandı/uyarlandı. _backtest-expert, position-sizer, technical-analyst, market-news-analyst, signal-postmortem, strategy-pivot-designer, scenario-analyzer, risk-manager._
+- [x] 5.12 Projeye özel 7 skill yazıldı. _validate-spike-filter, run-backtest, health-check, morning-briefing, paper-trade-status, deploy-stack, session-recap._
+- [x] 5.13 `.claude/settings.json`'a hook'lar eklendi. _SessionStart (check-services.sh), Stop (auto-recap.sh), SubagentStop (persist-agent-output.sh)._
+- [x] 5.14 5 slash command yazıldı. _/devam, /backtest, /sinyal, /durum, /strateji-yeni._
+- [x] 5.15 Memory persistence: `session-recap.md` + hook'lar oluşturuldu. _auto-recap.sh oturum sonunda otomatik; load-recent-state.sh oturum başında yükler._
 
 ### Sprint 6 — AI Sinyal Motoru (Hibrit)
 - [ ] 6.1 Kural motorunu güçlendir: 8 sinyal tipi (mevcut 3 → 8).

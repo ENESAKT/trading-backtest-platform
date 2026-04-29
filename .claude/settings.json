@@ -15,7 +15,30 @@
       "Bash(source .venv/bin/activate && python -m pytest *)",
       "Bash(python -m pytest *)",
       "Bash(npx tsc --noEmit *)",
-      "Bash(mkdir -p *)"
+      "Bash(mkdir -p *)",
+      "Bash(curl *)",
+      "Bash(docker *)",
+      "Bash(docker-compose *)"
+    ]
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "command": "./.claude/hooks/check-services.sh",
+        "description": "Gateway, cache ve planlama durumunu kontrol et"
+      }
+    ],
+    "Stop": [
+      {
+        "command": "./.claude/hooks/auto-recap.sh",
+        "description": "Oturum sonunda session-recap.md oluştur"
+      }
+    ],
+    "SubagentStop": [
+      {
+        "command": "./.claude/hooks/persist-agent-output.sh",
+        "description": "Agent çıktısını .claude/agent-logs/ altına kaydet"
+      }
     ]
   }
 }

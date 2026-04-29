@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "borsa": {
+      "command": "uvx",
+      "args": ["--from", "git+https://github.com/saidsurucu/borsa-mcp", "borsa-mcp"],
+      "description": "BIST + TEFAS + KAP haberleri + makro veri (758 BIST şirketi, 836+ fon)"
+    },
+    "tradingview": {
+      "command": "npx",
+      "args": ["-y", "tradingview-mcp"],
+      "description": "Real-time crypto/stock screening, 30+ indikatör, çoklu borsa",
+      "_note": "github.com/atilaahmettaner/tradingview-mcp — kurulum doğrulanmalı"
+    }
+  }
+}

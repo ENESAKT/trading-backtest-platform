@@ -146,3 +146,10 @@
 - **Her pane kendi ChartPanel instance'ı + veri yönetimi almalı.** Tek DataEngine singleton'ı çoklu pane'e hizmet edemez çünkü `activeSymbol/activeTimeframe/activeCandles` tek sembol tutar. Çözüm: `MultiChartLayout` bileşeni her pane için bağımsız tarihsel veri fetch + opsiyonel WS bağlantısı yönetiyor; ana DataEngine sadece sidebar ticker + portfolio + screener beslemek için kullanılıyor.
 - **CSS Grid + flex layout kombinasyonu performanslı çalışıyor.** `grid-template-columns: repeat(N, 1fr)` + `grid-template-rows: repeat(M, 1fr)` ile pane sayısı dinamik ayarlanabiliyor. Her pane'in `chart-pane-body` div'i `flex: 1` ile kalan alanı dolduruyor.
 - **`<select>` ile sembol seçici, `<optgroup>` ile kategori gruplama kullanıcı deneyimini iyileştiriyor.** Sidebar'daki arama + accordion yapısının yanında, her pane'in kendi dropdown'u olması çoklu pencere modunda hızlı sembol değişimi sağlıyor.
+
+## Sprint 5 — Agent / Skill / Hook Mimarisi
+
+- **Skill dosyaları `SKILL.md` formatında olmalı.** Claude Code her skill dizininde `SKILL.md` dosyasını arar; doğru dosya adı ve dizin yapısı (.claude/skills/[skill-adı]/SKILL.md) kritik.
+- **Hook script'leri `chmod +x` yapılmalı.** `settings.json`'da referans verilen hook'lar çalıştırılabilir olmazsa sessizce atlanır.
+- **MCP konfigürasyonu `.mcp.json` dosyasında proje kökünde tutulmalı.** `claude mcp add` komutu ile aktivasyon gerekir; sadece dosya oluşturmak yetmez.
+- **Agent model seçimi görev karmaşıklığına göre yapılmalı.** Veri doğrulama ve healthcheck gibi basit görevler için Haiku, strateji araştırma ve kod geliştirme gibi karmaşık görevler için Sonnet tercih edilmeli.
