@@ -315,13 +315,13 @@ Tek `Notifier` servisi tüm kanalları soyutlar; sinyal motoru fan-out ile hepsi
 - [x] 3.7 Eski 4 strateji + yeni 4 strateji (toplam 8): EMA cross, RSI mean-rev, BB rev, breakout, **donchian breakout, MACD div, supertrend, mean-reversion VWAP**. _PR #14: `donchian_breakout`, `macd_divergence`, `supertrend`, `mean_reversion_vwap` eklendi; `blueprints.py` 8 stratejiye güncellendi; `StrategyPanel.ts` 8 kart._
 
 ### Sprint 4 — Paper Trading & Portföy
-- [ ] 4.1 SQLite şeması: `paper_trades`, `paper_portfolio`, `paper_equity_curve`.
-- [ ] 4.2 Strateji-bazlı sanal cüzdan modeli (her strateji ayrı sandık).
-- [ ] 4.3 `robot-executor` sub-agent'ı yaz (otonom işlem icra).
-- [ ] 4.4 Canlı PnL hesabı (gateway fiyatı × açık miktar).
-- [ ] 4.5 TS'te `PortfolioPanel` v2: equity curve, drawdown, win rate, sharpe.
-- [ ] 4.6 Audit trail (her trade JSON log).
-- [ ] 4.7 Risk limitleri (her cüzdana max %, gün-içi stop-out).
+- [x] 4.1 SQLite şeması: `paper_trades`, `paper_portfolio`, `paper_equity_curve`. _Backend `paper/db.py` — 3 tablo + index'ler._
+- [x] 4.2 Strateji-bazlı sanal cüzdan modeli (her strateji ayrı sandık). _`PaperDB.get_or_create_wallet()` — 10.000 TL başlangıç._
+- [x] 4.3 `robot-executor` sub-agent'ı yaz (otonom işlem icra). _`PaperExecutor` — signal_bus'tan otomatik emir; lifespan'da asyncio task._
+- [x] 4.4 Canlı PnL hesabı (gateway fiyatı × açık miktar). _`PaperExecutor.update_prices()` + `_equity_snapshot()`._
+- [x] 4.5 TS'te `PortfolioPanel` v2: equity curve, drawdown, win rate, sharpe. _Chart.js equity + drawdown grafikleri, 6 metrik kartı, wallet seçimi, halt/resume._
+- [x] 4.6 Audit trail (her trade JSON log). _SQLite `paper_trades` tablosu — tüm alanlar kayıt altında._
+- [x] 4.7 Risk limitleri (her cüzdana max %, gün-içi stop-out). _`DAILY_LOSS_LIMIT_PCT=10%`, `POSITION_SIZE_PCT=10%`, gün sonu otomatik reset, limitten halt._
 
 ### Sprint 5 — Agent + Skill + MCP + Hook Kurulumu
 - [ ] 5.1 `.claude/agents/data-validator.md` yaz.
