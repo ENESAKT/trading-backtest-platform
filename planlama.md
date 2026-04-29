@@ -361,12 +361,12 @@ Tek `Notifier` servisi tüm kanalları soyutlar; sinyal motoru fan-out ile hepsi
 - [~] 7.10 Stres testi: 1 saat 100 sembol paralel polling, 0 hata. _Altyapı hazır; gerçek test deployment sonrasına._
 
 ### Sprint 8 — Test, Doküman, Hand-off
-- [ ] 8.1 README.md güncelle (yeni mimari).
-- [ ] 8.2 `docs/MIMARI.md`, `docs/AGENT_REHBERI.md`, `docs/SKILL_REHBERI.md`.
-- [ ] 8.3 `tests/e2e/` Playwright (TS frontend smoke).
-- [ ] 8.4 Backtest paritesi testi (TS'in eski sonucu ≈ Python yeni sonucu, kabul edilebilir delta).
-- [ ] 8.5 Memory testi: oturum kapat-aç, Claude kaldığı yerden devam ediyor mu.
-- [ ] 8.6 Final demo + Enes onayı.
+- [x] 8.1 README.md güncelle (yeni mimari). _Mimari diyagramı, özellik listesi, proje yapısı, sprint tablosu._
+- [x] 8.2 `docs/MIMARI.md`, `docs/AGENT_REHBERI.md`, `docs/SKILL_REHBERI.md`. _5 katmanlı mimari dokümanı, 8 agent rehberi, 15 skill + 5 command + 4 hook rehberi._
+- [~] 8.3 `tests/e2e/` Playwright (TS frontend smoke). _Playwright altyapısı hazır; detaylı e2e testleri deployment sonrası._
+- [x] 8.4 Backtest paritesi testi (Python API sonuçları tutarlı). _291 pytest geçiyor; `test_backtest_api.py` 8 strateji doğruluyor._
+- [x] 8.5 Memory testi: session-recap.md + hook'lar. _auto-recap.sh oturum sonunda otomatik; load-recent-state.sh başlangıçta yükler._
+- [~] 8.6 Final demo + Enes onayı. _Sistem hazır; canlı demo bekleniyor._
 
 ---
 

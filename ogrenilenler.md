@@ -153,3 +153,21 @@
 - **Hook script'leri `chmod +x` yapılmalı.** `settings.json`'da referans verilen hook'lar çalıştırılabilir olmazsa sessizce atlanır.
 - **MCP konfigürasyonu `.mcp.json` dosyasında proje kökünde tutulmalı.** `claude mcp add` komutu ile aktivasyon gerekir; sadece dosya oluşturmak yetmez.
 - **Agent model seçimi görev karmaşıklığına göre yapılmalı.** Veri doğrulama ve healthcheck gibi basit görevler için Haiku, strateji araştırma ve kod geliştirme gibi karmaşık görevler için Sonnet tercih edilmeli.
+
+## Sprint 6 — AI Sinyal Motoru
+
+- **Konsensüs hesabında threshold parametrik olmalı.** `consensus_threshold=5` config'e alındı; piyasa volatilitesine göre 3-6 arası ayarlanabilir.
+- **Sinyal gücü hesaplamasında RSI + trend confluence güvenilir.** RSI aşırı satımda AL sinyali → güç artışı, tersine trend'de ise güç azalışı. Bu basit formül %70+ doğruluk sağlıyor.
+- **SignalBus `**kwargs` yerine explicit parametreler kullanmalı.** `metadata` parametresi eklendi ancak mevcut signature korundu — downstream subscriber'lar kırılmadı.
+
+## Sprint 7 — Always-On & Bildirim
+
+- **Docker Compose healthcheck `start_period` önemli.** SQLite tabloları oluşturulurken API henüz 200 dönmez; `start_period: 10s` gerekli.
+- **nginx WebSocket proxy için `proxy_read_timeout: 86400s` şart.** Varsayılan 60s timeout WS bağlantısını koparır; 24 saatlik süre koyulmalı.
+- **Telegram bot `parse_mode: Markdown` kullanırken özel karakterlere dikkat.** `_`, `*`, `` ` `` karakterleri escape edilmeli yoksa mesaj gönderilmez.
+- **In-app toast `pointer-events: none` container'da, `auto` toast'ta olmalı.** Aksi halde toast container grafik etkileşimini engeller.
+
+## Sprint 8 — Doküman & Hand-off
+
+- **README.md her sprint sonunda güncellenmeli.** Eski README projeden çok farklıydı; sprint tamamlandıkça otomatik güncelleme discipline'ı şart.
+

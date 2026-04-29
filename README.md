@@ -1,80 +1,169 @@
-# Quant Engine — BIST/Kripto/Emtia Trading Terminali
+# PiyasaPilot — Algoritmik Trading Terminali
 
-Gerçek veri odaklı araştırma, backtest ve trading terminali. Streamlit arayüzü
-BIST, Forex, Emtia ve Kripto için piyasa özeti, bağımsız analiz pencereleri,
-Workspace JSON yönetimi ve kalıcı strateji laboratuvarı sunar.
+<p align="center">
+  <strong>BIST 100 · Kripto · ABD Piyasaları · FX/Emtia</strong><br>
+  Gerçek zamanlı veri · 8 strateji · Paper trading · AI sinyal motoru
+</p>
+
+---
 
 ## 🏗️ Mimari
 
 ```
-İnternet (yfinance / Binance) → Provider Katmanı → Validator → Backtest Motoru → Streamlit Terminal
-                         (Tek bağlantı noktası)         (Soğuk depolama)    (Sıcak okuma)
+┌──────────────────────────────────────────────────────────────────┐
+│                        PiyasaPilot Frontend                      │
+│  TypeScript · Vite · lightweight-charts v4 · Chart.js            │
+│  MultiChartLayout · Sidebar · StrategyPanel · PortfolioPanel     │
+│  Screener · SignalFeed (toast) · Çoklu pencere (1×1/1×2/2×2)    │
+└──────────┬──────────────────────────────────┬────────────────────┘
+           │ REST /api/*                      │ WS /ws/quotes
+           │                                  │ WS /ws/signals
+┌──────────▼──────────────────────────────────▼────────────────────┐
+│                    FastAPI Gateway (port 8000)                    │
+│  Cache-aside OHLCV · Backtest API · Paper Trading API            │
+│  SignalGenerator v2 (konsensüs) · SignalBus · QuoteBus           │
+│  IQR Spike Filter · Healthcheck                                  │
+└──────────┬──────────────────────────────────┬────────────────────┘
+           │                                  │
+┌──────────▼──────────┐  ┌────────────────────▼───────────────────┐
+│  Data Workers        │  │  Paper Executor                        │
+│  • Binance WS (10)   │  │  • Sinyal → sanal emir                │
+│  • Yahoo poller      │  │  • Strateji-bazlı izole cüzdan        │
+│  • BIST hisse poller │  │  • Risk limitleri (%10 günlük)         │
+└──────────────────────┘  └────────────────────────────────────────┘
 ```
+
+**Zero-Demo Rule:** Frontend asla doğrudan dış API'ye istek yapmaz. Her şey lokal backend üzerinden.
 
 ## 📦 Tech Stack
 
-| Bileşen | Teknoloji | Neden |
-|:---|:---|:---|
-| Dil | Python 3.11+ | Vektörel hesaplama ekosistemi |
-| DataFrame | Polars + Pandas | Çok çekirdekli hız + ekosistem uyumu |
-| Veritabanı | DuckDB + Parquet | Embedded, sıfır bakım, columnar |
-| JIT | Numba | Kritik döngülerde C-seviyesi hız |
-| Config | Pydantic + TOML | Tip-güvenli konfigürasyon |
-| Raporlama | Plotly + Jinja2 | İnteraktif HTML raporlar |
-| Optimizasyon | Optuna | Bayesian parametre arama |
-| CLI | Typer | Modern komut satırı arayüzü |
+| Katman | Teknoloji |
+|:---|:---|
+| **Frontend** | TypeScript, Vite 5, lightweight-charts v4, Chart.js |
+| **Backend** | Python 3.11, FastAPI, uvicorn |
+| **Veritabanı** | SQLite (OHLCV cache + paper trades) |
+| **Veri** | yfinance (BIST/FX/emtia), Binance WS (kripto) |
+| **Backtest** | Custom engine (lookahead-free, 8 strateji) |
+| **Bildirim** | Telegram bot, Email (SMTP), macOS notification |
+| **Deployment** | Docker Compose, nginx reverse proxy |
+| **AI Ekosistemi** | Claude Code agents/skills/hooks/MCP |
 
 ## 🚀 Hızlı Başlangıç
 
 ```bash
-# 1. Sanal ortamı oluştur ve aktive et
+# 1. Sanal ortamı oluştur
 python3.11 -m venv .venv
 source .venv/bin/activate
-
-# 2. Bağımlılıkları yükle
 pip install -r requirements.txt
 
-# 3. Gerçek veri kontrolünü çalıştır (tek hisse)
-python real_data_check.py --symbol THYAO
+# 2. Backend'i başlat
+uvicorn backend.api.main:app --port 8000 --reload
 
-# 4. PiyasaPilot v2 stack'ini başlat
-python live_server.py            # Backend gateway → http://localhost:8000
-cd piyasapilot-v2 && npm run dev # Vite dev server → http://localhost:5173
+# 3. Frontend'i başlat (geliştirme)
+cd piyasapilot-v2 && npm install && npm run dev
+
+# 4. Veya Docker ile
+make up
 ```
 
-## Terminal Özellikleri
+## 📊 Özellikler
 
-- Ana dashboard: BIST 100, USD/TRY, XAU/USD, BTC/USDT ve ETH/USDT gerçek veri özeti.
-- PiyasaPilot HTML paneli: BIST 100, USD/TRY, BTC/USDT ve Altın için read-only canlı grafikler.
-- Bağımsız pencereler: seçilen sembol için aç/kapat yapılabilen analiz sekmeleri.
-- Veri İstasyonu: API kaynakları, sembol grupları ve veri setleri için Workspace JSON.
-- Strateji Laboratuvarı: SQLite append-only strateji kaydı ve geri çağırma.
-- Sıfır demo veri politikası: provider veri vermezse grafik bekleme/hata durumunda kalır.
-- Canlı işlem motoru kapalıdır; paper trading kayıtları yalnızca sanal işlem olarak `data/workspaces/workspace.json` içine yazılır.
+### Çoklu Pencere Layout
+4 layout modu: 1×1, 1×2, 2×1, 2×2. Her pencere kendi sembol/timeframe seçimine sahip.
+**G** tuşu ile layout döngüsü.
+
+### 8 Backtest Stratejisi
+| Strateji | Açıklama |
+|----------|----------|
+| SMA Crossover | Hızlı/yavaş SMA çakışması |
+| RSI Reversion | Aşırı alım/satım geri dönüşü |
+| Bollinger Reversion | BB bandı geri dönüşü |
+| Buy & Hold | Benchmark |
+| Donchian Breakout | Kanal kırılımı |
+| MACD Divergence | Sinyal çizgisi kesişimi |
+| Supertrend | ATR tabanlı trend takibi |
+| Mean Reversion VWAP | VWAP sapma geri dönüşü |
+
+### Paper Trading
+- Strateji-bazlı izole sanal cüzdanlar (10.000₺)
+- Otomatik emir icra (PaperExecutor)
+- Risk limitleri: pozisyon %10, günlük zarar %10
+- Equity curve + drawdown grafikleri
+- 6 metrik kartı: equity, PnL, win rate, profit factor, max DD, ort. K/Z
+
+### AI Sinyal Motoru
+- Sinyal gücü (1-10): RSI + trend confluence
+- Konsensüs sistemi: 5+ strateji → STRONG_BUY/STRONG_SELL
+- In-app toast bildirimi
+- Telegram + email bildirim
+
+### Sembol Kapsamı
+- **BIST 100:** 98/100 hisse
+- **Kripto:** 10 parite (BTC, ETH, BNB, SOL, XRP, ADA, AVAX, DOT, DOGE, LINK)
+- **ABD:** 20 hisse (AAPL, MSFT, NVDA, GOOGL, AMZN...)
+- **FX/Emtia:** 8 parite (USD/TRY, EUR/TRY, GBP/TRY, Altın, Gümüş, Petrol, Doğalgaz, Bakır)
 
 ## 📁 Proje Yapısı
 
 ```
-quant_engine/
-├── config/              # Merkezi konfigürasyon (Pydantic + TOML)
-├── data_pipeline/       # Offline storage ve veri doğrulama akışı
-│   ├── fetcher.py       # Yahoo Finance veri çekici
-│   ├── storage_manager.py # DuckDB + Parquet depolama
-│   ├── data_validator.py  # Veri kalite kontrolü
-│   └── pipeline.py      # Orkestratör
-├── strategy/            # Strateji framework'ü ve SQLite persistence
-├── workspace/           # Workspace JSON ve çoklu piyasa sembol çözümleme
-├── backtest_engine/     # Vektörel backtest motoru
-├── optimization/        # Parametre optimizasyonu
-├── validation/          # Backtest doğrulama
-├── reporting/           # Raporlama ve görselleştirme
-├── live_execution/      # Canlı trading (gelecek)
-└── cli/                 # Komut satırı arayüzü
+├── backend/                 # FastAPI gateway
+│   ├── api/main.py          # App factory + tüm endpoint'ler
+│   ├── backtest/            # Backtest runner + blueprint'ler
+│   ├── data/                # OHLCVCache + spike filter
+│   ├── paper/               # Paper trading (db + executor)
+│   ├── signals/             # SignalGenerator v2
+│   ├── notifier/            # Telegram + email + macOS
+│   └── workers/             # Binance WS + Yahoo/BIST pollers
+├── piyasapilot-v2/          # TypeScript frontend
+│   ├── src/components/      # UI bileşenleri
+│   ├── src/core/            # DataEngine, QuoteStream
+│   └── src/indicators/      # Teknik göstergeler
+├── quant_engine/            # Python backtest framework
+│   ├── backtest/            # Lookahead-free engine
+│   └── strategy/            # 8 strateji implementasyonu
+├── .claude/                 # AI ekosistemi
+│   ├── agents/              # 8 sub-agent
+│   ├── skills/              # 15 skill
+│   ├── commands/            # 5 slash command
+│   └── hooks/               # 4 hook script
+├── tests/                   # 291+ test (unit + integration)
+├── docker-compose.yml       # Deployment
+└── Makefile                 # Kısayollar
 ```
 
-## 📊 Geliştirme Durumu
+## 🧪 Testler
 
-- ✅ Faz 1: Temel Altyapı (Config + Data Pipeline)
-- ⬜ Faz 2: Backtest Motoru
-- ⬜ Faz 3: Optimizasyon & Doğrulama
-- ⬜ Faz 4: Canlı Trading
+```bash
+# Tüm testleri çalıştır
+make test
+
+# Detaylı çıktı
+make test-full
+
+# Lint (TSC + Vite build)
+make lint
+```
+
+## 📋 Sprint Durumu
+
+| Sprint | Durum | Açıklama |
+|--------|-------|----------|
+| 0 — Planlama | ✅ | CLAUDE.md, iskelet, sembol listesi |
+| 1 — Backend Gateway | ✅ | FastAPI, SQLite, worker'lar |
+| 2 — Frontend Terminal | ✅ | Sidebar, ChartPanel, MultiChartLayout |
+| 3 — Backtest API | ✅ | 8 strateji, sinyal feed, signal bus |
+| 4 — Paper Trading | ✅ | PaperDB, PaperExecutor, PortfolioPanel v2 |
+| 5 — Agent/Skill/Hook | ✅ | 8 agent, 15 skill, 5 command, 4 hook |
+| 6 — AI Sinyal Motoru | ✅ | Konsensüs, sinyal gücü, metadata |
+| 7 — Always-On | ✅ | Docker, Telegram, email, toast |
+| 8 — Doküman | ✅ | README, mimari, rehberler |
+
+## 📄 Lisans
+
+Bu proje kişisel araştırma ve eğitim amaçlıdır.
+
+---
+
+<p align="center">
+  <sub>PiyasaPilot v2.0 — Algoritma tabanlı trading terminali</sub>
+</p>
