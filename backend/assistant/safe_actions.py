@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import sys
 import shlex
 from pathlib import Path
 
@@ -63,6 +64,14 @@ def is_safe(command: str) -> tuple[bool, str]:
     return True, ""
 
 
+def project_python() -> str:
+    """Projede kullanılacak Python yorumlayıcısını seç."""
+    venv_python = ROOT / ".venv" / "bin" / "python"
+    if venv_python.exists():
+        return str(venv_python)
+    return sys.executable
+
+
 async def run_safe(
     command: str,
     cwd: str | None = None,
@@ -112,7 +121,8 @@ async def git_log(n: int = 5) -> str:
 
 async def run_pytest(path: str = "tests/", quick: bool = True) -> tuple[int, str]:
     flags = "-q --tb=short -x --timeout=30" if quick else "-q --tb=short"
-    return await run_safe(f"python -m pytest {shlex.quote(path)} {flags}", timeout=120)
+    py = shlex.quote(project_python())
+    return await run_safe(f"{py} -m pytest {shlex.quote(path)} {flags}", timeout=120)
 
 
 async def run_tsc() -> tuple[int, str]:
@@ -143,7 +153,8 @@ async def import_check() -> tuple[int, str]:
     try:
         tmp.write(script)
         tmp.close()
-        code, out = await run_safe(f"python3 {shlex.quote(tmp.name)}", timeout=30)
+        py = shlex.quote(project_python())
+        code, out = await run_safe(f"{py} {shlex.quote(tmp.name)}", timeout=30)
     finally:
         import os as _os
         try:

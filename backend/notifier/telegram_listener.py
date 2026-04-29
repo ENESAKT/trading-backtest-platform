@@ -14,17 +14,15 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import os
 import time
 from typing import Any
 
 import httpx
 
-logger = logging.getLogger(__name__)
+from backend.config import getenv, llm_configured, telegram_authorized_chat_configured
+from backend.notifier.listener_status import write_listener_status
 
-_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
-_ALLOWED_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")
-_API_BASE = f"https://api.telegram.org/bot{_TOKEN}"
+logger = logging.getLogger(__name__)
 
 # Rate limit sabitleri
 HOURLY_LIMIT = 60
@@ -84,15 +82,23 @@ def get_listener_status() -> dict[str, Any]:
     return dict(_listener_durum)
 
 
+def _publish_status() -> None:
+    try:
+        write_listener_status(_listener_durum)
+    except Exception as exc:  # noqa: BLE001
+        logger.debug("telegram_listener: durum yazılamadı — %s", exc)
+
+
 # ── Telegram API yardımcıları ──────────────────────────────────────────────────
 
 async def _get_updates(offset: int, timeout: int = 30) -> list[dict[str, Any]]:
-    if not _TOKEN:
+    token = getenv("TELEGRAM_BOT_TOKEN")
+    if not token:
         return []
     try:
         async with httpx.AsyncClient(timeout=timeout + 5) as client:
             r = await client.get(
-                f"{_API_BASE}/getUpdates",
+                f"https://api.telegram.org/bot{token}/getUpdates",
                 params={"offset": offset, "timeout": timeout, "limit": 10},
             )
         if r.status_code != 200:
@@ -108,17 +114,23 @@ async def _get_updates(offset: int, timeout: int = 30) -> list[dict[str, Any]]:
         return []
 
 
+def _as_command_reply(text: str) -> str:
+    return f"🏷 *Komut cevabı*\n{text}"
+
+
 async def _send(chat_id: str | int, text: str) -> None:
     """Mesaj gönder; token yoksa sessizce geç."""
-    if not _TOKEN:
+    token = getenv("TELEGRAM_BOT_TOKEN")
+    if not token:
         return
+    text = _as_command_reply(text)
     # Telegram 4096 karakter sınırı
     if len(text) > 4096:
         text = text[:4000] + "\n…_(mesaj kısaltıldı)_"
     try:
         async with httpx.AsyncClient(timeout=10) as client:
             await client.post(
-                f"{_API_BASE}/sendMessage",
+                f"https://api.telegram.org/bot{token}/sendMessage",
                 json={"chat_id": chat_id, "text": text, "parse_mode": "Markdown"},
             )
     except Exception as exc:  # noqa: BLE001
@@ -152,24 +164,25 @@ async def _handle_update(update: dict[str, Any]) -> None:
     if not text:
         return
 
+    allowed_chat_id = getenv("TELEGRAM_CHAT_ID")
+
     # ── Yetki kontrolü ──────────────────────────────────────────────────────
-    if not _ALLOWED_CHAT_ID:
+    if not allowed_chat_id:
         logger.warning(
-            "telegram_listener: TELEGRAM_CHAT_ID tanımlı değil, mesaj reddedildi"
+            "telegram_listener: yetkili Telegram kullanıcısı yapılandırılmamış, mesaj reddedildi"
         )
         return
 
-    if chat_id != _ALLOWED_CHAT_ID:
-        logger.warning(
-            "telegram_listener: yetkisiz erişim girişimi — chat_id=%s", chat_id
-        )
+    if chat_id != allowed_chat_id:
+        logger.warning("telegram_listener: yetkisiz erişim girişimi engellendi")
         await _send(chat_id, "⛔ Yetkisiz erişim.")
         return
 
     _listener_durum["islenen_mesaj"] += 1
-    _listener_durum["son_mesaj"] = text[:80]
 
     cmd, args = _parse_command(text)
+    _listener_durum["son_mesaj"] = cmd or "(serbest metin)"
+    _publish_status()
 
     # ── Komut değil → serbest metin (LLM veya yardım) ───────────────────────
     if not cmd:
@@ -222,8 +235,7 @@ async def _handle_free_text(text: str) -> str:
     ANTHROPIC_API_KEY varsa claude-haiku ile yanıtla;
     yoksa komut listesine yönlendir.
     """
-    anthropic_key = os.getenv("ANTHROPIC_API_KEY", "")
-    if not anthropic_key:
+    if not llm_configured():
         return (
             "💬 Serbest sohbet için `ANTHROPIC_API_KEY` gerekli.\n\n"
             "Komut listesi: /yardim"
@@ -232,6 +244,7 @@ async def _handle_free_text(text: str) -> str:
     try:
         import anthropic
 
+        anthropic_key = getenv("ANTHROPIC_API_KEY")
         client = anthropic.AsyncAnthropic(api_key=anthropic_key)
         system_prompt = (
             "Sen PiyasaPilot trading asistanısın. "
@@ -273,19 +286,22 @@ async def listener_loop() -> None:
     """
     global _offset
 
-    if not _TOKEN:
+    if not getenv("TELEGRAM_BOT_TOKEN"):
         logger.info(
-            "telegram_listener: TELEGRAM_BOT_TOKEN eksik — listener başlatılmıyor"
+            "telegram_listener: Telegram bot token yapılandırılmamış — listener başlatılmıyor"
         )
+        _listener_durum["aktif"] = False
+        _publish_status()
         return
 
-    if not _ALLOWED_CHAT_ID:
+    if not telegram_authorized_chat_configured():
         logger.warning(
-            "telegram_listener: TELEGRAM_CHAT_ID eksik — tüm mesajlar reddedilecek"
+            "telegram_listener: yetkili Telegram kullanıcısı yapılandırılmamış — tüm mesajlar reddedilecek"
         )
 
-    logger.info("telegram_listener: başlatıldı (long polling, chat_id=%s)", _ALLOWED_CHAT_ID)
+    logger.info("telegram_listener: başlatıldı (long polling)")
     _listener_durum["aktif"] = True
+    _publish_status()
 
     reconnect_delay = 5
 
@@ -293,6 +309,7 @@ async def listener_loop() -> None:
         try:
             updates = await _get_updates(_offset, timeout=30)
             reconnect_delay = 5  # başarılı yanıtta sıfırla
+            _publish_status()
 
             for update in updates:
                 try:
@@ -305,10 +322,12 @@ async def listener_loop() -> None:
 
         except asyncio.CancelledError:
             _listener_durum["aktif"] = False
+            _publish_status()
             logger.info("telegram_listener: durduruldu")
             return
         except Exception as exc:  # noqa: BLE001
             _listener_durum["son_hata"] = str(exc)[:200]
+            _publish_status()
             logger.warning(
                 "telegram_listener: döngü hatası — %s, %ds sonra yeniden denenecek",
                 exc,

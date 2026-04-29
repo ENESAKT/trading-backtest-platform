@@ -7,29 +7,15 @@
 from __future__ import annotations
 
 import asyncio
-import os
 import sys
 from pathlib import Path
 
 # Proje kökünü sys.path'e ekle
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-# .env yükle
-try:
-    from dotenv import load_dotenv
-    load_dotenv()
-except ImportError:
-    # python-dotenv yoksa elle oku
-    env_path = Path(__file__).resolve().parents[1] / ".env"
-    if env_path.exists():
-        for line in env_path.read_text().splitlines():
-            line = line.strip()
-            if line and not line.startswith("#") and "=" in line:
-                k, _, v = line.partition("=")
-                os.environ.setdefault(k.strip(), v.strip())
-
 
 async def main() -> None:
+    from backend.config import telegram_configured
     from backend.notifier.telegram import (
         test_baglantisi,
         bildir_yeni_sinyal,
@@ -39,16 +25,12 @@ async def main() -> None:
         bildir_gunluk_ozet,
     )
 
-    token = os.getenv("TELEGRAM_BOT_TOKEN", "")
-    chat_id = os.getenv("TELEGRAM_CHAT_ID", "")
-
-    if not token or not chat_id:
-        print("❌ HATA: .env dosyasında TELEGRAM_BOT_TOKEN veya TELEGRAM_CHAT_ID eksik.")
+    if not telegram_configured():
+        print("❌ HATA: Telegram yapılandırması eksik.")
         print("   .env.example dosyasını kopyalayıp değerleri doldurun.")
         sys.exit(1)
 
-    print(f"📡 Token: ...{token[-8:]}")
-    print(f"📡 Chat ID: {chat_id}")
+    print("📡 Telegram yapılandırıldı: evet")
     print()
 
     # 1. Bağlantı testi

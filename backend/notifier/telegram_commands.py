@@ -14,9 +14,11 @@ from typing import Any
 
 import httpx
 
+from backend.config import getenv, mask_sensitive
+
 logger = logging.getLogger(__name__)
 
-_API_URL = os.getenv("NOTIFY_API_URL", "http://localhost:8000")
+_API_URL = getenv("NOTIFY_API_URL", "http://localhost:8000")
 
 
 # ── Yardımcılar ──────────────────────────────────────────────────────────────
@@ -32,13 +34,13 @@ async def _api_get(path: str, timeout: float = 8.0) -> dict[str, Any]:
 
 def _mask_sensitive(text: str) -> str:
     """Token, API key ve şifre pattern'larını maskele."""
+    text = mask_sensitive(text) or ""
     text = re.sub(r"\d{8,}:[A-Za-z0-9_-]{30,}", "[TOKEN_GİZLİ]", text)
-    text = re.sub(
+    return re.sub(
         r"(?i)(token|key|password|secret|api_key)\s*[:=]\s*\S+",
         r"\1=[GİZLİ]",
         text,
     )
-    return text
 
 
 def _price_str(price: float) -> str:
@@ -47,6 +49,41 @@ def _price_str(price: float) -> str:
     elif price >= 1:
         return f"{price:.4f}"
     return f"{price:.6f}"
+
+
+def _worker_status_lines(workers: Any) -> list[str]:
+    """Health endpoint'indeki worker bilgisini Telegram satırlarına çevir."""
+    if isinstance(workers, dict):
+        items = [
+            {"name": name, **value}
+            for name, value in workers.items()
+            if isinstance(value, dict)
+        ]
+    elif isinstance(workers, list):
+        items = [w for w in workers if isinstance(w, dict)]
+    else:
+        items = []
+
+    if not items:
+        return ["  ⚠️ Worker durumu henüz raporlanmadı."]
+
+    lines: list[str] = []
+    for worker in items:
+        name = str(worker.get("name") or "worker")
+        running = bool(worker.get("running"))
+        icon = "🟢" if running else "🔴"
+        durum = "Aktif" if running else "Pasif"
+        iters = int(worker.get("iterations", 0) or 0)
+        failures = int(worker.get("failures", 0) or 0)
+        last_ok = worker.get("last_run_ok") or "—"
+        line = f"  {icon} `{name}` — {durum}, {iters} iter, {failures} hata"
+        if last_ok != "—":
+            line += f", son başarılı: `{str(last_ok)[:19]}`"
+        last_error = worker.get("last_error")
+        if last_error:
+            line += f"\n    ⚠️ `{_mask_sensitive(str(last_error))[:120]}`"
+        lines.append(line)
+    return lines
 
 
 def _calc_rsi(closes: "pd.Series", period: int = 14) -> float:  # type: ignore[name-defined]
@@ -95,14 +132,7 @@ async def cmd_durum(_args: str) -> str:
     fetched = health.get("fetched_at", "?")
 
     # Worker satırları
-    workers = health.get("workers", {})
-    worker_lines: list[str] = []
-    if isinstance(workers, dict):
-        for name, w in workers.items():
-            if isinstance(w, dict):
-                icon = "🟢" if w.get("running") else "🔴"
-                iters = w.get("iterations", 0)
-                worker_lines.append(f"  {icon} `{name}` — {iters} iter")
+    worker_lines = _worker_status_lines(health.get("workers"))
 
     # Telegram durumu
     tg_ok = notifier.get("telegram_yapilandirildi", False)
@@ -127,10 +157,7 @@ async def cmd_durum(_args: str) -> str:
         "",
         "*🔧 Veri Sağlayıcılar:*",
     ]
-    if worker_lines:
-        lines.extend(worker_lines)
-    else:
-        lines.append("  ⚠️ Worker bilgisi yok")
+    lines.extend(worker_lines)
     lines.extend([
         "",
         "*📊 Sinyal:*",

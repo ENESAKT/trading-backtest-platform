@@ -24,6 +24,7 @@ data/bist/
 data/viop/
 data/*.duckdb
 data/cache/
+data/runtime/
 
 # Loglar
 logs/

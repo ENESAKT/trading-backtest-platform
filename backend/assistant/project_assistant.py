@@ -83,7 +83,7 @@ async def project_health_report() -> str:
     if health.get("status") == "ok":
         version = health.get("version", "?")
         workers = health.get("workers", {})
-        n_workers = len(workers) if isinstance(workers, dict) else 0
+        n_workers = len(workers) if isinstance(workers, (dict, list)) else 0
         lines.append(f"✅ Çalışıyor · v{version} · {n_workers} worker")
     else:
         lines.append(f"⚠️ {health.get('detail', 'Ulaşılamadı')}")

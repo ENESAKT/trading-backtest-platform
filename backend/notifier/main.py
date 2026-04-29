@@ -40,6 +40,15 @@ def get_notifier_status() -> dict:
     return d
 
 
+def _publish_status() -> None:
+    try:
+        from backend.notifier.service_status import write_notifier_status
+
+        write_notifier_status(_durum)
+    except Exception as exc:  # noqa: BLE001
+        logger.debug("notifier: durum yazılamadı — %s", exc)
+
+
 def _kaydet_sinyal(msg: dict) -> None:
     """Gelen sinyali son_sinyaller listesine ekle (max 20)."""
     _durum["son_sinyaller"].insert(0, msg)
@@ -71,6 +80,7 @@ async def notification_loop() -> None:
 
     logger.info("notifier: başlatılıyor...")
     _durum["aktif"] = True
+    _publish_status()
 
     poll_interval = int(os.getenv("NOTIFY_POLL_INTERVAL", "30"))
     api_url = os.getenv("NOTIFY_API_URL", "http://localhost:8000")
@@ -112,17 +122,20 @@ async def notification_loop() -> None:
                     now = dt.datetime.now(dt.UTC).isoformat()
                     _durum["son_bildirim"] = now
                     _durum["toplam_bildirim"] += 1
+                    _publish_status()
                     logger.info("notifier: bildirim gönderildi — %s %s", sig_type, symbol)
 
         except Exception as exc:  # noqa: BLE001
             hata_msg = f"{type(exc).__name__}: {exc}"
             _durum["son_hata"] = hata_msg
+            _publish_status()
             logger.warning("notifier: bağlantı hatası — %s", hata_msg)
             try:
                 await bildir_hata(hata_msg, "notification_loop")
             except Exception:  # noqa: BLE001
                 pass
             await asyncio.sleep(poll_interval)
+            _publish_status()
 
 
 async def daily_summary_loop() -> None:
@@ -148,9 +161,17 @@ async def daily_summary_loop() -> None:
             wallets = wallets_resp.json().get("wallets", [])
             trades = trades_resp.json().get("trades", [])
             await bildir_gunluk_ozet(wallets, trades)
+            _publish_status()
             logger.info("notifier: günlük özet gönderildi")
         except Exception as exc:  # noqa: BLE001
             logger.warning("notifier: günlük özet hatası — %s", exc)
+
+
+async def status_heartbeat_loop() -> None:
+    """Ayrı API süreci için notifier canlılık heartbeat'i yaz."""
+    while True:
+        _publish_status()
+        await asyncio.sleep(30)
 
 
 def main() -> None:
@@ -158,17 +179,34 @@ def main() -> None:
         level=logging.INFO,
         format="%(asctime)s [%(name)s] %(levelname)s: %(message)s",
     )
+    # httpx/httpcore INFO logları Telegram URL'sini token ile yazabilir.
+    logging.getLogger("httpx").setLevel(logging.WARNING)
+    logging.getLogger("httpcore").setLevel(logging.WARNING)
 
     async def run() -> None:
         from backend.notifier.telegram_listener import listener_loop
+        from backend.notifier.telegram import bildir_bot_basladi, bildir_bot_durdu
 
-        await asyncio.gather(
-            notification_loop(),
-            daily_summary_loop(),
-            listener_loop(),
-        )
+        await bildir_bot_basladi()
+        try:
+            await asyncio.gather(
+                notification_loop(),
+                daily_summary_loop(),
+                listener_loop(),
+                status_heartbeat_loop(),
+            )
+        finally:
+            _durum["aktif"] = False
+            _publish_status()
+            try:
+                await asyncio.shield(bildir_bot_durdu())
+            except Exception as exc:  # noqa: BLE001
+                logger.debug("notifier: durduruldu bildirimi gönderilemedi — %s", exc)
 
-    asyncio.run(run())
+    try:
+        asyncio.run(run())
+    except KeyboardInterrupt:
+        logger.info("notifier: kullanıcı tarafından durduruldu")
 
 
 if __name__ == "__main__":

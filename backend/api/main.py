@@ -34,6 +34,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
+from backend.config import getenv, llm_configured, mask_sensitive, telegram_configured
 from backend.api.quote_bus import QuoteBus
 from backend.api.signal_bus import SignalBus
 from backend.backtest import (
@@ -214,20 +215,10 @@ def create_app(
         await supervisor.start_all()
         executor_task = asyncio.create_task(_paper_executor_loop())
         try:
-            from backend.notifier.telegram import bildir_bot_basladi
-            asyncio.create_task(bildir_bot_basladi())
-        except Exception:  # noqa: BLE001
-            pass
-        try:
             yield
         finally:
             executor_task.cancel()
             await supervisor.stop_all()
-            try:
-                from backend.notifier.telegram import bildir_bot_durdu
-                await bildir_bot_durdu()
-            except Exception:  # noqa: BLE001
-                pass
 
     app = FastAPI(
         title="PiyasaPilot Gateway",
@@ -259,38 +250,45 @@ def create_app(
             listener = get_listener_status()
         except Exception:
             listener = {}
+        try:
+            from backend.notifier.listener_status import read_listener_status
+            shared_listener = read_listener_status()
+            listener = {**listener, **shared_listener}
+        except Exception:
+            pass
         return {
             "listener_aktif": listener.get("aktif", False),
             "islenen_mesaj": listener.get("islenen_mesaj", 0),
-            "son_mesaj_ozet": listener.get("son_mesaj"),
-            "son_hata": listener.get("son_hata"),
+            "son_mesaj_ozet": mask_sensitive(listener.get("son_mesaj")),
+            "son_hata": mask_sensitive(listener.get("son_hata")),
             "komutlar": [
                 "/yardim", "/durum", "/fiyat", "/sinyal", "/strateji",
                 "/ozet", "/son", "/hata", "/kontrol", "/gorev", "/duzelt",
             ],
-            "llm_aktif": bool(os.getenv("ANTHROPIC_API_KEY")),
+            "llm_aktif": llm_configured(),
         }
 
     # ── Notifier durumu ───────────────────────────────────────────────────
     @app.get("/api/notifier/status")
     def notifier_status() -> dict[str, Any]:
         """Telegram bildirim servisinin anlık durumu."""
-        import os
-        token_var = os.getenv("TELEGRAM_BOT_TOKEN", "")
-        chat_var = os.getenv("TELEGRAM_CHAT_ID", "")
-        telegram_configured = bool(token_var and chat_var)
         try:
             from backend.notifier.main import get_notifier_status
             durum = get_notifier_status()
         except Exception:
             durum = {}
+        try:
+            from backend.notifier.service_status import read_notifier_status
+            shared_durum = read_notifier_status()
+            durum = {**durum, **shared_durum}
+        except Exception:
+            pass
         return {
-            "telegram_yapilandirildi": telegram_configured,
-            "token_son4": f"...{token_var[-4:]}" if token_var else None,
-            "chat_id": chat_var if chat_var else None,
+            "telegram_yapilandirildi": telegram_configured(),
+            "yetkili_kullanici_yapilandirildi": bool(getenv("TELEGRAM_CHAT_ID")),
             "aktif": durum.get("aktif", False),
             "son_bildirim": durum.get("son_bildirim"),
-            "son_hata": durum.get("son_hata"),
+            "son_hata": mask_sensitive(durum.get("son_hata")),
             "toplam_bildirim": durum.get("toplam_bildirim", 0),
         }
 
@@ -401,6 +399,8 @@ def create_app(
                 await ws.send_json(msg)
                 if recv_task.done():
                     break
+        except asyncio.CancelledError:
+            pass
         except WebSocketDisconnect:
             pass
         except Exception:  # noqa: BLE001
@@ -447,6 +447,8 @@ def create_app(
                 await ws.send_json(msg)
                 if recv_task.done():
                     break
+        except asyncio.CancelledError:
+            pass
         except WebSocketDisconnect:
             pass
         except Exception:  # noqa: BLE001
