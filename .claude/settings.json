@@ -1,0 +1,21 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git push *)",
+      "Bash(git checkout *)",
+      "Bash(git fetch *)",
+      "Bash(git merge *)",
+      "Bash(git stash *)",
+      "Bash(git tag *)",
+      "Bash(gh pr *)",
+      "Bash(gh issue *)",
+      "Bash(gh run *)",
+      "Bash(source .venv/bin/activate && python -m pytest *)",
+      "Bash(python -m pytest *)",
+      "Bash(npx tsc --noEmit *)",
+      "Bash(mkdir -p *)"
+    ]
+  }
+}
