@@ -11,13 +11,23 @@ const RECONNECT_MAX_MS = 30_000;
 interface LiveSignal {
   type: 'signal';
   symbol: string;
-  signal_type: 'BUY' | 'SELL';
+  signal_type: 'BUY' | 'SELL' | 'STRONG_BUY' | 'STRONG_SELL';
   price: number;
   strategy_id: string;
   reason: string;
   strength: number;
   interval: string;
   ts: string;
+  metadata?: {
+    rsi?: number;
+    trend?: string;
+    atr?: number;
+    volatility_pct?: number;
+    buy_count?: number;
+    sell_count?: number;
+    total_strategies?: number;
+    consensus_ratio?: number;
+  };
 }
 
 export class SignalFeed {
@@ -82,6 +92,48 @@ export class SignalFeed {
     this.signals.unshift(sig);
     if (this.signals.length > MAX_SIGNALS) this.signals.pop();
     this.renderSignals();
+
+    // STRONG sinyaller için in-app toast bildirimi
+    if (sig.signal_type === 'STRONG_BUY' || sig.signal_type === 'STRONG_SELL') {
+      this.showToast(sig);
+    }
+  }
+
+  /** In-app toast bildirimi — 5 saniye sonra otomatik kapanır */
+  private showToast(sig: LiveSignal): void {
+    const isBuy = sig.signal_type.includes('BUY');
+    const emoji = isBuy ? '🟢' : '🔴';
+    const label = isBuy ? 'GÜÇLÜ AL' : 'GÜÇLÜ SAT';
+
+    const toast = document.createElement('div');
+    toast.className = `toast toast-${isBuy ? 'buy' : 'sell'}`;
+    toast.innerHTML = `
+      <div class="toast-icon">${emoji}</div>
+      <div class="toast-body">
+        <div class="toast-title">${label} — ${sig.symbol}</div>
+        <div class="toast-detail">${sig.reason}</div>
+        <div class="toast-meta">Güç: ${sig.strength}/10 · ${sig.interval}</div>
+      </div>
+      <button class="toast-close" onclick="this.parentElement.remove()">✕</button>
+    `;
+
+    // Toast container
+    let container = document.getElementById('toast-container');
+    if (!container) {
+      container = document.createElement('div');
+      container.id = 'toast-container';
+      document.body.appendChild(container);
+    }
+    container.appendChild(toast);
+
+    // Animasyon: slide in
+    requestAnimationFrame(() => toast.classList.add('toast-visible'));
+
+    // 5 saniye sonra kaldır
+    setTimeout(() => {
+      toast.classList.remove('toast-visible');
+      setTimeout(() => toast.remove(), 300);
+    }, 5000);
   }
 
   private setStatus(status: 'connecting' | 'live' | 'offline'): void {

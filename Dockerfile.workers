@@ -1,0 +1,12 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY backend/ ./backend/
+COPY quant_engine/ ./quant_engine/
+
+# Workers ana uygulama tarafından başlatılır (lifespan)
+CMD ["python", "-c", "from backend.api.main import app; import uvicorn; uvicorn.run(app, host='0.0.0.0', port=8001)"]

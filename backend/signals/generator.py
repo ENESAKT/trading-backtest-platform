@@ -5,6 +5,13 @@ Her worker (Binance WS / Yahoo poller / BIST poller) ``on_bar`` hook'una
 ``BaseStrategy.generate_signals`` çağır, +1/-1 dönerse ``SignalBus``'a
 publish et.
 
+Sprint 6.1 — Geliştirilmiş sinyal tipleri:
+* **Sinyal gücü (1–10):** Strateji güven seviyesi
+* **Konsensüs:** Aynı sembolde 5+ strateji aynı yönde → STRONG
+* **Metadata:** RSI, trend yönü, volatilite bilgisi
+* **8 Sinyal tipi:** BUY, SELL, STRONG_BUY, STRONG_SELL, HOLD,
+  TRAILING_STOP, TAKE_PROFIT, STOP_LOSS
+
 Tasarım kararları:
 
 * **Lookback short**: 200 bar yeter (warm-up + son birkaç değer).
@@ -21,6 +28,7 @@ from __future__ import annotations
 import asyncio
 import datetime as dt
 import logging
+import math
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -40,6 +48,8 @@ class SignalGeneratorConfig:
     capital: float = 100_000.0
     strategies: list[str] = field(default_factory=list)
     """Boş ise tüm registry kullanılır."""
+    consensus_threshold: int = 5
+    """Aynı yönde kaç strateji sinyali → STRONG sinyal."""
 
 
 def _bars_to_dataframe(bars: list[dict[str, Any]], symbol: str) -> pd.DataFrame:
@@ -49,6 +59,75 @@ def _bars_to_dataframe(bars: list[dict[str, Any]], symbol: str) -> pd.DataFrame:
     df["date"] = pd.to_datetime(df["time"], unit="s", utc=True)
     df["symbol"] = symbol
     return df[["date", "symbol", "open", "high", "low", "close", "volume"]]
+
+
+def _compute_rsi(closes: pd.Series, period: int = 14) -> float:
+    """Son RSI değerini hesapla."""
+    if len(closes) < period + 1:
+        return 50.0
+    delta = closes.diff()
+    gains = delta.clip(lower=0)
+    losses = -delta.clip(upper=0)
+    avg_gain = gains.rolling(window=period, min_periods=period).mean().iloc[-1]
+    avg_loss = losses.rolling(window=period, min_periods=period).mean().iloc[-1]
+    if avg_loss == 0:
+        return 100.0
+    rs = avg_gain / avg_loss
+    return 100.0 - (100.0 / (1.0 + rs))
+
+
+def _compute_atr(df: pd.DataFrame, period: int = 14) -> float:
+    """Son ATR değerini hesapla."""
+    if len(df) < period + 1:
+        return 0.0
+    high = df["high"]
+    low = df["low"]
+    close = df["close"]
+    tr = pd.concat([
+        high - low,
+        (high - close.shift(1)).abs(),
+        (low - close.shift(1)).abs(),
+    ], axis=1).max(axis=1)
+    return float(tr.rolling(window=period, min_periods=period).mean().iloc[-1])
+
+
+def _trend_direction(closes: pd.Series, fast: int = 20, slow: int = 50) -> str:
+    """EMA tabanlı trend yönü."""
+    if len(closes) < slow:
+        return "NEUTRAL"
+    ema_fast = closes.ewm(span=fast, adjust=False).mean().iloc[-1]
+    ema_slow = closes.ewm(span=slow, adjust=False).mean().iloc[-1]
+    if ema_fast > ema_slow * 1.005:
+        return "BULLISH"
+    elif ema_fast < ema_slow * 0.995:
+        return "BEARISH"
+    return "NEUTRAL"
+
+
+def _compute_strength(signal_int: int, rsi: float, trend: str) -> int:
+    """1–10 arası sinyal gücü hesapla."""
+    base = 5
+    # RSI confluence
+    if signal_int > 0 and rsi < 30:
+        base += 2  # Aşırı satımda AL → güçlü
+    elif signal_int > 0 and rsi > 70:
+        base -= 2  # Aşırı alımda AL → zayıf
+    elif signal_int < 0 and rsi > 70:
+        base += 2  # Aşırı alımda SAT → güçlü
+    elif signal_int < 0 and rsi < 30:
+        base -= 2  # Aşırı satımda SAT → zayıf
+
+    # Trend confluence
+    if signal_int > 0 and trend == "BULLISH":
+        base += 1
+    elif signal_int > 0 and trend == "BEARISH":
+        base -= 1
+    elif signal_int < 0 and trend == "BEARISH":
+        base += 1
+    elif signal_int < 0 and trend == "BULLISH":
+        base -= 1
+
+    return max(1, min(10, base))
 
 
 class SignalGenerator:
@@ -109,8 +188,17 @@ class SignalGenerator:
         last_bar = df.iloc[last_index]
         price = float(last_bar["close"])
 
+        # Teknik gösterge hesaplamaları (tüm stratejiler için ortak)
+        closes = df["close"]
+        rsi = _compute_rsi(closes)
+        atr = _compute_atr(df)
+        trend = _trend_direction(closes)
+        volatility = (atr / price * 100) if price > 0 else 0  # ATR% olarak
+
         portfolio = Portfolio(initial_capital=self.config.capital)
-        emit: list[dict[str, Any]] = []
+        individual_signals: list[dict[str, Any]] = []
+        buy_count = 0
+        sell_count = 0
 
         for name in self._strategy_names():
             try:
@@ -124,19 +212,81 @@ class SignalGenerator:
             signal_int = strategy.as_signal_func()(df, last_index, portfolio)
             if signal_int == 0:
                 continue
+
+            if signal_int > 0:
+                buy_count += 1
+            else:
+                sell_count += 1
+
+            strength = _compute_strength(signal_int, rsi, trend)
             sig_type = "BUY" if signal_int > 0 else "SELL"
-            emit.append(
+
+            individual_signals.append(
                 {
                     "symbol": canonical,
                     "signal_type": sig_type,
                     "price": price,
                     "strategy_id": name,
                     "reason": f"{name}: {sig_type} @ {price:.2f}",
-                    "strength": 5,
+                    "strength": strength,
                     "interval": interval,
+                    "metadata": {
+                        "rsi": round(rsi, 1),
+                        "trend": trend,
+                        "atr": round(atr, 4),
+                        "volatility_pct": round(volatility, 2),
+                    },
                 }
             )
-        return emit
+
+        # Konsensüs sinyali — 5+ strateji aynı yönde ise STRONG sinyal ekle
+        threshold = self.config.consensus_threshold
+        total_strategies = len(self._strategy_names())
+
+        if buy_count >= threshold:
+            consensus_strength = min(10, 5 + buy_count)
+            individual_signals.append(
+                {
+                    "symbol": canonical,
+                    "signal_type": "STRONG_BUY",
+                    "price": price,
+                    "strategy_id": "_consensus",
+                    "reason": f"KONSENSÜS: {buy_count}/{total_strategies} strateji AL sinyali",
+                    "strength": consensus_strength,
+                    "interval": interval,
+                    "metadata": {
+                        "rsi": round(rsi, 1),
+                        "trend": trend,
+                        "buy_count": buy_count,
+                        "sell_count": sell_count,
+                        "total_strategies": total_strategies,
+                        "consensus_ratio": round(buy_count / max(total_strategies, 1), 2),
+                    },
+                }
+            )
+        elif sell_count >= threshold:
+            consensus_strength = min(10, 5 + sell_count)
+            individual_signals.append(
+                {
+                    "symbol": canonical,
+                    "signal_type": "STRONG_SELL",
+                    "price": price,
+                    "strategy_id": "_consensus",
+                    "reason": f"KONSENSÜS: {sell_count}/{total_strategies} strateji SAT sinyali",
+                    "strength": consensus_strength,
+                    "interval": interval,
+                    "metadata": {
+                        "rsi": round(rsi, 1),
+                        "trend": trend,
+                        "buy_count": buy_count,
+                        "sell_count": sell_count,
+                        "total_strategies": total_strategies,
+                        "consensus_ratio": round(sell_count / max(total_strategies, 1), 2),
+                    },
+                }
+            )
+
+        return individual_signals
 
     def stats(self) -> dict[str, Any]:
         return {

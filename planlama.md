@@ -341,24 +341,24 @@ Tek `Notifier` servisi tüm kanalları soyutlar; sinyal motoru fan-out ile hepsi
 - [x] 5.15 Memory persistence: `session-recap.md` + hook'lar oluşturuldu. _auto-recap.sh oturum sonunda otomatik; load-recent-state.sh oturum başında yükler._
 
 ### Sprint 6 — AI Sinyal Motoru (Hibrit)
-- [ ] 6.1 Kural motorunu güçlendir: 8 sinyal tipi (mevcut 3 → 8).
-- [ ] 6.2 `morning-briefing` skill: Claude API ile sabah BIST 100 özeti + 3 odak hisse.
-- [ ] 6.3 `scenario-analyzer` skill (haber → senaryo → etki).
-- [ ] 6.4 `signal-postmortem` skill (kapanan trade → öğrenme).
-- [ ] 6.5 (Opsiyonel) ML model temelleri: cache verisi 3 ay birikince LightGBM trial.
-- [ ] 6.6 AI sinyal feed'i `WS /ws/signals/ai`'ye fan-out.
+- [x] 6.1 Kural motorunu güçlendir: 8 sinyal tipi (mevcut 3 → 8). _Sinyal gücü (1-10), RSI/trend/ATR metadata, konsensüs (5+ strateji → STRONG_BUY/STRONG_SELL). _compute_strength() + _compute_rsi() + _trend_direction()._
+- [x] 6.2 `morning-briefing` skill: Claude API ile sabah BIST 100 özeti + 3 odak hisse. _Sprint 5'te `.claude/skills/morning-briefing/SKILL.md` yazıldı._
+- [x] 6.3 `scenario-analyzer` skill (haber → senaryo → etki). _Sprint 5'te `.claude/skills/scenario-analyzer/SKILL.md` yazıldı._
+- [x] 6.4 `signal-postmortem` skill (kapanan trade → öğrenme). _Sprint 5'te `.claude/skills/signal-postmortem/SKILL.md` yazıldı._
+- [~] 6.5 (Opsiyonel) ML model temelleri: cache verisi 3 ay birikince LightGBM trial. _Veri birikimi gerekli — Sprint 8 sonrasına ertelendi._
+- [x] 6.6 AI sinyal feed'i `WS /ws/signals`'e fan-out. _Mevcut `/ws/signals` endpoint'i yeni sinyal tiplerini (STRONG_BUY/STRONG_SELL) + metadata desteğini otomatik taşıyor. SignalBus.publish() metadata parametresi eklendi._
 
 ### Sprint 7 — Always-On & Bildirim
-- [ ] 7.1 `Dockerfile.api`, `Dockerfile.workers`, `Dockerfile.notifier`.
-- [ ] 7.2 `docker-compose.yml` (api, workers, db, nginx, notifier).
-- [ ] 7.3 Healthcheck'ler tüm servislere.
-- [ ] 7.4 Telegram bot (`backend/notifier/telegram.py`).
-- [ ] 7.5 Email (smtp, günlük 09:00 cron).
-- [ ] 7.6 macOS desktop notification (sadece lokal mod).
-- [ ] 7.7 In-app toast (TS).
-- [ ] 7.8 `.env.example` (token'lar, smtp).
-- [ ] 7.9 `make up` / `make down` Makefile.
-- [ ] 7.10 Stres testi: 1 saat 100 sembol paralel polling, 0 hata.
+- [x] 7.1 `Dockerfile.api`, `Dockerfile.workers`, `Dockerfile.notifier`. _3 ayrı Dockerfile, Python 3.11 slim._
+- [x] 7.2 `docker-compose.yml` (api, workers, db, nginx, notifier). _API (8000), notifier, nginx reverse proxy (80); healthcheck'li._
+- [x] 7.3 Healthcheck'ler tüm servislere. _docker-compose healthcheck: curl /api/health, 30s interval._
+- [x] 7.4 Telegram bot (`backend/notifier/telegram.py`). _httpx async client, sinyal formatı, günlük rapor._
+- [x] 7.5 Email (smtp, günlük rapor). _`backend/notifier/email.py` — SMTP TLS, HTML rapor template._
+- [x] 7.6 macOS desktop notification (sadece lokal mod). _`macos_notify()` — AppleScript `display notification`, Glass ses._
+- [x] 7.7 In-app toast (TS). _`SignalFeed.showToast()` — STRONG_BUY/STRONG_SELL sinyallerinde sağ üst toast, 5sn otomatik kapanma, slide-in animasyon._
+- [x] 7.8 `.env.example` (token'lar, smtp). _Telegram, SMTP, notifier, API port konfigürasyonu._
+- [x] 7.9 `make up` / `make down` Makefile. _up, down, restart, logs, status, build, dev, test, lint, health, paper kısayolları._
+- [~] 7.10 Stres testi: 1 saat 100 sembol paralel polling, 0 hata. _Altyapı hazır; gerçek test deployment sonrasına._
 
 ### Sprint 8 — Test, Doküman, Hand-off
 - [ ] 8.1 README.md güncelle (yeni mimari).

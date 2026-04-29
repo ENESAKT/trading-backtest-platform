@@ -81,6 +81,7 @@ class SignalBus:
         reason: str = "",
         strength: int = 5,
         interval: str = "",
+        metadata: dict[str, Any] | None = None,
     ) -> None:
         message = {
             "type": "signal",
@@ -93,6 +94,8 @@ class SignalBus:
             "interval": interval,
             "ts": dt.datetime.now(dt.UTC).replace(microsecond=0).isoformat(),
         }
+        if metadata:
+            message["metadata"] = metadata
         async with self._lock:
             targets = [
                 sub for sub in self._subs.values()
