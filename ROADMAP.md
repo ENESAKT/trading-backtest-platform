@@ -3,7 +3,7 @@
 > Bu doküman **ne yapıldı, ne yapılacak, sonunda ne göreceksin**'i sade Türkçeyle anlatır.
 > Tick listesi (`- [x]` / `- [ ]`) için: [`planlama.md`](planlama.md). Bu dosya o planın hikâyesidir.
 >
-> **Tarih:** 2026-04-30 · **Durum:** Sprint 1–9 ✅ tamam · Sprint 10 Aşama 1 ✅ commitlendi · `301 passed, 1 deselected` · TSC/Vite 0 hata.
+> **Tarih:** 2026-04-30 · **Durum:** Sprint 1–10 ✅ tamam · `289 passed` · TSC/Vite 0 hata · Sprint 11 planlandı.
 
 ---
 
@@ -225,7 +225,56 @@ Plan, CLAUDE.md, `.claude/` iskelet klasörleri, kararların kayda geçmesi.
 
 ---
 
-## PR / Commit Tablosu (Bugüne Kadar)
+### Sprint 11 — Üretim Sertleştirme + Canlı Veri Bağlama + ML
+
+**Amaç:** Gerçek lisanslı BIST/VİOP feed'ini bağla, LightGBM sinyal modelini eğit, frontend'i cihaz uyumlu hale getir, gözlemlenebilirliği artır.
+
+**Ön koşul:** `.env` içinde `BIST_HTTP_URL_TEMPLATE` ve `VIOP_HTTP_URL_TEMPLATE` değerleri dolu olmalı. Olmadan Adım 1 bekler; diğer adımlar bağımsız.
+
+#### Adım 11.1 — Lisanslı BIST/VİOP Feed Bağlantısı
+- [ ] `BIST_HTTP_URL_TEMPLATE` URL ile `BistProvider.fetch()` canlı doğrulama
+- [ ] `VIOP_HTTP_URL_TEMPLATE` URL ile `ViopProvider.fetch()` canlı doğrulama
+- [ ] Provider health dashboard'a `is_real: true` etiketi UI'da görünür hale gelsin
+- [ ] Yahoo fallback `is_real: false` label'ını her zaman göstersin (kullanıcı yanıltılmasın)
+
+**Sonunda göreceğin:** BIST hisse sembolü seçince grafikte 15dk gecikmeli değil, gerçek anlık (veya açık gecikmeli lisanslı) fiyat gelecek.
+
+#### Adım 11.2 — LightGBM Sinyal Modeli Eğitimi
+- [ ] `scripts/ml_readiness.py` ile cache yeterliliğini doğrula (≥ 3 ay veri gerekli)
+- [ ] `quant_engine/research/lightgbm_model.py` üretim modunu aktive et (sahte model üretme kaldırılır)
+- [ ] Günlük yeniden eğitim için cron job (Makefile target: `make retrain`)
+- [ ] SignalGenerator'a LightGBM probability skoru ekle (mevcut kural motoru yanında)
+- [ ] Backtest engine'de LightGBM stratejisi olarak göster (8 → 9 strateji)
+
+**Sonunda göreceğin:** Sinyal akışında `lgbm_prob: 0.73` gibi olasılık skoru da görünecek. Backtest panelinde "LightGBM" seçeneği var.
+
+#### Adım 11.3 — Frontend Performans + UX
+- [ ] Sidebar lazy-load: 130 sembolü tek seferde değil, scroll ile yükle
+- [ ] Mobil/tablet düzeni: 768px altında tek sütun (ekran bölme gizlenir)
+- [ ] Chart'ta indikatör toggle paneli (EMA/RSI/MACD/BB/ATR/VWAP aç-kapa)
+- [ ] Sinyal geçmişi: `/ws/signals` son 100 sinyali localStorage'da sakla, sayfa yenilenince kaybolmasın
+- [ ] Playwright E2E: indikatör toggle + mobil viewport testleri
+
+**Sonunda göreceğin:** Telefondan açıldığında tek panel kullanılabilir layout. Chart'ın üstünde EMA/RSI/MACD toggle switch'leri var.
+
+#### Adım 11.4 — Gözlemlenebilirlik + Uyarılar
+- [ ] Prometheus `/metrics` endpoint (FastAPI middleware): request latency, cache hit rate, worker durumu
+- [ ] Grafana dashboard JSON (`docker/grafana/`) — 3 panel: latency, cache, worker
+- [ ] Worker çöktüğünde Telegram uyarısı (mevcut `service_status.py` + yeni ping mekanizması)
+- [ ] `scripts/daily_health_report.py` — günlük sabah 09:00'da Telegram'a cache boy + test sonuçları
+- [ ] `make monitor` target → Grafana `localhost:3000`
+
+**Sonunda göreceğin:** Sabah 09:05'te Telegram'a "gateway: ✅ cache: 18k bar, 45 sembol, p99: 42ms" geliyor. Bir worker çöktüyse anında bildirim.
+
+#### Adım 11.5 — Güvenlik + Temiz Kapanma
+- [ ] API key auth middleware (opsiyonel X-API-Key header) — dışa açılacaksa zorunlu
+- [ ] `SIGTERM` yakalayıp paper_trades'i flush eden graceful shutdown
+- [ ] `.env` validation başlangıçta: eksik kritik değer varsa servis başlamaz, açık hata mesajı verir
+- [ ] `docker compose down` sonrası SQLite WAL checkpoint doğrulama testi
+
+---
+
+
 
 | # | Branch / Commit | Konu | Durum | Sprint |
 |---|--------|------|-------|--------|

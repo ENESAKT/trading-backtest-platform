@@ -468,13 +468,42 @@ Tek `Notifier` servisi tüm kanalları soyutlar; sinyal motoru fan-out ile hepsi
 
 ---
 
-## 16. Sıradaki Adım
+## 16. Sprint 11 — Üretim Sertleştirme + Canlı Veri + ML
 
-Sprint 0–10 tamamlandı. Sıradaki çalışma Sprint 11 olarak yalnızca yeni dış değerler verildiğinde yapılır:
+> Sprint 0–10 tamamlandı (2026-04-30). Sprint 11 adımları bağımsız; dış credential gerektirenleri beklerken diğerleri yapılabilir.
 
-1. Lisanslı BIST/VİOP HTTP feed URL'leri gelirse `.env` içindeki `BIST_HTTP_URL_TEMPLATE` / `VIOP_HTTP_URL_TEMPLATE` doldurulur.
-2. Telegram/SMTP gerçek credential'ları varsa `scripts/telegram_roundtrip_check.py --live` ve canlı bildirim testi yapılır.
-3. Uzun süreli izleme için `make stress-live` çalıştırılır.
+### 16.1 Lisanslı BIST/VİOP Feed Bağlantısı _(dış credential gerekli)_
+- [ ] `.env` içinde `BIST_HTTP_URL_TEMPLATE` doldurulunca `BistProvider.fetch()` canlı doğrulama
+- [ ] `.env` içinde `VIOP_HTTP_URL_TEMPLATE` doldurulunca `ViopProvider.fetch()` canlı doğrulama
+- [ ] Provider health endpoint'ine `is_real` UI etiketi (yeşil/sarı rozet)
+- [ ] Yahoo fallback durumunda `is_real: false` uyarı her zaman görünür
+
+### 16.2 LightGBM Sinyal Modeli _(≥ 3 ay cache dolunca)_
+- [ ] `scripts/ml_readiness.py` ile cache yeterliliği doğrula
+- [ ] `quant_engine/research/lightgbm_model.py` üretim modunu aktive et
+- [ ] `make retrain` Makefile target — günlük yeniden eğitim cron
+- [ ] SignalGenerator'a `lgbm_prob` skoru ekle (kural motoru yanında)
+- [ ] Backtest engine'de "LightGBM" strateji olarak listele (8 → 9)
+
+### 16.3 Frontend Performans + UX _(bağımsız, şimdi yapılabilir)_
+- [ ] Sidebar lazy-load: scroll ile yükle (130 sembol tek seferde değil)
+- [ ] 768px altı mobil layout: tek sütun, ekran bölme gizlenir
+- [ ] Chart indikatör toggle (EMA/RSI/MACD/BB/ATR/VWAP aç-kapa switch)
+- [ ] Sinyal geçmişi localStorage kalıcılığı (sayfa yenilenmede kaybolmaz)
+- [ ] Playwright E2E: indikatör toggle + mobil viewport testleri
+
+### 16.4 Gözlemlenebilirlik + Uyarılar _(bağımsız, şimdi yapılabilir)_
+- [ ] FastAPI Prometheus `/metrics` middleware (latency, cache hit rate, worker count)
+- [ ] Grafana dashboard JSON (`docker/grafana/`) — 3 panel: latency / cache / worker
+- [ ] Worker çöküş → Telegram anında uyarı (mevcut `service_status.py` üzerine)
+- [ ] `scripts/daily_health_report.py` — sabah 09:00 Telegram özeti
+- [ ] `make monitor` target → Grafana localhost:3000
+
+### 16.5 Güvenlik + Graceful Shutdown _(bağımsız, şimdi yapılabilir)_
+- [ ] `.env` validation başlangıçta: eksik kritik değer → servis başlamaz, açık hata
+- [ ] `SIGTERM` → paper_trades SQLite flush → graceful exit
+- [ ] API key auth middleware (X-API-Key header, dışa açılacaksa zorunlu)
+- [ ] `docker compose down` sonrası WAL checkpoint doğrulama testi
 
 ---
 

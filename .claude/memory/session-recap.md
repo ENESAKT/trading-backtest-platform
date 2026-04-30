@@ -1,9 +1,10 @@
-# Session Recap — 2026-04-30 12:04:33
+# Session Recap — 2026-04-30 12:11:46
 
 ## Bu Oturumda Yapılanlar
 
 ### Son Commit'ler
 ```
+2eb25a1 chore: hook formatı ve session recap güncellendi
 bd3a205 docs: planlama, mimari, sprint ilerleme ve infra güncellemeleri
 995be5c feat: Playwright E2E, LightGBM araştırma modeli, MCP konfigürasyonu, geliştirici scriptleri
 69f3bb7 test: integration ve unit test güncellemeleri (Sprint 10 Aşama 2)
