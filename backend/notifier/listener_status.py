@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import datetime as dt
 import json
-from pathlib import Path
 from typing import Any
 
 from backend.config import ROOT, mask_sensitive

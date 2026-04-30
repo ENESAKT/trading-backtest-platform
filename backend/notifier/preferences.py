@@ -7,7 +7,6 @@ notifier sends, while token/chat credentials stay in environment variables.
 from __future__ import annotations
 
 import json
-from pathlib import Path
 from typing import Any
 
 from backend.config import ROOT, getenv

@@ -29,7 +29,6 @@ from backend.data.cache import OHLCVCache
 from quant_engine.backtest.engine import BacktestConfig, BacktestEngine
 from quant_engine.strategy.registry import get_registry
 
-
 MIN_BARS = 50
 
 

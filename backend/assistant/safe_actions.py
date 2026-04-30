@@ -8,8 +8,8 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import sys
 import shlex
+import sys
 from pathlib import Path
 
 logger = logging.getLogger(__name__)

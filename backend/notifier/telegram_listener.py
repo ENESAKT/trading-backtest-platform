@@ -296,7 +296,8 @@ async def listener_loop() -> None:
 
     if not telegram_authorized_chat_configured():
         logger.warning(
-            "telegram_listener: yetkili Telegram kullanıcısı yapılandırılmamış — tüm mesajlar reddedilecek"
+            "telegram_listener: yetkili Telegram kullanıcısı yapılandırılmamış — "
+            "tüm mesajlar reddedilecek"
         )
 
     logger.info("telegram_listener: başlatıldı (long polling)")

@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import datetime as dt
 import logging
-import os
 import re
 from typing import Any
 
@@ -99,7 +98,7 @@ def _worker_status_lines(workers: Any) -> list[str]:
     return lines
 
 
-def _calc_rsi(closes: "pd.Series", period: int = 14) -> float:  # type: ignore[name-defined]
+def _calc_rsi(closes: Any, period: int = 14) -> float:
     if len(closes) < period + 1:
         return 50.0
     delta = closes.diff()
@@ -262,8 +261,6 @@ async def cmd_sinyal(args: str) -> str:
         import pandas as pd
 
         closes = pd.Series([float(b["close"]) for b in bars])
-        highs = pd.Series([float(b["high"]) for b in bars])
-        lows = pd.Series([float(b["low"]) for b in bars])
         volumes = pd.Series([float(b.get("volume", 0)) for b in bars])
         price = float(closes.iloc[-1])
 
@@ -290,7 +287,10 @@ async def cmd_sinyal(args: str) -> str:
             trend, trend_icon = "YATAY", "➡️"
 
         # Hacim oranı
-        vol_avg = float(volumes.rolling(20).mean().iloc[-1]) if len(volumes) >= 20 else float(volumes.mean())
+        if len(volumes) >= 20:
+            vol_avg = float(volumes.rolling(20).mean().iloc[-1])
+        else:
+            vol_avg = float(volumes.mean())
         vol_ratio = float(volumes.iloc[-1]) / vol_avg if vol_avg > 0 else 1.0
 
         # Skor hesapla

@@ -6,33 +6,31 @@ Asla otomatik commit/push yapmaz. Güvenli eylemler listesinden çıkar.
 from __future__ import annotations
 
 import logging
-import os
 from pathlib import Path
 
 from backend.assistant.safe_actions import (
-    find_files,
     git_diff_stat,
     git_log,
     git_status,
     grep_in_project,
     import_check,
     run_pytest,
-    run_safe,
     run_tsc,
 )
+from backend.config import getenv
 
 logger = logging.getLogger(__name__)
 
 ROOT = Path(__file__).resolve().parents[2]
-_API_URL = os.getenv("NOTIFY_API_URL", "http://localhost:8000")
 
 
 async def _health() -> dict:
     try:
         import httpx
 
+        api_url = getenv("NOTIFY_API_URL", "http://localhost:8000")
         async with httpx.AsyncClient(timeout=5) as client:
-            r = await client.get(f"{_API_URL}/api/health")
+            r = await client.get(f"{api_url}/api/health")
             return r.json()
     except Exception as exc:  # noqa: BLE001
         return {"status": "error", "detail": str(exc)}
@@ -52,7 +50,7 @@ async def project_health_report() -> str:
     code, out = await import_check()
     icon = "✅" if code == 0 else "❌"
     last_line = next(
-        (l for l in reversed(out.strip().splitlines()) if l.strip()),
+        (line for line in reversed(out.strip().splitlines()) if line.strip()),
         out.strip()[:100],
     )
     lines.append(f"{icon} `{last_line[:150]}`")
@@ -63,7 +61,7 @@ async def project_health_report() -> str:
     if tsc_code == 0:
         lines.append("✅ Temiz — sıfır hata")
     else:
-        hata_satirlari = [l for l in tsc_out.splitlines() if "error" in l.lower()][:8]
+        hata_satirlari = [line for line in tsc_out.splitlines() if "error" in line.lower()][:8]
         ozet = "\n".join(hata_satirlari) if hata_satirlari else tsc_out[:400]
         lines.append(f"❌ ```\n{ozet}\n```")
 
@@ -71,7 +69,9 @@ async def project_health_report() -> str:
     lines.append("\n*Testler (hızlı):*")
     py_code, py_out = await run_pytest(quick=True)
     if py_code == 0:
-        summary_lines = [l for l in py_out.splitlines() if "passed" in l or "failed" in l]
+        summary_lines = [
+            line for line in py_out.splitlines() if "passed" in line or "failed" in line
+        ]
         lines.append(f"✅ {summary_lines[-1] if summary_lines else 'geçti'}")
     else:
         kisa = "\n".join(py_out.strip().splitlines()[-12:])
@@ -95,7 +95,7 @@ async def project_health_report() -> str:
 async def analyze_task(task_text: str) -> str:
     """/gorev komutu: analiz et, rapor ver, değişiklik yapma."""
     lines: list[str] = [
-        f"🔎 *GÖREV ANALİZİ*",
+        "🔎 *GÖREV ANALİZİ*",
         f"📋 İstek: _{task_text[:120]}_\n",
     ]
 
@@ -133,7 +133,7 @@ async def analyze_task(task_text: str) -> str:
 async def fix_task(task_text: str) -> str:
     """/duzelt komutu: tanı koy, güvenli düzeltme uygula, rapor ver."""
     lines: list[str] = [
-        f"🔧 *DÜZELTME RAPORU*",
+        "🔧 *DÜZELTME RAPORU*",
         f"📋 İstek: _{task_text[:120]}_\n",
     ]
 
@@ -146,7 +146,7 @@ async def fix_task(task_text: str) -> str:
     if imp_code != 0:
         sorunlar.append(f"Import hatası: {imp_out.strip()[:200]}")
     if tsc_code != 0:
-        hata_satirlari = [l for l in tsc_out.splitlines() if "error" in l.lower()][:5]
+        hata_satirlari = [line for line in tsc_out.splitlines() if "error" in line.lower()][:5]
         if hata_satirlari:
             sorunlar.append("TSC: " + " | ".join(hata_satirlari[:3]))
 
@@ -156,7 +156,7 @@ async def fix_task(task_text: str) -> str:
     for kw in keywords:
         found = await grep_in_project(kw)
         if found and found != "(bulunamadı)":
-            dosyalar = [l.split(":")[0] for l in found.splitlines()[:4]]
+            dosyalar = [line.split(":")[0] for line in found.splitlines()[:4]]
             ilgili_dosyalar.extend(dosyalar)
     ilgili_dosyalar = list(dict.fromkeys(ilgili_dosyalar))[:6]
 
@@ -169,7 +169,7 @@ async def fix_task(task_text: str) -> str:
         lines.append("• Import ve TSC temiz ✅")
 
     if ilgili_dosyalar:
-        lines.append(f"\n*İlgili dosyalar:*")
+        lines.append("\n*İlgili dosyalar:*")
         for f in ilgili_dosyalar:
             lines.append(f"  • `{f}`")
 
@@ -177,7 +177,7 @@ async def fix_task(task_text: str) -> str:
 
     # Test sonucu
     py_code, py_out = await run_pytest(quick=True)
-    summary = [l for l in py_out.splitlines() if "passed" in l or "failed" in l]
+    summary = [line for line in py_out.splitlines() if "passed" in line or "failed" in line]
     test_str = summary[-1] if summary else py_out.strip()[-80:]
     test_icon = "✅" if py_code == 0 else "❌"
     lines.append(f"\n*Test:* {test_icon} `{test_str}`")

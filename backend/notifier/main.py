@@ -16,7 +16,6 @@ from __future__ import annotations
 import asyncio
 import datetime as dt
 import logging
-import os
 import subprocess
 import sys
 
@@ -76,15 +75,17 @@ def macos_notify(title: str, message: str) -> None:
 # ── Ana bildirim döngüsü ─────────────────────────────────────────────────────
 async def notification_loop() -> None:
     """STRONG sinyalleri dinle ve bildir."""
-    from backend.notifier.telegram import bildir_yeni_sinyal, bildir_hata
     from backend.notifier.preferences import read_preferences, selected_symbols
+    from backend.notifier.telegram import bildir_hata, bildir_yeni_sinyal
 
     logger.info("notifier: başlatılıyor...")
     _durum["aktif"] = True
     _publish_status()
 
-    poll_interval = int(os.getenv("NOTIFY_POLL_INTERVAL", "30"))
-    api_url = os.getenv("NOTIFY_API_URL", "http://localhost:8000")
+    from backend.config import getenv
+
+    poll_interval = int(getenv("NOTIFY_POLL_INTERVAL", "30"))
+    api_url = getenv("NOTIFY_API_URL", "http://localhost:8000")
     ws_url = api_url.replace("http://", "ws://").replace("https://", "wss://")
 
     while True:
@@ -166,7 +167,10 @@ async def daily_summary_loop() -> None:
 
         try:
             import httpx
-            api_url = os.getenv("NOTIFY_API_URL", "http://localhost:8000")
+
+            from backend.config import getenv
+
+            api_url = getenv("NOTIFY_API_URL", "http://localhost:8000")
             async with httpx.AsyncClient(timeout=10) as client:
                 wallets_resp = await client.get(f"{api_url}/api/paper/wallets")
                 trades_resp = await client.get(f"{api_url}/api/paper/trades?limit=50")
@@ -196,8 +200,8 @@ def main() -> None:
     logging.getLogger("httpcore").setLevel(logging.WARNING)
 
     async def run() -> None:
-        from backend.notifier.telegram_listener import listener_loop
         from backend.notifier.telegram import bildir_bot_basladi, bildir_bot_durdu
+        from backend.notifier.telegram_listener import listener_loop
 
         await bildir_bot_basladi()
         try:

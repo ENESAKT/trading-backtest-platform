@@ -32,7 +32,6 @@ from quant_engine.strategy.examples.rsi_reversion import RsiReversion  # noqa: F
 from quant_engine.strategy.examples.sma_crossover import SmaCrossover  # noqa: F401
 from quant_engine.strategy.examples.supertrend import Supertrend  # noqa: F401
 
-
 _INT = "int"
 _FLOAT = "float"
 
