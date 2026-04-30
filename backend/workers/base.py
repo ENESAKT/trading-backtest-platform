@@ -21,7 +21,7 @@ import asyncio
 import datetime as dt
 import logging
 from abc import ABC, abstractmethod
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -39,6 +39,7 @@ class WorkerHealth:
     failures: int
     last_run_ok: str | None
     last_error: str | None
+    metadata: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)

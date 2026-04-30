@@ -95,7 +95,14 @@ def iso_utc(value: dt.datetime | None = None) -> str:
 
 def normalize_symbol(symbol: str) -> str:
     """Kullanıcı sembolünü kanonik forma getir."""
-    return symbol.upper().strip().replace(" ", "").replace("/", "").replace("-", "").replace(".IS", "")
+    return (
+        symbol.upper()
+        .strip()
+        .replace(" ", "")
+        .replace("/", "")
+        .replace("-", "")
+        .replace(".IS", "")
+    )
 
 
 def _to_unix_seconds(value: Any) -> int:
@@ -553,7 +560,8 @@ class LiveDataService:
                 frame = ticker.history(period="1mo", interval="1d")
 
         if frame.empty:
-            return self._error_payload(spec, f"Bağlantı Hatası: {spec.display_name} için veri alınamadı.")
+            message = f"Bağlantı Hatası: {spec.display_name} için veri alınamadı."
+            return self._error_payload(spec, message)
 
         frame = frame.reset_index().tail(limit)
         time_column = "Datetime" if "Datetime" in frame.columns else "Date"
@@ -577,7 +585,8 @@ class LiveDataService:
             )
 
         if not bars:
-            return self._error_payload(spec, f"Bağlantı Hatası: {spec.display_name} için geçerli fiyat satırı yok.")
+            message = f"Bağlantı Hatası: {spec.display_name} için geçerli fiyat satırı yok."
+            return self._error_payload(spec, message)
 
         last_bar_at = _to_iso_datetime(frame.iloc[-1][time_column])
         fetched_at = iso_utc()
@@ -674,7 +683,10 @@ class PaperTradingRecorder:
             "price_source": chart["metadata"]["source"],
             "price_fetched_at": chart["metadata"]["fetched_at"],
             "created_at": now,
-            "note": "Gerçek piyasa fiyatıyla oluşturulan sanal paper trade kaydıdır; canlı emir değildir.",
+            "note": (
+                "Gerçek piyasa fiyatıyla oluşturulan sanal paper trade kaydıdır; "
+                "canlı emir değildir."
+            ),
         }
         trades.insert(0, trade)
         document["paper_trades"] = trades

@@ -17,13 +17,14 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import random
 from typing import Any, Awaitable, Callable
 
 import websockets
 from websockets.exceptions import ConnectionClosed
 
 from backend.data.cache import OHLCVCache
-from backend.workers.base import AsyncWorker, _utc_iso
+from backend.workers.base import AsyncWorker, WorkerHealth, _utc_iso
 
 logger = logging.getLogger(__name__)
 
@@ -43,6 +44,9 @@ class BinanceKlineWorker(AsyncWorker):
     PING_TIMEOUT = 20.0
     INITIAL_BACKOFF = 1.0
     MAX_BACKOFF = 30.0
+    BACKOFF_JITTER_RATIO = 0.20
+    OPEN_TIMEOUT = 10.0
+    MAX_QUEUE = 512
 
     def __init__(
         self,
@@ -56,6 +60,10 @@ class BinanceKlineWorker(AsyncWorker):
         self.symbols = [s.upper() for s in symbols]
         self.interval = interval
         self.on_bar = on_bar
+        self._reconnects = 0
+        self._last_connected_at: str | None = None
+        self._last_disconnect_at: str | None = None
+        self._last_message_at: str | None = None
 
     def _build_url(self) -> str:
         streams = "/".join(
@@ -111,34 +119,59 @@ class BinanceKlineWorker(AsyncWorker):
                     ping_interval=self.PING_INTERVAL,
                     ping_timeout=self.PING_TIMEOUT,
                     close_timeout=5.0,
+                    open_timeout=self.OPEN_TIMEOUT,
+                    max_queue=self.MAX_QUEUE,
                 ) as ws:
+                    self._last_connected_at = _utc_iso()
+                    self._last_error = None
                     backoff = self.INITIAL_BACKOFF
                     await self._consume(ws)
             except asyncio.CancelledError:
                 raise
-            except (ConnectionClosed, OSError) as exc:
-                self._failures += 1
-                self._last_error = f"{type(exc).__name__}: {exc}"
-                logger.warning("binance_ws disconnected: %s", self._last_error)
+            except (ConnectionClosed, OSError, TimeoutError) as exc:
+                self._record_disconnect(exc, backoff)
             except Exception as exc:  # noqa: BLE001
-                self._failures += 1
-                self._last_error = f"{type(exc).__name__}: {exc}"
-                logger.warning("binance_ws unexpected: %s", self._last_error)
+                self._record_disconnect(exc, backoff, unexpected=True)
 
             if self._stop.is_set():
                 break
-            await self._sleep(backoff)
+            await self._sleep(self._with_jitter(backoff))
             backoff = min(backoff * 2.0, self.MAX_BACKOFF)
 
     async def _consume(self, ws: Any) -> None:
         async for raw in ws:
             if self._stop.is_set():
                 break
+            self._last_message_at = _utc_iso()
             parsed = self.parse_kline_message(raw)
             if parsed is None:
                 continue
             symbol, bar = parsed
             await self._persist(symbol, bar)
+
+    def _record_disconnect(
+        self,
+        exc: BaseException,
+        next_backoff: float,
+        unexpected: bool = False,
+    ) -> None:
+        self._failures += 1
+        self._reconnects += 1
+        self._last_disconnect_at = _utc_iso()
+        self._last_error = f"{type(exc).__name__}: {exc}"
+        kind = "unexpected" if unexpected else "disconnected"
+        logger.warning(
+            "binance_ws %s: %s; reconnect in %.1fs",
+            kind,
+            self._last_error,
+            next_backoff,
+        )
+
+    def _with_jitter(self, seconds: float) -> float:
+        if seconds <= 0:
+            return 0
+        spread = seconds * self.BACKOFF_JITTER_RATIO
+        return max(0.1, seconds + random.uniform(-spread, spread))
 
     async def _persist(self, symbol: str, bar: dict[str, Any]) -> None:
         loop = asyncio.get_running_loop()
@@ -164,3 +197,20 @@ class BinanceKlineWorker(AsyncWorker):
                     await result
             except Exception as exc:  # noqa: BLE001 — hook patladıysa stream durmasın
                 logger.warning("binance_ws on_bar hook failed: %s", exc)
+
+    def health(self) -> WorkerHealth:
+        base = super().health()
+        base.metadata.update(
+            {
+                "reconnects": self._reconnects,
+                "last_connected_at": self._last_connected_at,
+                "last_disconnect_at": self._last_disconnect_at,
+                "last_message_at": self._last_message_at,
+                "backoff": {
+                    "initial_seconds": self.INITIAL_BACKOFF,
+                    "max_seconds": self.MAX_BACKOFF,
+                    "jitter_ratio": self.BACKOFF_JITTER_RATIO,
+                },
+            }
+        )
+        return base

@@ -34,7 +34,6 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from backend.config import getenv, llm_configured, mask_sensitive, telegram_configured
 from backend.api.quote_bus import QuoteBus
 from backend.api.signal_bus import SignalBus
 from backend.backtest import (
@@ -44,16 +43,17 @@ from backend.backtest import (
     list_blueprints,
     run_backtest,
 )
+from backend.config import getenv, llm_configured, mask_sensitive, telegram_configured
 from backend.data.cache import OHLCVCache
 from backend.data.spike_filter import filter_bars
-from backend.paper import PaperDB, PaperExecutor
-from backend.signals import SignalGenerator
 from backend.data.symbols import (
     BIST_STOCKS,
     CRYPTO_WS_SYMBOLS,
     DEFAULT_INTERVAL,
     YAHOO_INDEX_FX_COMMODITY,
 )
+from backend.paper import PaperDB, PaperExecutor
+from backend.signals import SignalGenerator
 from backend.workers import WorkerSupervisor
 from backend.workers.binance_ws import BinanceKlineWorker
 from backend.workers.bist_poller import BistStockPoller
@@ -131,7 +131,10 @@ def _build_default_supervisor(
             if last_close > 0:
                 paper_executor.update_prices({symbol.upper(): last_close})
 
-    on_bar = _on_bar if (quote_bus is not None or signal_generator is not None or paper_executor is not None) else None
+    has_live_hooks = (
+        quote_bus is not None or signal_generator is not None or paper_executor is not None
+    )
+    on_bar = _on_bar if has_live_hooks else None
     return WorkerSupervisor(
         [
             BinanceKlineWorker(
@@ -288,9 +291,15 @@ def create_app(
             durum = {**durum, **shared_durum}
         except Exception:
             pass
+        try:
+            from backend.notifier.email import email_status
+            email = email_status()
+        except Exception:
+            email = {"smtp_yapilandirildi": False}
         return {
             "telegram_yapilandirildi": telegram_configured(),
             "yetkili_kullanici_yapilandirildi": bool(getenv("TELEGRAM_CHAT_ID")),
+            "email": email,
             "aktif": durum.get("aktif", False),
             "son_bildirim": durum.get("son_bildirim"),
             "son_hata": mask_sensitive(durum.get("son_hata")),
@@ -605,7 +614,13 @@ def create_app(
                 },
             })
 
-        # Hem provider hem cache boş → hata payload'ını aynen geri ver
+        # Veri yok / lisanslı kaynak yok durumları gateway hatası değildir.
+        # Payload status alanı üst katmana nedeni taşır; HTTP 200 canlılık
+        # ve stres testlerinde altyapı hatasıyla veri yokluğunu ayırır.
+        if provider_payload.get("status") in {"no_data", "not_configured"}:
+            return JSONResponse(provider_payload)
+
+        # Hem provider hem cache boş ve gerçek provider hatası var.
         return JSONResponse(provider_payload, status_code=502)
 
     # ── Statik dosyalar (SPA / index.html) ───────────────────────────────

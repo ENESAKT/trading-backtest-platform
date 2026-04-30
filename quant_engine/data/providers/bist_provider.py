@@ -15,11 +15,17 @@ from quant_engine.data.market_data import (
     MarketDataStatus,
     utc_iso,
 )
+from quant_engine.data.providers.http_ohlcv import (
+    configured_header,
+    configured_template,
+    fetch_http_ohlcv,
+)
 
 
 class BistMarketDataProvider:
     name = "bist_yfinance"
     source = "Yahoo Finance (BIST best-effort public)"
+    http_name = "bist_http"
 
     _INTERVAL_MAP: dict[str, tuple[str, str]] = {
         "1m": ("1m", "1d"),
@@ -74,11 +80,52 @@ class BistMarketDataProvider:
         except TypeError:
             return ticker.history(period=yf_period, interval=yf_interval)
 
+    def _fetch_configured_http(
+        self,
+        canonical: str,
+        timeframe: str,
+        limit: int,
+    ) -> list[dict[str, Any]]:
+        template = configured_template("BIST_HTTP_URL_TEMPLATE")
+        if not template:
+            return []
+        return fetch_http_ohlcv(
+            template,
+            canonical,
+            timeframe,
+            limit,
+            self.timeout,
+            configured_header("BIST_HTTP_AUTH_HEADER"),
+        )
+
     def fetch_ohlcv(self, symbol: str, timeframe: str, limit: int) -> MarketDataResult:
         canonical, source_symbol, display = self._source_symbol(symbol)
         market = self._market_for_source(source_symbol)
         yf_interval, yf_period = self._INTERVAL_MAP.get(timeframe, ("15m", "5d"))
         timestamp = utc_iso()
+        http_template = configured_template("BIST_HTTP_URL_TEMPLATE")
+
+        if http_template:
+            try:
+                bars = self._fetch_configured_http(canonical, timeframe, limit)
+            except Exception as exc:  # noqa: BLE001
+                self.last_error = f"{type(exc).__name__}: {exc}"
+                bars = []
+            if bars:
+                self.last_success_at = timestamp
+                self.last_error = None
+                return MarketDataResult(
+                    symbol=canonical,
+                    market=market,
+                    timeframe=timeframe,
+                    data=bars,
+                    source="Configured BIST HTTP feed",
+                    is_real=True,
+                    status=MarketDataStatus.OK,
+                    timestamp=timestamp,
+                    provider_name=self.http_name,
+                    display_name=display,
+                )
 
         try:
             frame = self._load_history(source_symbol, yf_interval, yf_period)
@@ -176,13 +223,14 @@ class BistMarketDataProvider:
         )
 
     def health(self) -> MarketDataHealth:
+        http_configured = bool(configured_template("BIST_HTTP_URL_TEMPLATE"))
         return MarketDataHealth(
-            provider_name=self.name,
+            provider_name=self.http_name if http_configured else self.name,
             provider_type=MarketDataProviderType.BIST,
             active=True,
             configured=True,
             supported_markets=["bist", "fx", "commodity"],
             last_success_at=self.last_success_at,
             last_error=self.last_error,
-            source=self.source,
+            source="Configured BIST HTTP feed" if http_configured else self.source,
         )
