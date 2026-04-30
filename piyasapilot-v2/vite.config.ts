@@ -6,9 +6,10 @@ export default defineConfig({
     minify: 'esbuild',
     rollupOptions: {
       output: {
-        manualChunks: {
-          'lightweight-charts': ['lightweight-charts'],
-          'chart.js': ['chart.js'],
+        manualChunks(id) {
+          if (id.includes('node_modules/lightweight-charts')) return 'lightweight-charts';
+          if (id.includes('node_modules/chart.js')) return 'chart.js';
+          return undefined;
         },
       },
     },

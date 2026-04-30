@@ -17,12 +17,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 async def main() -> None:
     from backend.config import telegram_configured
     from backend.notifier.telegram import (
-        test_baglantisi,
-        bildir_yeni_sinyal,
         bildir_alim,
-        bildir_satim,
-        bildir_hata,
         bildir_gunluk_ozet,
+        bildir_hata,
+        bildir_satim,
+        bildir_yeni_sinyal,
+        test_baglantisi,
     )
 
     if not telegram_configured():
