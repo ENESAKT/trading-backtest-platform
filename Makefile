@@ -1,4 +1,4 @@
-.PHONY: up down restart logs status build dev test lint e2e mcp-check stress-smoke stress-live docker-restart-check verify monitor daily-report wal-check
+.PHONY: up down restart logs status build dev test lint e2e mcp-check stress-smoke stress-live docker-restart-check provider-check provider-check-strict provider-mock-check metrics-check retrain verify monitor daily-report wal-check
 
 # ─── Docker Compose ────────────────────────────────────────────────────────
 
@@ -67,7 +67,22 @@ stress-live:
 docker-restart-check:
 	bash scripts/docker_restart_check.sh
 
-verify: test lint e2e mcp-check
+provider-check:
+	source .venv/bin/activate && python scripts/provider_feed_check.py
+
+provider-check-strict:
+	source .venv/bin/activate && python scripts/provider_feed_check.py --require-config
+
+provider-mock-check:
+	source .venv/bin/activate && python scripts/provider_feed_check.py --mock --require-config
+
+metrics-check:
+	source .venv/bin/activate && python scripts/metrics_live_check.py
+
+retrain:
+	source .venv/bin/activate && python scripts/retrain_lightgbm.py --symbol BTCUSDT --interval 15m --output models/lightgbm/BTCUSDT_15m.txt
+
+verify: test lint e2e mcp-check provider-check provider-mock-check
 
 # ─── Utility ───────────────────────────────────────────────────────────────
 
@@ -96,4 +111,3 @@ daily-report-stdout:
 
 wal-check:
 	source .venv/bin/activate && python scripts/wal_checkpoint_test.py
-

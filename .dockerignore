@@ -1,0 +1,10 @@
+*
+
+!requirements.txt
+!backend/
+!backend/**
+!quant_engine/
+!quant_engine/**
+
+**/__pycache__/
+*.py[cod]

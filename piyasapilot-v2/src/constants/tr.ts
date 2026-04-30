@@ -111,6 +111,8 @@ export const TR = {
   STRATEGY_DESC_SUPERTREND: 'ATR tabanlı trend takip göstergesi; yön dönüşünde işlem',
   STRATEGY_VWAP: 'VWAP Geri Dönüş',
   STRATEGY_DESC_VWAP: "VWAP'dan sapma bölgelerinde ortalamaya dönüş stratejisi",
+  STRATEGY_LGBM: 'LightGBM',
+  STRATEGY_DESC_LGBM: 'Eğitilmiş model varsa yükseliş olasılığıyla AL/SAT filtresi',
   PAPER_TRADING: 'Sanal İşlemler',
   WALLETS: 'Sanal Cüzdanlar',
   WALLET_HALTED: 'DONDURULDU',

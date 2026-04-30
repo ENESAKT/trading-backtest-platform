@@ -94,8 +94,8 @@ class WorkerHealthMonitor:
             if not token or not chat_id:
                 return
 
-            import urllib.request
             import json
+            import urllib.request
 
             payload = json.dumps({"chat_id": chat_id, "text": message}).encode()
             url = f"https://api.telegram.org/bot{token}/sendMessage"

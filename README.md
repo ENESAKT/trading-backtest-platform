@@ -2,7 +2,7 @@
 
 <p align="center">
   <strong>BIST 100 · Kripto · ABD Piyasaları · FX/Emtia</strong><br>
-  Gerçek zamanlı veri · 8 strateji · Paper trading · AI sinyal motoru
+  Gerçek zamanlı veri · 9 strateji · Paper trading · AI sinyal motoru
 </p>
 
 ---
@@ -43,7 +43,7 @@
 | **Backend** | Python 3.11, FastAPI, uvicorn |
 | **Veritabanı** | SQLite (OHLCV cache + paper trades) |
 | **Veri** | ProviderRouter, yfinance best-effort BIST/FX/emtia, Binance WS/REST, lisanslı BIST/VİOP HTTP köprüleri |
-| **Backtest** | Custom engine (lookahead-free, 8 strateji) |
+| **Backtest** | Custom engine (lookahead-free, 9 strateji) |
 | **Bildirim** | Telegram bot, Email (SMTP), macOS notification |
 | **Deployment** | Docker Compose, nginx reverse proxy |
 | **AI Ekosistemi** | Claude Code agents/skills/hooks/MCP |
@@ -109,6 +109,9 @@ make up
 - `make stress-live` — 100 sembol / 1 saat HTTP polling stres testi
 - `make docker-restart-check` — Docker API restart healthcheck
 - `python scripts/ml_readiness.py` — LightGBM veri yeterliliği raporu
+- `make provider-check` / `make provider-check-strict` — lisanslı BIST/VİOP feed doğrulama
+- `make retrain` — yeterli cache varsa LightGBM model eğitimi
+- `make metrics-check` — canlı `/metrics` Prometheus çıktısı kontrolü
 
 ### Sembol Kapsamı
 - **BIST 100:** 98/100 hisse
@@ -134,7 +137,7 @@ make up
 ├── quant_engine/            # Python backtest framework
 │   ├── backtest/            # Lookahead-free engine
 │   ├── data/                # ProviderRouter + market data modelleri
-│   └── strategy/            # 8 strateji implementasyonu
+│   └── strategy/            # 9 strateji implementasyonu
 ├── .claude/                 # AI ekosistemi
 │   ├── agents/              # 8 sub-agent
 │   ├── skills/              # 15 skill
@@ -165,7 +168,7 @@ make lint
 | 0 — Planlama | ✅ | CLAUDE.md, iskelet, sembol listesi |
 | 1 — Backend Gateway | ✅ | FastAPI, SQLite, worker'lar |
 | 2 — Frontend Terminal | ✅ | Sidebar, ChartPanel, MultiChartLayout |
-| 3 — Backtest API | ✅ | 8 strateji, sinyal feed, signal bus |
+| 3 — Backtest API | ✅ | 9 strateji, sinyal feed, signal bus |
 | 4 — Paper Trading | ✅ | PaperDB, PaperExecutor, PortfolioPanel v2 |
 | 5 — Agent/Skill/Hook | ✅ | 8 agent, 15 skill, 5 command, 4 hook |
 | 6 — AI Sinyal Motoru | ✅ | Konsensüs, sinyal gücü, metadata |

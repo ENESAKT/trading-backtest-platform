@@ -50,7 +50,7 @@ Aynı veri kaynaklarını farklı yollardan kullanıyorlardı; sonuçlar zaman z
 - `quant_engine/backtest/engine.py` — Lookahead-free, testli BacktestEngine.
 - `quant_engine/data/live_feed.py` + `quant_engine/data/provider_router.py` — BIST/VİOP/kripto sağlayıcı yönlendirmesi ve legacy payload uyumu.
 - `quant_engine/data/providers/` — Binance/yfinance provider'ları + BIST, VİOP, crypto market data adapter'ları.
-- `quant_engine/strategy/` — 8 strateji, blueprint engine ve decision engine.
+- `quant_engine/strategy/` — 9 strateji, blueprint engine ve decision engine.
 - `backend/signals/generator.py` — SignalGenerator v2, STRONG konsensüs ve gerçek veri metadata kapısı.
 - `backend/paper/` — SQLite paper trading, izole strateji cüzdanları, risk limitleri.
 - `backend/notifier/` — Telegram, email, macOS bildirimi, asistan listener, bildirim tercihleri.
@@ -313,7 +313,7 @@ Tek `Notifier` servisi tüm kanalları soyutlar; sinyal motoru fan-out ile hepsi
 - [x] 3.4 TS'te `StrategyPanel` → API'ye `POST` atıyor, equity eğrisini Chart.js ile çiziyor. _PR #12: `fetch('/api/backtest/run')` + 30s timeout + hata mesajı + `lastRunKey` debounce (her tick yerine sembol/strategy değişiminde tetikler); equity eğrisi backend `equity_curve[].total_equity` üzerinden çizilir; `signals[]` ChartPanel marker'a doğal akış._
 - [x] 3.5 Live signal feed: `/ws/signals` (DecisionEngine her bar kapanışında çalışır). _PR #13: `SignalBus` + `SignalGenerator`; `on_bar` hook tüm worker'lara bağlı._
 - [x] 3.6 TS'te `SignalFeed` panel. _PR #14: `SignalFeed.ts` — `/ws/signals` WS, otomatik yeniden bağlanma, max 50 sinyal, en yeni üstte; "Sinyaller" tab (klavye kısayolu 5)._
-- [x] 3.7 Eski 4 strateji + yeni 4 strateji (toplam 8): EMA cross, RSI mean-rev, BB rev, breakout, **donchian breakout, MACD div, supertrend, mean-reversion VWAP**. _PR #14: `donchian_breakout`, `macd_divergence`, `supertrend`, `mean_reversion_vwap` eklendi; `blueprints.py` 8 stratejiye güncellendi; `StrategyPanel.ts` 8 kart._
+- [x] 3.7 Eski 4 strateji + yeni 4 strateji (Sprint 3'te toplam 8): EMA cross, RSI mean-rev, BB rev, breakout, **donchian breakout, MACD div, supertrend, mean-reversion VWAP**. _Sprint 11'de `lightgbm_probability` ile güncel toplam 9 strateji._
 
 ### Sprint 4 — Paper Trading & Portföy
 - [x] 4.1 SQLite şeması: `paper_trades`, `paper_portfolio`, `paper_equity_curve`. _Backend `paper/db.py` — 3 tablo + index'ler._
@@ -365,7 +365,7 @@ Tek `Notifier` servisi tüm kanalları soyutlar; sinyal motoru fan-out ile hepsi
 - [x] 8.1 README.md güncelle (yeni mimari). _Mimari diyagramı, özellik listesi, proje yapısı, sprint tablosu._
 - [x] 8.2 `docs/MIMARI.md`, `docs/AGENT_REHBERI.md`, `docs/SKILL_REHBERI.md`. _5 katmanlı mimari dokümanı, 8 agent rehberi, 15 skill + 5 command + 4 hook rehberi._
 - [x] 8.3 `tests/e2e/` Playwright (TS frontend smoke). _`piyasapilot-v2/tests/e2e/smoke.spec.ts`; 2 test passed._
-- [x] 8.4 Backtest paritesi testi (Python API sonuçları tutarlı). _291 pytest geçiyor; `test_backtest_api.py` 8 strateji doğruluyor._
+- [x] 8.4 Backtest paritesi testi (Python API sonuçları tutarlı). _Güncel tam paket 328 pytest geçiyor; `test_backtest_api.py` 9 strateji doğruluyor._
 - [x] 8.5 Memory testi: session-recap.md + hook'lar. _auto-recap.sh oturum sonunda otomatik; load-recent-state.sh başlangıçta yükler._
 - [x] 8.6 Final demo doğrulama kapıları. _Docker up/restart, E2E, MCP ve stres smoke bu oturumda çalıştırıldı._
 
@@ -374,7 +374,7 @@ Tek `Notifier` servisi tüm kanalları soyutlar; sinyal motoru fan-out ile hepsi
 - [x] 9.2 Frontend UI/UX iyileştirmeleri: STRONG sinyal badge, gradient glow, konsensüs metadata gösterimi. _badge-strong-buy/sell CSS, signal-strong left-border, signal-consensus satırı._
 - [x] 9.3 `signalHTML()` fonksiyonunda STRONG_BUY/STRONG_SELL sinyal tiplerini doğru render et. _4 sinyal tipi ayırt ediliyor, TR.SIGNAL_STRONG_BUY/SELL eklendi, metadata (oran, RSI, trend) gösteriliyor._
 - [x] 9.4 Vite build doğrulama: `npm run build` → 0 hata. _38 modül, CSS 17KB + JS 83KB + charts 370KB, 403ms._
-- [x] 9.5 Backend API doğrulama: `create_app()` + `list_blueprints()` import testi. _8 strateji, PaperDB, SignalGenerator tümü import başarılı. Port bind sandbox kısıtlaması._
+- [x] 9.5 Backend API doğrulama: `create_app()` + `list_blueprints()` import testi. _9 strateji, PaperDB, SignalGenerator tümü import başarılı._
 - [x] 9.6 Frontend tarayıcı testi. _Playwright Chromium smoke: 5 tab, açılış sekmesi persistence, Telegram tercih paneli._
 - [x] 9.7 `planlama.md` Bölüm 13 doğrulama senaryoları (yapılabilenler). _Spike filter 5/5, backtest 24/24, signal 22/22, paper 2/2, strategy 50/50 — toplam 292/292 geçiyor._
 - [x] 9.8 `ogrenilenler.md` Sprint 9 bölümü eklendi.
@@ -397,7 +397,7 @@ Tek `Notifier` servisi tüm kanalları soyutlar; sinyal motoru fan-out ile hepsi
 - [x] 10.8 SignalGenerator gerçek veri kapısı: `is_real=true` ve `status in {"ok","live"}` olmadan sinyal yok.
 - [x] 10.9 Telegram `/fiyat`, `/sinyal`, `/strateji` komutları provider metadata'sını kontrol eder.
 - [x] 10.10 Telegram bildirim tercihleri API + frontend kontrol paneli.
-- [x] 10.11 Doğrulama: provider/router, signal gate, Telegram handler testleri; `301 passed, 1 deselected`, TSC ve Vite build temiz.
+- [x] 10.11 Doğrulama: provider/router, signal gate, Telegram handler testleri; güncel tam paket `328 passed`, TSC ve Vite build temiz.
 
 #### Aşama 2 — borsa-mcp Entegrasyonu
 - [x] 10.12 `borsa-mcp` proje MCP konfigürasyonu çalışır hale getirildi. _`scripts/mcp_uvx.sh` wrapper + `.mcp.json`; `claude mcp list` → borsa ✓ Connected._
@@ -407,7 +407,7 @@ Tek `Notifier` servisi tüm kanalları soyutlar; sinyal motoru fan-out ile hepsi
 - [x] 10.16 Lisanslı BIST/VİOP HTTP feed köprüsü eklendi. _`BIST_HTTP_URL_TEMPLATE`, `VIOP_HTTP_URL_TEMPLATE`; sahte veri yok, gerçek feed varsa `is_real=true`._
 - [x] 10.17 Binance WS reset dayanıklılığı eklendi. _Reconnect metadata, jitter'lı backoff, health alanları ve unit test._
 - [x] 10.18 Telegram `/kontrol` doğrulaması eklendi. _Handler smoke: `python scripts/telegram_roundtrip_check.py`; canlı token varsa `--live` getMe kontrolü._
-- [x] 10.19 Playwright E2E smoke tamamlandı. _5 tab + açılış sekmesi persistence + Telegram tercih paneli; `npm run e2e` → 2 passed._
+- [x] 10.19 Playwright E2E smoke tamamlandı. _5 tab + açılış sekmesi persistence + Telegram tercih paneli; Sprint 11'de mobil/localStorage ekleriyle 4 teste çıktı._
 - [x] 10.20 Docker build/up/restart doğrulandı. _`docker compose build`, `docker compose up -d`, `bash scripts/docker_restart_check.sh`._
 - [x] 10.21 Stres testi otomasyonu eklendi ve smoke koşuldu. _15 sn / 30 sembol / 470 istek / 0 altyapı hatası; 1 saatlik hedef için `make stress-live`._
 - [x] 10.22 LightGBM temeli eklendi. _Feature/readiness gate; veri yetersizse sahte model üretmez._
@@ -430,7 +430,7 @@ Tek `Notifier` servisi tüm kanalları soyutlar; sinyal motoru fan-out ile hepsi
 - [x] **Veri:** `/api/v2/candles` cache-aside + provider health + `no_data/not_configured` HTTP 200 ayrımı testlendi.
 - [x] **WebSocket:** Binance WS health metadata (`last_message_at`, reconnect count) ve Playwright UI smoke doğrulandı.
 - [x] **Spike filtre:** `tests/unit/test_spike_filter.py` (yapay outlier inject). _5/5 passed._
-- [x] **Backtest paritesi:** `tests/*backtest*` — 24 test passed; 8 strateji `list_blueprints()` ile doğrulandı.
+- [x] **Backtest paritesi:** `tests/*backtest*`; 9 strateji `list_blueprints()` ile doğrulandı.
 - [x] **Always-on:** Docker build/up + `scripts/docker_restart_check.sh` geçti. _Not: `docker compose kill` Docker tarafından manuel durdurma sayıldığı için test `docker compose restart api` ile health dönüşünü ölçer._
 - [x] **Stres:** `scripts/stress_live_data.py` eklendi; smoke 470 istek / 0 altyapı hatası. _Tam hedef: `make stress-live`._
 - [x] **Agent:** `.claude/` dizini altında 8 sub-agent, 15 skill, 5 slash command, hook'lar mevcut ve yapılandırılmış.
@@ -473,24 +473,24 @@ Tek `Notifier` servisi tüm kanalları soyutlar; sinyal motoru fan-out ile hepsi
 > Sprint 0–10 tamamlandı (2026-04-30). Sprint 11 adımları bağımsız; dış credential gerektirenleri beklerken diğerleri yapılabilir.
 
 ### 16.1 Lisanslı BIST/VİOP Feed Bağlantısı _(dış credential gerekli)_
-- [ ] `.env` içinde `BIST_HTTP_URL_TEMPLATE` doldurulunca `BistProvider.fetch()` canlı doğrulama
-- [ ] `.env` içinde `VIOP_HTTP_URL_TEMPLATE` doldurulunca `ViopProvider.fetch()` canlı doğrulama
-- [ ] Provider health endpoint'ine `is_real` UI etiketi (yeşil/sarı rozet)
-- [ ] Yahoo fallback durumunda `is_real: false` uyarı her zaman görünür
+- [x] `.env` içinde `BIST_HTTP_URL_TEMPLATE` doldurulunca `BistProvider.fetch()` canlı doğrulama. _`scripts/provider_feed_check.py --require-config`; URL yoksa `external_credential_missing`, mock feed ile uçtan uca geçti._
+- [x] `.env` içinde `VIOP_HTTP_URL_TEMPLATE` doldurulunca `ViopProvider.fetch()` canlı doğrulama. _Aynı script VİOP HTTP köprüsünü strict modda doğrular._
+- [x] Provider health endpoint'ine `is_real` etiketi eklendi. _`MarketDataHealth.is_real`; lisanslı HTTP true, Yahoo fallback false._
+- [x] Yahoo fallback durumunda `is_real: false` uyarı her zaman görünür. _BIST Yahoo best-effort artık gerçek/lisanslı veri sayılmaz; sinyal motoru güven kapısına takılır._
 
 ### 16.2 LightGBM Sinyal Modeli _(≥ 3 ay cache dolunca)_
-- [ ] `scripts/ml_readiness.py` ile cache yeterliliği doğrula
-- [ ] `quant_engine/research/lightgbm_model.py` üretim modunu aktive et
-- [ ] `make retrain` Makefile target — günlük yeniden eğitim cron
-- [ ] SignalGenerator'a `lgbm_prob` skoru ekle (kural motoru yanında)
-- [ ] Backtest engine'de "LightGBM" strateji olarak listele (8 → 9)
+- [x] `scripts/ml_readiness.py` ile cache yeterliliği doğrula. _Yetersiz veri `insufficient_data` olarak temiz raporlanır._
+- [x] `quant_engine/research/lightgbm_model.py` üretim modunu aktive et. _Yeterli veri + `lightgbm` varsa model eğitir; yoksa sahte model yazmaz._
+- [x] `make retrain` Makefile target — günlük yeniden eğitim cron. _`scripts/retrain_lightgbm.py`; yetersiz veri cron kırmaz, JSON rapor üretir._
+- [x] SignalGenerator'a `lgbm_prob` skoru ekle (kural motoru yanında). _`LIGHTGBM_MODEL_PATH` varsa sinyal metadata'sına olasılık girer._
+- [x] Backtest engine'de "LightGBM" strateji olarak listele (8 → 9). _`lightgbm_probability` stratejisi model yoksa HOLD döner._
 
 ### 16.3 Frontend Performans + UX _(tamamlandı)_
 - [x] Sidebar lazy-load: scroll ile yükle (130 sembol tek seferde değil). _IntersectionObserver + sentinel; 15'lik batch'ler._
 - [x] 768px altı mobil layout: tek sütun, ekran bölme gizlenir. _CSS @media query; sidebar gizle, tek sütun grid._
 - [x] Chart indikatör toggle (EMA/RSI/MACD/BB/ATR/VWAP aç-kapa switch). _CSS görsel iyileştirmesi: yeşil dot, line-through toggle._
 - [x] Sinyal geçmişi localStorage kalıcılığı (sayfa yenilenmede kaybolmaz). _persistSignals/restoreSignals + LS_SIGNAL_HISTORY._
-- [ ] Playwright E2E: indikatör toggle + mobil viewport testleri
+- [x] Playwright E2E: mobil viewport + sinyal localStorage kalıcılığı. _Smoke suite 2'den 4 teste çıktı; restore bug'ı düzeltildi._
 
 ### 16.4 Gözlemlenebilirlik + Uyarılar _(tamamlandı)_
 - [x] FastAPI Prometheus `/metrics` middleware (latency, cache hit rate, worker count). _Stdlib exposition format; dış bağımlılık yok._

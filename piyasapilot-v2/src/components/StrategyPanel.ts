@@ -22,7 +22,8 @@ type StrategyId =
   | 'donchian_breakout'
   | 'macd_divergence'
   | 'supertrend'
-  | 'mean_reversion_vwap';
+  | 'mean_reversion_vwap'
+  | 'lightgbm_probability';
 
 interface StrategyCard {
   id: StrategyId;
@@ -38,6 +39,7 @@ const STRATEGIES: StrategyCard[] = [
   { id: 'macd_divergence',     nameKey: 'STRATEGY_MACD',       descKey: 'STRATEGY_DESC_MACD'       },
   { id: 'supertrend',          nameKey: 'STRATEGY_SUPERTREND', descKey: 'STRATEGY_DESC_SUPERTREND' },
   { id: 'mean_reversion_vwap', nameKey: 'STRATEGY_VWAP',       descKey: 'STRATEGY_DESC_VWAP'       },
+  { id: 'lightgbm_probability', nameKey: 'STRATEGY_LGBM',      descKey: 'STRATEGY_DESC_LGBM'       },
 ];
 
 // ─── StrategyPanel ────────────────────────────────────────────────────────────

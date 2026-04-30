@@ -15,6 +15,9 @@ from backend.api.signal_bus import SignalBus
 from backend.backtest import blueprints as _blueprints  # noqa: F401  (registry yükle)
 from backend.data.cache import OHLCVCache
 from backend.signals import SignalGenerator, SignalGeneratorConfig
+from quant_engine.backtest.domain import Portfolio
+from quant_engine.strategy.base import BaseStrategy
+from quant_engine.strategy.registry import StrategyRegistry
 
 REAL_METADATA = {
     "source": "Binance Spot Public REST",
@@ -123,3 +126,38 @@ async def test_generator_blocks_untrusted_data(tmp_path):
     assert stats["signals_emitted"] == 0
     assert stats["skipped_untrusted"] == 1
     assert bus.stats()["published"] == 0
+
+
+@pytest.mark.asyncio
+async def test_generator_attaches_lgbm_probability(tmp_path, monkeypatch):
+    class AlwaysBuy(BaseStrategy):
+        name = "always_buy_for_lgbm_test"
+        description = "test"
+
+        def generate_signals(self, data, bar_index: int, portfolio: Portfolio) -> int:
+            return 1
+
+    registry = StrategyRegistry()
+    registry.register(AlwaysBuy)
+    cache = OHLCVCache(db_path=tmp_path / "c.sqlite3")
+    _populate(cache, "BTCUSDT", "15m", n=200)
+    bus = SignalBus()
+    received: list[dict] = []
+
+    async def reader():
+        _, q = await bus.subscribe()
+        msg = await asyncio.wait_for(q.get(), timeout=0.5)
+        received.append(msg)
+
+    from quant_engine.research import lightgbm_model
+
+    monkeypatch.setenv("LIGHTGBM_MODEL_PATH", str(tmp_path / "model.txt"))
+    monkeypatch.setattr(lightgbm_model, "predict_latest_probability", lambda *_args: 0.73)
+    gen = SignalGenerator(cache=cache, bus=bus, registry=registry)
+
+    reader_task = asyncio.create_task(reader())
+    await gen.evaluate("BTCUSDT", "15m", [], metadata=REAL_METADATA)
+    await reader_task
+
+    assert received[0]["metadata"]["lgbm_prob"] == 0.73
+    assert gen.stats()["last_lgbm_prob"] == 0.73

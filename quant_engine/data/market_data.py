@@ -96,6 +96,7 @@ class MarketDataHealth:
     provider_type: MarketDataProviderType
     active: bool
     configured: bool
+    is_real: bool
     supported_markets: list[str]
     last_success_at: str | None = None
     last_error: str | None = None

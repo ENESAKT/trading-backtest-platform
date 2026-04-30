@@ -34,10 +34,10 @@
 
 | Metrik | Değer |
 |--------|-------|
-| Test (pytest) | **324 passed, 1 deselected** |
+| Test (pytest) | **328 passed** |
 | TSC compile | ✅ Temiz (0 hata) |
 | Vite build | ✅ Temiz (39 modül, 612ms) |
-| Stratejiler | 8 (ema_cross, rsi_reversion, bb_reversion, breakout, donchian, macd_div, supertrend, vwap_mean_rev) |
+| Stratejiler | 9 (sma, rsi, bollinger, buy_hold, donchian, macd, supertrend, vwap, lightgbm_probability) |
 | Sembol kapsamı | ~130 (BIST 98 + Kripto 10 + FX/Emtia) |
 | Frontend bileşenler | 7 (ChartPanel, MultiChartLayout, PortfolioPanel, StrategyPanel, Screener, Sidebar, SignalFeed) |
 | Backend API endpoint'leri | 20+ (health, metrics, provider health, notifier preferences, backtest, paper, candles, WS quotes, WS signals) |
@@ -77,7 +77,7 @@
 ```
 Tarayıcı (Vite SPA) ──HTTP/WS──→ FastAPI Gateway (port 8000)
                                     ├── /api/v2/candles (cache-aside)
-                                    ├── /api/backtest/run (8 strateji)
+                                    ├── /api/backtest/run (9 strateji)
                                     ├── /api/paper/* (cüzdan, trade, equity)
                                     ├── /metrics (Prometheus)
                                     ├── /ws/quotes (canlı bar fan-out)
@@ -86,7 +86,7 @@ Tarayıcı (Vite SPA) ──HTTP/WS──→ FastAPI Gateway (port 8000)
               ┌───────────────────────────┤
               ▼                           ▼
    Worker Supervisor              SignalGenerator v2
-   ├── BinanceKlineWorker         ├── 8 strateji paralel
+   ├── BinanceKlineWorker         ├── 9 strateji paralel
    ├── YahooPoller                ├── RSI + Trend confluence
    └── BistStockPoller            ├── Konsensüs (STRONG_BUY/SELL)
          │                        └── Metadata (RSI, ATR, volatilite)
@@ -101,13 +101,13 @@ Tarayıcı (Vite SPA) ──HTTP/WS──→ FastAPI Gateway (port 8000)
 
 ---
 
-## 5. Kalan İşler (Sprint 11.1 ve 11.2)
+## 5. Kalan İşler
 
 | Adım | Konu | Durum | Bağımlılık |
 |------|------|-------|------------|
-| 11.1 | Lisanslı BIST/VİOP Feed | ⏳ Bekliyor | `.env` credential gerekli |
-| 11.2 | LightGBM Sinyal Modeli | ⏳ Bekliyor | ≥ 3 ay cache gerekli |
-| 11.3-E2E | Playwright mobil viewport testleri | ⏳ Bekliyor | Frontend stabil |
+| 11.1 | Lisanslı BIST/VİOP Feed | ✅ Kod + doğrulama kapısı hazır | Gerçek URL verilirse `make provider-check-strict` |
+| 11.2 | LightGBM Sinyal Modeli | ✅ Eğitim akışı + strateji hazır | Model eğitimi için yeterli cache/veri gerekli |
+| 11.3-E2E | Playwright mobil/localStorage testleri | ✅ Tamamlandı | `npm run e2e` |
 
 ---
 

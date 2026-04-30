@@ -67,10 +67,13 @@ def test_strategies_endpoint_lists_blueprints(tmp_path):
     assert ids == {
         "sma_crossover", "rsi_reversion", "bollinger_reversion", "buy_and_hold",
         "donchian_breakout", "macd_divergence", "supertrend", "mean_reversion_vwap",
+        "lightgbm_probability",
     }
     sma = next(s for s in body["strategies"] if s["id"] == "sma_crossover")
     assert sma["default_params"] == {"fast_period": 10, "slow_period": 30}
     assert any(f["key"] == "fast_period" for f in sma["schema"])
+    lgbm = next(s for s in body["strategies"] if s["id"] == "lightgbm_probability")
+    assert lgbm["default_params"]["buy_threshold"] == 0.65
 
 
 def test_backtest_run_returns_metrics_and_curve(tmp_path):

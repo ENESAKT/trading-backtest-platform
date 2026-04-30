@@ -37,7 +37,7 @@ PiyasaPilot 15 skill ile donatılmıştır. Skill'ler Claude Code'un görev bazl
 |-------|----------|
 | `/devam` | Son oturumdan devam et (session-recap.md yükle) |
 | `/backtest <sembol> <strateji>` | Backtest çalıştır ve raporla |
-| `/sinyal <sembol>` | 8 strateji konsensüs sinyal raporu |
+| `/sinyal <sembol>` | 9 strateji konsensüs sinyal raporu |
 | `/durum` | Tüm servislerin durumu |
 | `/strateji-yeni [odak]` | Yeni strateji araştırması başlat |
 | `/kontrol` | Import + TSC + pytest + backend sağlık kontrolü |
@@ -49,7 +49,7 @@ PiyasaPilot 15 skill ile donatılmıştır. Skill'ler Claude Code'un görev bazl
 - `morning-briefing` artık `.mcp.json` içindeki `borsa` MCP bağlantısını kullanacak zemine sahip.
 - `health-check` çıktısında Telegram, email, provider health, Docker ve MCP kontrolleri ayrı doğrulanır.
 - `deploy-stack` için yeni kapılar: `make docker-restart-check`, `make mcp-check`, `make e2e`, `make stress-smoke`.
-- LightGBM için sahte model yoktur; `python scripts/ml_readiness.py` veri/bağımlılık durumunu açıkça raporlar.
+- LightGBM için sahte model yoktur; `python scripts/ml_readiness.py` ve `make retrain` veri/bağımlılık durumunu açıkça raporlar.
 
 ## Hook'lar
 

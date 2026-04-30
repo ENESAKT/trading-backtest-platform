@@ -34,8 +34,10 @@ from typing import Any
 import pandas as pd
 
 from backend.api.signal_bus import SignalBus
+from backend.config import getenv
 from backend.data.cache import OHLCVCache
 from quant_engine.backtest.domain import Portfolio
+from quant_engine.research import lightgbm_model
 from quant_engine.strategy.registry import StrategyRegistry, get_registry
 
 logger = logging.getLogger(__name__)
@@ -149,6 +151,7 @@ class SignalGenerator:
         self.last_error: str | None = None
         self.skipped_untrusted = 0
         self.last_skip_reason: str | None = None
+        self.last_lgbm_prob: float | None = None
 
     @staticmethod
     def _trusted_metadata(metadata: dict[str, Any] | None) -> tuple[bool, str]:
@@ -221,6 +224,7 @@ class SignalGenerator:
         atr = _compute_atr(df)
         trend = _trend_direction(closes)
         volatility = (atr / price * 100) if price > 0 else 0  # ATR% olarak
+        lgbm_prob = self._lgbm_probability(raw_bars)
 
         portfolio = Portfolio(initial_capital=self.config.capital)
         individual_signals: list[dict[str, Any]] = []
@@ -247,6 +251,14 @@ class SignalGenerator:
 
             strength = _compute_strength(signal_int, rsi, trend)
             sig_type = "BUY" if signal_int > 0 else "SELL"
+            metadata = {
+                "rsi": round(rsi, 1),
+                "trend": trend,
+                "atr": round(atr, 4),
+                "volatility_pct": round(volatility, 2),
+            }
+            if lgbm_prob is not None:
+                metadata["lgbm_prob"] = lgbm_prob
 
             individual_signals.append(
                 {
@@ -257,12 +269,7 @@ class SignalGenerator:
                     "reason": f"{name}: {sig_type} @ {price:.2f}",
                     "strength": strength,
                     "interval": interval,
-                    "metadata": {
-                        "rsi": round(rsi, 1),
-                        "trend": trend,
-                        "atr": round(atr, 4),
-                        "volatility_pct": round(volatility, 2),
-                    },
+                    "metadata": metadata,
                 }
             )
 
@@ -272,6 +279,16 @@ class SignalGenerator:
 
         if buy_count >= threshold:
             consensus_strength = min(10, 5 + buy_count)
+            metadata = {
+                "rsi": round(rsi, 1),
+                "trend": trend,
+                "buy_count": buy_count,
+                "sell_count": sell_count,
+                "total_strategies": total_strategies,
+                "consensus_ratio": round(buy_count / max(total_strategies, 1), 2),
+            }
+            if lgbm_prob is not None:
+                metadata["lgbm_prob"] = lgbm_prob
             individual_signals.append(
                 {
                     "symbol": canonical,
@@ -281,18 +298,21 @@ class SignalGenerator:
                     "reason": f"KONSENSÜS: {buy_count}/{total_strategies} strateji AL sinyali",
                     "strength": consensus_strength,
                     "interval": interval,
-                    "metadata": {
-                        "rsi": round(rsi, 1),
-                        "trend": trend,
-                        "buy_count": buy_count,
-                        "sell_count": sell_count,
-                        "total_strategies": total_strategies,
-                        "consensus_ratio": round(buy_count / max(total_strategies, 1), 2),
-                    },
+                    "metadata": metadata,
                 }
             )
         elif sell_count >= threshold:
             consensus_strength = min(10, 5 + sell_count)
+            metadata = {
+                "rsi": round(rsi, 1),
+                "trend": trend,
+                "buy_count": buy_count,
+                "sell_count": sell_count,
+                "total_strategies": total_strategies,
+                "consensus_ratio": round(sell_count / max(total_strategies, 1), 2),
+            }
+            if lgbm_prob is not None:
+                metadata["lgbm_prob"] = lgbm_prob
             individual_signals.append(
                 {
                     "symbol": canonical,
@@ -302,18 +322,20 @@ class SignalGenerator:
                     "reason": f"KONSENSÜS: {sell_count}/{total_strategies} strateji SAT sinyali",
                     "strength": consensus_strength,
                     "interval": interval,
-                    "metadata": {
-                        "rsi": round(rsi, 1),
-                        "trend": trend,
-                        "buy_count": buy_count,
-                        "sell_count": sell_count,
-                        "total_strategies": total_strategies,
-                        "consensus_ratio": round(sell_count / max(total_strategies, 1), 2),
-                    },
+                    "metadata": metadata,
                 }
             )
 
         return individual_signals
+
+    def _lgbm_probability(self, bars: list[dict[str, Any]]) -> float | None:
+        model_path = getenv("LIGHTGBM_MODEL_PATH")
+        if not model_path:
+            self.last_lgbm_prob = None
+            return None
+        probability = lightgbm_model.predict_latest_probability(bars, model_path)
+        self.last_lgbm_prob = round(probability, 4) if probability is not None else None
+        return self.last_lgbm_prob
 
     def stats(self) -> dict[str, Any]:
         return {
@@ -323,6 +345,8 @@ class SignalGenerator:
             "last_error": self.last_error,
             "skipped_untrusted": self.skipped_untrusted,
             "last_skip_reason": self.last_skip_reason,
+            "last_lgbm_prob": self.last_lgbm_prob,
+            "lgbm_model_configured": bool(getenv("LIGHTGBM_MODEL_PATH")),
             "strategies": self._strategy_names(),
         }
 

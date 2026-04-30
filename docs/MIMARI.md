@@ -39,7 +39,7 @@ Worker on_bar hook
     ↓
 SignalGenerator v2
     ├── Metadata kapısı (is_real=true, status ok/live)
-    ├── 8 strateji çalıştır (thread pool)
+    ├── 9 strateji çalıştır (thread pool)
     ├── Sinyal gücü hesapla (RSI + trend confluence)
     ├── Konsensüs kontrolü (5+ strateji → STRONG)
     └── Metadata ekle (RSI, trend, ATR, volatilite)

@@ -133,6 +133,7 @@ class CryptoMarketDataProvider:
             provider_type=MarketDataProviderType.CRYPTO,
             active=True,
             configured=True,
+            is_real=True,
             supported_markets=["crypto"],
             last_success_at=self.last_success_at,
             last_error=self.last_error,

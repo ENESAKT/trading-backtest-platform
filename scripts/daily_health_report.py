@@ -8,15 +8,14 @@ Kullanım:
 from __future__ import annotations
 
 import argparse
+import datetime as dt
+import json
 import sys
+import urllib.request
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-
-import urllib.request
-import json
-import datetime as dt
 
 
 def fetch_health(base_url: str) -> dict:

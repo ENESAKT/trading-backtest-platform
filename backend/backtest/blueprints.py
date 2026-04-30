@@ -26,6 +26,7 @@ from quant_engine.strategy.examples.bollinger_reversion import (  # noqa: F401
 )
 from quant_engine.strategy.examples.buy_and_hold import BuyAndHold  # noqa: F401
 from quant_engine.strategy.examples.donchian_breakout import DonchianBreakout  # noqa: F401
+from quant_engine.strategy.examples.lightgbm_probability import LightgbmProbability  # noqa: F401
 from quant_engine.strategy.examples.macd_divergence import MacdDivergence  # noqa: F401
 from quant_engine.strategy.examples.mean_reversion_vwap import MeanReversionVwap  # noqa: F401
 from quant_engine.strategy.examples.rsi_reversion import RsiReversion  # noqa: F401
@@ -144,6 +145,24 @@ BLUEPRINTS: dict[str, dict[str, Any]] = {
             _f("threshold_pct", "Sapma eşiği (%)", 1.5,
                type_=_FLOAT, min_=0.1, max_=10.0, step=0.1,
                help_="VWAP altında bu % sapma AL sinyali verir"),
+        ],
+    },
+    "lightgbm_probability": {
+        "id": "lightgbm_probability",
+        "label": "LightGBM Olasılık",
+        "description": "Eğitilmiş model varsa yükseliş olasılığıyla AL/SAT üretir.",
+        "default_params": {
+            "model_path": "",
+            "buy_threshold": 0.65,
+            "sell_threshold": 0.35,
+        },
+        "schema": [
+            _f("model_path", "Model dosyası", "", type_="str",
+               help_="Boşsa LIGHTGBM_MODEL_PATH env kullanılır"),
+            _f("buy_threshold", "AL eşiği", 0.65,
+               type_=_FLOAT, min_=0.5, max_=0.95, step=0.01),
+            _f("sell_threshold", "SAT eşiği", 0.35,
+               type_=_FLOAT, min_=0.05, max_=0.5, step=0.01),
         ],
     },
 }

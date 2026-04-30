@@ -28,6 +28,7 @@ interface LiveSignal {
     sell_count?: number;
     total_strategies?: number;
     consensus_ratio?: number;
+    lgbm_prob?: number;
   };
 }
 
@@ -61,6 +62,7 @@ export class SignalFeed {
     this.container = container;
     this.restoreSignals();
     this.render();
+    this.renderSignals();
     this.bindPreferenceControls();
     this.connect();
     this.pollTelegramStatus();
@@ -460,6 +462,9 @@ export class SignalFeed {
       }
       if (sig.metadata.rsi !== undefined) parts.push(`RSI: ${sig.metadata.rsi}`);
       if (sig.metadata.trend) parts.push(`Trend: ${sig.metadata.trend}`);
+      if (sig.metadata.lgbm_prob !== undefined) {
+        parts.push(`LGBM: ${(sig.metadata.lgbm_prob * 100).toFixed(0)}%`);
+      }
       if (parts.length > 0) {
         metadataHTML = `<div class="signal-consensus">${parts.join(' · ')}</div>`;
       }

@@ -33,9 +33,10 @@ def test_bist_provider_returns_ok_with_yfinance_data(monkeypatch):
 
     result = provider.fetch_ohlcv("THYAO", "15m", 20)
     assert result.status == MarketDataStatus.OK
-    assert result.is_real is True
+    assert result.is_real is False
     assert result.symbol == "THYAO.IS"
     assert result.data[-1]["close"] == 102.5
+    assert provider.health().is_real is False
 
 
 def test_bist_provider_prefers_configured_http_feed(monkeypatch):
@@ -63,6 +64,7 @@ def test_bist_provider_prefers_configured_http_feed(monkeypatch):
     assert result.provider_name == "bist_http"
     assert result.source == "Configured BIST HTTP feed"
     assert result.data[0]["close"] == 10.5
+    assert provider.health().is_real is True
 
 
 def test_bist_provider_returns_no_data_without_rows(monkeypatch):

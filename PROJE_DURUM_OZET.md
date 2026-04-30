@@ -41,7 +41,7 @@ Sprint 10'a geçmeden önce açık görünen iki madde kapatıldı:
 ### 2026-04-29 Sprint 10 Aşama 1 — Veri Sağlayıcı Modeli ve Router
 - ✅ Ortak piyasa veri modelleri eklendi: `MarketDataResult`, `MarketDataHealth`, `MarketDataProviderType`, `MarketDataStatus`.
 - ✅ `ProviderRouter` eklendi; sembole göre BIST/yfinance, VİOP veya Binance crypto provider seçiyor.
-- ✅ BIST provider mevcut yfinance `.IS` akışını best-effort public kaynak olarak sarıyor. Veri varsa `is_real=true`, `status=ok`; veri yoksa `status=no_data`.
+- ✅ BIST provider mevcut yfinance `.IS` akışını best-effort public kaynak olarak sarıyor. Yahoo fallback veri varsa `is_real=false`, `status=ok`; lisanslı HTTP feed varsa `is_real=true`.
 - ✅ VİOP provider lisanslı/resmi kaynak yapılandırılmadığı için sahte veri üretmiyor; `status=not_configured` ve Türkçe hata mesajı döndürüyor.
 - ✅ Crypto provider Binance public REST ile çalışıyor; `data-api.binance.vision` başarısız olursa `api.binance.com` REST fallback deneniyor.
 - ✅ `/api/data/providers/health` endpoint'i eklendi.
@@ -69,7 +69,7 @@ Test:
 - Sinyal motoru `is_real=false` engeli: geçti.
 - Telegram handler kuru testleri (`/fiyat`, `/sinyal`, `/strateji`, `/ozet`, `/durum`, `/kontrol`): geçti.
 - `/api/data/providers/health` endpoint testi: geçti.
-- Pytest: kontrollü Makefile komutu ile `301 passed, 1 deselected, 1 warning`.
+- Pytest: tam paket `328 passed`.
 - TypeScript `npx tsc --noEmit`: geçti.
 
 Kalan riskler:
@@ -83,7 +83,7 @@ Kalan riskler:
 |--------|------|-------|
 | Sprint 1–4 | FastAPI gateway, canlı veri, çoklu grafik, portfolio panel | ✅ |
 | Sprint 5 | Agent + Skill + MCP + Hook ekosistemi | ✅ |
-| Sprint 6–7 | AI sinyal motoru (8 strateji, konsensüs, STRONG sinyaller) + bildirim altyapısı | ✅ |
+| Sprint 6–7 | AI sinyal motoru (9 strateji, konsensüs, STRONG sinyaller) + bildirim altyapısı | ✅ |
 | Sprint 8 | README + Mimari + rehber dokümanlar | ✅ |
 | Sprint 9 | Telegram bildirim sistemi (7 olay tipi), dashboard durum çubuğu, workers standalone | ✅ |
 | Sprint 10-pre | Telegram asistan / sohbet botu — listener, 11 komut, güvenlik katmanı | ✅ |
@@ -208,7 +208,7 @@ backend/
   workers/
     __main__.py              — standalone cache-filler entry point (Docker split profil)
   signals/
-    generator.py             — 8 strateji, STRONG konsensüs, RSI+trend confluence
+    generator.py             — 9 strateji, STRONG konsensüs, RSI+trend+LGBM metadata
 
 piyasapilot-v2/
   src/components/SignalFeed.ts   — Telegram durum çubuğu, STRONG badge
@@ -294,11 +294,11 @@ docker-compose --profile split up
 | VPS / sunucu deployment | ✅ Compose/nginx/healthcheck üretim paketi hazır; VPS'e kopyalanabilir artifact durumunda |
 | Sprint 10 Aşama 2: borsa-mcp entegrasyonu | ✅ `.mcp.json` + `scripts/mcp_uvx.sh`; `claude mcp list` → borsa ✓ Connected |
 | tradingview-mcp entegrasyonu | ✅ npm paketi yayından kalktığı için GitHub+uvx yolu kullanıldı; `claude mcp list` → tradingview ✓ Connected |
-| BIST resmi anlık veri / VİOP lisanslı kaynak | ✅ `BIST_HTTP_URL_TEMPLATE` ve `VIOP_HTTP_URL_TEMPLATE` köprüleri eklendi; sahte veri yok |
+| BIST resmi anlık veri / VİOP lisanslı kaynak | ✅ HTTP köprü + `provider_feed_check` strict/mock doğrulama; dış URL yoksa açık `external_credential_missing` |
 | Binance WS reset dayanıklılığı | ✅ Jitter'lı reconnect, health metadata, unit test |
-| Playwright E2E | ✅ `npm run e2e` → 2 passed |
-| Stres testi | ✅ Smoke: 470 istek / 0 altyapı hatası; 1 saatlik hedef `make stress-live` |
-| LightGBM ML temeli | ✅ Feature/readiness gate eklendi; veri yetersizse sahte model üretmez |
+| Playwright E2E | ✅ Mobil viewport + signal localStorage dahil genişletildi |
+| Stres testi | ✅ Son smoke: 290 istek / 0 altyapı hatası; 1 saatlik hedef `make stress-live` |
+| LightGBM ML temeli | ✅ `make retrain`, üretim eğitim akışı, `lgbm_prob` metadata ve 9. backtest stratejisi hazır |
 
 ---
 
@@ -310,7 +310,7 @@ Dizin: /Users/enes/AgentWorkspace/Backtest
 Dal: main
 
 Tamamlananlar:
-- Sprint 1–9: canlı veri, sinyal motoru (8 strateji), paper trading, Telegram bildirim sistemi
+- Sprint 1–9: canlı veri, sinyal motoru (9 strateji), paper trading, Telegram bildirim sistemi
 - Sprint 10-pre: Telegram asistan botu (long polling, 11 komut, güvenlik filtresi)
 - Sprint 10 Aşama 1: ProviderRouter, MarketDataResult/Health, BIST/VİOP/Crypto provider'lar,
   sinyal motorunda gerçek veri metadata kapısı, `/api/data/providers/health`,

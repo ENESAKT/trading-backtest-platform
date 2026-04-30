@@ -120,6 +120,18 @@ def test_health_returns_cache_stats(tmp_path):
     assert body["cache"]["rows"] == 0
 
 
+def test_metrics_endpoint_returns_prometheus_text(tmp_path):
+    client, _, _ = _build_client(tmp_path)
+
+    resp = client.get("/metrics")
+
+    assert resp.status_code == 200
+    text = resp.text
+    assert "# HELP gateway_cache_bars_total" in text
+    assert "gateway_worker_up" in text
+    assert "gateway_signal_bus_subscribers" in text
+
+
 def test_notifier_status_includes_email_public_config(tmp_path, monkeypatch):
     monkeypatch.setenv("SMTP_HOST", "smtp.example.test")
     monkeypatch.setenv("SMTP_PORT", "2525")

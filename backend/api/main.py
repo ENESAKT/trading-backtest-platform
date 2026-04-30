@@ -30,8 +30,6 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any, AsyncIterator
 
-_logger = logging.getLogger(__name__)
-
 from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
@@ -40,8 +38,6 @@ from pydantic import BaseModel, Field
 
 from backend.api.quote_bus import QuoteBus
 from backend.api.signal_bus import SignalBus
-from backend.env_validator import validate_env
-from backend.middleware.api_key_auth import APIKeyMiddleware
 from backend.backtest import (
     BacktestNotEnoughData,
     BacktestRunError,
@@ -58,6 +54,8 @@ from backend.data.symbols import (
     DEFAULT_INTERVAL,
     YAHOO_INDEX_FX_COMMODITY,
 )
+from backend.env_validator import validate_env
+from backend.middleware.api_key_auth import APIKeyMiddleware
 from backend.paper import PaperDB, PaperExecutor
 from backend.signals import SignalGenerator
 from backend.workers import WorkerSupervisor
@@ -72,6 +70,7 @@ from quant_engine.workspace.json_store import WorkspaceJsonStore
 
 ROOT = Path(__file__).resolve().parents[2]
 _PAPER_DB_PATH = "data/cache/ohlcv.sqlite3"
+_logger = logging.getLogger(__name__)
 
 # Cache miss eşiği: cache'teki en yeni bar'dan beri bu süreden uzun zaman
 # geçmişse provider'a yeniden git. 15dk barlar için 90s mantıklı.

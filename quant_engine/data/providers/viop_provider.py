@@ -100,6 +100,7 @@ class ViopMarketDataProvider:
             provider_type=MarketDataProviderType.VIOP,
             active=configured,
             configured=configured,
+            is_real=configured,
             supported_markets=["viop"],
             last_success_at=self.last_success_at,
             last_error=last_error,

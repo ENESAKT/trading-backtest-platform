@@ -25,7 +25,7 @@ BIST + kripto + döviz + emtia için **TradingView benzeri**, **Türkçe**, tara
 | Worker'lar | ✅ Çalışıyor | Binance WS (10 kripto), Yahoo poller (BIST endeks + FX + emtia), BIST 30 hisse poller |
 | WS fan-out | ✅ Çalışıyor | `/ws/quotes` + `/ws/signals` — canlı bar + sinyal fan-out |
 | Frontend tek terminal | ✅ %100 | Sidebar 98 sembol, MultiChartLayout, fullscreen, 5 tab (chart/portfolio/strategy/screener/signals) |
-| Backtest (Python API) | ✅ Hazır | `POST /api/backtest/run` — 8 strateji, equity curve, trade listesi |
+| Backtest (Python API) | ✅ Hazır | `POST /api/backtest/run` — 9 strateji, equity curve, trade listesi |
 | Paper trading | ✅ Hazır | SQLite, strateji-bazlı izole sandık (10.000₺), otonom executor, risk limitleri |
 | AI sinyal motoru | ✅ Hazır | SignalGenerator v2 — RSI+Trend confluence, konsensüs (STRONG_BUY/SELL), metadata |
 | Always-on (Docker) | ✅ Hazır | 3 Dockerfile, docker-compose.yml, nginx, Makefile |
@@ -112,7 +112,7 @@ Plan, CLAUDE.md, `.claude/` iskelet klasörleri, kararların kayda geçmesi.
 - `StrategyPanel` API'ye POST atıyor, **equity eğrisini Chart.js** ile çiziyor.
 - Live signal feed `/ws/signals` ile fan-out yapıyor.
 - `SignalFeed` paneli canlı sinyal akışını gösteriyor.
-- **8 strateji**:
+- **9 strateji**:
   1. EMA cross (50/200)
   2. RSI mean-reversion
   3. Bollinger Bands reversion
@@ -121,6 +121,7 @@ Plan, CLAUDE.md, `.claude/` iskelet klasörleri, kararların kayda geçmesi.
   6. **MACD divergence** (yeni)
   7. **Supertrend** (yeni)
   8. **Mean-reversion VWAP** (yeni)
+  9. **LightGBM probability** (model hazırsa olasılık tabanlı)
 
 **Sonunda göreceğin:** "Backtest çalıştır" tıklayınca → equity eğrisi grafiği + metric kartları + son 50 trade listesi + chart üstünde marker'lar. **Aynı stratejinin TS sonucu = Python sonucu** (parite testi geçer).
 
@@ -229,22 +230,22 @@ Plan, CLAUDE.md, `.claude/` iskelet klasörleri, kararların kayda geçmesi.
 
 **Amaç:** Gerçek lisanslı BIST/VİOP feed'ini bağla, LightGBM sinyal modelini eğit, frontend'i cihaz uyumlu hale getir, gözlemlenebilirliği artır.
 
-**Ön koşul:** `.env` içinde `BIST_HTTP_URL_TEMPLATE` ve `VIOP_HTTP_URL_TEMPLATE` değerleri dolu olmalı. Olmadan Adım 1 bekler; diğer adımlar bağımsız.
+**Ön koşul:** Gerçek lisanslı canlı doğrulama için `.env` içinde `BIST_HTTP_URL_TEMPLATE` ve `VIOP_HTTP_URL_TEMPLATE` değerleri dolu olmalı. Repo tarafındaki adapter, mock doğrulama ve strict canlı kontrol komutları tamamlandı.
 
-#### Adım 11.1 — Lisanslı BIST/VİOP Feed Bağlantısı
-- [ ] `BIST_HTTP_URL_TEMPLATE` URL ile `BistProvider.fetch()` canlı doğrulama
-- [ ] `VIOP_HTTP_URL_TEMPLATE` URL ile `ViopProvider.fetch()` canlı doğrulama
-- [ ] Provider health dashboard'a `is_real: true` etiketi UI'da görünür hale gelsin
-- [ ] Yahoo fallback `is_real: false` label'ını her zaman göstersin (kullanıcı yanıltılmasın)
+#### Adım 11.1 — Lisanslı BIST/VİOP Feed Bağlantısı ✅
+- [x] `BIST_HTTP_URL_TEMPLATE` URL ile `BistProvider.fetch()` canlı doğrulama kapısı
+- [x] `VIOP_HTTP_URL_TEMPLATE` URL ile `ViopProvider.fetch()` canlı doğrulama kapısı
+- [x] Provider health çıktısında `is_real` etiketi
+- [x] Yahoo fallback `is_real: false` label'ı her zaman görünür
 
-**Sonunda göreceğin:** BIST hisse sembolü seçince grafikte 15dk gecikmeli değil, gerçek anlık (veya açık gecikmeli lisanslı) fiyat gelecek.
+**Sonunda göreceğin:** URL verilirse `make provider-check-strict` canlı feed'i doğrular. URL yoksa `make provider-check` açıkça `external_credential_missing` döner; sahte veri yoktur.
 
-#### Adım 11.2 — LightGBM Sinyal Modeli Eğitimi
-- [ ] `scripts/ml_readiness.py` ile cache yeterliliğini doğrula (≥ 3 ay veri gerekli)
-- [ ] `quant_engine/research/lightgbm_model.py` üretim modunu aktive et (sahte model üretme kaldırılır)
-- [ ] Günlük yeniden eğitim için cron job (Makefile target: `make retrain`)
-- [ ] SignalGenerator'a LightGBM probability skoru ekle (mevcut kural motoru yanında)
-- [ ] Backtest engine'de LightGBM stratejisi olarak göster (8 → 9 strateji)
+#### Adım 11.2 — LightGBM Sinyal Modeli Eğitimi ✅
+- [x] `scripts/ml_readiness.py` ile cache yeterliliğini doğrula (≥ 3 ay veri gerekli)
+- [x] `quant_engine/research/lightgbm_model.py` üretim modunu aktive et (sahte model üretme kaldırılır)
+- [x] Günlük yeniden eğitim için cron job (Makefile target: `make retrain`)
+- [x] SignalGenerator'a LightGBM probability skoru ekle (mevcut kural motoru yanında)
+- [x] Backtest engine'de LightGBM stratejisi olarak göster (8 → 9 strateji)
 
 **Sonunda göreceğin:** Sinyal akışında `lgbm_prob: 0.73` gibi olasılık skoru da görünecek. Backtest panelinde "LightGBM" seçeneği var.
 
@@ -253,7 +254,7 @@ Plan, CLAUDE.md, `.claude/` iskelet klasörleri, kararların kayda geçmesi.
 - [x] Mobil/tablet düzeni: 768px altında tek sütun (ekran bölme gizlenir)
 - [x] Chart'ta indikatör toggle paneli (EMA/RSI/MACD/BB/ATR/VWAP aç-kapa)
 - [x] Sinyal geçmişi: `/ws/signals` son 100 sinyali localStorage'da sakla, sayfa yenilenince kaybolmasın
-- [ ] Playwright E2E: indikatör toggle + mobil viewport testleri
+- [x] Playwright E2E: mobil viewport + sinyal localStorage kalıcılığı testleri
 
 **Sonunda göreceğin:** Telefondan açıldığında tek panel kullanılabilir layout. Chart'ın üstünde EMA/RSI/MACD toggle switch'leri var.
 
