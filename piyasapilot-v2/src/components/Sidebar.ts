@@ -1,7 +1,8 @@
 import type { SymbolInfo } from '../types.js';
 import { TR, formatNumber, formatPct } from '../constants/tr.js';
 import {
-  BIST30, BIST100_EXTRA, US_SYMBOLS, CRYPTO_SYMBOLS, FX_COMMODITY_SYMBOLS, ALL_SYMBOLS,
+  BIST30, BIST100_EXTRA, US_SYMBOLS, CRYPTO_SYMBOLS, FX_COMMODITY_SYMBOLS,
+  VIOP_SYMBOLS, ALL_SYMBOLS,
 } from '../constants/symbols.js';
 
 const LS_LAST_SYMBOL = 'piyasapilot_last_symbol';
@@ -20,6 +21,7 @@ const GROUPS: GroupDef[] = [
   { label: TR.US_MARKETS,    flag: '🇺🇸', symbols: US_SYMBOLS      },
   { label: TR.CRYPTO,        flag: '₿',   symbols: CRYPTO_SYMBOLS  },
   { label: TR.FX_COMMODITY,  flag: '💱',  symbols: FX_COMMODITY_SYMBOLS },
+  { label: 'VİOP',           flag: 'Vi',  symbols: VIOP_SYMBOLS    },
 ];
 
 // ─── Sidebar ──────────────────────────────────────────────────────────────────

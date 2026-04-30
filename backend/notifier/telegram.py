@@ -25,6 +25,7 @@ logger = logging.getLogger(__name__)
 
 _LIFECYCLE_COOLDOWN_SECONDS = 60
 _LIFECYCLE_GUARD_PATH = ROOT / "data" / "runtime" / "telegram_lifecycle_guard.json"
+_SIGNAL_COOLDOWN_PATH = ROOT / "data" / "runtime" / "telegram_signal_cooldown.json"
 
 
 def _configured() -> bool:
@@ -75,6 +76,90 @@ def _lifecycle_allowed(
     return True
 
 
+def _in_quiet_hours(quiet_hours: str, now: dt.datetime | None = None) -> bool:
+    if not quiet_hours or "-" not in quiet_hours:
+        return False
+    start_raw, end_raw = [part.strip() for part in quiet_hours.split("-", 1)]
+    try:
+        start_h, start_m = [int(part) for part in start_raw.split(":", 1)]
+        end_h, end_m = [int(part) for part in end_raw.split(":", 1)]
+    except ValueError:
+        return False
+    current = now or dt.datetime.now()
+    current_minutes = current.hour * 60 + current.minute
+    start = start_h * 60 + start_m
+    end = end_h * 60 + end_m
+    if start == end:
+        return False
+    if start < end:
+        return start <= current_minutes < end
+    return current_minutes >= start or current_minutes < end
+
+
+def _cooldown_allowed(key: str, minutes: int) -> bool:
+    if minutes <= 0:
+        return True
+    now = dt.datetime.now(dt.UTC)
+    try:
+        _SIGNAL_COOLDOWN_PATH.parent.mkdir(parents=True, exist_ok=True)
+        data = (
+            json.loads(_SIGNAL_COOLDOWN_PATH.read_text(encoding="utf-8"))
+            if _SIGNAL_COOLDOWN_PATH.exists()
+            else {}
+        )
+    except Exception:
+        data = {}
+
+    last_raw = data.get(key)
+    if last_raw:
+        try:
+            last = dt.datetime.fromisoformat(last_raw)
+            if last.tzinfo is None:
+                last = last.replace(tzinfo=dt.UTC)
+            age = (now - last.astimezone(dt.UTC)).total_seconds()
+            if age < minutes * 60:
+                return False
+        except Exception:
+            pass
+
+    data[key] = now.replace(microsecond=0).isoformat()
+    tmp = _SIGNAL_COOLDOWN_PATH.with_suffix(".tmp")
+    tmp.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+    tmp.replace(_SIGNAL_COOLDOWN_PATH)
+    return True
+
+
+def should_notify_signal(signal: dict[str, Any]) -> tuple[bool, str]:
+    from backend.notifier.preferences import read_preferences, selected_symbols
+
+    prefs = read_preferences()
+    if not prefs["enabled"] or not prefs["notify_signals"]:
+        return False, "telegram signal notifications disabled"
+
+    symbol = str(signal.get("symbol", "")).upper()
+    sig_type = str(signal.get("signal_type", "")).upper()
+    strength = int(signal.get("strength", 0) or 0)
+    metadata = signal.get("metadata") or {}
+    consensus_ratio = float(metadata.get("consensus_ratio", 0) or 0)
+
+    symbols = selected_symbols(prefs)
+    if symbols and symbol not in symbols:
+        return False, "symbol filtered"
+    if sig_type not in set(prefs["signal_types"]):
+        return False, "signal type filtered"
+    if strength < int(prefs["min_strength"]):
+        return False, "signal strength filtered"
+    if sig_type.startswith("STRONG") and consensus_ratio < float(prefs["min_consensus_ratio"]):
+        return False, "consensus ratio filtered"
+    if _in_quiet_hours(str(prefs.get("quiet_hours") or "")):
+        return False, "quiet hours"
+
+    key = f"{symbol}:{sig_type}"
+    if not _cooldown_allowed(key, int(prefs["cooldown_minutes"])):
+        return False, "cooldown"
+    return True, ""
+
+
 async def send_telegram(
     text: str,
     parse_mode: str = "Markdown",
@@ -113,6 +198,10 @@ async def send_telegram(
 # ── Olay bildirimleri ────────────────────────────────────────────────────────
 
 async def bildir_bot_basladi() -> bool:
+    from backend.notifier.preferences import read_preferences
+
+    if not read_preferences()["notify_system"]:
+        return False
     if not _lifecycle_allowed("bot_basladi"):
         logger.info("telegram: başlatıldı bildirimi 60 sn içinde tekrarlandığı için gönderilmedi")
         return False
@@ -124,6 +213,10 @@ async def bildir_bot_basladi() -> bool:
 
 
 async def bildir_bot_durdu() -> bool:
+    from backend.notifier.preferences import read_preferences
+
+    if not read_preferences()["notify_system"]:
+        return False
     if not _lifecycle_allowed("bot_durdu"):
         logger.info("telegram: durduruldu bildirimi 60 sn içinde tekrarlandığı için gönderilmedi")
         return False
@@ -135,6 +228,10 @@ async def bildir_bot_durdu() -> bool:
 
 
 async def bildir_yeni_sinyal(signal: dict[str, Any]) -> bool:
+    allowed, reason_filtered = should_notify_signal(signal)
+    if not allowed:
+        logger.info("telegram: sinyal filtrelendi — %s", reason_filtered)
+        return False
     symbol = signal.get("symbol", "?")
     sig_type = signal.get("signal_type", "?")
     price = float(signal.get("price", 0))
@@ -156,6 +253,10 @@ async def bildir_yeni_sinyal(signal: dict[str, Any]) -> bool:
 
 async def bildir_alim(strategy_id: str, symbol: str, price: float,
                       quantity: float, tutar: float, reason: str) -> bool:
+    from backend.notifier.preferences import read_preferences
+
+    if not read_preferences()["notify_trades"]:
+        return False
     return await send_telegram(
         f"🛒 *Alım Gerçekleşti*\n"
         f"📌 Sembol: `{symbol}`\n"
@@ -170,6 +271,10 @@ async def bildir_alim(strategy_id: str, symbol: str, price: float,
 
 async def bildir_satim(strategy_id: str, symbol: str, price: float,
                        quantity: float, pnl: float, reason: str) -> bool:
+    from backend.notifier.preferences import read_preferences
+
+    if not read_preferences()["notify_trades"]:
+        return False
     emoji = "🟢" if pnl >= 0 else "🔴"
     isaret = "+" if pnl >= 0 else ""
     return await send_telegram(
@@ -186,6 +291,10 @@ async def bildir_satim(strategy_id: str, symbol: str, price: float,
 
 async def bildir_cuzdан_donduruldu(strategy_id: str, daily_loss: float,
                                    initial_capital: float) -> bool:
+    from backend.notifier.preferences import read_preferences
+
+    if not read_preferences()["notify_trades"]:
+        return False
     oran = abs(daily_loss) / initial_capital * 100
     return await send_telegram(
         f"⛔ *Cüzdan Donduruldu*\n"
@@ -197,6 +306,10 @@ async def bildir_cuzdан_donduruldu(strategy_id: str, daily_loss: float,
 
 
 async def bildir_hata(hata: str, baglam: str = "") -> bool:
+    from backend.notifier.preferences import read_preferences
+
+    if not read_preferences()["notify_system"]:
+        return False
     mesaj = f"⚠️ *Hata Oluştu*\n`{hata}`"
     if baglam:
         mesaj += f"\n📍 Bağlam: {baglam}"
@@ -204,6 +317,10 @@ async def bildir_hata(hata: str, baglam: str = "") -> bool:
 
 
 async def bildir_gunluk_ozet(wallets: list[dict], trades: list[dict]) -> bool:
+    from backend.notifier.preferences import read_preferences
+
+    if not read_preferences()["notify_daily_summary"]:
+        return False
     satirlar = ["📊 *Günlük Paper Trading Özeti*\n"]
     for w in wallets:
         pnl = w["cash"] - w["initial_capital"]

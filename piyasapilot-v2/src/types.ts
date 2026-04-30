@@ -1,6 +1,6 @@
 // ─── Asset & Market Types ─────────────────────────────────────────────────────
 
-export type AssetType = 'equity' | 'fx' | 'crypto' | 'commodity';
+export type AssetType = 'equity' | 'fx' | 'crypto' | 'commodity' | 'derivative';
 export type Timeframe = '1m' | '5m' | '15m' | '30m' | '1h' | '4h' | '1d' | '1w';
 export type ChartType = 'candlestick' | 'line' | 'bar';
 export type ConnectionStatus = 'live' | 'delayed' | 'offline';

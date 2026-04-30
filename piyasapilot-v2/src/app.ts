@@ -17,6 +17,15 @@ const statusBadge  = document.getElementById('status-badge')!;
 const lastUpdateEl = document.getElementById('last-update')!;
 const symbolTitle  = document.getElementById('symbol-title')!;
 const tabBtns      = document.querySelectorAll<HTMLElement>('[data-tab]');
+const topbarRight  = document.querySelector<HTMLElement>('.topbar-right')!;
+const LS_START_TAB = 'piyasapilot_start_tab';
+const LS_LAST_TAB  = 'piyasapilot_last_tab';
+type AppTab = 'chart' | 'portfolio' | 'strategy' | 'screener' | 'signals';
+const TABS: AppTab[] = ['chart', 'portfolio', 'strategy', 'screener', 'signals'];
+
+function isAppTab(value: string | null): value is AppTab {
+  return !!value && TABS.includes(value as AppTab);
+}
 
 // ─── Panel containers ─────────────────────────────────────────────────────────
 
@@ -35,6 +44,19 @@ const strategyEl  = createPanel('panel-strategy');
 const screenerEl  = createPanel('panel-screener');
 const signalsEl   = createPanel('panel-signals');
 
+const startTabSelect = document.createElement('select');
+startTabSelect.id = 'start-tab-select';
+startTabSelect.className = 'start-tab-select';
+startTabSelect.title = 'Açılış ekranı';
+startTabSelect.innerHTML = `
+  <option value="chart">Açılış: Grafik</option>
+  <option value="portfolio">Açılış: Portföy</option>
+  <option value="strategy">Açılış: Strateji</option>
+  <option value="screener">Açılış: Tarayıcı</option>
+  <option value="signals">Açılış: Sinyaller</option>
+`;
+topbarRight.prepend(startTabSelect);
+
 // ─── Component instances ──────────────────────────────────────────────────────
 
 const portfolioEngine = new PortfolioEngine();
@@ -51,13 +73,15 @@ void _signalFeed;
 
 // ─── Tab routing ──────────────────────────────────────────────────────────────
 
-function showTab(tab: string): void {
+function showTab(tab: string, persist = true): void {
+  if (!isAppTab(tab)) tab = 'chart';
   tabBtns.forEach(btn => btn.classList.toggle('active', btn.dataset['tab'] === tab));
   chartEl.style.display     = tab === 'chart'     ? 'flex' : 'none';
   portfolioEl.style.display = tab === 'portfolio' ? 'flex' : 'none';
   strategyEl.style.display  = tab === 'strategy'  ? 'flex' : 'none';
   screenerEl.style.display  = tab === 'screener'  ? 'flex' : 'none';
   signalsEl.style.display   = tab === 'signals'   ? 'flex' : 'none';
+  if (persist) localStorage.setItem(LS_LAST_TAB, tab);
 
   // Trigger backtest when strategy tab becomes visible
   if (tab === 'strategy' && multiChart.getActivePaneCandles().length > 0) {
@@ -73,8 +97,22 @@ tabBtns.forEach(btn => {
   btn.addEventListener('click', () => showTab(btn.dataset['tab']!));
 });
 
-// Default tab
-showTab('chart');
+startTabSelect.addEventListener('change', () => {
+  const tab = startTabSelect.value;
+  if (!isAppTab(tab)) return;
+  localStorage.setItem(LS_START_TAB, tab);
+  showTab(tab);
+});
+
+const savedStartTab = localStorage.getItem(LS_START_TAB);
+const savedLastTab = localStorage.getItem(LS_LAST_TAB);
+const initialTab: AppTab = isAppTab(savedStartTab)
+  ? savedStartTab
+  : isAppTab(savedLastTab)
+    ? savedLastTab
+    : 'chart';
+startTabSelect.value = initialTab;
+showTab(initialTab, false);
 
 // ─── Keyboard shortcuts (1–5 = tabs, F = fullscreen, G = cycle layout) ──────
 

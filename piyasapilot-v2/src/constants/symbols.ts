@@ -167,6 +167,19 @@ export const FX_COMMODITY_SYMBOLS: SymbolInfo[] = [
   { symbol: 'BZ=F', name: 'Ham Petrol (Brent)', assetType: 'commodity', group: 'Döviz / Emtia', currency: 'USD' },
 ];
 
+// ─── VİOP (contract watchlist placeholders) ───────────────────────────────────
+//
+// VİOP contract codes are maturity-dependent. These symbols intentionally use
+// the backend VİOP routing prefix; if a licensed/data-provider bridge is not
+// configured, the backend returns a clear "not configured" response instead of
+// fake candles.
+export const VIOP_SYMBOLS: SymbolInfo[] = [
+  { symbol: 'VIOP:XU030', name: 'VİOP BIST 30 Yakın Vade', assetType: 'derivative', group: 'VİOP', currency: 'TRY' },
+  { symbol: 'VIOP:USDTRY', name: 'VİOP Dolar/TL Yakın Vade', assetType: 'derivative', group: 'VİOP', currency: 'TRY' },
+  { symbol: 'VIOP:EURTRY', name: 'VİOP Euro/TL Yakın Vade', assetType: 'derivative', group: 'VİOP', currency: 'TRY' },
+  { symbol: 'VIOP:XAUTRY', name: 'VİOP Gram Altın Yakın Vade', assetType: 'derivative', group: 'VİOP', currency: 'TRY' },
+];
+
 // ─── Flat lookup map ──────────────────────────────────────────────────────────
 
 export const ALL_SYMBOLS: SymbolInfo[] = [
@@ -175,6 +188,7 @@ export const ALL_SYMBOLS: SymbolInfo[] = [
   ...US_SYMBOLS,
   ...CRYPTO_SYMBOLS,
   ...FX_COMMODITY_SYMBOLS,
+  ...VIOP_SYMBOLS,
 ];
 
 export const SYMBOL_MAP = new Map<string, SymbolInfo>(

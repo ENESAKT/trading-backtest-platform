@@ -77,6 +77,7 @@ def macos_notify(title: str, message: str) -> None:
 async def notification_loop() -> None:
     """STRONG sinyalleri dinle ve bildir."""
     from backend.notifier.telegram import bildir_yeni_sinyal, bildir_hata
+    from backend.notifier.preferences import read_preferences, selected_symbols
 
     logger.info("notifier: başlatılıyor...")
     _durum["aktif"] = True
@@ -90,9 +91,18 @@ async def notification_loop() -> None:
         try:
             import websockets
 
-            logger.info("notifier: %s/ws/signals adresine bağlanılıyor...", ws_url)
+            prefs = read_preferences()
+            query: list[str] = []
+            signal_types = ",".join(prefs["signal_types"])
+            if signal_types:
+                query.append(f"types={signal_types}")
+            symbols = ",".join(selected_symbols(prefs))
+            if symbols:
+                query.append(f"symbols={symbols}")
+            ws_path = "/ws/signals" + (f"?{'&'.join(query)}" if query else "")
+            logger.info("notifier: %s%s adresine bağlanılıyor...", ws_url, ws_path)
             async with websockets.connect(
-                f"{ws_url}/ws/signals?types=STRONG_BUY,STRONG_SELL",
+                f"{ws_url}{ws_path}",
                 close_timeout=5,
                 ping_interval=30,
             ) as ws:
@@ -113,17 +123,19 @@ async def notification_loop() -> None:
                     # Son sinyaller listesine ekle
                     _kaydet_sinyal(msg)
 
-                    # Telegram
-                    await bildir_yeni_sinyal(msg)
+                    # Telegram (ikinci katman filtre bildir_yeni_sinyal içinde)
+                    sent = await bildir_yeni_sinyal(msg)
 
                     # macOS
-                    macos_notify("PiyasaPilot", f"{sig_type} — {symbol}")
+                    if sent:
+                        macos_notify("PiyasaPilot", f"{sig_type} — {symbol}")
 
-                    now = dt.datetime.now(dt.UTC).isoformat()
-                    _durum["son_bildirim"] = now
-                    _durum["toplam_bildirim"] += 1
-                    _publish_status()
-                    logger.info("notifier: bildirim gönderildi — %s %s", sig_type, symbol)
+                    if sent:
+                        now = dt.datetime.now(dt.UTC).isoformat()
+                        _durum["son_bildirim"] = now
+                        _durum["toplam_bildirim"] += 1
+                        _publish_status()
+                        logger.info("notifier: bildirim gönderildi — %s %s", sig_type, symbol)
 
         except Exception as exc:  # noqa: BLE001
             hata_msg = f"{type(exc).__name__}: {exc}"

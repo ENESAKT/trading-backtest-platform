@@ -51,6 +51,19 @@ def _price_str(price: float) -> str:
     return f"{price:.6f}"
 
 
+def _real_data_ok(payload: dict[str, Any]) -> tuple[bool, str]:
+    metadata = payload.get("metadata") if isinstance(payload, dict) else {}
+    if not isinstance(metadata, dict):
+        metadata = {}
+    status = str(payload.get("status") or metadata.get("status") or "").lower()
+    is_real = bool(metadata.get("is_real", False))
+    if status != "ok":
+        return False, str(payload.get("message") or metadata.get("error") or "Veri bulunamadı.")
+    if not is_real:
+        return False, "Veri güvenilir gerçek piyasa verisi olarak işaretlenmedi."
+    return True, ""
+
+
 def _worker_status_lines(workers: Any) -> list[str]:
     """Health endpoint'indeki worker bilgisini Telegram satırlarına çevir."""
     if isinstance(workers, dict):
@@ -192,6 +205,9 @@ async def cmd_fiyat(args: str) -> str:
     if data.get("status") == "error":
         msg = data.get("message") or data.get("detail") or "Bilinmeyen hata"
         return f"❌ `{symbol}` bulunamadı.\n{msg}"
+    if data.get("status") in {"no_data", "not_configured"}:
+        msg = data.get("message") or data.get("metadata", {}).get("error") or "Veri bulunamadı."
+        return f"❌ `{symbol}` için {msg}"
 
     bars = data.get("bars", [])
     if not bars:
@@ -207,7 +223,9 @@ async def cmd_fiyat(args: str) -> str:
         except Exception:  # noqa: BLE001
             pass
 
-    freshness = "🕒 Eski veri" if data.get("status") == "stale" else "🟢 Güncel"
+    metadata = data.get("metadata") if isinstance(data.get("metadata"), dict) else {}
+    real_mark = "🟢 Gerçek veri" if metadata.get("is_real") else "🟡 Doğrulanmamış veri"
+    freshness = "🕒 Eski veri" if data.get("status") == "stale" else real_mark
     display = data.get("display_name", symbol)
     market = data.get("market", "")
     market_str = f" ({market})" if market else ""
@@ -232,6 +250,9 @@ async def cmd_sinyal(args: str) -> str:
 
     if "error" in data or not data.get("bars"):
         return f"❌ `{symbol}` için veri bulunamadı."
+    ok, reason = _real_data_ok(data)
+    if not ok:
+        return f"❌ `{symbol}` için sinyal üretilmedi.\n{reason}"
 
     bars = data["bars"]
     if len(bars) < 20:
@@ -352,6 +373,9 @@ async def cmd_strateji(args: str) -> str:
     )
     if "error" in data or not data.get("bars"):
         return f"❌ `{symbol}` için veri bulunamadı."
+    ok, reason = _real_data_ok(data)
+    if not ok:
+        return f"❌ `{symbol}` için strateji analizi yapılamadı.\n{reason}"
 
     bars = data["bars"]
     if len(bars) < 20:
@@ -436,7 +460,10 @@ async def cmd_ozet(_args: str) -> str:
         lines.append("*Paper Trading:* Henüz işlem yok.")
 
     sig_bus = health.get("signal_bus", {})
-    lines.append(f"\n*Sinyal motoru:* 📡 {sig_bus.get('published', 0)} sinyal")
+    lines.append(
+        f"\n*Sinyal motoru:* 📡 {sig_bus.get('published', 0)} sinyal"
+        "\n  🔐 Yalnızca gerçek veri olarak işaretlenen akışlar kullanılır."
+    )
 
     trade_list = trades.get("trades", [])
     kapali = [t for t in trade_list if t.get("closed_at")]

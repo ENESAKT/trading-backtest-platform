@@ -7,6 +7,7 @@ const ASSET_CONFIG: Record<AssetType, AnomalyConfig> = {
   equity:    { maxReturn: 0.08,  zThreshold: 3.5, iqrMultiplier: 3 },
   crypto:    { maxReturn: 0.15,  zThreshold: 4.0, iqrMultiplier: 3 },
   commodity: { maxReturn: 0.08,  zThreshold: 3.5, iqrMultiplier: 3 },
+  derivative:{ maxReturn: 0.10,  zThreshold: 3.5, iqrMultiplier: 3 },
 };
 
 // ─── Statistical helpers ──────────────────────────────────────────────────────

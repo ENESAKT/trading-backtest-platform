@@ -30,10 +30,27 @@ interface LiveSignal {
   };
 }
 
+interface TelegramPreferences {
+  enabled: boolean;
+  notify_signals: boolean;
+  notify_trades: boolean;
+  notify_system: boolean;
+  notify_daily_summary: boolean;
+  symbol_group: 'bist30' | 'bist100' | 'crypto' | 'custom';
+  custom_symbols: string[];
+  signal_types: string[];
+  min_strength: number;
+  min_consensus_ratio: number;
+  cooldown_minutes: number;
+  quiet_hours: string;
+  selected_symbols?: string[];
+}
+
 export class SignalFeed {
   private container: HTMLElement;
   private ws: WebSocket | null = null;
   private signals: LiveSignal[] = [];
+  private preferences: TelegramPreferences | null = null;
   private reconnectDelay = RECONNECT_BASE_MS;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private statusTimer: ReturnType<typeof setInterval> | null = null;
@@ -42,8 +59,10 @@ export class SignalFeed {
   constructor(container: HTMLElement) {
     this.container = container;
     this.render();
+    this.bindPreferenceControls();
     this.connect();
     this.pollTelegramStatus();
+    void this.loadTelegramPreferences();
   }
 
   destroy(): void {
@@ -87,7 +106,118 @@ export class SignalFeed {
       : '—';
     const dotClass = sonHata ? 'tg-warn' : 'tg-on';
     el.innerHTML = `<span class="tg-dot ${dotClass}"></span> Telegram aktif · son: ${zamanStr} · ${toplam} bildirim`;
-    el.title = sonHata ? `Son hata: ${sonHata}` : `Token: ${d['token_son4']} · Chat: ${d['chat_id']}`;
+    el.title = sonHata ? `Son hata: ${sonHata}` : 'Telegram yapılandırması gizli tutuluyor';
+  }
+
+  private httpBase(): string {
+    if (typeof window === 'undefined') return 'http://127.0.0.1:8000';
+    return window.location.origin.replace(/^ws/, 'http');
+  }
+
+  private async loadTelegramPreferences(): Promise<void> {
+    try {
+      const resp = await fetch(`${this.httpBase()}/api/notifier/preferences`);
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      this.preferences = await resp.json() as TelegramPreferences;
+      this.renderTelegramPreferences();
+    } catch {
+      const status = this.container.querySelector<HTMLElement>('#tg-pref-status');
+      if (status) status.textContent = 'Ayarlar okunamadı';
+    }
+  }
+
+  private collectTelegramPreferences(): TelegramPreferences {
+    const checked = (id: string) => this.container.querySelector<HTMLInputElement>(`#${id}`)?.checked ?? false;
+    const value = (id: string) => this.container.querySelector<HTMLInputElement | HTMLSelectElement>(`#${id}`)?.value ?? '';
+    const customSymbols = value('tg-custom-symbols')
+      .split(',')
+      .map(s => s.trim().toUpperCase())
+      .filter(Boolean);
+    const signalTypes = Array.from(this.container.querySelectorAll<HTMLInputElement>('[data-tg-type]'))
+      .filter(input => input.checked)
+      .map(input => input.value);
+    return {
+      enabled: checked('tg-enabled'),
+      notify_signals: checked('tg-notify-signals'),
+      notify_trades: checked('tg-notify-trades'),
+      notify_system: checked('tg-notify-system'),
+      notify_daily_summary: checked('tg-notify-daily'),
+      symbol_group: value('tg-symbol-group') as TelegramPreferences['symbol_group'],
+      custom_symbols: customSymbols,
+      signal_types: signalTypes,
+      min_strength: Number(value('tg-min-strength') || 8),
+      min_consensus_ratio: Number(value('tg-min-consensus') || 60) / 100,
+      cooldown_minutes: Number(value('tg-cooldown') || 30),
+      quiet_hours: value('tg-quiet-hours'),
+    };
+  }
+
+  private async saveTelegramPreferences(): Promise<void> {
+    const status = this.container.querySelector<HTMLElement>('#tg-pref-status');
+    if (status) status.textContent = 'Kaydediliyor…';
+    try {
+      const resp = await fetch(`${this.httpBase()}/api/notifier/preferences`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(this.collectTelegramPreferences()),
+      });
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      this.preferences = await resp.json() as TelegramPreferences;
+      this.renderTelegramPreferences();
+      if (status) status.textContent = 'Kaydedildi';
+    } catch {
+      if (status) status.textContent = 'Kaydedilemedi';
+    }
+  }
+
+  private bindPreferenceControls(): void {
+    this.container.addEventListener('click', (evt) => {
+      const target = evt.target as HTMLElement;
+      if (target.id === 'tg-save-prefs') void this.saveTelegramPreferences();
+      if (target.id === 'tg-bist30-preset') {
+        const group = this.container.querySelector<HTMLSelectElement>('#tg-symbol-group');
+        const strength = this.container.querySelector<HTMLInputElement>('#tg-min-strength');
+        const consensus = this.container.querySelector<HTMLInputElement>('#tg-min-consensus');
+        const cooldown = this.container.querySelector<HTMLInputElement>('#tg-cooldown');
+        if (group) group.value = 'bist30';
+        if (strength) strength.value = '8';
+        if (consensus) consensus.value = '60';
+        if (cooldown) cooldown.value = '30';
+      }
+    });
+  }
+
+  private renderTelegramPreferences(): void {
+    const prefs = this.preferences;
+    if (!prefs) return;
+    const setChecked = (id: string, checked: boolean) => {
+      const el = this.container.querySelector<HTMLInputElement>(`#${id}`);
+      if (el) el.checked = checked;
+    };
+    const setValue = (id: string, value: string | number) => {
+      const el = this.container.querySelector<HTMLInputElement | HTMLSelectElement>(`#${id}`);
+      if (el) el.value = String(value);
+    };
+    setChecked('tg-enabled', prefs.enabled);
+    setChecked('tg-notify-signals', prefs.notify_signals);
+    setChecked('tg-notify-trades', prefs.notify_trades);
+    setChecked('tg-notify-system', prefs.notify_system);
+    setChecked('tg-notify-daily', prefs.notify_daily_summary);
+    setValue('tg-symbol-group', prefs.symbol_group);
+    setValue('tg-custom-symbols', prefs.custom_symbols.join(', '));
+    setValue('tg-min-strength', prefs.min_strength);
+    setValue('tg-min-consensus', Math.round(prefs.min_consensus_ratio * 100));
+    setValue('tg-cooldown', prefs.cooldown_minutes);
+    setValue('tg-quiet-hours', prefs.quiet_hours);
+    this.container.querySelectorAll<HTMLInputElement>('[data-tg-type]').forEach(input => {
+      input.checked = prefs.signal_types.includes(input.value);
+    });
+    const summary = this.container.querySelector<HTMLElement>('#tg-pref-summary');
+    if (summary) {
+      const count = prefs.selected_symbols?.length ?? prefs.custom_symbols.length;
+      const labels = { bist30: 'BIST 30', bist100: 'BIST 100', crypto: 'Kripto', custom: 'Özel/VİOP' };
+      summary.textContent = `${labels[prefs.symbol_group]} · ${count} sembol · güç ≥ ${prefs.min_strength} · ${prefs.cooldown_minutes} dk`;
+    }
   }
 
   private resolveBase(): string {
@@ -197,6 +327,56 @@ export class SignalFeed {
         </div>
         <div id="tg-status" class="tg-status-bar">
           <span class="tg-dot tg-unknown"></span> Telegram: yükleniyor…
+        </div>
+        <div class="tg-control-panel">
+          <div class="tg-control-header">
+            <strong>Telegram filtreleri</strong>
+            <span id="tg-pref-summary">Ayarlar yükleniyor…</span>
+          </div>
+          <div class="tg-control-grid">
+            <label><input id="tg-enabled" type="checkbox"> Aktif</label>
+            <label><input id="tg-notify-signals" type="checkbox"> Sinyal</label>
+            <label><input id="tg-notify-trades" type="checkbox"> İşlem</label>
+            <label><input id="tg-notify-system" type="checkbox"> Sistem</label>
+            <label><input id="tg-notify-daily" type="checkbox"> Günlük özet</label>
+            <label>
+              Grup
+              <select id="tg-symbol-group">
+                <option value="bist30">BIST 30</option>
+                <option value="bist100">BIST 100</option>
+                <option value="crypto">Kripto</option>
+                <option value="custom">Özel / VİOP</option>
+              </select>
+            </label>
+            <label>
+              Min güç
+              <input id="tg-min-strength" type="number" min="1" max="10" step="1">
+            </label>
+            <label>
+              Konsensüs %
+              <input id="tg-min-consensus" type="number" min="0" max="100" step="5">
+            </label>
+            <label>
+              Cooldown dk
+              <input id="tg-cooldown" type="number" min="0" max="1440" step="5">
+            </label>
+            <label>
+              Sessiz saat
+              <input id="tg-quiet-hours" type="text" placeholder="23:00-09:00">
+            </label>
+          </div>
+          <div class="tg-type-row">
+            <label><input data-tg-type type="checkbox" value="BUY"> BUY</label>
+            <label><input data-tg-type type="checkbox" value="SELL"> SELL</label>
+            <label><input data-tg-type type="checkbox" value="STRONG_BUY"> STRONG_BUY</label>
+            <label><input data-tg-type type="checkbox" value="STRONG_SELL"> STRONG_SELL</label>
+          </div>
+          <textarea id="tg-custom-symbols" class="tg-custom-symbols" placeholder="VİOP veya özel semboller: F_XU030..., F_USDTRY..., THYAO.IS"></textarea>
+          <div class="tg-actions">
+            <button id="tg-bist30-preset" type="button">BIST 30 sıkı</button>
+            <button id="tg-save-prefs" type="button">Kaydet</button>
+            <span id="tg-pref-status"></span>
+          </div>
         </div>
         <div class="signal-feed-info">${TR.SIGNAL_FEED_INFO}</div>
         <div id="signal-feed-list" class="signal-feed-list">
