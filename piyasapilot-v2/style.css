@@ -787,3 +787,194 @@ h3 { font-family: var(--font-sans); font-size: 13px; font-weight: 600; color: va
 ::-webkit-scrollbar-track { background: var(--bg); }
 ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--text-dim); }
+
+/* ─── Lazy-load sentinel ───────────────────────────────────────────────── */
+.lazy-sentinel {
+  height: 1px;
+  width: 100%;
+}
+
+/* ─── Indicator toggle switch styling ──────────────────────────────────── */
+.ind-btn {
+  position: relative;
+  min-width: 36px;
+  text-align: center;
+}
+.ind-btn.active {
+  background: var(--border);
+  color: var(--blue);
+  border-color: var(--blue);
+}
+.ind-btn:not(.active) {
+  opacity: 0.5;
+  text-decoration: line-through;
+}
+.ind-btn::before {
+  content: '';
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  margin-right: 3px;
+  vertical-align: middle;
+}
+.ind-btn.active::before {
+  background: var(--green);
+  box-shadow: 0 0 4px var(--green);
+}
+.ind-btn:not(.active)::before {
+  background: var(--text-dim);
+}
+
+/* ─── Mobil responsive (768px altı) ────────────────────────────────────── */
+@media (max-width: 768px) {
+  :root {
+    --sidebar-w: 0px;
+    --topbar-h: 36px;
+  }
+
+  /* Sidebar gizle */
+  #sidebar {
+    display: none;
+  }
+
+  /* Topbar sıkıştır */
+  #topbar {
+    padding: 0 6px;
+    gap: 4px;
+  }
+  .logo {
+    font-size: 12px;
+  }
+  .symbol-title {
+    max-width: 100px;
+    font-size: 10px;
+  }
+  .topbar-tabs {
+    gap: 0;
+  }
+  .tab-btn {
+    font-size: 10px;
+    padding: 3px 6px;
+  }
+  .start-tab-select {
+    display: none;
+  }
+
+  /* Ana içerik tam genişlik */
+  #main-content {
+    width: 100vw;
+  }
+
+  /* Chart controls tek satıra sığsın */
+  .chart-controls {
+    padding: 3px 6px;
+    gap: 3px;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .ctrl-btn {
+    font-size: 9px;
+    padding: 2px 4px;
+    white-space: nowrap;
+  }
+  .ctrl-label {
+    display: none;
+  }
+
+  /* Multi-chart grid tek sütun */
+  .multi-chart-grid {
+    grid-template-columns: 1fr !important;
+    grid-template-rows: auto !important;
+  }
+  .multi-chart-controls {
+    padding: 2px 6px;
+  }
+  .mcl-btn {
+    font-size: 10px;
+    padding: 2px 6px;
+  }
+
+  /* Portfolio grid */
+  .portfolio-body {
+    flex-direction: column;
+  }
+  .portfolio-right {
+    min-width: unset;
+  }
+  .paper-metrics-summary {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .summary-cards {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .paper-wallets-grid {
+    grid-template-columns: 1fr;
+  }
+  .paper-charts-row {
+    flex-direction: column;
+  }
+
+  /* Strategy cards yatay scroll */
+  .strategy-cards {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    gap: 4px;
+    flex-wrap: nowrap;
+    padding-bottom: 4px;
+  }
+  .strategy-card {
+    min-width: 150px;
+    flex-shrink: 0;
+  }
+  .strategy-body {
+    flex-direction: column;
+  }
+  .metrics-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  /* Signal feed */
+  .signal-feed-wrap {
+    padding: 6px;
+    gap: 4px;
+  }
+  .tg-control-panel {
+    padding: 4px;
+    font-size: 9px;
+  }
+  .tg-control-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  /* Screener */
+  .screener-header {
+    flex-direction: column;
+    gap: 6px;
+  }
+  .filter-bar {
+    flex-wrap: wrap;
+  }
+
+  /* Toast daha küçük */
+  .toast {
+    min-width: 200px;
+    max-width: 300px;
+    font-size: 10px;
+  }
+}
+
+/* ─── Tablet responsive (769px - 1024px) ───────────────────────────────── */
+@media (min-width: 769px) and (max-width: 1024px) {
+  :root {
+    --sidebar-w: 180px;
+  }
+  .sym-name {
+    max-width: 80px;
+  }
+  .summary-cards {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+

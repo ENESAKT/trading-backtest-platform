@@ -178,3 +178,11 @@
 - **Vite build bundle analizi yapılmalı.** `npm run build` çıktısındaki dosya boyutları izlenmeli: CSS 17KB, uygulama JS 83KB, lightweight-charts 162KB, Chart.js 207KB. Chart.js en büyük bağımlılık; tree-shaking ile küçültülebilir (ileride).
 - **Doğrulama senaryoları 3'e ayrılmalı:** (1) statik/unit test (pytest, TSC, build), (2) port-bind gerektiren canlı test (API curl, WS, dev server), (3) dış servis gerektiren test (Docker, Telegram, MCP). İlk kategori CI'da, ikincisi geliştirici ortamında, üçüncüsü deployment sonrası yapılmalı.
 
+## Sprint 11 — Üretim Sertleştirme
+
+- **API key middleware her istekte `os.environ.get()` çağırmalı.** Constructor'da cache'leyip kullanmak test izolasyonunu bozar; `patch.dict(os.environ)` ile set edilen değer middleware'a ulaşmaz. Çözüm: `_get_api_key()` metodu ile her istekte ortamdan oku.
+- **IntersectionObserver + sentinel pattern sidebar lazy-load için ideal.** 130 sembolü DOM'a tek seferde eklemek başlangıç render süresini uzatır. İlk 15 sembolü hemen, geri kalanları scroll sentinel'e ulaşınca 15'lik batch'lerle yüklemek açılış performansını ~8x iyileştirdi.
+- **CSS `@media (max-width: 768px)` ile sidebar gizlenirken `--sidebar-w: 0px` CSS variable overriding gerekli.** Sadece `display: none` yetersiz çünkü layout hesaplamaları CSS variable'a bağlı. Her iki yöntemi birlikte kullanmak mobil uyumu sağlam tutar.
+- **Prometheus metrics'te stdlib exposition format (dış bağımlılık yok) yeterli.** `prometheus_client` paketi yüklemeden `/metrics` endpoint'i plain text Prometheus format döner. Basit counter'lar ve gauge'lar sadece uygulama değişkenleri üzerinden çalışır.
+- **Worker çöküş uyarılarında cooldown mekanizması şart.** Aynı worker sürekli çöküp restart ederse dakikada 100+ Telegram mesajı gider. 5 dakika cooldown ile aynı worker için tekrar uyarı gönderilmez.
+- **`STRICT_ENV_VALIDATION=1` sadece production deploy'da kullanılmalı.** Geliştirme ortamında opsiyonel değişkenlerin (Telegram token, SMTP) eksikliği normal; strict mod burada gereksiz yere servisi kırar.

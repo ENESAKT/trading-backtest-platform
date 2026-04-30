@@ -1,6 +1,6 @@
 # İlerleme Raporu — PiyasaPilot v2
 
-> **Tarih:** 2026-04-29
+> **Tarih:** 2026-04-30
 > **Branch:** `main`
 > **Tek doğruluk kaynağı:** `planlama.md`.
 
@@ -22,8 +22,11 @@
 | Sprint 9 | Polish & Production Hardening | ✅ Tamamlandı |
 | Sprint 10 Aşama 1 | ProviderRouter + gerçek veri kapısı + Telegram tercihleri | ✅ Tamamlandı |
 | Sprint 10 Aşama 2 | MCP entegrasyonu + E2E/stres/Docker canlı doğrulamalar | ✅ Tamamlandı |
+| Sprint 11.3 | Frontend Performans + UX | ✅ Tamamlandı |
+| Sprint 11.4 | Gözlemlenebilirlik + Uyarılar | ✅ Tamamlandı |
+| Sprint 11.5 | Güvenlik + Graceful Shutdown | ✅ Tamamlandı |
 
-**Sprint 10 Aşama 1 ve Aşama 2 tamamlanmıştır.** borsa/tradingview MCP bağlantısı, E2E, stres smoke, Docker restart check, lisanslı veri köprüleri ve Telegram/SMTP doğrulama kapıları hazırdır.
+**Sprint 11 Adım 3–5 tamamlanmıştır.** Sidebar lazy-load, mobil responsive, sinyal localStorage, Prometheus metrics, Grafana dashboard, worker çöküş uyarıları, API key auth, env validation ve graceful shutdown hazırdır.
 
 ---
 
@@ -31,26 +34,52 @@
 
 | Metrik | Değer |
 |--------|-------|
-| Test (pytest) | **301 passed, 1 deselected**, 1 FutureWarning (`test_ws_quotes_symbol_filter` Makefile filtresiyle dışarıda) |
+| Test (pytest) | **324 passed, 1 deselected** |
 | TSC compile | ✅ Temiz (0 hata) |
-| Vite build | ✅ Temiz |
+| Vite build | ✅ Temiz (39 modül, 612ms) |
 | Stratejiler | 8 (ema_cross, rsi_reversion, bb_reversion, breakout, donchian, macd_div, supertrend, vwap_mean_rev) |
 | Sembol kapsamı | ~130 (BIST 98 + Kripto 10 + FX/Emtia) |
 | Frontend bileşenler | 7 (ChartPanel, MultiChartLayout, PortfolioPanel, StrategyPanel, Screener, Sidebar, SignalFeed) |
-| Backend API endpoint'leri | 18+ (health, provider health, notifier preferences, backtest, paper, candles, WS quotes, WS signals) |
+| Backend API endpoint'leri | 20+ (health, metrics, provider health, notifier preferences, backtest, paper, candles, WS quotes, WS signals) |
 | Sub-agent'lar | 8 |
 | Skill'ler | 15 |
 | Slash command'lar | 5 |
 
 ---
 
-## 3. Mimari Katmanlar
+## 3. Sprint 11 Yeni Eklenen Özellikler
+
+### 11.3 Frontend Performans + UX
+- **Sidebar lazy-load**: IntersectionObserver ile 15'lik batch'ler, 130 sembol artık performanslı
+- **Mobil responsive**: 768px altında sidebar gizlenir, tek sütun grid, touch scroll
+- **Tablet responsive**: 769–1024px arasında daraltılmış sidebar
+- **İndikatör toggle**: Aktif/pasif durumda yeşil dot ve line-through görsel feedback
+- **Sinyal geçmişi**: localStorage ile kalıcı; sayfa yenilendiğinde son 50 sinyal korunur
+
+### 11.4 Gözlemlenebilirlik + Uyarılar
+- **Prometheus `/metrics`**: Stdlib exposition format, dış bağımlılık yok (cache bars, symbols, worker up, signal bus)
+- **Grafana dashboard**: `docker/grafana/dashboard.json` — 3 panel: API latency, cache stats, worker durumu
+- **Docker Compose overlay**: `docker-compose.monitor.yml` + `docker/prometheus.yml`
+- **Worker çöküş uyarısı**: `WorkerHealthMonitor` — 30s periyodik kontrol, 5dk cooldown, Telegram bildirim
+- **Günlük sağlık raporu**: `scripts/daily_health_report.py` — /api/health çek, Telegram'a gönder
+- **Makefile target'ları**: `make monitor`, `make monitor-down`, `make daily-report`, `make wal-check`
+
+### 11.5 Güvenlik + Graceful Shutdown
+- **API key auth**: `backend/middleware/api_key_auth.py` — API_KEY varsa X-API-Key header zorunlu; /api/health muaf
+- **Env validation**: `backend/env_validator.py` — STRICT_ENV_VALIDATION=1 modunda eksik zorunlu değişken RuntimeError
+- **SIGTERM graceful shutdown**: Lifespan finally'de paper_db.checkpoint() + WAL pragma
+- **WAL checkpoint testi**: `scripts/wal_checkpoint_test.py` — veri bütünlüğü doğrulaması
+
+---
+
+## 4. Mimari Katmanlar
 
 ```
 Tarayıcı (Vite SPA) ──HTTP/WS──→ FastAPI Gateway (port 8000)
                                     ├── /api/v2/candles (cache-aside)
                                     ├── /api/backtest/run (8 strateji)
                                     ├── /api/paper/* (cüzdan, trade, equity)
+                                    ├── /metrics (Prometheus)
                                     ├── /ws/quotes (canlı bar fan-out)
                                     └── /ws/signals (sinyal fan-out)
                                            │
@@ -63,58 +92,46 @@ Tarayıcı (Vite SPA) ──HTTP/WS──→ FastAPI Gateway (port 8000)
          │                        └── Metadata (RSI, ATR, volatilite)
          ▼
    ProviderRouter ──→ SQLite OHLCV Cache ──→ IQR Spike Filter
+                                    │
+              ┌─────────────────────┤
+              ▼                     ▼
+   WorkerHealthMonitor       Prometheus /metrics
+   (çöküş → Telegram)       (Grafana dashboard)
 ```
 
 ---
 
-## 4. Kapanan Risk Kalemleri
+## 5. Kalan İşler (Sprint 11.1 ve 11.2)
 
-**Gizli bilgi ve dış servis kapıları:**
-- [x] Telegram token/chat id `.env` içinde kalır; değerler log/API/Telegram cevabında maskelenir.
-- [x] SMTP ayarları `.env.example` ve `/api/notifier/status.email` üzerinden güvenli doğrulanır.
-- [x] `make up` / Docker stack doğrulandı; `scripts/docker_restart_check.sh` geçti.
-
-**Canlı doğrulama ve otomasyonlar:**
-- [x] Stres testi otomasyonu: `scripts/stress_live_data.py`; smoke sonucu 470 istek / 0 altyapı hatası.
-- [x] Playwright E2E: `npm run e2e` → 2 passed.
-- [x] Docker restart testi: `scripts/docker_restart_check.sh` → geçti.
-- [x] Notifier uçtan uca kapısı: Telegram tercih UI + email status + handler smoke testleri.
-- [x] Telegram `/kontrol`: `scripts/telegram_roundtrip_check.py` handler smoke geçti; `--live` token varsa getMe kontrolü yapar.
-- [x] Binance WS reset dayanıklılığı: jitter'lı backoff + reconnect metadata + unit test.
-
-**Veri ve ML kapıları:**
-- [x] LightGBM temeli: feature extraction + readiness gate; veri yoksa sahte model üretmez.
-- [x] VİOP resmi/lisanslı veri köprüsü: `VIOP_HTTP_URL_TEMPLATE`.
-- [x] BIST resmi/lisanslı veri köprüsü: `BIST_HTTP_URL_TEMPLATE`; yoksa Yahoo best-effort fallback açıkça etiketlenir.
-- [x] borsa-mcp + tradingview-mcp: `claude mcp list` ile Connected.
+| Adım | Konu | Durum | Bağımlılık |
+|------|------|-------|------------|
+| 11.1 | Lisanslı BIST/VİOP Feed | ⏳ Bekliyor | `.env` credential gerekli |
+| 11.2 | LightGBM Sinyal Modeli | ⏳ Bekliyor | ≥ 3 ay cache gerekli |
+| 11.3-E2E | Playwright mobil viewport testleri | ⏳ Bekliyor | Frontend stabil |
 
 ---
-
-## 5. Son Commit'ler
-
-```
-(sprint-9-polish)  feat: Sprint 9 polish — STRONG sinyal UI + docker workers fix
-dd43786 fix: Telegram env yükleme ve gizli bilgi maskeleme
-7211dab feat: add market data provider router
-b0c9b22 feat: add Telegram notification controls
-69a384d docs: Sprint 8 tamamlandı — README + Mimari + Agent/Skill rehberleri
-90d7190 feat: Sprint 6 + Sprint 7 tamamlandı — AI sinyal motoru + bildirim altyapısı
-a7c0d50 feat: Sprint 5 tamamlandı — Agent + Skill + MCP + Hook ekosistemi kuruldu
-```
 
 ## 6. Hızlı Başlangıç
 
 ```bash
 # 1. .env dosyasını doldur
 cp .env.example .env
-# TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, SMTP_* gir
+# TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, SMTP_*, API_KEY (opsiyonel) gir
 
 # 2. Docker ile çalıştır
 make up          # build + docker compose up -d
 make health      # /api/health kontrol
-make status      # tüm servisler + sağlık
 
-# 3. Geliştirme ortamı
+# 3. İzleme altyapısı (Grafana + Prometheus)
+make monitor     # Grafana: localhost:3000, Prometheus: localhost:9090
+
+# 4. Geliştirme ortamı
 make dev         # backend (port 8000)
 make dev-frontend  # frontend (port 5173)
+
+# 5. Test & doğrulama
+make test        # 324 pytest
+make lint        # TSC + Vite build
+make wal-check   # WAL checkpoint testi
+make daily-report-stdout  # Sağlık raporu (stdout)
 ```

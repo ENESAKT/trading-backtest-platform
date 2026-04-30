@@ -1,4 +1,4 @@
-.PHONY: up down restart logs status build dev test lint e2e mcp-check stress-smoke stress-live docker-restart-check verify
+.PHONY: up down restart logs status build dev test lint e2e mcp-check stress-smoke stress-live docker-restart-check verify monitor daily-report wal-check
 
 # ─── Docker Compose ────────────────────────────────────────────────────────
 
@@ -76,3 +76,24 @@ health:
 
 paper:
 	@curl -sf http://localhost:8000/api/paper/wallets | python3 -m json.tool
+
+# ─── Monitoring (Grafana + Prometheus) ─────────────────────────────────
+
+monitor:
+	docker compose -f docker-compose.yml -f docker-compose.monitor.yml up -d
+	@echo "📊 Grafana: http://localhost:3000 (admin/piyasapilot)"
+	@echo "📈 Prometheus: http://localhost:9090"
+	@echo "📉 Metrics: http://localhost:8000/metrics"
+
+monitor-down:
+	docker compose -f docker-compose.yml -f docker-compose.monitor.yml down
+
+daily-report:
+	source .venv/bin/activate && python scripts/daily_health_report.py
+
+daily-report-stdout:
+	source .venv/bin/activate && python scripts/daily_health_report.py --no-telegram
+
+wal-check:
+	source .venv/bin/activate && python scripts/wal_checkpoint_test.py
+

@@ -7,6 +7,7 @@ import { TR, formatNumber } from '../constants/tr.js';
 const MAX_SIGNALS = 50;
 const RECONNECT_BASE_MS = 1_000;
 const RECONNECT_MAX_MS = 30_000;
+const LS_SIGNAL_HISTORY = 'piyasapilot_signal_history';
 
 interface LiveSignal {
   type: 'signal';
@@ -58,6 +59,7 @@ export class SignalFeed {
 
   constructor(container: HTMLElement) {
     this.container = container;
+    this.restoreSignals();
     this.render();
     this.bindPreferenceControls();
     this.connect();
@@ -261,6 +263,7 @@ export class SignalFeed {
   private addSignal(sig: LiveSignal): void {
     this.signals.unshift(sig);
     if (this.signals.length > MAX_SIGNALS) this.signals.pop();
+    this.persistSignals();
     this.renderSignals();
 
     // STRONG sinyaller için in-app toast bildirimi
@@ -316,6 +319,26 @@ export class SignalFeed {
     };
     badge.textContent = labels[status] ?? status;
     badge.className = `status-badge status-${status}`;
+  }
+
+  /** Sinyal geçmişini localStorage'a kaydet */
+  private persistSignals(): void {
+    try {
+      localStorage.setItem(LS_SIGNAL_HISTORY, JSON.stringify(this.signals));
+    } catch { /* quota exceeded — sessizce geç */ }
+  }
+
+  /** Sinyal geçmişini localStorage'dan geri yükle */
+  private restoreSignals(): void {
+    try {
+      const raw = localStorage.getItem(LS_SIGNAL_HISTORY);
+      if (raw) {
+        const parsed = JSON.parse(raw) as LiveSignal[];
+        if (Array.isArray(parsed)) {
+          this.signals = parsed.slice(0, MAX_SIGNALS);
+        }
+      }
+    } catch { /* bozuk veri — boş başla */ }
   }
 
   private render(): void {

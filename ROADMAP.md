@@ -248,29 +248,29 @@ Plan, CLAUDE.md, `.claude/` iskelet klasörleri, kararların kayda geçmesi.
 
 **Sonunda göreceğin:** Sinyal akışında `lgbm_prob: 0.73` gibi olasılık skoru da görünecek. Backtest panelinde "LightGBM" seçeneği var.
 
-#### Adım 11.3 — Frontend Performans + UX
-- [ ] Sidebar lazy-load: 130 sembolü tek seferde değil, scroll ile yükle
-- [ ] Mobil/tablet düzeni: 768px altında tek sütun (ekran bölme gizlenir)
-- [ ] Chart'ta indikatör toggle paneli (EMA/RSI/MACD/BB/ATR/VWAP aç-kapa)
-- [ ] Sinyal geçmişi: `/ws/signals` son 100 sinyali localStorage'da sakla, sayfa yenilenince kaybolmasın
+#### Adım 11.3 — Frontend Performans + UX ✅
+- [x] Sidebar lazy-load: 130 sembolü tek seferde değil, scroll ile yükle
+- [x] Mobil/tablet düzeni: 768px altında tek sütun (ekran bölme gizlenir)
+- [x] Chart'ta indikatör toggle paneli (EMA/RSI/MACD/BB/ATR/VWAP aç-kapa)
+- [x] Sinyal geçmişi: `/ws/signals` son 100 sinyali localStorage'da sakla, sayfa yenilenince kaybolmasın
 - [ ] Playwright E2E: indikatör toggle + mobil viewport testleri
 
 **Sonunda göreceğin:** Telefondan açıldığında tek panel kullanılabilir layout. Chart'ın üstünde EMA/RSI/MACD toggle switch'leri var.
 
-#### Adım 11.4 — Gözlemlenebilirlik + Uyarılar
-- [ ] Prometheus `/metrics` endpoint (FastAPI middleware): request latency, cache hit rate, worker durumu
-- [ ] Grafana dashboard JSON (`docker/grafana/`) — 3 panel: latency, cache, worker
-- [ ] Worker çöktüğünde Telegram uyarısı (mevcut `service_status.py` + yeni ping mekanizması)
-- [ ] `scripts/daily_health_report.py` — günlük sabah 09:00'da Telegram'a cache boy + test sonuçları
-- [ ] `make monitor` target → Grafana `localhost:3000`
+#### Adım 11.4 — Gözlemlenebilirlik + Uyarılar ✅
+- [x] Prometheus `/metrics` endpoint (FastAPI middleware): request latency, cache hit rate, worker durumu
+- [x] Grafana dashboard JSON (`docker/grafana/`) — 3 panel: latency, cache, worker
+- [x] Worker çöktüğünde Telegram uyarısı (`WorkerHealthMonitor` + 30s periyodik kontrol)
+- [x] `scripts/daily_health_report.py` — günlük sabah 09:00'da Telegram'a cache boy + test sonuçları
+- [x] `make monitor` target → Grafana `localhost:3000`
 
 **Sonunda göreceğin:** Sabah 09:05'te Telegram'a "gateway: ✅ cache: 18k bar, 45 sembol, p99: 42ms" geliyor. Bir worker çöktüyse anında bildirim.
 
-#### Adım 11.5 — Güvenlik + Temiz Kapanma
-- [ ] API key auth middleware (opsiyonel X-API-Key header) — dışa açılacaksa zorunlu
-- [ ] `SIGTERM` yakalayıp paper_trades'i flush eden graceful shutdown
-- [ ] `.env` validation başlangıçta: eksik kritik değer varsa servis başlamaz, açık hata mesajı verir
-- [ ] `docker compose down` sonrası SQLite WAL checkpoint doğrulama testi
+#### Adım 11.5 — Güvenlik + Temiz Kapanma ✅
+- [x] API key auth middleware (opsiyonel X-API-Key header) — dışa açılacaksa zorunlu
+- [x] `SIGTERM` yakalayıp paper_trades'i flush eden graceful shutdown
+- [x] `.env` validation başlangıçta: eksik kritik değer varsa servis başlamaz, açık hata mesajı verir
+- [x] `docker compose down` sonrası SQLite WAL checkpoint doğrulama testi
 
 ---
 

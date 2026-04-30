@@ -23,10 +23,14 @@ from __future__ import annotations
 
 import asyncio
 import datetime as dt
+import logging
 import os
+import signal
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any, AsyncIterator
+
+_logger = logging.getLogger(__name__)
 
 from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
@@ -36,6 +40,8 @@ from pydantic import BaseModel, Field
 
 from backend.api.quote_bus import QuoteBus
 from backend.api.signal_bus import SignalBus
+from backend.env_validator import validate_env
+from backend.middleware.api_key_auth import APIKeyMiddleware
 from backend.backtest import (
     BacktestNotEnoughData,
     BacktestRunError,
@@ -74,6 +80,20 @@ CACHE_FRESHNESS_SECONDS = 90
 
 def _utc_iso() -> str:
     return dt.datetime.now(dt.UTC).replace(microsecond=0).isoformat()
+
+
+def _check_optional_env() -> None:
+    """Başlangıçta opsiyonel çevre değişkenlerini kontrol et; eksikse uyar."""
+    checks = [
+        ("TELEGRAM_BOT_TOKEN", "Telegram bildirimleri devre dışı"),
+        ("TELEGRAM_CHAT_ID", "Telegram bildirimleri devre dışı"),
+        ("SMTP_HOST", "E-posta bildirimleri devre dışı"),
+        ("BIST_HTTP_URL_TEMPLATE", "Lisanslı BIST feed bağlı değil — Yahoo fallback aktif"),
+        ("VIOP_HTTP_URL_TEMPLATE", "Lisanslı VİOP feed bağlı değil"),
+    ]
+    for key, note in checks:
+        if not getenv(key):
+            _logger.warning("[env] Eksik opsiyonel değişken: %s — %s", key, note)
 
 
 async def _drain_client_messages(ws: WebSocket) -> None:
@@ -220,13 +240,37 @@ def create_app(
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+        validate_env()
+
+        # SIGTERM graceful shutdown hook
+        loop = asyncio.get_event_loop()
+        try:
+            loop.add_signal_handler(
+                signal.SIGTERM,
+                lambda: _logger.info("[shutdown] SIGTERM alındı"),
+            )
+        except (NotImplementedError, RuntimeError):
+            pass  # Windows / test ortamı
+
         await supervisor.start_all()
         executor_task = asyncio.create_task(_paper_executor_loop())
+
+        # Worker sağlık izleyici — çöküşlerde Telegram uyarısı
+        from backend.workers.health_monitor import WorkerHealthMonitor
+        health_monitor = WorkerHealthMonitor(supervisor)
+        await health_monitor.start()
+
         try:
             yield
         finally:
+            await health_monitor.stop()
             executor_task.cancel()
             await supervisor.stop_all()
+            try:
+                paper_db.checkpoint()
+                _logger.info("[shutdown] SQLite WAL checkpoint tamamlandı.")
+            except Exception as exc:
+                _logger.warning("[shutdown] WAL checkpoint başarısız: %s", exc)
 
     app = FastAPI(
         title="PiyasaPilot Gateway",
@@ -246,8 +290,9 @@ def create_app(
         CORSMiddleware,
         allow_origins=["*"],
         allow_methods=["GET", "POST", "OPTIONS"],
-        allow_headers=["*"],
+        allow_headers=["*", "X-API-Key"],
     )
+    app.add_middleware(APIKeyMiddleware)
 
     # ── Assistant durumu ──────────────────────────────────────────────────
     @app.get("/api/assistant/status")
@@ -323,6 +368,35 @@ def create_app(
             payload = {}
         write_preferences(payload)
         return public_preferences()
+
+    # ── Prometheus metrics ────────────────────────────────────────────────
+    from fastapi.responses import PlainTextResponse
+
+    @app.get("/metrics", response_class=PlainTextResponse)
+    def prometheus_metrics() -> str:
+        """Prometheus exposition format — stdlib, dış bağımlılık yok."""
+        stats = cache.stats()
+        worker_health = supervisor.health()
+        lines = [
+            "# HELP gateway_cache_bars_total Cached OHLCV bar sayısı",
+            "# TYPE gateway_cache_bars_total gauge",
+            f"gateway_cache_bars_total {stats.rows}",
+            "# HELP gateway_cache_symbols_total Distinct sembol sayısı",
+            "# TYPE gateway_cache_symbols_total gauge",
+            f"gateway_cache_symbols_total {stats.distinct_symbols}",
+            "# HELP gateway_worker_up Worker çalışıyor mu (1=evet 0=hayır)",
+            "# TYPE gateway_worker_up gauge",
+        ]
+        for w in worker_health:
+            name = w.get("name", "unknown").replace(" ", "_").replace("-", "_")
+            up = 1 if w.get("running") else 0
+            lines.append(f'gateway_worker_up{{worker="{name}"}} {up}')
+        lines.append("# HELP gateway_signal_bus_subscribers Aktif WS sinyal subscriber sayısı")
+        lines.append("# TYPE gateway_signal_bus_subscribers gauge")
+        bus_stats = signal_bus.stats()
+        lines.append(f"gateway_signal_bus_subscribers {bus_stats.get('subscribers', 0)}")
+        lines.append("")
+        return "\n".join(lines)
 
     # ── Health ────────────────────────────────────────────────────────────
     @app.get("/api/health")

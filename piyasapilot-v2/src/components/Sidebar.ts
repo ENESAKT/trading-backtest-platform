@@ -6,6 +6,7 @@ import {
 } from '../constants/symbols.js';
 
 const LS_LAST_SYMBOL = 'piyasapilot_last_symbol';
+const LAZY_BATCH_SIZE = 15; // Her lazy-load batch'inde gösterilecek sembol sayısı
 
 type SymbolSelectListener = (info: SymbolInfo) => void;
 
@@ -105,10 +106,36 @@ export class Sidebar {
     itemsEl.className = 'sym-items';
     itemsEl.style.display = isCollapsed ? 'none' : '';
 
-    g.symbols.forEach(s => {
-      const item = this.createSymbolItem(s);
-      itemsEl.appendChild(item);
+    g.symbols.forEach((s, i) => {
+      if (i < LAZY_BATCH_SIZE) {
+        const item = this.createSymbolItem(s);
+        itemsEl.appendChild(item);
+      }
     });
+
+    // Lazy-load: kalan sembolleri IntersectionObserver ile yükle
+    if (g.symbols.length > LAZY_BATCH_SIZE) {
+      const sentinel = document.createElement('div');
+      sentinel.className = 'lazy-sentinel';
+      sentinel.style.height = '1px';
+      itemsEl.appendChild(sentinel);
+
+      let loaded = LAZY_BATCH_SIZE;
+      const observer = new IntersectionObserver((entries) => {
+        if (!entries[0]?.isIntersecting) return;
+        const batch = g.symbols.slice(loaded, loaded + LAZY_BATCH_SIZE);
+        batch.forEach(s => {
+          const item = this.createSymbolItem(s);
+          itemsEl.insertBefore(item, sentinel);
+        });
+        loaded += batch.length;
+        if (loaded >= g.symbols.length) {
+          observer.disconnect();
+          sentinel.remove();
+        }
+      }, { root: this.listEl, rootMargin: '100px' });
+      observer.observe(sentinel);
+    }
 
     groupEl.appendChild(itemsEl);
     this.listEl.appendChild(groupEl);

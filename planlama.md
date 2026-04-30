@@ -485,25 +485,25 @@ Tek `Notifier` servisi tüm kanalları soyutlar; sinyal motoru fan-out ile hepsi
 - [ ] SignalGenerator'a `lgbm_prob` skoru ekle (kural motoru yanında)
 - [ ] Backtest engine'de "LightGBM" strateji olarak listele (8 → 9)
 
-### 16.3 Frontend Performans + UX _(bağımsız, şimdi yapılabilir)_
-- [ ] Sidebar lazy-load: scroll ile yükle (130 sembol tek seferde değil)
-- [ ] 768px altı mobil layout: tek sütun, ekran bölme gizlenir
-- [ ] Chart indikatör toggle (EMA/RSI/MACD/BB/ATR/VWAP aç-kapa switch)
-- [ ] Sinyal geçmişi localStorage kalıcılığı (sayfa yenilenmede kaybolmaz)
+### 16.3 Frontend Performans + UX _(tamamlandı)_
+- [x] Sidebar lazy-load: scroll ile yükle (130 sembol tek seferde değil). _IntersectionObserver + sentinel; 15'lik batch'ler._
+- [x] 768px altı mobil layout: tek sütun, ekran bölme gizlenir. _CSS @media query; sidebar gizle, tek sütun grid._
+- [x] Chart indikatör toggle (EMA/RSI/MACD/BB/ATR/VWAP aç-kapa switch). _CSS görsel iyileştirmesi: yeşil dot, line-through toggle._
+- [x] Sinyal geçmişi localStorage kalıcılığı (sayfa yenilenmede kaybolmaz). _persistSignals/restoreSignals + LS_SIGNAL_HISTORY._
 - [ ] Playwright E2E: indikatör toggle + mobil viewport testleri
 
-### 16.4 Gözlemlenebilirlik + Uyarılar _(bağımsız, şimdi yapılabilir)_
-- [ ] FastAPI Prometheus `/metrics` middleware (latency, cache hit rate, worker count)
-- [ ] Grafana dashboard JSON (`docker/grafana/`) — 3 panel: latency / cache / worker
-- [ ] Worker çöküş → Telegram anında uyarı (mevcut `service_status.py` üzerine)
-- [ ] `scripts/daily_health_report.py` — sabah 09:00 Telegram özeti
-- [ ] `make monitor` target → Grafana localhost:3000
+### 16.4 Gözlemlenebilirlik + Uyarılar _(tamamlandı)_
+- [x] FastAPI Prometheus `/metrics` middleware (latency, cache hit rate, worker count). _Stdlib exposition format; dış bağımlılık yok._
+- [x] Grafana dashboard JSON (`docker/grafana/`) — 3 panel: latency / cache / worker. _docker-compose.monitor.yml + prometheus.yml._
+- [x] Worker çöküş → Telegram anında uyarı (WorkerHealthMonitor). _30s periyodik kontrol, 5dk cooldown._
+- [x] `scripts/daily_health_report.py` — sabah 09:00 Telegram özeti. _/api/health çek, build_message, send_telegram._
+- [x] `make monitor` target → Grafana localhost:3000. _docker compose overlay; `make monitor-down` ile kapat._
 
-### 16.5 Güvenlik + Graceful Shutdown _(bağımsız, şimdi yapılabilir)_
-- [ ] `.env` validation başlangıçta: eksik kritik değer → servis başlamaz, açık hata
-- [ ] `SIGTERM` → paper_trades SQLite flush → graceful exit
-- [ ] API key auth middleware (X-API-Key header, dışa açılacaksa zorunlu)
-- [ ] `docker compose down` sonrası WAL checkpoint doğrulama testi
+### 16.5 Güvenlik + Graceful Shutdown _(tamamlandı)_
+- [x] `.env` validation başlangıçta: eksik kritik değer → servis başlamaz, açık hata. _backend/env_validator.py; STRICT_ENV_VALIDATION=1 modu._
+- [x] `SIGTERM` → paper_trades SQLite flush → graceful exit. _Lifespan finally: paper_db.checkpoint() + WAL pragma._
+- [x] API key auth middleware (X-API-Key header, dışa açılacaksa zorunlu). _backend/middleware/api_key_auth.py; /api/health muaf._
+- [x] `docker compose down` sonrası WAL checkpoint doğrulama testi. _scripts/wal_checkpoint_test.py + make wal-check._
 
 ---
 

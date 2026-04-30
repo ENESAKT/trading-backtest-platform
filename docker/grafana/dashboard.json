@@ -1,0 +1,104 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisBorderShow": false,
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "fillOpacity": 10,
+            "lineWidth": 2,
+            "scaleDistribution": { "type": "linear" }
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 100 },
+              { "color": "red", "value": 500 }
+            ]
+          },
+          "unit": "ms"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "id": 1,
+      "title": "API Latency (ms)",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "rate(gateway_request_duration_seconds_sum[5m]) / rate(gateway_request_duration_seconds_count[5m]) * 1000",
+          "legendFormat": "avg latency"
+        }
+      ]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": { "lineWidth": 2, "fillOpacity": 15 },
+          "unit": "short"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "id": 2,
+      "title": "Cache — Bar Sayısı & Sembol",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "gateway_cache_bars_total",
+          "legendFormat": "bars"
+        },
+        {
+          "expr": "gateway_cache_symbols_total",
+          "legendFormat": "symbols"
+        }
+      ]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "fixed", "fixedColor": "green" },
+          "mappings": [
+            { "options": { "0": { "text": "KAPALI", "color": "red" }, "1": { "text": "ÇALIŞIYOR", "color": "green" } }, "type": "value" }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "green", "value": 1 }
+            ]
+          }
+        }
+      },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 8 },
+      "id": 3,
+      "title": "Worker Durumu",
+      "type": "stat",
+      "targets": [
+        {
+          "expr": "gateway_worker_up",
+          "legendFormat": "{{worker}}"
+        }
+      ]
+    }
+  ],
+  "schemaVersion": 39,
+  "tags": ["piyasapilot", "trading"],
+  "templating": { "list": [] },
+  "time": { "from": "now-1h", "to": "now" },
+  "title": "PiyasaPilot Gateway",
+  "uid": "piyasapilot-gateway",
+  "version": 1
+}
