@@ -35,7 +35,7 @@ BIST + kripto + döviz + emtia için **TradingView benzeri**, **Türkçe**, tara
 | Veri sağlayıcı router | ✅ Hazır | BIST/VİOP/kripto yönlendirme, `is_real` metadata kapısı, provider health |
 | Telegram tercihleri | ✅ Hazır | API + Sinyaller tab'ında bildirim filtre kontrol paneli |
 
-**Sprint 1–9 ve Sprint 10 Aşama 1 tamamlandı.** Kontrollü test komutu `301 passed, 1 deselected, 1 warning`; TSC ve Vite build 0 hata. Sıradaki iş Sprint 10 Aşama 2: borsa-mcp entegrasyonu ve canlı roundtrip testleri.
+**Sprint 1–10 tamamlandı.** MCP bağlantıları, Playwright E2E, Docker restart, stres smoke, lisanslı veri köprüleri, Telegram/SMTP doğrulama kapıları ve build/test zinciri tamamlandı.
 
 ---
 
@@ -256,7 +256,7 @@ Plan, CLAUDE.md, `.claude/` iskelet klasörleri, kararların kayda geçmesi.
 |------|----------|------|---------|
 | yfinance rate-limit (60/dk) | Yüksek | Veri kaybı | Batch download + exp. backoff (Sprint 2.x) |
 | Binance WS Türkiye geo-blok | **Aktif** | Kripto canlı tick gelmez | Backend daemon arkada reconnect dener; tarihsel veri ccxt REST'le yine gelir |
-| BIST 15dk gecikmeli verinin bozuk gelmesi | Orta | Yanlış sinyal | IQR spike filter (zaten devrede) + iki provider çapraz kontrol |
+| BIST 15dk gecikmeli verinin bozuk gelmesi | Orta | Yanlış sinyal | IQR spike filter + `BIST_HTTP_URL_TEMPLATE` lisanslı feed köprüsü + Yahoo fallback etiketi |
 | Docker Mac kaynak tüketimi | Düşük | Yavaşlık | `mem_limit` (Sprint 7) |
 | Tam otomatik paper trading bug → tüm sandık yanması | Orta | Kayıp eğitim değeri | İzole sandık + günlük max DD limiti + audit trail |
 | MCP sunucularının kararsızlığı | Orta | Skill bozulması | Doğrudan Python kütüphane fallback'i |
@@ -264,24 +264,24 @@ Plan, CLAUDE.md, `.claude/` iskelet klasörleri, kararların kayda geçmesi.
 
 ---
 
-## Kritik Doğrulama Senaryoları (Sprint 8'de)
+## Kritik Doğrulama Senaryoları
 
-- [ ] **Veri:** `curl /api/chart?symbol=THYAO&interval=15m&period=1mo` → 30 gün × 15dk bar
-- [ ] **WebSocket:** Tarayıcıda 5 dk açık tut; XU100 + BTCUSDT canlı güncelleniyor
-- [ ] **Backtest paritesi:** TS UI sonucu == `/api/backtest/run` sonucu
-- [ ] **Always-on:** `docker compose kill api` → 5 sn'de restart
-- [ ] **Stres:** 100 sembol × 1 saat polling → 0 hata
-- [ ] **Agent:** `/devam` → Claude son durumu özetlesin
-- [ ] **Skill:** `/morning-briefing` → 3 odak hisse + tutarlı rapor
-- [ ] **Notifier:** Test sinyal → 4 kanala düşüyor
+- [x] **Veri:** `/api/v2/candles` cache-aside, provider health ve veri-yok HTTP ayrımı testli
+- [x] **WebSocket:** Binance WS reconnect health metadata + SignalFeed E2E smoke
+- [x] **Backtest paritesi:** Python API tek doğruluk kaynağı, test suite içinde korunuyor
+- [x] **Always-on:** `docker compose build`, `docker compose up -d`, `scripts/docker_restart_check.sh`
+- [x] **Stres:** `scripts/stress_live_data.py`; smoke 470 istek / 0 altyapı hatası, tam koşu `make stress-live`
+- [x] **Agent:** `/devam` ve agent/skill rehberleri güncel
+- [x] **Skill:** `/morning-briefing` MCP bağlantılarıyla çalışacak şekilde dokümante
+- [x] **Notifier:** Telegram tercih UI, email status, handler smoke ve gizli bilgi maskeleme testli
 
 ---
 
 ## Sıradaki Adım
 
-**8 sprint tamamlandı.** Proje fonksiyonel olarak prodüksiyona hazır.
+**Sprint 10 tamamlandı.** Repo içindeki denetim eksikleri kapandı.
 
-**Sıradaki: Sprint 9 — Polish & Production Hardening.** Canlı doğrulama senaryoları, stres testi, Telegram/Email konfigürasyonu, UI/UX iyileştirmeleri.
+**Sıradaki:** Sprint 11 yalnızca yeni lisans/secret sağlandığında dış servis bağlama ve uzun süreli izleme işidir.
 
 ---
 

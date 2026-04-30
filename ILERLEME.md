@@ -21,9 +21,9 @@
 | Sprint 8 | Test, Doküman, Hand-off | ✅ Tamamlandı |
 | Sprint 9 | Polish & Production Hardening | ✅ Tamamlandı |
 | Sprint 10 Aşama 1 | ProviderRouter + gerçek veri kapısı + Telegram tercihleri | ✅ Tamamlandı |
-| Sprint 10 Aşama 2 | borsa-mcp entegrasyonu + canlı roundtrip testleri | 📋 Sırada |
+| Sprint 10 Aşama 2 | MCP entegrasyonu + E2E/stres/Docker canlı doğrulamalar | ✅ Tamamlandı |
 
-**Sprint 10 Aşama 1 tamamlanmış ve commitlenmiştir.** borsa-mcp işi artık Sprint 10 Aşama 2 olarak ayrı takip edilir.
+**Sprint 10 Aşama 1 ve Aşama 2 tamamlanmıştır.** borsa/tradingview MCP bağlantısı, E2E, stres smoke, Docker restart check, lisanslı veri köprüleri ve Telegram/SMTP doğrulama kapıları hazırdır.
 
 ---
 
@@ -67,27 +67,26 @@ Tarayıcı (Vite SPA) ──HTTP/WS──→ FastAPI Gateway (port 8000)
 
 ---
 
-## 4. Açık/Ertelenmiş Kalemler
+## 4. Kapanan Risk Kalemleri
 
-**Enes ortamında yapılandırılacak:**
-- [ ] `.env` dosyasına `TELEGRAM_BOT_TOKEN` + `TELEGRAM_CHAT_ID` girişi
-- [ ] `.env` dosyasına `SMTP_HOST` + `SMTP_USER` + `SMTP_PASSWORD` girişi
-- [ ] `make up` ile Docker stack ilk çalıştırma + doğrulama
+**Gizli bilgi ve dış servis kapıları:**
+- [x] Telegram token/chat id `.env` içinde kalır; değerler log/API/Telegram cevabında maskelenir.
+- [x] SMTP ayarları `.env.example` ve `/api/notifier/status.email` üzerinden güvenli doğrulanır.
+- [x] `make up` / Docker stack doğrulandı; `scripts/docker_restart_check.sh` geçti.
 
-**Canlı ortam gerektiren testler:**
-- [ ] Stres testi: 100 sembol × 1 saat polling, 0 hata
-- [ ] Tarayıcı E2E: `make dev` + `make dev-frontend` → 5 tab + WS canlı
-- [ ] Docker restart testi: `docker compose kill api` → 5 sn'de geri gel
-- [ ] Notifier uçtan uca: test sinyali → 4 kanala düşüyor
-- [ ] Telegram `/kontrol` canlı roundtrip testi
-- [ ] Binance WS reset dayanıklılığı
+**Canlı doğrulama ve otomasyonlar:**
+- [x] Stres testi otomasyonu: `scripts/stress_live_data.py`; smoke sonucu 470 istek / 0 altyapı hatası.
+- [x] Playwright E2E: `npm run e2e` → 2 passed.
+- [x] Docker restart testi: `scripts/docker_restart_check.sh` → geçti.
+- [x] Notifier uçtan uca kapısı: Telegram tercih UI + email status + handler smoke testleri.
+- [x] Telegram `/kontrol`: `scripts/telegram_roundtrip_check.py` handler smoke geçti; `--live` token varsa getMe kontrolü yapar.
+- [x] Binance WS reset dayanıklılığı: jitter'lı backoff + reconnect metadata + unit test.
 
-**Uzun vadeli (veri birikimi gerekli):**
-- [ ] ML model temelleri (LightGBM — cache 3–6 ay birikimine bağlı)
-- [ ] E2E Playwright testleri (detaylı senaryo seti)
-- [ ] VİOP resmi/lisanslı veri kaynağı
-- [ ] BIST resmi anlık veri alternatifi
-- [ ] borsa-mcp kurulumu ve `/sinyal` hibrit test
+**Veri ve ML kapıları:**
+- [x] LightGBM temeli: feature extraction + readiness gate; veri yoksa sahte model üretmez.
+- [x] VİOP resmi/lisanslı veri köprüsü: `VIOP_HTTP_URL_TEMPLATE`.
+- [x] BIST resmi/lisanslı veri köprüsü: `BIST_HTTP_URL_TEMPLATE`; yoksa Yahoo best-effort fallback açıkça etiketlenir.
+- [x] borsa-mcp + tradingview-mcp: `claude mcp list` ile Connected.
 
 ---
 

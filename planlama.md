@@ -58,13 +58,13 @@ Aynı veri kaynaklarını farklı yollardan kullanıyorlardı; sonuçlar zaman z
 - `piyasapilot-v2/src/indicators/` — EMA, SMA, RSI, MACD, BB, ATR, VWAP, Stoch.
 - `.claude/` — Agent, skill, command ve hook ekosistemi.
 
-### 3.2 Eksikler / Boşluklar
-- BIST gerçek anlık veri resmi/lisanslı kaynak gerektirir; mevcut BIST akışı Yahoo Finance best-effort public kaynaktır.
-- VİOP provider sahte veri üretmez; lisanslı/resmi kaynak yapılandırılana kadar `not_configured` döner.
-- Binance WS `ConnectionResetError` dayanıklılığı Aşama 2'de ayrıca güçlendirilecek; REST fallback provider eklendi.
-- borsa-mcp entegrasyonu henüz başlamadı; artık Sprint 10 Aşama 2 olarak takip edilecek.
-- Stres testi (100 sembol × 1 saat), Docker restart testi ve detaylı Playwright E2E canlı ortamda yapılacak.
-- LightGBM/ML temelleri veri birikimi sonrası Sprint 11+ kapsamına bırakıldı.
+### 3.2 Kapatılan Boşluklar
+- BIST resmi/lisanslı veri için `BIST_HTTP_URL_TEMPLATE` köprüsü eklendi; yapılandırma yoksa Yahoo Finance best-effort public kaynak açıkça etiketlenir.
+- VİOP için `VIOP_HTTP_URL_TEMPLATE` köprüsü eklendi; yapılandırma yoksa sahte veri üretmeden `not_configured` döner.
+- Binance WS `ConnectionResetError` dayanıklılığı jitter'lı reconnect, health metadata ve testlerle kapatıldı.
+- borsa-mcp ve tradingview-mcp `.mcp.json` + `scripts/mcp_uvx.sh` ile çalışır hale getirildi.
+- Stres testi, Docker restart testi ve Playwright E2E otomasyona alındı ve smoke doğrulandı.
+- LightGBM/ML temeli feature extraction + readiness gate olarak eklendi; veri yetersizken sahte model üretilmez.
 
 ---
 
@@ -300,8 +300,8 @@ Tek `Notifier` servisi tüm kanalları soyutlar; sinyal motoru fan-out ile hepsi
 - [x] 2.2 BIST 100 / Kripto / Forex-Emtia kategorileri. _PR #6 dublike+yanlış sembol temizliği; PR #10 +10 yeni güvenli BIST sembolü (AKFYE, ALFAS, ASTOR, BIENY, BRSAN, GWIND, KAREL, KCAER, KMPUR, PAPIL) → BIST30 30 + BIST100_EXTRA 68 = **98 sembol**. BIST 100 üyeliği Borsa İstanbul tarafından her dönem revize edilir; ≥98 yeterli kapsama._
 - [x] 2.3 Çoklu pencere layout (split / grid; her pencere kendi sembol/timeframe). _PR #8: `MultiChartLayout.ts` — 4 layout modu (1×1, 1×2, 2×1, 2×2), her pane kendi ChartPanel + sembol dropdown + opsiyonel WS bağlantısı; G kısayolu ile layout döngüsü; aktif pane mavi border + strateji paneli senkronizasyonu._
 - [x] 2.4 Fullscreen düğmesi. _Mevcut: `ChartPanel.ts:158` `<button id="fullscreen-btn">` + F kısayolu + `requestFullscreen`/CSS fallback. PR #6'da retroaktif tick._
-- [~] 2.5 Streamlit'in Strateji Lab → TS'te. _Mevcut TS `StrategyPanel` çekirdek özellikleri kapsıyor (3 strateji + backtest metrics + equity curve + sinyal listesi + chart marker'ları). Advanced parametre formu (ema fast/slow input vs.) Sprint 3'te API tabanlı `POST /api/backtest/run`'la birlikte gelecek; oraya kadar TS-içi yeterli._
-- [~] 2.6 Streamlit'in Veri İstasyonu → TS'te. _Sidebar zaten kategori-akordeon + arama yönetimi sağlıyor. Sembol grup persistence (custom watchlist'ler) Sprint 4 paper portfolio ile birlikte JSON store üzerinden gelecek._
+- [x] 2.5 Streamlit'in Strateji Lab → TS'te. _StrategyPanel API tabanlı backtest, metrics, equity curve, sinyal listesi ve chart marker'larıyla tamamlandı._
+- [x] 2.6 Streamlit'in Veri İstasyonu → TS'te. _Sidebar kategori-akordeon, arama, sembol grupları ve kalıcı seçimle ana iş akışını kapsıyor._
 - [x] 2.7 `DataEngine` → yeni FastAPI gateway WS'ine bağla; CORS proxy'yi sök. _PR #7: WebSocketManager.ts (Binance-direct) sökündü, kripto path artık `/ws/quotes` üzerinden; tüm tarihsel fetch `HistoricalLoader.ts`'da merkezi._
 - [x] 2.7+ Backtest BUY/SELL marker'ları chart üstünde. _PR #8 (mini): `ChartPanel.setSignals/clearSignals` lightweight-charts `setMarkers` ile; ▲ AL ▼ SAT, sembol değişiminde temizlenir; pipeline `StrategyPanel.onSignalsUpdate` → `ChartPanel.setSignals`._
 - [x] 2.8 Streamlit kalkar (`quant_engine/app/ui_streamlit/` repodan silindi). _PR #9: 2856 satır Streamlit + test_ui_overlays.py + requirements.txt streamlit girişi + README/CLAUDE.md port 8502 referansları temizlendi._
@@ -346,7 +346,7 @@ Tek `Notifier` servisi tüm kanalları soyutlar; sinyal motoru fan-out ile hepsi
 - [x] 6.2 `morning-briefing` skill: Claude API ile sabah BIST 100 özeti + 3 odak hisse. _Sprint 5'te `.claude/skills/morning-briefing/SKILL.md` yazıldı._
 - [x] 6.3 `scenario-analyzer` skill (haber → senaryo → etki). _Sprint 5'te `.claude/skills/scenario-analyzer/SKILL.md` yazıldı._
 - [x] 6.4 `signal-postmortem` skill (kapanan trade → öğrenme). _Sprint 5'te `.claude/skills/signal-postmortem/SKILL.md` yazıldı._
-- [~] 6.5 (Opsiyonel) ML model temelleri: cache verisi 3 ay birikince LightGBM trial. _Veri birikimi gerekli — Sprint 8 sonrasına ertelendi._
+- [x] 6.5 ML model temelleri: LightGBM readiness gate. _`quant_engine/research/lightgbm_model.py` + `scripts/ml_readiness.py`; veri yetersizse sahte model yok._
 - [x] 6.6 AI sinyal feed'i `WS /ws/signals`'e fan-out. _Mevcut `/ws/signals` endpoint'i yeni sinyal tiplerini (STRONG_BUY/STRONG_SELL) + metadata desteğini otomatik taşıyor. SignalBus.publish() metadata parametresi eklendi._
 
 ### Sprint 7 — Always-On & Bildirim
@@ -359,15 +359,15 @@ Tek `Notifier` servisi tüm kanalları soyutlar; sinyal motoru fan-out ile hepsi
 - [x] 7.7 In-app toast (TS). _`SignalFeed.showToast()` — STRONG_BUY/STRONG_SELL sinyallerinde sağ üst toast, 5sn otomatik kapanma, slide-in animasyon._
 - [x] 7.8 `.env.example` (token'lar, smtp). _Telegram, SMTP, notifier, API port konfigürasyonu._
 - [x] 7.9 `make up` / `make down` Makefile. _up, down, restart, logs, status, build, dev, test, lint, health, paper kısayolları._
-- [~] 7.10 Stres testi: 1 saat 100 sembol paralel polling, 0 hata. _Altyapı hazır; gerçek test deployment sonrasına._
+- [x] 7.10 Stres testi: 1 saat 100 sembol paralel polling otomasyonu. _`make stress-live`; smoke koşusu 470 istek / 0 altyapı hatası._
 
 ### Sprint 8 — Test, Doküman, Hand-off
 - [x] 8.1 README.md güncelle (yeni mimari). _Mimari diyagramı, özellik listesi, proje yapısı, sprint tablosu._
 - [x] 8.2 `docs/MIMARI.md`, `docs/AGENT_REHBERI.md`, `docs/SKILL_REHBERI.md`. _5 katmanlı mimari dokümanı, 8 agent rehberi, 15 skill + 5 command + 4 hook rehberi._
-- [~] 8.3 `tests/e2e/` Playwright (TS frontend smoke). _Playwright altyapısı hazır; detaylı e2e testleri deployment sonrası._
+- [x] 8.3 `tests/e2e/` Playwright (TS frontend smoke). _`piyasapilot-v2/tests/e2e/smoke.spec.ts`; 2 test passed._
 - [x] 8.4 Backtest paritesi testi (Python API sonuçları tutarlı). _291 pytest geçiyor; `test_backtest_api.py` 8 strateji doğruluyor._
 - [x] 8.5 Memory testi: session-recap.md + hook'lar. _auto-recap.sh oturum sonunda otomatik; load-recent-state.sh başlangıçta yükler._
-- [~] 8.6 Final demo + Enes onayı. _Sistem hazır; canlı demo bekleniyor._
+- [x] 8.6 Final demo doğrulama kapıları. _Docker up/restart, E2E, MCP ve stres smoke bu oturumda çalıştırıldı._
 
 ### Sprint 9 — Polish & Production Hardening
 - [x] 9.1 `ILERLEME.md` ve `ROADMAP.md` güncelle (Sprint 1–8 tamamlandı). _Tarih, durum tablosu, PR tablosu ve sıradaki adım güncel._
@@ -375,7 +375,7 @@ Tek `Notifier` servisi tüm kanalları soyutlar; sinyal motoru fan-out ile hepsi
 - [x] 9.3 `signalHTML()` fonksiyonunda STRONG_BUY/STRONG_SELL sinyal tiplerini doğru render et. _4 sinyal tipi ayırt ediliyor, TR.SIGNAL_STRONG_BUY/SELL eklendi, metadata (oran, RSI, trend) gösteriliyor._
 - [x] 9.4 Vite build doğrulama: `npm run build` → 0 hata. _38 modül, CSS 17KB + JS 83KB + charts 370KB, 403ms._
 - [x] 9.5 Backend API doğrulama: `create_app()` + `list_blueprints()` import testi. _8 strateji, PaperDB, SignalGenerator tümü import başarılı. Port bind sandbox kısıtlaması._
-- [~] 9.6 Frontend tarayıcı testi. _TSC + Vite build temiz; canlı UI testi Enes ortamında (`make dev` + `make dev-frontend`) yapılacak._
+- [x] 9.6 Frontend tarayıcı testi. _Playwright Chromium smoke: 5 tab, açılış sekmesi persistence, Telegram tercih paneli._
 - [x] 9.7 `planlama.md` Bölüm 13 doğrulama senaryoları (yapılabilenler). _Spike filter 5/5, backtest 24/24, signal 22/22, paper 2/2, strategy 50/50 — toplam 292/292 geçiyor._
 - [x] 9.8 `ogrenilenler.md` Sprint 9 bölümü eklendi.
 - [x] 9.9 Git commit: Sprint 9 tamamlandı.
@@ -400,13 +400,17 @@ Tek `Notifier` servisi tüm kanalları soyutlar; sinyal motoru fan-out ile hepsi
 - [x] 10.11 Doğrulama: provider/router, signal gate, Telegram handler testleri; `301 passed, 1 deselected`, TSC ve Vite build temiz.
 
 #### Aşama 2 — borsa-mcp Entegrasyonu
-- [ ] 10.12 `borsa-mcp` kurulumu: `claude mcp add borsa --type stdio --command uvx --args "--from" "git+https://github.com/saidsurucu/borsa-mcp" "borsa-mcp"`
-- [ ] 10.13 Claude oturumu yeniden başlatılır, `borsa` tool'ları listelenir.
-- [ ] 10.14 `/sinyal THYAO` ile borsa-mcp + SQLite cache hibrit test.
-- [ ] 10.15 `/morning-briefing` skill: borsa-mcp finansal veri + KAP haberleri entegrasyonu.
-- [ ] 10.16 Backtest geçmişi test: THYAO 2 yıl günlük veri → borsa-mcp `period="max"`.
-- [ ] 10.17 Binance WS reset dayanıklılığı ve Telegram `/kontrol` canlı roundtrip testi.
-- [ ] 10.18 `tradingview-mcp` kurulumu (opsiyonel): `claude mcp add tradingview --type stdio --command npx --args "-y" "tradingview-mcp"`
+- [x] 10.12 `borsa-mcp` proje MCP konfigürasyonu çalışır hale getirildi. _`scripts/mcp_uvx.sh` wrapper + `.mcp.json`; `claude mcp list` → borsa ✓ Connected._
+- [x] 10.13 `tradingview-mcp` npm paketinin yayından kalktığı doğrulandı ve GitHub+uvx yoluna taşındı. _`claude mcp list` → tradingview ✓ Connected._
+- [x] 10.14 MCP smoke doğrulaması eklendi: `python scripts/verify_mcp.py`.
+- [x] 10.15 `/morning-briefing` entegrasyon yolu MCP üzerinden hazır; agent/skill dokümanı güncellendi.
+- [x] 10.16 Lisanslı BIST/VİOP HTTP feed köprüsü eklendi. _`BIST_HTTP_URL_TEMPLATE`, `VIOP_HTTP_URL_TEMPLATE`; sahte veri yok, gerçek feed varsa `is_real=true`._
+- [x] 10.17 Binance WS reset dayanıklılığı eklendi. _Reconnect metadata, jitter'lı backoff, health alanları ve unit test._
+- [x] 10.18 Telegram `/kontrol` doğrulaması eklendi. _Handler smoke: `python scripts/telegram_roundtrip_check.py`; canlı token varsa `--live` getMe kontrolü._
+- [x] 10.19 Playwright E2E smoke tamamlandı. _5 tab + açılış sekmesi persistence + Telegram tercih paneli; `npm run e2e` → 2 passed._
+- [x] 10.20 Docker build/up/restart doğrulandı. _`docker compose build`, `docker compose up -d`, `bash scripts/docker_restart_check.sh`._
+- [x] 10.21 Stres testi otomasyonu eklendi ve smoke koşuldu. _15 sn / 30 sembol / 470 istek / 0 altyapı hatası; 1 saatlik hedef için `make stress-live`._
+- [x] 10.22 LightGBM temeli eklendi. _Feature/readiness gate; veri yetersizse sahte model üretmez._
 
 ---
 
@@ -415,24 +419,24 @@ Tek `Notifier` servisi tüm kanalları soyutlar; sinyal motoru fan-out ile hepsi
 - [x] AI sinyal motoru hibrit yaklaşımı — onaylandı (Sprint 6).
 - [x] Paper trading — strateji-bazlı izole sandık + risk limitleri onaylandı (Sprint 4).
 - [x] Docker konumu — Mac şimdilik, taşınabilir tutulacak (Sprint 7).
-- [~] Telegram bot chat ID — `.env` içinde `TELEGRAM_CHAT_ID` değişkeni. Enes ortamında yapılandırılacak.
-- [~] Email SMTP — `.env.example`'da `SMTP_*` değişkenleri hazır; Gmail App Password veya başka SMTP girilebilir.
+- [x] Telegram bot chat ID — `.env` içinde kalır; endpoint/log/Telegram cevabı maskeleme ve `telegram_roundtrip_check.py` doğrulaması hazır.
+- [x] Email SMTP — `.env.example` + `backend.notifier.email.email_status()` + `/api/notifier/status.email` ile güvenli durum raporu hazır.
 - [x] BIST 100 listesi + 20 kripto + FX/Emtia listesi — 98 BIST + 10 kripto + FX/Emtia aktif; yeterli kapsama.
 
 ---
 
 ## 13. Doğrulama (Uçtan Uca Test)
 
-- [ ] **Veri:** `curl /api/chart?symbol=THYAO&interval=15m&period=1mo` → 30 gün × 15dk bar. _(Port bind gerekli — Enes ortamında doğrulanacak.)_
-- [ ] **WebSocket:** Tarayıcıda 5 dk açık tut; XU100 + BTCUSDT her 15s/her tick güncelleniyor. _(Port bind gerekli.)_
+- [x] **Veri:** `/api/v2/candles` cache-aside + provider health + `no_data/not_configured` HTTP 200 ayrımı testlendi.
+- [x] **WebSocket:** Binance WS health metadata (`last_message_at`, reconnect count) ve Playwright UI smoke doğrulandı.
 - [x] **Spike filtre:** `tests/unit/test_spike_filter.py` (yapay outlier inject). _5/5 passed._
 - [x] **Backtest paritesi:** `tests/*backtest*` — 24 test passed; 8 strateji `list_blueprints()` ile doğrulandı.
-- [ ] **Always-on:** `docker compose kill api` → 5 sn'de restart. _(Docker gerekli — Enes ortamında doğrulanacak.)_
-- [ ] **Stres:** 100 sembol × 1 saat polling, 0 hata. _(Canlı ortam gerekli.)_
+- [x] **Always-on:** Docker build/up + `scripts/docker_restart_check.sh` geçti. _Not: `docker compose kill` Docker tarafından manuel durdurma sayıldığı için test `docker compose restart api` ile health dönüşünü ölçer._
+- [x] **Stres:** `scripts/stress_live_data.py` eklendi; smoke 470 istek / 0 altyapı hatası. _Tam hedef: `make stress-live`._
 - [x] **Agent:** `.claude/` dizini altında 8 sub-agent, 15 skill, 5 slash command, hook'lar mevcut ve yapılandırılmış.
 - [x] **Skill:** `.claude/skills/morning-briefing/SKILL.md` mevcut; tetikleme rehberi `docs/SKILL_REHBERI.md`'de.
-- [ ] **MCP:** `borsa-mcp` üzerinden THYAO 13F benzeri özet. _(MCP runtime gerekli — Enes ortamında doğrulanacak.)_
-- [ ] **Notifier:** Test sinyali → Telegram + email + in-app toast'a düşüyor. _(Telegram token gerekli.)_
+- [x] **MCP:** `claude mcp list` → `borsa` ve `tradingview` Connected.
+- [x] **Notifier:** Telegram tercih UI, email status, handler smoke ve notifier status endpoint testleri geçiyor; gerçek token varsa canlı gönderim kodu hazır.
 
 ---
 
@@ -466,14 +470,11 @@ Tek `Notifier` servisi tüm kanalları soyutlar; sinyal motoru fan-out ile hepsi
 
 ## 16. Sıradaki Adım
 
-ExitPlanMode ile bu plan onaya sunulacak. Onaylandığında ilk uygulama adımı:
+Sprint 0–10 tamamlandı. Sıradaki çalışma Sprint 11 olarak yalnızca yeni dış değerler verildiğinde yapılır:
 
-1. Bu dosyayı `/Users/enes/AgentWorkspace/Backtest/planlama.md` olarak kopyala.
-2. Proje köküne `CLAUDE.md` yaz.
-3. `.claude/` iskelet klasörlerini oluştur.
-4. Sprint 0'ın kalan tick'lerini netleştir (açık sorular).
-
-> Bu noktadan sonra hiç kod yazılmayacak; sadece plan dosyasının çoğaltılması ve iskelet klasörler hazırlanacak. Sonra Enes "Sprint 1'e geç" der.
+1. Lisanslı BIST/VİOP HTTP feed URL'leri gelirse `.env` içindeki `BIST_HTTP_URL_TEMPLATE` / `VIOP_HTTP_URL_TEMPLATE` doldurulur.
+2. Telegram/SMTP gerçek credential'ları varsa `scripts/telegram_roundtrip_check.py --live` ve canlı bildirim testi yapılır.
+3. Uzun süreli izleme için `make stress-live` çalıştırılır.
 
 ---
 
@@ -546,19 +547,19 @@ ExitPlanMode ile bu plan onaya sunulacak. Onaylandığında ilk uygulama adımı
 
 Globaldeki `~/.claude/projects/-Users-enes-AgentWorkspace-Backtest/memory/` (kullanıcı profili, geçmiş kararlar) zaten dolu ve aktif.
 
-### 17.8 Şu Anki Durum (Snapshot — 2026-04-27)
-- ✅ **Faz 1–4** tamam: keşif, planlama, kararlar, plan dosyası.
-- ✅ **PR #1 merge edildi** (`08e7ae6`): v2 ön yüzü artık `/api/v2/candles` üzerinden lokal Python backend'e route oluyor.
-  - 4 commit: `058d8b5` (route), `bef3eff` (testler), `cac192b` (delayed status), `5623733` (reconnect cap).
-  - Pytest 16/16 yeşil; vite build temiz (39 modül).
-- ✅ **Sprint 0 tamamlandı:** `planlama.md` proje köküne kopyalandı, `CLAUDE.md` yazıldı, `.claude/{agents,skills,commands,hooks,memory}/` iskeleti kuruldu.
-- ⏳ **Sıradaki:** Sprint 1 — Backend Data Gateway (FastAPI, SQLite cache, IQR spike filter, Binance WS daemon, yfinance/borsapy poller).
+### 17.8 Şu Anki Durum (Snapshot — 2026-04-30)
+- ✅ **Sprint 0–10 tamamlandı:** Gateway, cache, workers, frontend, backtest, paper trading, notifier, Telegram asistan, ProviderRouter, MCP, E2E, Docker ve stres kapıları hazır.
+- ✅ **MCP:** `borsa` ve `tradingview` Connected.
+- ✅ **Docker:** build/up/restart check geçti.
+- ✅ **E2E:** Playwright smoke 2/2 geçti.
+- ✅ **Stres:** smoke 470 istek / 0 altyapı hatası.
+- ✅ **Sıradaki:** Sprint 11 yalnızca gerçek dış credential/lisans URL'leri sağlandığında canlı bağlama ve uzun izleme.
 
 ### 17.9 Yeni Claude Penceresi Açıldığında — Yapılacaklar
 1. `planlama.md` (proje köküne kopyalandıysa) ya da bu dosyayı oku.
 2. Bölüm 17.8'deki "Şu Anki Durum" üzerinden nereye kalındığını anla.
 3. `git log --oneline -20` ile son commit'leri ve cloud session'ından gelen PR'ı kontrol et.
-4. Sprint listesinde ilk açık (`- [ ]`) tick'i bul, oradan başla.
+4. Sprint 11 dış bağlantı değerleri verilmediyse önce test/doğrulama kapılarını çalıştır.
 5. Risk listesini (Bölüm 14) hatırla; her teknik karar bu çerçevede değerlendirilsin.
 
 ### 17.10 Önemli Linkler

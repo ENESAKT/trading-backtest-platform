@@ -39,10 +39,10 @@
 
 | Katman | Teknoloji |
 |:---|:---|
-| **Frontend** | TypeScript, Vite 5, lightweight-charts v4, Chart.js |
+| **Frontend** | TypeScript, Vite 8, lightweight-charts v4, Chart.js, Playwright |
 | **Backend** | Python 3.11, FastAPI, uvicorn |
 | **Veritabanı** | SQLite (OHLCV cache + paper trades) |
-| **Veri** | ProviderRouter, yfinance best-effort BIST/FX/emtia, Binance WS/REST, VİOP not_configured guard |
+| **Veri** | ProviderRouter, yfinance best-effort BIST/FX/emtia, Binance WS/REST, lisanslı BIST/VİOP HTTP köprüleri |
 | **Backtest** | Custom engine (lookahead-free, 8 strateji) |
 | **Bildirim** | Telegram bot, Email (SMTP), macOS notification |
 | **Deployment** | Docker Compose, nginx reverse proxy |
@@ -102,6 +102,13 @@ make up
 - 11 komutlu Telegram listener: `/yardim`, `/durum`, `/fiyat`, `/sinyal`, `/strateji`, `/ozet`, `/son`, `/hata`, `/kontrol`, `/gorev`, `/duzelt`
 - Dashboard Sinyaller tab'ında Telegram durum çubuğu ve bildirim filtreleri
 - Token/chat id endpoint ve loglarda maskelenir; `.env` commitlenmez
+
+### Sprint 10 Doğrulama Araçları
+- `make mcp-check` — borsa/tradingview MCP konfigürasyonunu doğrular
+- `make e2e` — Playwright smoke testleri
+- `make stress-live` — 100 sembol / 1 saat HTTP polling stres testi
+- `make docker-restart-check` — Docker API restart healthcheck
+- `python scripts/ml_readiness.py` — LightGBM veri yeterliliği raporu
 
 ### Sembol Kapsamı
 - **BIST 100:** 98/100 hisse

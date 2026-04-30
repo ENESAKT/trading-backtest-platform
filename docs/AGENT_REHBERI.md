@@ -17,6 +17,15 @@ PiyasaPilot 8 sub-agent ile çalışır. Her agent belirli bir görev alanına o
 | `code-reviewer` | Sonnet | Kod kalitesi, test kapsamı, mimari uyumluluk | `@code-reviewer son commit'i incele` |
 | `devops-engineer` | Haiku | Docker, healthcheck, deployment | `@devops-engineer servisleri kontrol et` |
 
+## Sprint 10 Asistan Bağlamı
+
+- Telegram asistanı `backend/notifier/telegram_listener.py` içinde long polling ile çalışır.
+- Komutlar: `/yardim`, `/durum`, `/fiyat`, `/sinyal`, `/strateji`, `/ozet`, `/son`, `/hata`, `/kontrol`, `/gorev`, `/duzelt`.
+- `/kontrol` kuru doğrulaması: `python scripts/telegram_roundtrip_check.py`.
+- MCP bağlantıları: `python scripts/verify_mcp.py` ve `claude mcp list`.
+- Data agent'ları provider metadata kapısını dikkate alır: `is_real=true` ve `status in {"ok","live"}` yoksa sinyal yok.
+- DevOps agent'ı Docker restart için `scripts/docker_restart_check.sh`, E2E için `cd piyasapilot-v2 && npm run e2e`, stres için `make stress-live` kullanır.
+
 ## Model Seçimi Mantığı
 
 - **Haiku** → Basit, tekrarlı görevler (doğrulama, raporlama, healthcheck)

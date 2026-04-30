@@ -40,6 +40,16 @@ PiyasaPilot 15 skill ile donatılmıştır. Skill'ler Claude Code'un görev bazl
 | `/sinyal <sembol>` | 8 strateji konsensüs sinyal raporu |
 | `/durum` | Tüm servislerin durumu |
 | `/strateji-yeni [odak]` | Yeni strateji araştırması başlat |
+| `/kontrol` | Import + TSC + pytest + backend sağlık kontrolü |
+| `/gorev <metin>` | Güvenli görev analizi |
+| `/duzelt <metin>` | Güvenli düzeltme önerisi ve sınırlı otomasyon |
+
+## Sprint 10 Doğrulama Skill Notları
+
+- `morning-briefing` artık `.mcp.json` içindeki `borsa` MCP bağlantısını kullanacak zemine sahip.
+- `health-check` çıktısında Telegram, email, provider health, Docker ve MCP kontrolleri ayrı doğrulanır.
+- `deploy-stack` için yeni kapılar: `make docker-restart-check`, `make mcp-check`, `make e2e`, `make stress-smoke`.
+- LightGBM için sahte model yoktur; `python scripts/ml_readiness.py` veri/bağımlılık durumunu açıkça raporlar.
 
 ## Hook'lar
 

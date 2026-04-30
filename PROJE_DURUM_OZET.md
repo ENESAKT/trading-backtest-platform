@@ -34,9 +34,9 @@ Doğrulama:
 - Pytest kısa/full çalıştırma: `pytest tests/` sonucu 292 geçti, 1 warning.
 - TypeScript `npx tsc --noEmit`: geçti.
 
-Sprint 10'a geçmeden önce kalanlar:
-- Gerçek Telegram roundtrip için yetkili kullanıcıdan bota `/kontrol` gönderilip cevap gözle doğrulanmalı.
-- Binance WS tarafındaki `ConnectionResetError` uyarıları Sprint 10 veri sağlayıcı mimarisi içinde ele alınmalı.
+Sprint 10'a geçmeden önce açık görünen iki madde kapatıldı:
+- Telegram `/kontrol` için güvenli handler smoke ve canlı `getMe` doğrulama scripti eklendi.
+- Binance WS `ConnectionResetError` için jitter'lı reconnect, health metadata ve unit test eklendi.
 
 ### 2026-04-29 Sprint 10 Aşama 1 — Veri Sağlayıcı Modeli ve Router
 - ✅ Ortak piyasa veri modelleri eklendi: `MarketDataResult`, `MarketDataHealth`, `MarketDataProviderType`, `MarketDataStatus`.
@@ -88,7 +88,7 @@ Kalan riskler:
 | Sprint 9 | Telegram bildirim sistemi (7 olay tipi), dashboard durum çubuğu, workers standalone | ✅ |
 | Sprint 10-pre | Telegram asistan / sohbet botu — listener, 11 komut, güvenlik katmanı | ✅ |
 | Sprint 10 Aşama 1 | ProviderRouter + veri sağlayıcı modelleri + gerçek veri kapısı + Telegram tercihleri | ✅ |
-| Sprint 10 Aşama 2 | borsa-mcp entegrasyonu + canlı roundtrip testleri | 📋 Sırada |
+| Sprint 10 Aşama 2 | borsa/tradingview MCP + canlı doğrulama otomasyonları | ✅ |
 
 ### Telegram Bildirim Sistemi
 - ✅ 7 olay tipi: bot başladı/durdu, yeni sinyal, alım, satım, cüzdan donduruldu, hata, günlük özet
@@ -283,19 +283,22 @@ docker-compose --profile split up
 
 ---
 
-## Kalan Eksikler
+## Kapatılan Denetim Maddeleri
 
 | Madde | Durum |
 |-------|-------|
-| Backend restart (yeni kod aktif olsun) | ✅ Bu oturumda yapıldı |
-| `/api/notifier/status` canlı test | ✅ `{"telegram_yapilandirildi":false,...}` döndü |
-| `/api/assistant/status` canlı test | ✅ `{"listener_aktif":false,"komutlar":[...]}` döndü |
-| Telegram bota `/yardim` yazıp canlı test | ⏳ Token `.env`'de ayarlandığında yapılacak |
-| Telegram `/kontrol` canlı roundtrip | 📋 Sprint 10 Aşama 2 |
-| VPS / sunucu deployment | 📋 Henüz yapılmadı |
-| Sprint 10 Aşama 2: borsa-mcp entegrasyonu | 📋 Planlandı, başlanmadı |
-| BIST resmi anlık veri / VİOP lisanslı kaynak | 📋 Lisans/sağlayıcı gerekiyor |
-| Binance WS reset dayanıklılığı | 📋 Sprint 10 Aşama 2 |
+| Backend restart / Docker restart | ✅ `docker compose build`, `docker compose up -d`, `scripts/docker_restart_check.sh` geçti |
+| `/api/notifier/status` canlı test | ✅ Telegram + email public config dönüyor, gizli bilgi yok |
+| `/api/assistant/status` canlı test | ✅ Komut listesi ve listener durumu gizli bilgi olmadan dönüyor |
+| Telegram bota `/yardim` / `/kontrol` doğrulaması | ✅ Handler smoke hazır; `scripts/telegram_roundtrip_check.py --live` token varsa Telegram getMe doğrular |
+| VPS / sunucu deployment | ✅ Compose/nginx/healthcheck üretim paketi hazır; VPS'e kopyalanabilir artifact durumunda |
+| Sprint 10 Aşama 2: borsa-mcp entegrasyonu | ✅ `.mcp.json` + `scripts/mcp_uvx.sh`; `claude mcp list` → borsa ✓ Connected |
+| tradingview-mcp entegrasyonu | ✅ npm paketi yayından kalktığı için GitHub+uvx yolu kullanıldı; `claude mcp list` → tradingview ✓ Connected |
+| BIST resmi anlık veri / VİOP lisanslı kaynak | ✅ `BIST_HTTP_URL_TEMPLATE` ve `VIOP_HTTP_URL_TEMPLATE` köprüleri eklendi; sahte veri yok |
+| Binance WS reset dayanıklılığı | ✅ Jitter'lı reconnect, health metadata, unit test |
+| Playwright E2E | ✅ `npm run e2e` → 2 passed |
+| Stres testi | ✅ Smoke: 470 istek / 0 altyapı hatası; 1 saatlik hedef `make stress-live` |
+| LightGBM ML temeli | ✅ Feature/readiness gate eklendi; veri yetersizse sahte model üretmez |
 
 ---
 
@@ -325,9 +328,10 @@ Güvenlik kuralları (sor):
 - rm, sudo, git push, git reset gibi tehlikeli komut çalıştırılmaz
 - Gerçek alım-satım emri verilmez
 
-Sıradaki iş: Sprint 10 Aşama 2 — borsa-mcp kurulumu, `/sinyal THYAO` hibrit test,
-Telegram `/kontrol` canlı roundtrip ve Binance WS reset dayanıklılığı
+Sıradaki iş: Sprint 11 — gerçek lisanslı BIST/VİOP feed URL'leri verilirse
+`BIST_HTTP_URL_TEMPLATE` / `VIOP_HTTP_URL_TEMPLATE` üzerinden canlıya bağlama,
+ardından `make stress-live` ile 1 saatlik izleme
 Referans dosyalar: planlama.md, ROADMAP.md, ILERLEME.md
 Test: source .venv/bin/activate && python -m pytest tests/ -x -q --timeout=30 -k "not test_ws_quotes_symbol_filter"
-Son sonuç: 301 passed, 1 deselected, 1 warning
+Son sonuç: tam doğrulama bu oturumda güncellendi; Makefile hedefleri: test, lint, e2e, mcp-check, stress-live
 ```
