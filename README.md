@@ -20,9 +20,9 @@
            │                                  │ WS /ws/signals
 ┌──────────▼──────────────────────────────────▼────────────────────┐
 │                    FastAPI Gateway (port 8000)                    │
-│  Cache-aside OHLCV · Backtest API · Paper Trading API            │
+│  Cache-aside OHLCV · ProviderRouter · Paper Trading API          │
 │  SignalGenerator v2 (konsensüs) · SignalBus · QuoteBus           │
-│  IQR Spike Filter · Healthcheck                                  │
+│  Gerçek veri metadata kapısı · IQR Spike Filter · Healthcheck    │
 └──────────┬──────────────────────────────────┬────────────────────┘
            │                                  │
 ┌──────────▼──────────┐  ┌────────────────────▼───────────────────┐
@@ -42,7 +42,7 @@
 | **Frontend** | TypeScript, Vite 5, lightweight-charts v4, Chart.js |
 | **Backend** | Python 3.11, FastAPI, uvicorn |
 | **Veritabanı** | SQLite (OHLCV cache + paper trades) |
-| **Veri** | yfinance (BIST/FX/emtia), Binance WS (kripto) |
+| **Veri** | ProviderRouter, yfinance best-effort BIST/FX/emtia, Binance WS/REST, VİOP not_configured guard |
 | **Backtest** | Custom engine (lookahead-free, 8 strateji) |
 | **Bildirim** | Telegram bot, Email (SMTP), macOS notification |
 | **Deployment** | Docker Compose, nginx reverse proxy |
@@ -94,8 +94,14 @@ make up
 ### AI Sinyal Motoru
 - Sinyal gücü (1-10): RSI + trend confluence
 - Konsensüs sistemi: 5+ strateji → STRONG_BUY/STRONG_SELL
+- Gerçek veri kapısı: `is_real=true` ve güvenli `status` olmadan sinyal üretmez
 - In-app toast bildirimi
 - Telegram + email bildirim
+
+### Telegram Asistan ve Bildirim Tercihleri
+- 11 komutlu Telegram listener: `/yardim`, `/durum`, `/fiyat`, `/sinyal`, `/strateji`, `/ozet`, `/son`, `/hata`, `/kontrol`, `/gorev`, `/duzelt`
+- Dashboard Sinyaller tab'ında Telegram durum çubuğu ve bildirim filtreleri
+- Token/chat id endpoint ve loglarda maskelenir; `.env` commitlenmez
 
 ### Sembol Kapsamı
 - **BIST 100:** 98/100 hisse
@@ -120,13 +126,14 @@ make up
 │   └── src/indicators/      # Teknik göstergeler
 ├── quant_engine/            # Python backtest framework
 │   ├── backtest/            # Lookahead-free engine
+│   ├── data/                # ProviderRouter + market data modelleri
 │   └── strategy/            # 8 strateji implementasyonu
 ├── .claude/                 # AI ekosistemi
 │   ├── agents/              # 8 sub-agent
 │   ├── skills/              # 15 skill
 │   ├── commands/            # 5 slash command
 │   └── hooks/               # 4 hook script
-├── tests/                   # 291+ test (unit + integration)
+├── tests/                   # 301+ test (unit + integration)
 ├── docker-compose.yml       # Deployment
 └── Makefile                 # Kısayollar
 ```

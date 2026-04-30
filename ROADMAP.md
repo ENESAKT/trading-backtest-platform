@@ -3,7 +3,7 @@
 > Bu doküman **ne yapıldı, ne yapılacak, sonunda ne göreceksin**'i sade Türkçeyle anlatır.
 > Tick listesi (`- [x]` / `- [ ]`) için: [`planlama.md`](planlama.md). Bu dosya o planın hikâyesidir.
 >
-> **Tarih:** 2026-04-29 · **Durum:** Sprint 1–8 ✅ tamam · 292 test geçiyor · TSC/Vite 0 hata.
+> **Tarih:** 2026-04-30 · **Durum:** Sprint 1–9 ✅ tamam · Sprint 10 Aşama 1 ✅ commitlendi · `301 passed, 1 deselected` · TSC/Vite 0 hata.
 
 ---
 
@@ -31,8 +31,11 @@ BIST + kripto + döviz + emtia için **TradingView benzeri**, **Türkçe**, tara
 | Always-on (Docker) | ✅ Hazır | 3 Dockerfile, docker-compose.yml, nginx, Makefile |
 | Bildirim | ✅ Hazır | Telegram bot, Email SMTP, macOS notification, In-app toast |
 | Agent ekosistemi | ✅ Hazır | 8 sub-agent, 15 skill, 5 slash command, 4 hook |
+| Telegram asistan | ✅ Hazır | Long polling listener, 11 komut, güvenlik filtresi, gizli bilgi maskeleme |
+| Veri sağlayıcı router | ✅ Hazır | BIST/VİOP/kripto yönlendirme, `is_real` metadata kapısı, provider health |
+| Telegram tercihleri | ✅ Hazır | API + Sinyaller tab'ında bildirim filtre kontrol paneli |
 
-**Tüm 8 sprint tamamlandı.** 292 pytest geçiyor, TSC ve Vite build 0 hata.
+**Sprint 1–9 ve Sprint 10 Aşama 1 tamamlandı.** Kontrollü test komutu `301 passed, 1 deselected, 1 warning`; TSC ve Vite build 0 hata. Sıradaki iş Sprint 10 Aşama 2: borsa-mcp entegrasyonu ve canlı roundtrip testleri.
 
 ---
 
@@ -81,7 +84,7 @@ Plan, CLAUDE.md, `.claude/` iskelet klasörleri, kararların kayda geçmesi.
 
 ---
 
-### Sprint 2 — Frontend Birleşimi 🟡 (%60)
+### Sprint 2 — Frontend Birleşimi ✅
 **Amaç:** TS terminali tek ve son arayüz olsun. Streamlit kalksın.
 
 **Yapılanlar:**
@@ -93,32 +96,23 @@ Plan, CLAUDE.md, `.claude/` iskelet klasörleri, kararların kayda geçmesi.
 - ✅ 2.7+ BUY/SELL marker'ları — `setSignals/clearSignals` pipeline
 - ✅ 2.8 Streamlit söküm (PR #9)
 
-**Kalanlar:**
-- [~] **2.5 Strateji Lab port** — StrategyPanel temel özellikleri kapsıyor; advanced param formu Sprint 3'te
-- [~] **2.6 Veri İstasyonu port** — Sidebar + her pane dropdown ile kapsanıyor; watchlist Sprint 4'te
-- ⏳ **2.8 Streamlit söküm** — `quant_engine/app/ui_streamlit/` arşivle. PR #12.
-
-**Mini PR (sıradaki):**
-**PR #8 — Backtest BUY/SELL marker'ları**
-- `ChartPanel.setSignals(Signal[])` → lightweight-charts `setMarkers`
-- ▲ yeşil = AL, ▼ kırmızı = SAT, mum üstünde tooltip
-- 30-45 dakikalık iş, görsel kazanç büyük
+**Kapanış notu:** StrategyPanel, Sidebar, çoklu grafik, marker pipeline ve Streamlit sökümü sonraki sprintlerle tamamlandı; bu bölümde eski açık iş kalmadı.
 
 **Sonunda göreceğin:** Tek tarayıcı sekmesi her şeyi yapıyor. Streamlit gerek yok. Mum üstünde alım-satım okları görüyorsun.
 
 ---
 
-### Sprint 3 — Strateji & Backtest Birleşimi
+### Sprint 3 — Strateji & Backtest Birleşimi ✅
 **Amaç:** TS'in kendi dahili backtest kodu sökülür; tek doğruluk kaynağı **Python `BacktestEngine`** olur (lookahead-free, testli).
 
-**Yapılacaklar:**
-- TS dahili backtest implementasyonu sökülür
-- `POST /api/backtest/run` endpoint — Python motoru çalışır, JSON sonuç döner
-- Strateji blueprint formatı (parametre şeması + meta) — tek tip yapı
-- `StrategyPanel` → API'ye POST atıyor, **equity eğrisini Chart.js** ile çiziyor
-- Live signal feed `/ws/signals` — DecisionEngine her bar kapanışında çalışır, sinyal varsa fan-out
-- `SignalFeed` paneli — sağ alt köşede canlı sinyal akışı
-- **8 strateji** (4 mevcut + 4 yeni):
+**Yapılanlar:**
+- TS dahili backtest implementasyonu söküldü.
+- `POST /api/backtest/run` endpoint Python motorunu çalıştırıyor.
+- Strateji blueprint formatı tek tip hale geldi.
+- `StrategyPanel` API'ye POST atıyor, **equity eğrisini Chart.js** ile çiziyor.
+- Live signal feed `/ws/signals` ile fan-out yapıyor.
+- `SignalFeed` paneli canlı sinyal akışını gösteriyor.
+- **8 strateji**:
   1. EMA cross (50/200)
   2. RSI mean-reversion
   3. Bollinger Bands reversion
@@ -132,20 +126,14 @@ Plan, CLAUDE.md, `.claude/` iskelet klasörleri, kararların kayda geçmesi.
 
 ---
 
-### Sprint 4 — Paper Trading & Portföy
+### Sprint 4 — Paper Trading & Portföy ✅
 **Amaç:** Otonom alım-satım yapan ama **gerçek emir vermeyen** robot. Tam audit trail.
 
-**Yapılacaklar:**
-- SQLite şeması: `paper_trades`, `paper_portfolio`, `paper_equity_curve`
-- **Strateji-bazlı izole sandık** — her stratejiye 10.000 TL sanal cüzdan
-- `robot-executor` sub-agent — `/ws/signals` mesajını alır, sandığa kaydeder, açık pozisyon listesini günceller
-- Canlı PnL hesabı — gateway fiyatı × açık miktar
-- `PortfolioPanel` v2: equity curve, drawdown, win rate, sharpe oranı
-- Audit trail — her trade JSON log
-- Risk limitleri:
-  - Her cüzdan max %10 günlük zarar → otomatik durdur
-  - Pozisyon başı max %10
-  - Gün-içi stop-out
+**Yapılanlar:**
+- SQLite şeması: `paper_trades`, `paper_portfolio`, `paper_equity_curve`.
+- **Strateji-bazlı izole sandık** — her stratejiye 10.000 TL sanal cüzdan.
+- Canlı PnL, `PortfolioPanel` v2, equity curve, drawdown, win rate ve sharpe.
+- Audit trail ve risk limitleri.
 
 **Sonunda göreceğin:** "Strateji X'i aktif et" düğmesi. Sinyal gelirse otomatik trade kaydedilir, equity eğrisi büyür/küçülür, drawdown takip edilir, riski aştıysa cüzdan donar. **Hiçbir gerçek emir gitmez** — pure simülasyon.
 

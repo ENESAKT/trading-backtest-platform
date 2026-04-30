@@ -44,26 +44,27 @@ Aynı veri kaynaklarını farklı yollardan kullanıyorlardı; sonuçlar zaman z
 ## 3. Mevcut Durum (Repo Snapshot)
 
 ### 3.1 Çalışan parçalar (DOKUNMA — sağlam)
+- `backend/api/main.py` — FastAPI gateway, cache-aside `/api/v2/candles`, provider health, backtest, paper trading, notifier/assistant status endpoint'leri.
+- `backend/data/cache.py` + `backend/data/spike_filter.py` — SQLite OHLCV cache ve IQR spike filtresi.
+- `backend/workers/` — Binance WS, Yahoo poller, BIST poller ve standalone cache-filler entrypoint.
 - `quant_engine/backtest/engine.py` — Lookahead-free, testli BacktestEngine.
-- `quant_engine/data/providers/binance_provider.py` — Public REST, 1200 req/dk, sayfalama 20×1000.
-- `quant_engine/data/providers/yfinance_provider.py` — `.IS` suffix mantığı, 60 req/dk.
-- `quant_engine/data/live_feed.py` — ccxt + yfinance ayrımı.
-- `quant_engine/strategy/decision_engine.py` — EMA200+BB+RSI füzyonu (kural tabanlı).
-- `piyasapilot-v2/src/components/ChartPanel.ts` — lightweight-charts v4, 4 alt-grafik (Main + Volume + RSI + MACD), F-fullscreen.
-- `piyasapilot-v2/src/strategies/` — TrendFollowing, MeanReversion, BreakoutDetector.
+- `quant_engine/data/live_feed.py` + `quant_engine/data/provider_router.py` — BIST/VİOP/kripto sağlayıcı yönlendirmesi ve legacy payload uyumu.
+- `quant_engine/data/providers/` — Binance/yfinance provider'ları + BIST, VİOP, crypto market data adapter'ları.
+- `quant_engine/strategy/` — 8 strateji, blueprint engine ve decision engine.
+- `backend/signals/generator.py` — SignalGenerator v2, STRONG konsensüs ve gerçek veri metadata kapısı.
+- `backend/paper/` — SQLite paper trading, izole strateji cüzdanları, risk limitleri.
+- `backend/notifier/` — Telegram, email, macOS bildirimi, asistan listener, bildirim tercihleri.
+- `piyasapilot-v2/src/components/` — ChartPanel, MultiChartLayout, PortfolioPanel, StrategyPanel, Screener, Sidebar, SignalFeed.
 - `piyasapilot-v2/src/indicators/` — EMA, SMA, RSI, MACD, BB, ATR, VWAP, Stoch.
-- `piyasapilot-v2/src/core/AnomalyFilter.ts` — IQR + Z-Score (kısmi).
+- `.claude/` — Agent, skill, command ve hook ekosistemi.
 
 ### 3.2 Eksikler / Boşluklar
-- Backend cache yok; her istekte yfinance.
-- Streamlit ve TS terminal **birbirine bağlı değil**.
-- TS backtest, Python `BacktestEngine`'i değil kendi TS implementasyonunu kullanıyor (desync riski).
-- Sembol kataloğu dağınık (BIST 100/Tümü, US, FX eşlemeleri tek tek).
-- Always-on yok; Vite + live_server.py manuel başlatılıyor.
-- AI sinyal motoru yok.
-- Paper trading SQLite şeması (`paper_trades`, `paper_portfolio`) yok.
-- Market Explorer (tree/accordion sembol gezgini) yok.
-- Memory/context kalıcılığı projeye özel kurulu değil (genel `~/.claude/projects/.../memory/` var ama proje köküne CLAUDE.md yok).
+- BIST gerçek anlık veri resmi/lisanslı kaynak gerektirir; mevcut BIST akışı Yahoo Finance best-effort public kaynaktır.
+- VİOP provider sahte veri üretmez; lisanslı/resmi kaynak yapılandırılana kadar `not_configured` döner.
+- Binance WS `ConnectionResetError` dayanıklılığı Aşama 2'de ayrıca güçlendirilecek; REST fallback provider eklendi.
+- borsa-mcp entegrasyonu henüz başlamadı; artık Sprint 10 Aşama 2 olarak takip edilecek.
+- Stres testi (100 sembol × 1 saat), Docker restart testi ve detaylı Playwright E2E canlı ortamda yapılacak.
+- LightGBM/ML temelleri veri birikimi sonrası Sprint 11+ kapsamına bırakıldı.
 
 ---
 
@@ -383,13 +384,29 @@ Tek `Notifier` servisi tüm kanalları soyutlar; sinyal motoru fan-out ile hepsi
 - [x] 9.12 `docker-compose.yml` güncellendi — workers servisi `split` profiliyle eklendi; mimari notu eklendi.
 - [x] 9.13 Planlama açık maddeleri kapatıldı (Telegram/SMTP → `.env` bekliyor, BIST listesi yeterli).
 
-### Sprint 10 — borsa-mcp Entegrasyonu
-- [ ] 10.1 `borsa-mcp` kurulumu: `claude mcp add borsa --type stdio --command uvx --args "--from" "git+https://github.com/saidsurucu/borsa-mcp" "borsa-mcp"`
-- [ ] 10.2 Claude oturumu yeniden başlatılır, `borsa` tool'ları listelenir.
-- [ ] 10.3 `/sinyal THYAO` ile borsa-mcp + SQLite cache hibrit test.
-- [ ] 10.4 `/morning-briefing` skill: borsa-mcp finansal veri + KAP haberleri entegrasyonu.
-- [ ] 10.5 Backtest geçmişi test: THYAO 2 yıl günlük veri → borsa-mcp `period="max"`.
-- [ ] 10.6 `tradingview-mcp` kurulumu (opsiyonel): `claude mcp add tradingview --type stdio --command npx --args "-y" "tradingview-mcp"`
+### Sprint 10 — Gerçek Veri Güven Kapısı ve MCP Entegrasyonu
+
+#### Aşama 1 — ProviderRouter + MarketDataResult ✅
+- [x] 10.1 Ortak piyasa veri modelleri: `MarketDataResult`, `MarketDataHealth`, `MarketDataStatus`.
+- [x] 10.2 `ProviderRouter`: BIST, VİOP ve kripto sembollerini doğru provider'a yönlendirir.
+- [x] 10.3 BIST provider: Yahoo Finance best-effort public kaynak; veri yoksa `no_data`.
+- [x] 10.4 VİOP provider: lisanslı kaynak yoksa sahte bar üretmeden `not_configured`.
+- [x] 10.5 Crypto provider: Binance public REST + fallback.
+- [x] 10.6 `/api/data/providers/health` endpoint'i.
+- [x] 10.7 `/api/v2/candles` response metadata: `is_real`, `status`, `provider_name`, `source`.
+- [x] 10.8 SignalGenerator gerçek veri kapısı: `is_real=true` ve `status in {"ok","live"}` olmadan sinyal yok.
+- [x] 10.9 Telegram `/fiyat`, `/sinyal`, `/strateji` komutları provider metadata'sını kontrol eder.
+- [x] 10.10 Telegram bildirim tercihleri API + frontend kontrol paneli.
+- [x] 10.11 Doğrulama: provider/router, signal gate, Telegram handler testleri; `301 passed, 1 deselected`, TSC ve Vite build temiz.
+
+#### Aşama 2 — borsa-mcp Entegrasyonu
+- [ ] 10.12 `borsa-mcp` kurulumu: `claude mcp add borsa --type stdio --command uvx --args "--from" "git+https://github.com/saidsurucu/borsa-mcp" "borsa-mcp"`
+- [ ] 10.13 Claude oturumu yeniden başlatılır, `borsa` tool'ları listelenir.
+- [ ] 10.14 `/sinyal THYAO` ile borsa-mcp + SQLite cache hibrit test.
+- [ ] 10.15 `/morning-briefing` skill: borsa-mcp finansal veri + KAP haberleri entegrasyonu.
+- [ ] 10.16 Backtest geçmişi test: THYAO 2 yıl günlük veri → borsa-mcp `period="max"`.
+- [ ] 10.17 Binance WS reset dayanıklılığı ve Telegram `/kontrol` canlı roundtrip testi.
+- [ ] 10.18 `tradingview-mcp` kurulumu (opsiyonel): `claude mcp add tradingview --type stdio --command npx --args "-y" "tradingview-mcp"`
 
 ---
 

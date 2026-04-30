@@ -1,8 +1,8 @@
 # PiyasaPilot Proje Durum Özeti
 
-> Son güncelleme: 2026-04-29
+> Son güncelleme: 2026-04-30
 > Proje dizini: `/Users/enes/AgentWorkspace/Backtest`
-> Ana dal: `main` — origin'den 3 commit ileride
+> Ana dal: `main` — Sprint 10 Aşama 1 kod commitleri ve doküman temizliği yerelde
 
 ---
 
@@ -38,6 +38,46 @@ Sprint 10'a geçmeden önce kalanlar:
 - Gerçek Telegram roundtrip için yetkili kullanıcıdan bota `/kontrol` gönderilip cevap gözle doğrulanmalı.
 - Binance WS tarafındaki `ConnectionResetError` uyarıları Sprint 10 veri sağlayıcı mimarisi içinde ele alınmalı.
 
+### 2026-04-29 Sprint 10 Aşama 1 — Veri Sağlayıcı Modeli ve Router
+- ✅ Ortak piyasa veri modelleri eklendi: `MarketDataResult`, `MarketDataHealth`, `MarketDataProviderType`, `MarketDataStatus`.
+- ✅ `ProviderRouter` eklendi; sembole göre BIST/yfinance, VİOP veya Binance crypto provider seçiyor.
+- ✅ BIST provider mevcut yfinance `.IS` akışını best-effort public kaynak olarak sarıyor. Veri varsa `is_real=true`, `status=ok`; veri yoksa `status=no_data`.
+- ✅ VİOP provider lisanslı/resmi kaynak yapılandırılmadığı için sahte veri üretmiyor; `status=not_configured` ve Türkçe hata mesajı döndürüyor.
+- ✅ Crypto provider Binance public REST ile çalışıyor; `data-api.binance.vision` başarısız olursa `api.binance.com` REST fallback deneniyor.
+- ✅ `/api/data/providers/health` endpoint'i eklendi.
+- ✅ `/api/v2/candles` mevcut response formatını koruyarak provider router metadata'sı döndürüyor: `source`, `is_real`, `status`, `provider_name`.
+- ✅ Cache fallback metadata'sı `is_real=false`, `status=stale` olarak işaretleniyor.
+- ✅ Sinyal motoru `is_real=true` ve `status=ok/live` metadata kapısı olmadan sinyal üretmiyor.
+- ✅ Worker hook'ları provider metadata'sını sinyal motoruna iletiyor; Binance WS metadata'sı gerçek public WS olarak işaretleniyor.
+- ✅ Telegram `/fiyat`, `/sinyal`, `/strateji` komutları provider metadata'sını kontrol ediyor; gerçek veri yoksa sinyal/strateji üretmiyor.
+- ✅ `/ozet` mesajına sinyal motorunun yalnızca gerçek veri kapısı kullandığı bilgisi eklendi.
+
+Yeni endpoint:
+```
+GET /api/data/providers/health
+```
+Örnek sağlayıcılar:
+- `bist_yfinance`: aktif, yapılandırıldı, source=`Yahoo Finance (BIST best-effort public)`
+- `viop_not_configured`: pasif, yapılandırılmadı, sahte veri üretmez
+- `binance_rest`: aktif, yapılandırıldı, source=`Binance Spot Public REST`
+
+Test:
+- Provider router testi: geçti.
+- BIST provider ok/no_data testleri: geçti.
+- VİOP not_configured testi: geçti.
+- Crypto REST fallback testi: geçti.
+- Sinyal motoru `is_real=false` engeli: geçti.
+- Telegram handler kuru testleri (`/fiyat`, `/sinyal`, `/strateji`, `/ozet`, `/durum`, `/kontrol`): geçti.
+- `/api/data/providers/health` endpoint testi: geçti.
+- Pytest: kontrollü Makefile komutu ile `301 passed, 1 deselected, 1 warning`.
+- TypeScript `npx tsc --noEmit`: geçti.
+
+Kalan riskler:
+- BIST provider resmi/lisanslı BIST feed'i değildir; Yahoo Finance best-effort public kaynaktır.
+- VİOP için lisanslı/resmi veri kaynağı yapılandırılmadan canlı veri yoktur.
+- Binance WS resetleri için REST fallback provider eklendi; WS dayanıklılığı Aşama 2'de ayrıca iyileştirilmeli.
+- Üretim sinyallerinde metadata kapısı zorunlu hale geldi; metadata iletmeyen eski/harici worker sinyal üretmez.
+
 ### Tamamlanan Sprintler
 | Sprint | Konu | Durum |
 |--------|------|-------|
@@ -47,7 +87,8 @@ Sprint 10'a geçmeden önce kalanlar:
 | Sprint 8 | README + Mimari + rehber dokümanlar | ✅ |
 | Sprint 9 | Telegram bildirim sistemi (7 olay tipi), dashboard durum çubuğu, workers standalone | ✅ |
 | Sprint 10-pre | Telegram asistan / sohbet botu — listener, 11 komut, güvenlik katmanı | ✅ |
-| Sprint 10 | borsa-mcp (Türk borsası / BIST / VİOP gerçek veri entegrasyonu) | 📋 Planlandı |
+| Sprint 10 Aşama 1 | ProviderRouter + veri sağlayıcı modelleri + gerçek veri kapısı + Telegram tercihleri | ✅ |
+| Sprint 10 Aşama 2 | borsa-mcp entegrasyonu + canlı roundtrip testleri | 📋 Sırada |
 
 ### Telegram Bildirim Sistemi
 - ✅ 7 olay tipi: bot başladı/durdu, yeni sinyal, alım, satım, cüzdan donduruldu, hata, günlük özet
@@ -250,9 +291,11 @@ docker-compose --profile split up
 | `/api/notifier/status` canlı test | ✅ `{"telegram_yapilandirildi":false,...}` döndü |
 | `/api/assistant/status` canlı test | ✅ `{"listener_aktif":false,"komutlar":[...]}` döndü |
 | Telegram bota `/yardim` yazıp canlı test | ⏳ Token `.env`'de ayarlandığında yapılacak |
+| Telegram `/kontrol` canlı roundtrip | 📋 Sprint 10 Aşama 2 |
 | VPS / sunucu deployment | 📋 Henüz yapılmadı |
-| Sprint 10: borsa-mcp entegrasyonu | 📋 Planlandı, başlanmadı |
-| BIST / VİOP gerçek veri entegrasyonu | 📋 Sprint 10 kapsamında |
+| Sprint 10 Aşama 2: borsa-mcp entegrasyonu | 📋 Planlandı, başlanmadı |
+| BIST resmi anlık veri / VİOP lisanslı kaynak | 📋 Lisans/sağlayıcı gerekiyor |
+| Binance WS reset dayanıklılığı | 📋 Sprint 10 Aşama 2 |
 
 ---
 
@@ -261,11 +304,14 @@ docker-compose --profile split up
 ```
 Proje: PiyasaPilot — Python/FastAPI backend + TypeScript/Vite SPA trading terminali.
 Dizin: /Users/enes/AgentWorkspace/Backtest
-Dal: main (3 commit ileride origin'den)
+Dal: main
 
 Tamamlananlar:
 - Sprint 1–9: canlı veri, sinyal motoru (8 strateji), paper trading, Telegram bildirim sistemi
 - Sprint 10-pre: Telegram asistan botu (long polling, 11 komut, güvenlik filtresi)
+- Sprint 10 Aşama 1: ProviderRouter, MarketDataResult/Health, BIST/VİOP/Crypto provider'lar,
+  sinyal motorunda gerçek veri metadata kapısı, `/api/data/providers/health`,
+  Telegram bildirim tercihleri API + frontend kontrol paneli
 
 Aktif servisler:
 - Backend: uvicorn backend.api.main:app --port 8000
@@ -279,7 +325,9 @@ Güvenlik kuralları (sor):
 - rm, sudo, git push, git reset gibi tehlikeli komut çalıştırılmaz
 - Gerçek alım-satım emri verilmez
 
-Sıradaki iş: Sprint 10 — borsa-mcp (Türk borsası gerçek veri entegrasyonu)
+Sıradaki iş: Sprint 10 Aşama 2 — borsa-mcp kurulumu, `/sinyal THYAO` hibrit test,
+Telegram `/kontrol` canlı roundtrip ve Binance WS reset dayanıklılığı
 Referans dosyalar: planlama.md, ROADMAP.md, ILERLEME.md
-Test: python -m pytest tests/ -q (292 test, 1 flaky WS testi aralıklı başarısız)
+Test: source .venv/bin/activate && python -m pytest tests/ -x -q --timeout=30 -k "not test_ws_quotes_symbol_filter"
+Son sonuç: 301 passed, 1 deselected, 1 warning
 ```

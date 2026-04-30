@@ -19,8 +19,11 @@
 | Sprint 6 | AI Sinyal Motoru | ✅ Tamamlandı |
 | Sprint 7 | Always-On & Bildirim | ✅ Tamamlandı |
 | Sprint 8 | Test, Doküman, Hand-off | ✅ Tamamlandı |
+| Sprint 9 | Polish & Production Hardening | ✅ Tamamlandı |
+| Sprint 10 Aşama 1 | ProviderRouter + gerçek veri kapısı + Telegram tercihleri | ✅ Tamamlandı |
+| Sprint 10 Aşama 2 | borsa-mcp entegrasyonu + canlı roundtrip testleri | 📋 Sırada |
 
-**Tüm planlanan 8 sprint tamamlanmıştır.**
+**Sprint 10 Aşama 1 tamamlanmış ve commitlenmiştir.** borsa-mcp işi artık Sprint 10 Aşama 2 olarak ayrı takip edilir.
 
 ---
 
@@ -28,13 +31,13 @@
 
 | Metrik | Değer |
 |--------|-------|
-| Test (pytest) | **292 passed**, 1 FutureWarning |
+| Test (pytest) | **301 passed, 1 deselected**, 1 FutureWarning (`test_ws_quotes_symbol_filter` Makefile filtresiyle dışarıda) |
 | TSC compile | ✅ Temiz (0 hata) |
 | Vite build | ✅ Temiz |
 | Stratejiler | 8 (ema_cross, rsi_reversion, bb_reversion, breakout, donchian, macd_div, supertrend, vwap_mean_rev) |
 | Sembol kapsamı | ~130 (BIST 98 + Kripto 10 + FX/Emtia) |
 | Frontend bileşenler | 7 (ChartPanel, MultiChartLayout, PortfolioPanel, StrategyPanel, Screener, Sidebar, SignalFeed) |
-| Backend API endpoint'leri | 15+ (health, backtest, paper, candles, WS quotes, WS signals) |
+| Backend API endpoint'leri | 18+ (health, provider health, notifier preferences, backtest, paper, candles, WS quotes, WS signals) |
 | Sub-agent'lar | 8 |
 | Skill'ler | 15 |
 | Slash command'lar | 5 |
@@ -59,7 +62,7 @@ Tarayıcı (Vite SPA) ──HTTP/WS──→ FastAPI Gateway (port 8000)
    └── BistStockPoller            ├── Konsensüs (STRONG_BUY/SELL)
          │                        └── Metadata (RSI, ATR, volatilite)
          ▼
-   SQLite OHLCV Cache ──→ IQR Spike Filter
+   ProviderRouter ──→ SQLite OHLCV Cache ──→ IQR Spike Filter
 ```
 
 ---
@@ -76,10 +79,15 @@ Tarayıcı (Vite SPA) ──HTTP/WS──→ FastAPI Gateway (port 8000)
 - [ ] Tarayıcı E2E: `make dev` + `make dev-frontend` → 5 tab + WS canlı
 - [ ] Docker restart testi: `docker compose kill api` → 5 sn'de geri gel
 - [ ] Notifier uçtan uca: test sinyali → 4 kanala düşüyor
+- [ ] Telegram `/kontrol` canlı roundtrip testi
+- [ ] Binance WS reset dayanıklılığı
 
 **Uzun vadeli (veri birikimi gerekli):**
 - [ ] ML model temelleri (LightGBM — cache 3–6 ay birikimine bağlı)
 - [ ] E2E Playwright testleri (detaylı senaryo seti)
+- [ ] VİOP resmi/lisanslı veri kaynağı
+- [ ] BIST resmi anlık veri alternatifi
+- [ ] borsa-mcp kurulumu ve `/sinyal` hibrit test
 
 ---
 
@@ -87,10 +95,12 @@ Tarayıcı (Vite SPA) ──HTTP/WS──→ FastAPI Gateway (port 8000)
 
 ```
 (sprint-9-polish)  feat: Sprint 9 polish — STRONG sinyal UI + docker workers fix
+dd43786 fix: Telegram env yükleme ve gizli bilgi maskeleme
+7211dab feat: add market data provider router
+b0c9b22 feat: add Telegram notification controls
 69a384d docs: Sprint 8 tamamlandı — README + Mimari + Agent/Skill rehberleri
 90d7190 feat: Sprint 6 + Sprint 7 tamamlandı — AI sinyal motoru + bildirim altyapısı
 a7c0d50 feat: Sprint 5 tamamlandı — Agent + Skill + MCP + Hook ekosistemi kuruldu
-643c00a feat: PortfolioPanel v2 — equity curve + drawdown + metrik kartları
 ```
 
 ## 6. Hızlı Başlangıç
