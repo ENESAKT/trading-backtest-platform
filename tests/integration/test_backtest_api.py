@@ -163,4 +163,5 @@ def test_backtest_run_rejects_unknown_param_key(tmp_path):
         },
     )
     assert resp.status_code == 400
-    assert "bogus_key" in resp.json()["detail"].lower() or "bilinmeyen" in resp.json()["detail"].lower()
+    detail = resp.json()["detail"].lower()
+    assert "bogus_key" in detail or "bilinmeyen" in detail

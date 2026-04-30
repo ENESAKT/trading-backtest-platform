@@ -38,6 +38,33 @@ def test_bist_provider_returns_ok_with_yfinance_data(monkeypatch):
     assert result.data[-1]["close"] == 102.5
 
 
+def test_bist_provider_prefers_configured_http_feed(monkeypatch):
+    provider = BistMarketDataProvider()
+    monkeypatch.setenv("BIST_HTTP_URL_TEMPLATE", "https://data.example/{symbol}")
+    monkeypatch.setattr(
+        provider,
+        "_fetch_configured_http",
+        lambda *_args: [
+            {
+                "time": 1_700_000_000,
+                "open": 10.0,
+                "high": 11.0,
+                "low": 9.0,
+                "close": 10.5,
+                "volume": 1000.0,
+            }
+        ],
+    )
+
+    result = provider.fetch_ohlcv("THYAO", "15m", 20)
+
+    assert result.status == MarketDataStatus.OK
+    assert result.is_real is True
+    assert result.provider_name == "bist_http"
+    assert result.source == "Configured BIST HTTP feed"
+    assert result.data[0]["close"] == 10.5
+
+
 def test_bist_provider_returns_no_data_without_rows(monkeypatch):
     provider = BistMarketDataProvider()
     monkeypatch.setattr(provider, "_load_history", lambda *_args: pd.DataFrame())
@@ -55,6 +82,36 @@ def test_viop_provider_is_not_configured():
     assert result.status == MarketDataStatus.NOT_CONFIGURED
     assert result.is_real is False
     assert "yapılandırılmadı" in result.error
+
+
+def test_viop_provider_uses_configured_http_feed(monkeypatch):
+    import quant_engine.data.providers.viop_provider as viop_module
+
+    provider = ViopMarketDataProvider()
+    monkeypatch.setenv("VIOP_HTTP_URL_TEMPLATE", "https://viop.example/{symbol}")
+    monkeypatch.setattr(
+        viop_module,
+        "fetch_http_ohlcv",
+        lambda *_args, **_kwargs: [
+            {
+                "time": 1_700_000_000,
+                "open": 1000.0,
+                "high": 1010.0,
+                "low": 990.0,
+                "close": 1005.0,
+                "volume": 100.0,
+            }
+        ],
+    )
+
+    result = provider.fetch_ohlcv("F_XU0300426", "15m", 20)
+    health = provider.health()
+
+    assert result.status == MarketDataStatus.OK
+    assert result.is_real is True
+    assert result.provider_name == "viop_http"
+    assert result.data[0]["close"] == 1005.0
+    assert health.configured is True
 
 
 def test_crypto_provider_falls_back_to_second_rest_endpoint(monkeypatch):

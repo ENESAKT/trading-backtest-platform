@@ -77,6 +77,29 @@ def test_build_url_combines_streams():
     assert "ethusdt@kline_15m" in url
 
 
+def test_disconnect_updates_reconnect_health(tmp_path):
+    cache = OHLCVCache(db_path=tmp_path / "c.sqlite3")
+    w = BinanceKlineWorker(cache=cache, symbols=["BTCUSDT"], interval="15m")
+
+    w._record_disconnect(ConnectionResetError("peer reset"), next_backoff=1.0)
+
+    h = w.health()
+    assert h.failures == 1
+    assert "ConnectionResetError" in (h.last_error or "")
+    assert h.metadata["reconnects"] == 1
+    assert h.metadata["last_disconnect_at"] is not None
+    assert h.metadata["backoff"]["max_seconds"] == w.MAX_BACKOFF
+
+
+def test_backoff_jitter_stays_bounded(tmp_path, monkeypatch):
+    cache = OHLCVCache(db_path=tmp_path / "c.sqlite3")
+    w = BinanceKlineWorker(cache=cache, symbols=["BTCUSDT"], interval="15m")
+    monkeypatch.setattr("backend.workers.binance_ws.random.uniform", lambda _a, _b: 0.2)
+
+    assert w._with_jitter(1.0) == 1.2
+    assert w._with_jitter(0.0) == 0
+
+
 @pytest.mark.asyncio
 async def test_persist_writes_bar_to_cache(tmp_path):
     cache = OHLCVCache(db_path=tmp_path / "c.sqlite3")

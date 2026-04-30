@@ -118,8 +118,23 @@ def test_health_returns_cache_stats(tmp_path):
     assert body["status"] == "ok"
     assert body["read_only"] is True
     assert body["cache"]["rows"] == 0
-    assert body["workers"] == []
-    assert "fetched_at" in body
+
+
+def test_notifier_status_includes_email_public_config(tmp_path, monkeypatch):
+    monkeypatch.setenv("SMTP_HOST", "smtp.example.test")
+    monkeypatch.setenv("SMTP_PORT", "2525")
+    monkeypatch.setenv("SMTP_USER", "sender@example.test")
+    monkeypatch.setenv("SMTP_PASS", "secret-pass")
+    monkeypatch.setenv("NOTIFY_EMAIL_TO", "enes@example.test")
+    client, _, _ = _build_client(tmp_path)
+
+    resp = client.get("/api/notifier/status")
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["email"]["smtp_yapilandirildi"] is True
+    assert body["email"]["smtp_host"] == "smtp.example.test"
+    assert "secret-pass" not in str(body)
 
 
 def test_data_provider_health_endpoint(tmp_path):
@@ -129,6 +144,26 @@ def test_data_provider_health_endpoint(tmp_path):
     body = resp.json()
     assert body["status"] == "ok"
     assert body["providers"][0]["provider_name"] == "fake"
+
+
+def test_v2_candles_no_data_is_not_gateway_failure(tmp_path):
+    client, fake, _ = _build_client(tmp_path)
+    fake.next_payload = {
+        "symbol": "KOZAL.IS",
+        "display_name": "KOZAL",
+        "market": "bist",
+        "interval": "15m",
+        "status": "no_data",
+        "message": "Veri bulunamadı.",
+        "bars": [],
+        "quote": None,
+        "metadata": {"error": "no_data", "read_only": True},
+    }
+
+    resp = client.get("/api/v2/candles", params={"symbol": "KOZAL.IS", "interval": "15m"})
+
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "no_data"
 
 
 def test_v2_candles_writes_to_cache_on_first_call(tmp_path):

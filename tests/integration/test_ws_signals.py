@@ -12,16 +12,27 @@ import threading
 from fastapi.testclient import TestClient
 
 from backend.api.main import create_app
-from backend.api.signal_bus import SignalBus
 from backend.api.quote_bus import QuoteBus
+from backend.api.signal_bus import SignalBus
 from backend.data.cache import OHLCVCache
 from backend.workers.base import WorkerSupervisor
 
 
 class _Noop:
-    def fetch_default_dashboard(self): return {"symbols": [], "metadata": {}}
-    def fetch_chart(self, symbol, limit=180): return {"symbol": symbol, "status": "ok", "bars": [], "quote": None, "metadata": {}}
-    def fetch_candles(self, symbol, interval="15m", limit=500): return {"status": "ok", "bars": [], "metadata": {}, "symbol": symbol}
+    def fetch_default_dashboard(self):
+        return {"symbols": [], "metadata": {}}
+
+    def fetch_chart(self, symbol, limit=180):
+        return {
+            "symbol": symbol,
+            "status": "ok",
+            "bars": [],
+            "quote": None,
+            "metadata": {},
+        }
+
+    def fetch_candles(self, symbol, interval="15m", limit=500):
+        return {"status": "ok", "bars": [], "metadata": {}, "symbol": symbol}
 
 
 def _build_client(tmp_path):
