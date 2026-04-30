@@ -234,3 +234,13 @@ class PaperDB:
                 (strategy_id, limit),
             ).fetchall()
             return list(reversed([dict(r) for r in rows]))
+
+    def checkpoint(self) -> None:
+        """WAL modunda biriken sayfaları ana dosyaya yaz (graceful shutdown için)."""
+        with self._lock:
+            conn = sqlite3.connect(str(self._path), timeout=10)
+            try:
+                conn.execute("PRAGMA wal_checkpoint(FULL)")
+                conn.commit()
+            finally:
+                conn.close()
