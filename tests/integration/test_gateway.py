@@ -80,6 +80,24 @@ class FakeLiveDataService:
             "metadata": {"source": "mock-binance", "read_only": True},
         }
 
+    def provider_health(self) -> dict[str, Any]:
+        return {
+            "status": "ok",
+            "fetched_at": "2026-04-27T10:00:00+00:00",
+            "providers": [
+                {
+                    "provider_name": "fake",
+                    "provider_type": "crypto",
+                    "active": True,
+                    "configured": True,
+                    "supported_markets": ["crypto"],
+                    "last_success_at": None,
+                    "last_error": None,
+                    "source": "test",
+                }
+            ],
+        }
+
 
 def _build_client(tmp_path) -> tuple[TestClient, FakeLiveDataService, OHLCVCache]:
     cache = OHLCVCache(db_path=tmp_path / "ohlcv.sqlite3")
@@ -102,6 +120,15 @@ def test_health_returns_cache_stats(tmp_path):
     assert body["cache"]["rows"] == 0
     assert body["workers"] == []
     assert "fetched_at" in body
+
+
+def test_data_provider_health_endpoint(tmp_path):
+    client, _, _ = _build_client(tmp_path)
+    resp = client.get("/api/data/providers/health")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["status"] == "ok"
+    assert body["providers"][0]["provider_name"] == "fake"
 
 
 def test_v2_candles_writes_to_cache_on_first_call(tmp_path):

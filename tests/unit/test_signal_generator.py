@@ -16,6 +16,13 @@ from backend.backtest import blueprints as _blueprints  # noqa: F401  (registry 
 from backend.data.cache import OHLCVCache
 from backend.signals import SignalGenerator, SignalGeneratorConfig
 
+REAL_METADATA = {
+    "source": "Binance Spot Public REST",
+    "is_real": True,
+    "status": "ok",
+    "provider_name": "binance_rest",
+}
+
 
 def _populate(cache: OHLCVCache, symbol: str, interval: str, n: int = 200) -> None:
     bars = []
@@ -53,7 +60,7 @@ async def test_generator_emits_signal_after_history(tmp_path):
     )
 
     reader_task = asyncio.create_task(reader())
-    await gen.evaluate("BTCUSDT", "15m", [])
+    await gen.evaluate("BTCUSDT", "15m", [], metadata=REAL_METADATA)
     await asyncio.sleep(0.05)
     reader_task.cancel()
     try:
@@ -76,7 +83,7 @@ async def test_generator_skips_short_history(tmp_path):
     _populate(cache, "BTCUSDT", "15m", n=10)  # < 30 bar
     bus = SignalBus()
     gen = SignalGenerator(cache=cache, bus=bus)
-    await gen.evaluate("BTCUSDT", "15m", [])
+    await gen.evaluate("BTCUSDT", "15m", [], metadata=REAL_METADATA)
     assert gen.stats()["signals_emitted"] == 0
     assert gen.stats()["evaluated"] == 1
     assert bus.stats()["published"] == 0
@@ -93,5 +100,26 @@ async def test_generator_uses_explicit_strategy_list(tmp_path):
         config=SignalGeneratorConfig(strategies=["buy_and_hold"]),
     )
     assert "buy_and_hold" in gen.stats()["strategies"]
-    await gen.evaluate("BTCUSDT", "15m", [])
+    await gen.evaluate("BTCUSDT", "15m", [], metadata=REAL_METADATA)
     assert gen.stats()["evaluated"] == 1
+
+
+@pytest.mark.asyncio
+async def test_generator_blocks_untrusted_data(tmp_path):
+    cache = OHLCVCache(db_path=tmp_path / "c.sqlite3")
+    _populate(cache, "BTCUSDT", "15m", n=200)
+    bus = SignalBus()
+    gen = SignalGenerator(cache=cache, bus=bus)
+
+    await gen.evaluate(
+        "BTCUSDT",
+        "15m",
+        [],
+        metadata={"source": "mock", "is_real": False, "status": "ok"},
+    )
+
+    stats = gen.stats()
+    assert stats["evaluated"] == 1
+    assert stats["signals_emitted"] == 0
+    assert stats["skipped_untrusted"] == 1
+    assert bus.stats()["published"] == 0

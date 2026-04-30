@@ -116,11 +116,16 @@ def _build_default_supervisor(
         kayıtlı stratejileri koştur, AL/SAT varsa ``signal_bus`` →
         ``/ws/signals``.
     """
-    async def _on_bar(symbol: str, interval: str, bars: list[dict[str, Any]]) -> None:
+    async def _on_bar(
+        symbol: str,
+        interval: str,
+        bars: list[dict[str, Any]],
+        metadata: dict[str, Any] | None = None,
+    ) -> None:
         if quote_bus is not None:
             await quote_bus.publish(symbol, interval, bars)
         if signal_generator is not None:
-            await signal_generator.evaluate(symbol, interval, bars)
+            await signal_generator.evaluate(symbol, interval, bars, metadata=metadata)
         if paper_executor is not None and bars:
             last_close = float(bars[-1].get("close", 0))
             if last_close > 0:
@@ -292,6 +297,24 @@ def create_app(
             "toplam_bildirim": durum.get("toplam_bildirim", 0),
         }
 
+    @app.get("/api/notifier/preferences")
+    def notifier_preferences() -> dict[str, Any]:
+        """Telegram bildirim filtrelerini döndür; gizli bilgi içermez."""
+        from backend.notifier.preferences import public_preferences
+
+        return public_preferences()
+
+    @app.put("/api/notifier/preferences")
+    async def update_notifier_preferences(request: Request) -> dict[str, Any]:
+        """Telegram bildirim filtrelerini güncelle; token/chat_id kabul etmez."""
+        from backend.notifier.preferences import public_preferences, write_preferences
+
+        payload = await request.json()
+        if not isinstance(payload, dict):
+            payload = {}
+        write_preferences(payload)
+        return public_preferences()
+
     # ── Health ────────────────────────────────────────────────────────────
     @app.get("/api/health")
     def health() -> dict[str, Any]:
@@ -312,6 +335,18 @@ def create_app(
             "paper_executor": paper_executor.stats(),
             "fetched_at": _utc_iso(),
             "message": "PiyasaPilot gateway çalışıyor. Emir motoru pasif.",
+        }
+
+    @app.get("/api/data/providers/health")
+    def data_providers_health() -> dict[str, Any]:
+        """BIST/VİOP/kripto veri sağlayıcılarının güvenli sağlık özeti."""
+        if hasattr(data_service, "provider_health"):
+            return data_service.provider_health()
+        return {
+            "status": "ok",
+            "fetched_at": _utc_iso(),
+            "providers": [],
+            "message": "Veri sağlayıcı sağlık bilgisi bu servis için raporlanmadı.",
         }
 
     # ── Backtest API (Sprint 3.2 + 3.3) ──────────────────────────────────
@@ -563,6 +598,8 @@ def create_app(
                 "metadata": {
                     "read_only": True,
                     "cache": "fallback",
+                    "is_real": False,
+                    "status": "stale",
                     "provider_error": provider_payload.get("metadata", {}).get("error", ""),
                     "fetched_at": _utc_iso(),
                 },

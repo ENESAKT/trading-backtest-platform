@@ -72,7 +72,7 @@ def test_build_url_combines_streams():
         interval="15m",
     )
     url = w._build_url()
-    assert url.startswith("wss://stream.binance.com:9443/stream?streams=")
+    assert url.startswith("wss://data-stream.binance.vision/stream?streams=")
     assert "btcusdt@kline_15m" in url
     assert "ethusdt@kline_15m" in url
 

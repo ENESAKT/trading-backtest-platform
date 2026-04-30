@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 # Test-friendly: protocol yerine duck-typed callable. ``LiveDataService``
 # zaten bu imzayı sağlıyor.
 FetchCandles = Callable[[str, str, int], dict[str, Any]]
-BarHook = Callable[[str, str, list[dict[str, Any]]], Awaitable[None] | None]
+BarHook = Callable[..., Awaitable[None] | None]
 
 
 class YahooPoller(AsyncWorker):
@@ -92,6 +92,11 @@ class YahooPoller(AsyncWorker):
 
         if self.on_bar is not None:
             try:
+                metadata = dict(payload.get("metadata") or {})
+                result = self.on_bar(canonical, self.interval, cleaned, metadata)
+                if asyncio.iscoroutine(result):
+                    await result
+            except TypeError:
                 result = self.on_bar(canonical, self.interval, cleaned)
                 if asyncio.iscoroutine(result):
                     await result

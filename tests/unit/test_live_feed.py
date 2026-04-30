@@ -9,6 +9,7 @@ from quant_engine.data.live_feed import (
     normalize_symbol,
     resolve_symbol,
 )
+from quant_engine.data.market_data import MarketDataResult, MarketDataStatus
 
 
 def test_normalize_symbol_removes_market_separators():
@@ -112,11 +113,20 @@ def test_fetch_candles_clamps_below_minimum_limit(monkeypatch):
     svc = LiveDataService()
     captured: dict[str, int] = {}
 
-    def fake_yfinance(spec, interval, safe_limit):
-        captured["limit"] = safe_limit
-        return {"status": "ok", "bars": [], "quote": None, "metadata": {}}
+    def fake_fetch(symbol, timeframe, limit):
+        captured["limit"] = limit
+        return MarketDataResult(
+            symbol=symbol,
+            market="bist",
+            timeframe=timeframe,
+            data=[],
+            source="test",
+            is_real=False,
+            status=MarketDataStatus.NO_DATA,
+            provider_name="test",
+        )
 
-    monkeypatch.setattr(svc, "_fetch_yfinance_candles", fake_yfinance)
+    monkeypatch.setattr(svc._provider_router, "fetch_candles", fake_fetch)
     svc.fetch_candles("THYAO.IS", interval="15m", limit=5)
     assert captured["limit"] == 20  # min floor
 
@@ -125,11 +135,20 @@ def test_fetch_candles_clamps_above_maximum_limit(monkeypatch):
     svc = LiveDataService()
     captured: dict[str, int] = {}
 
-    def fake_yfinance(spec, interval, safe_limit):
-        captured["limit"] = safe_limit
-        return {"status": "ok", "bars": [], "quote": None, "metadata": {}}
+    def fake_fetch(symbol, timeframe, limit):
+        captured["limit"] = limit
+        return MarketDataResult(
+            symbol=symbol,
+            market="bist",
+            timeframe=timeframe,
+            data=[],
+            source="test",
+            is_real=False,
+            status=MarketDataStatus.NO_DATA,
+            provider_name="test",
+        )
 
-    monkeypatch.setattr(svc, "_fetch_yfinance_candles", fake_yfinance)
+    monkeypatch.setattr(svc._provider_router, "fetch_candles", fake_fetch)
     svc.fetch_candles("THYAO.IS", interval="15m", limit=99999)
     assert captured["limit"] == 1000  # max ceiling
 

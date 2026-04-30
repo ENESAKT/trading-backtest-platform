@@ -148,8 +148,29 @@ class SignalGenerator:
         self.signal_count = 0
         self.error_count = 0
         self.last_error: str | None = None
+        self.skipped_untrusted = 0
+        self.last_skip_reason: str | None = None
 
-    async def evaluate(self, symbol: str, interval: str, bars: list[dict[str, Any]]) -> None:
+    @staticmethod
+    def _trusted_metadata(metadata: dict[str, Any] | None) -> tuple[bool, str]:
+        if not metadata:
+            return False, "Veri metadata bilgisi yok; sinyal üretilmedi."
+        status = str(metadata.get("status", "")).lower()
+        is_real = bool(metadata.get("is_real", False))
+        source = str(metadata.get("source") or metadata.get("provider_name") or "")
+        if not is_real:
+            return False, f"{source or 'Veri kaynağı'} gerçek veri olarak işaretlenmedi."
+        if status not in {"ok", "live"}:
+            return False, f"Veri durumu güvenli değil: {status or 'bilinmiyor'}."
+        return True, ""
+
+    async def evaluate(
+        self,
+        symbol: str,
+        interval: str,
+        bars: list[dict[str, Any]],
+        metadata: dict[str, Any] | None = None,
+    ) -> None:
         """Worker ``on_bar`` hook entry point.
 
         ``bars`` worker'ın az önce yazdığı son barlardır. Cache'in tamamı
@@ -157,6 +178,13 @@ class SignalGenerator:
         kadarını okuruz.
         """
         del bars  # bilgi amaçlı; cache zaten güncel
+        ok, reason = self._trusted_metadata(metadata)
+        if not ok:
+            self.skipped_untrusted += 1
+            self.last_skip_reason = reason
+            self.evaluated_count += 1
+            logger.warning("signal_generator: %s %s/%s", reason, symbol, interval)
+            return
         try:
             await self._run_in_executor(symbol, interval)
             self.evaluated_count += 1
@@ -294,6 +322,8 @@ class SignalGenerator:
             "signals_emitted": self.signal_count,
             "errors": self.error_count,
             "last_error": self.last_error,
+            "skipped_untrusted": self.skipped_untrusted,
+            "last_skip_reason": self.last_skip_reason,
             "strategies": self._strategy_names(),
         }
 

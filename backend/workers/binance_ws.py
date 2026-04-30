@@ -9,7 +9,7 @@ mesajı browser'a ayrı kanal üzerinden gidecek).
 Reconnect: ``websockets.connect`` exception fırlatırsa exponential backoff
 (``1s → 30s`` üst sınır). Stop tetiklenirse loop sessiz çıkar.
 
-API anahtarı yok, public stream — ``stream.binance.com:9443``.
+API anahtarı yok, public market-data stream — ``data-stream.binance.vision``.
 """
 
 from __future__ import annotations
@@ -28,7 +28,7 @@ from backend.workers.base import AsyncWorker, _utc_iso
 logger = logging.getLogger(__name__)
 
 # (symbol, interval, [bar]) — fan-out hook'u; testlerde mock'lanır.
-BarHook = Callable[[str, str, list[dict[str, Any]]], Awaitable[None] | None]
+BarHook = Callable[..., Awaitable[None] | None]
 
 
 class BinanceKlineWorker(AsyncWorker):
@@ -38,7 +38,7 @@ class BinanceKlineWorker(AsyncWorker):
     sınıf ``run_forever``'ı override eder.
     """
 
-    BASE_URL = "wss://stream.binance.com:9443/stream"
+    BASE_URL = "wss://data-stream.binance.vision/stream"
     PING_INTERVAL = 20.0
     PING_TIMEOUT = 20.0
     INITIAL_BACKOFF = 1.0
@@ -149,6 +149,16 @@ class BinanceKlineWorker(AsyncWorker):
         self._last_run_ok = _utc_iso()
         if self.on_bar is not None:
             try:
+                metadata = {
+                    "source": "Binance Spot Public WebSocket",
+                    "is_real": True,
+                    "status": "ok",
+                    "provider_name": "binance_ws",
+                }
+                result = self.on_bar(symbol, self.interval, [bar], metadata)
+                if asyncio.iscoroutine(result):
+                    await result
+            except TypeError:
                 result = self.on_bar(symbol, self.interval, [bar])
                 if asyncio.iscoroutine(result):
                     await result

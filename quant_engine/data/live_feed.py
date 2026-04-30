@@ -13,6 +13,7 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
+from quant_engine.data.provider_router import ProviderRouter
 from quant_engine.workspace.json_store import WorkspaceJsonStore
 
 
@@ -173,6 +174,7 @@ class LiveDataService:
     def __init__(self, timeout: int = 15):
         self.timeout = timeout
         self._ccxt_exchange = None
+        self._provider_router = ProviderRouter()
 
     def fetch_chart(self, symbol: str, limit: int = 180) -> dict[str, Any]:
         spec = resolve_symbol(symbol)
@@ -247,6 +249,20 @@ class LiveDataService:
                 symbol=s, display_name=f"{base}/USDT",
                 provider="ccxt", source_symbol=f"{base}/USDT",
                 source="Binance Public API", market="crypto",
+            )
+
+        if (
+            s.startswith("VIOP:")
+            or s.startswith("F_")
+            or s.startswith("O_")
+            or s.startswith("VIP-")
+            or s.startswith("VIOP_")
+        ):
+            return SymbolSpec(
+                symbol=s, display_name=s.replace("VIOP:", ""),
+                provider="viop", source_symbol=s,
+                source="Borsa İstanbul VİOP lisanslı/veri sağlayıcı bağlantısı yok",
+                market="viop",
             )
 
         if s.endswith("=X"):
@@ -326,11 +342,22 @@ class LiveDataService:
             }
 
         try:
-            if spec.provider == "ccxt":
-                return self._fetch_crypto_candles(spec, interval, safe_limit)
-            return self._fetch_yfinance_candles(spec, interval, safe_limit)
+            result = self._provider_router.fetch_candles(
+                spec.symbol,
+                timeframe=interval,
+                limit=safe_limit,
+            )
+            return result.to_legacy_payload()
         except Exception as exc:
             return self._error_payload(spec, str(exc))
+
+    def provider_health(self) -> dict[str, Any]:
+        """Veri sağlayıcı sağlık bilgisini API için JSON'a hazır döndür."""
+        return {
+            "status": "ok",
+            "fetched_at": iso_utc(),
+            "providers": [h.to_dict() for h in self._provider_router.health()],
+        }
 
     def _fetch_crypto_candles(
         self, spec: SymbolSpec, interval: str, limit: int
