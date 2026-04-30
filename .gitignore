@@ -28,6 +28,7 @@ data/runtime/
 
 # Loglar
 logs/
+.claude/agent-logs/
 
 # OS
 .DS_Store

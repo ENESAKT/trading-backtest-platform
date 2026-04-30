@@ -397,7 +397,7 @@ class DataValidator:
         if "close" not in df.columns or len(df) < 2:
             return
 
-        returns = df["close"].pct_change().abs() * 100
+        returns = df["close"].pct_change(fill_method=None).abs() * 100
         outliers = returns[
             returns > self.max_daily_change_pct
         ]
