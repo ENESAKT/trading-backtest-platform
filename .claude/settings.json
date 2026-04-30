@@ -24,20 +24,35 @@
   "hooks": {
     "SessionStart": [
       {
-        "command": "./.claude/hooks/check-services.sh",
-        "description": "Gateway, cache ve planlama durumunu kontrol et"
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "./.claude/hooks/check-services.sh"
+          }
+        ]
       }
     ],
     "Stop": [
       {
-        "command": "./.claude/hooks/auto-recap.sh",
-        "description": "Oturum sonunda session-recap.md oluştur"
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "./.claude/hooks/auto-recap.sh"
+          }
+        ]
       }
     ],
     "SubagentStop": [
       {
-        "command": "./.claude/hooks/persist-agent-output.sh",
-        "description": "Agent çıktısını .claude/agent-logs/ altına kaydet"
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "./.claude/hooks/persist-agent-output.sh"
+          }
+        ]
       }
     ]
   }
