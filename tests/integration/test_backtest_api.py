@@ -13,8 +13,10 @@ from fastapi.testclient import TestClient
 
 from backend.api.main import create_app
 from backend.api.quote_bus import QuoteBus
+from backend.backtest.archive import BacktestArchive
 from backend.data.cache import OHLCVCache
 from backend.workers import WorkerSupervisor
+from quant_engine.strategy.persistence import StrategyStore
 
 
 class _NoopDataService:
@@ -56,6 +58,8 @@ def _build_client(tmp_path) -> tuple[TestClient, OHLCVCache]:
         data_service=_NoopDataService(),
         supervisor=WorkerSupervisor([]),
         quote_bus=QuoteBus(),
+        backtest_archive=BacktestArchive(tmp_path / "reports.sqlite3"),
+        strategy_store=StrategyStore(tmp_path / "strategies.sqlite3"),
     )
     return TestClient(app), cache
 
@@ -112,9 +116,107 @@ def test_backtest_run_returns_metrics_and_curve(tmp_path):
     if body["trades"]:
         trade = body["trades"][0]
         assert trade["entry_price"] > 0
-        # Her tamamlanmış trade için signals iki kayıt yayınlamalı.
-        assert len(body["signals"]) == 2 * len(body["trades"])
+        # Fill tabanlı marker listesi tamamlanmış trade'leri kapsamalı.
+        assert len(body["signals"]) >= 2 * len(body["trades"])
         assert {s["type"] for s in body["signals"]} <= {"BUY", "SELL"}
+    assert body["run_id"]
+
+
+def test_backtest_v2_strategy_spec_short_and_archive_export(tmp_path):
+    client, cache = _build_client(tmp_path)
+    _populate_cache(cache, "BTCUSDT", "1d", n=180)
+
+    resp = client.post(
+        "/api/backtest/run",
+        json={
+            "symbol": "BTCUSDT",
+            "interval": "1d",
+            "capital": 100_000,
+            "commission_rate": 0.001,
+            "slippage_bps": 2,
+            "max_position_pct": 0.3,
+            "allow_short": True,
+            "source_mode": "cache_only",
+            "strategy_spec": {
+                "name": "EMA dönüş",
+                "rules": {
+                    "long_entry": "CROSS_UP(EMA(C,5), EMA(C,20))",
+                    "long_exit": "CROSS_DOWN(EMA(C,5), EMA(C,20))",
+                    "short_entry": "CROSS_DOWN(EMA(C,5), EMA(C,20))",
+                    "short_exit": "CROSS_UP(EMA(C,5), EMA(C,20))",
+                },
+                "risk": {"stop_loss_pct": 3, "take_profit_pct": 8},
+            },
+        },
+    )
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["strategy_id"] == "strategy_spec"
+    assert body["metrics"]["final_equity"] > 0
+    assert {"BUY", "SELL", "SHORT", "COVER"} & {s["type"] for s in body["signals"]}
+
+    listed = client.get("/api/backtest/reports").json()["reports"]
+    assert any(r["id"] == body["run_id"] for r in listed)
+
+    exported = client.get(
+        f"/api/backtest/reports/{body['run_id']}/export",
+        params={"format": "trades_csv"},
+    )
+    assert exported.status_code == 200
+    assert "entry_price" in exported.text
+
+
+def test_backtest_v2_csv_import_validates_and_runs(tmp_path):
+    client, _ = _build_client(tmp_path)
+    rows = ["time,open,high,low,close,volume"]
+    for i in range(80):
+        close = 100 + i * 0.8
+        rows.append(
+            f"{1_700_000_000 + i * 86_400},{close},{close + 1},{close - 1},{close},{1000 + i}"
+        )
+    resp = client.post(
+        "/api/backtest/run",
+        json={
+            "symbol": "CSVTEST",
+            "interval": "1d",
+            "source_mode": "csv_import",
+            "csv_text": "\n".join(rows),
+            "strategy_spec": {
+                "rules": {
+                    "long_entry": "C > EMA(C,10)",
+                    "long_exit": "C < EMA(C,10)",
+                },
+            },
+        },
+    )
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["data_source"]["source"] == "csv_import"
+
+
+def test_backtest_v2_csv_import_rejects_unsorted_rows(tmp_path):
+    client, _ = _build_client(tmp_path)
+    rows = ["time,open,high,low,close,volume"]
+    for i in range(80):
+        close = 100 + i * 0.8
+        ts = 1_700_000_000 + (80 - i) * 86_400
+        rows.append(f"{ts},{close},{close + 1},{close - 1},{close},{1000 + i}")
+    resp = client.post(
+        "/api/backtest/run",
+        json={
+            "symbol": "CSVTEST",
+            "interval": "1d",
+            "source_mode": "csv_import",
+            "csv_text": "\n".join(rows),
+            "strategy_spec": {
+                "rules": {
+                    "long_entry": "C > EMA(C,10)",
+                    "long_exit": "C < EMA(C,10)",
+                },
+            },
+        },
+    )
+    assert resp.status_code == 400
+    assert "tarih sırası" in resp.json()["detail"]
 
 
 def test_backtest_run_rejects_unknown_strategy(tmp_path):

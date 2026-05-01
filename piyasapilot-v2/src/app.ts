@@ -1,4 +1,4 @@
-import type { Timeframe, DataUpdateEvent, PriceUpdateEvent } from './types.js';
+import type { Timeframe, DataUpdateEvent, PriceUpdateEvent, SymbolInfo } from './types.js';
 import { dataEngine } from './core/DataEngine.js';
 import { PortfolioEngine } from './core/PortfolioEngine.js';
 import { MultiChartLayout, type LayoutMode } from './components/MultiChartLayout.js';
@@ -7,6 +7,7 @@ import { PortfolioPanel } from './components/PortfolioPanel.js';
 import { StrategyPanel } from './components/StrategyPanel.js';
 import { Screener } from './components/Screener.js';
 import { SignalFeed } from './components/SignalFeed.js';
+import { EgitimlerPanel } from './components/EgitimlerPanel.js';
 import { TR, formatAgo } from './constants/tr.js';
 
 // ─── App shell elements ───────────────────────────────────────────────────────
@@ -20,8 +21,8 @@ const tabBtns      = document.querySelectorAll<HTMLElement>('[data-tab]');
 const topbarRight  = document.querySelector<HTMLElement>('.topbar-right')!;
 const LS_START_TAB = 'piyasapilot_start_tab';
 const LS_LAST_TAB  = 'piyasapilot_last_tab';
-type AppTab = 'chart' | 'portfolio' | 'strategy' | 'screener' | 'signals';
-const TABS: AppTab[] = ['chart', 'portfolio', 'strategy', 'screener', 'signals'];
+type AppTab = 'chart' | 'portfolio' | 'strategy' | 'screener' | 'signals' | 'education';
+const TABS: AppTab[] = ['chart', 'portfolio', 'strategy', 'screener', 'signals', 'education'];
 
 function isAppTab(value: string | null): value is AppTab {
   return !!value && TABS.includes(value as AppTab);
@@ -43,6 +44,7 @@ const portfolioEl = createPanel('panel-portfolio');
 const strategyEl  = createPanel('panel-strategy');
 const screenerEl  = createPanel('panel-screener');
 const signalsEl   = createPanel('panel-signals');
+const educationEl = createPanel('panel-education');
 
 const startTabSelect = document.createElement('select');
 startTabSelect.id = 'start-tab-select';
@@ -54,6 +56,7 @@ startTabSelect.innerHTML = `
   <option value="strategy">Açılış: Strateji</option>
   <option value="screener">Açılış: Tarayıcı</option>
   <option value="signals">Açılış: Sinyaller</option>
+  <option value="education">Açılış: Eğitimler</option>
 `;
 topbarRight.prepend(startTabSelect);
 
@@ -64,12 +67,31 @@ const sidebar         = new Sidebar(sidebarEl);
 const multiChart      = new MultiChartLayout(chartEl);
 const portfolioPanel  = new PortfolioPanel(portfolioEl, portfolioEngine);
 const strategyPanel   = new StrategyPanel(strategyEl);
+const educationPanel  = new EgitimlerPanel(educationEl, {
+  onOpenChartIndicator: (indicator) => {
+    showTab('chart');
+    multiChart.setActivePaneIndicator(indicator, true);
+  },
+  onOpenStrategy: (strategyId) => {
+    showTab('strategy');
+    strategyPanel.openBlueprint(strategyId);
+  },
+});
+void educationPanel;
 // Screener is self-contained; reference kept to prevent GC
 const _screener = new Screener(screenerEl, () => dataEngine.getAllCached());
 void _screener;
 // SignalFeed connects on instantiation; reference kept to prevent GC
 const _signalFeed = new SignalFeed(signalsEl);
 void _signalFeed;
+
+async function openSymbol(info: SymbolInfo): Promise<void> {
+  symbolTitle.textContent = `${info.name} (${info.symbol})`;
+  sidebar.setActiveSymbol(info.symbol);
+  multiChart.clearSignals();
+  await multiChart.setActivePaneSymbol(info);
+  await dataEngine.setActiveSymbol(info);
+}
 
 // ─── Tab routing ──────────────────────────────────────────────────────────────
 
@@ -81,6 +103,7 @@ function showTab(tab: string, persist = true): void {
   strategyEl.style.display  = tab === 'strategy'  ? 'flex' : 'none';
   screenerEl.style.display  = tab === 'screener'  ? 'flex' : 'none';
   signalsEl.style.display   = tab === 'signals'   ? 'flex' : 'none';
+  educationEl.style.display = tab === 'education' ? 'flex' : 'none';
   if (persist) localStorage.setItem(LS_LAST_TAB, tab);
 
   // Trigger backtest when strategy tab becomes visible
@@ -114,7 +137,7 @@ const initialTab: AppTab = isAppTab(savedStartTab)
 startTabSelect.value = initialTab;
 showTab(initialTab, false);
 
-// ─── Keyboard shortcuts (1–5 = tabs, F = fullscreen, G = cycle layout) ──────
+// ─── Keyboard shortcuts (1–6 = tabs, F = fullscreen, G = cycle layout) ──────
 
 document.addEventListener('keydown', (e) => {
   if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement) return;
@@ -124,6 +147,7 @@ document.addEventListener('keydown', (e) => {
     case '3': showTab('strategy');  break;
     case '4': showTab('screener');  break;
     case '5': showTab('signals');   break;
+    case '6': showTab('education'); break;
     case 'g':
     case 'G': {
       // Layout döngüsü: 1x1 → 1x2 → 2x2 → 1x1
@@ -149,15 +173,7 @@ chartEl.addEventListener('timeframeChange', (e) => {
 
 // ─── Symbol selection from Sidebar ───────────────────────────────────────────
 
-sidebar.onSymbolSelect(async (info) => {
-  symbolTitle.textContent = `${info.name} (${info.symbol})`;
-  sidebar.setActiveSymbol(info.symbol);
-  // Aktif pane'in sembolünü değiştir
-  multiChart.clearSignals();
-  await multiChart.setActivePaneSymbol(info);
-  // Ana DataEngine'i de güncelle (portfolio ve screener için)
-  await dataEngine.setActiveSymbol(info);
-});
+sidebar.onSymbolSelect(openSymbol);
 
 // Aktif pane değiştiğinde sembol başlığını güncelle
 multiChart.onActivePaneChange(() => {
@@ -181,8 +197,16 @@ multiChart.onSymbolChange((_paneId, info) => {
   }
 });
 
-// Strateji panelinin ürettiği BUY/SELL sinyallerini aktif pane'in chart'ına çiz.
+// Strateji panelinin ürettiği marker'ları aktif pane'in chart'ına çiz.
 strategyPanel.onSignalsUpdate(signals => multiChart.setSignals(signals));
+strategyPanel.onFocusTime(timestamp => {
+  showTab('chart');
+  multiChart.focusActivePaneTime(timestamp);
+});
+strategyPanel.onSymbolSelect(info => {
+  showTab('chart');
+  void openSymbol(info);
+});
 
 // ─── Data Engine events (sidebar ticker + portfolio + screener) ──────────────
 

@@ -55,6 +55,7 @@ class Order:
     execution_timestamp: Optional[dt.datetime] = None
     status: OrderStatus = OrderStatus.PENDING
     order_id: str = ""
+    intent: str = ""
 
 
 @dataclass
@@ -117,6 +118,8 @@ class CompletedTrade:
     @property
     def gross_pnl(self) -> float:
         """Brüt kar/zarar (komisyon/slippage öncesi)."""
+        if self.side == OrderSide.SELL:
+            return (self.entry_price - self.exit_price) * self.quantity
         return (self.exit_price - self.entry_price) * self.quantity
 
     @property

@@ -53,6 +53,7 @@ class BacktestConfig:
     slippage_bps: int = 5
     max_position_pct: float = 0.20
     warm_up_bars: int = 0
+    allow_short: bool = False
 
 
 @dataclass
@@ -414,6 +415,335 @@ class BacktestEngine:
         )
 
         return result
+
+    def run_intents(
+        self,
+        data: pd.DataFrame,
+        intent_func,
+        symbol: str = "UNKNOWN",
+    ) -> BacktestResult:
+        """
+        Trade intent modeliyle backtest çalıştır.
+
+        ``intent_func`` dönüşleri:
+            BUY, SELL, SHORT, COVER, HOLD, CONFLICT
+
+        Eski ``run`` metodu geriye uyumluluk için long-only ``+1/-1`` akışını
+        korur; bu metot Sprint 12 ``strategy_spec`` ve short simülasyonu için
+        kullanılır.
+        """
+        if data.empty or len(data) < 2:
+            logger.error("Yetersiz veri!")
+            return BacktestResult()
+
+        data = data.sort_values("date").reset_index(drop=True)
+
+        portfolio = Portfolio(initial_capital=self.config.initial_capital)
+        result = BacktestResult()
+        peak_equity = self.config.initial_capital
+        pending_intent = "HOLD"
+        pending_signal_bar = -1
+        pending_reason = ""
+
+        open_long_fills: dict[str, Fill] = {}
+        open_short_fills: dict[str, Fill] = {}
+
+        logger.info(
+            f"🚀 Intent Backtest: {symbol} | "
+            f"{len(data)} bar | "
+            f"₺{self.config.initial_capital:,.0f} sermaye"
+        )
+
+        for i in range(len(data)):
+            bar = data.iloc[i]
+            current_price = float(bar["close"])
+            current_open = float(bar["open"])
+            prices = {symbol: current_price}
+            bar_date = pd.Timestamp(bar["date"])
+
+            if i > 0 and pending_intent != "HOLD":
+                signal_bar = data.iloc[pending_signal_bar]
+                signal_date = pd.Timestamp(signal_bar["date"])
+
+                fill = self._execute_intent(
+                    pending_intent,
+                    symbol,
+                    current_open,
+                    portfolio,
+                    prices,
+                    bar_index=i,
+                    signal_bar_index=pending_signal_bar,
+                    signal_date=signal_date,
+                    execution_date=bar_date,
+                    reason=pending_reason,
+                )
+                if fill:
+                    portfolio.process_fill(fill)
+                    result.orders.append(fill.order)
+                    result.fills.append(fill)
+
+                    if fill.order.intent == "BUY":
+                        open_long_fills[symbol] = fill
+                    elif fill.order.intent == "SELL":
+                        buy_fill = open_long_fills.pop(symbol, None)
+                        if buy_fill:
+                            result.trades.append(
+                                CompletedTrade(
+                                    symbol=symbol,
+                                    entry_date=buy_fill.fill_timestamp,
+                                    exit_date=fill.fill_timestamp,
+                                    entry_price=buy_fill.fill_price,
+                                    exit_price=fill.fill_price,
+                                    quantity=buy_fill.fill_quantity,
+                                    side=OrderSide.BUY,
+                                    entry_bar_index=buy_fill.bar_index,
+                                    exit_bar_index=fill.bar_index,
+                                    entry_commission=buy_fill.commission,
+                                    exit_commission=fill.commission,
+                                    entry_slippage_cost=buy_fill.slippage_cost,
+                                    exit_slippage_cost=fill.slippage_cost,
+                                )
+                            )
+                            result.total_trades += 1
+                    elif fill.order.intent == "SHORT":
+                        open_short_fills[symbol] = fill
+                    elif fill.order.intent == "COVER":
+                        short_fill = open_short_fills.pop(symbol, None)
+                        if short_fill:
+                            result.trades.append(
+                                CompletedTrade(
+                                    symbol=symbol,
+                                    entry_date=short_fill.fill_timestamp,
+                                    exit_date=fill.fill_timestamp,
+                                    entry_price=short_fill.fill_price,
+                                    exit_price=fill.fill_price,
+                                    quantity=short_fill.fill_quantity,
+                                    side=OrderSide.SELL,
+                                    entry_bar_index=short_fill.bar_index,
+                                    exit_bar_index=fill.bar_index,
+                                    entry_commission=short_fill.commission,
+                                    exit_commission=fill.commission,
+                                    entry_slippage_cost=short_fill.slippage_cost,
+                                    exit_slippage_cost=fill.slippage_cost,
+                                )
+                            )
+                            result.total_trades += 1
+
+                pending_intent = "HOLD"
+                pending_reason = ""
+
+            if i < self.config.warm_up_bars:
+                intent = "HOLD"
+            else:
+                intent = self._normalize_intent(intent_func(data, i, portfolio))
+
+            if intent == "CONFLICT":
+                result.warnings.append(
+                    f"Bar {i}: Long ve short giriş sinyali aynı anda geldi; "
+                    "işlem reddedildi."
+                )
+                intent = "HOLD"
+
+            if i < len(data) - 1:
+                pending_intent = intent
+                pending_signal_bar = i
+                pending_reason = str(getattr(intent_func, "last_reason", ""))
+            elif intent != "HOLD":
+                result.warnings.append(
+                    f"Son barda sinyal ({intent}) üretildi ama execute edilemedi "
+                    "(sonraki bar yok)."
+                )
+
+            equity = portfolio.total_equity(prices)
+            pos_value = portfolio.total_position_value(prices)
+            expected = portfolio.cash + pos_value
+            if abs(equity - expected) > 0.01:
+                raise RuntimeError(
+                    f"Bar {i}: Portfolio invariant kırıldı! "
+                    f"equity={equity:.2f} != cash+pos={expected:.2f}"
+                )
+
+            if portfolio.cash < -0.01:
+                result.warnings.append(
+                    f"Bar {i}: Negatif nakit! cash={portfolio.cash:.2f}"
+                )
+
+            peak_equity = max(peak_equity, equity)
+            drawdown = peak_equity - equity
+            dd_pct = (drawdown / peak_equity * 100) if peak_equity > 0 else 0.0
+            result.equity_curve.append(
+                EquityPoint(
+                    timestamp=bar_date.to_pydatetime(),
+                    bar_index=i,
+                    cash=portfolio.cash,
+                    position_value=pos_value,
+                    total_equity=equity,
+                    drawdown=drawdown,
+                    drawdown_pct=dd_pct,
+                )
+            )
+
+        final_prices = {symbol: float(data.iloc[-1]["close"])}
+        result.final_equity = portfolio.total_equity(final_prices)
+        result.total_return_pct = (
+            (result.final_equity / self.config.initial_capital - 1) * 100
+        )
+        result.max_drawdown_pct = (
+            max(ep.drawdown_pct for ep in result.equity_curve)
+            if result.equity_curve
+            else 0.0
+        )
+        result.total_commission = portfolio.total_commission
+
+        position = portfolio.get_or_create_position(symbol)
+        if position.is_open:
+            result.has_open_position = True
+            side = "short" if position.quantity < 0 else "long"
+            result.warnings.append(
+                f"Açık {side} pozisyon kaldı: {position.quantity}x {symbol} @ "
+                f"avg_entry={position.avg_entry_price:.2f} — final equity'de "
+                "piyasa değeriyle değerlendi."
+            )
+
+        if len(result.equity_curve) > 1:
+            equities = [ep.total_equity for ep in result.equity_curve]
+            returns = pd.Series(equities).pct_change().dropna()
+            if returns.std() > 0:
+                result.sharpe_ratio = (returns.mean() / returns.std()) * (252**0.5)
+
+        if result.trades:
+            winners = sum(1 for t in result.trades if t.is_winner)
+            result.win_rate = winners / len(result.trades)
+
+        if self.config.allow_short and symbol.endswith(".IS"):
+            result.warnings.append(
+                "BIST short işlemleri yalnızca simülasyon etiketiyle raporlanır; "
+                "gerçek piyasa uygunluğu garanti edilmez."
+            )
+
+        logger.success(
+            f"✅ Intent backtest tamamlandı: ₺{result.final_equity:,.0f} "
+            f"({result.total_return_pct:+.2f}%) | "
+            f"Max DD: {result.max_drawdown_pct:.2f}%"
+        )
+
+        return result
+
+    def _normalize_intent(self, value) -> str:
+        if isinstance(value, str):
+            upper = value.upper()
+            if upper in {"BUY", "SELL", "SHORT", "COVER", "HOLD", "CONFLICT"}:
+                if upper == "SHORT" and not self.config.allow_short:
+                    return "HOLD"
+                return upper
+            return "HOLD"
+        try:
+            ivalue = int(value)
+        except (TypeError, ValueError):
+            return "HOLD"
+        if ivalue > 0:
+            return "BUY"
+        if ivalue < 0:
+            return "SELL"
+        return "HOLD"
+
+    def _execute_intent(
+        self,
+        intent: str,
+        symbol: str,
+        open_price: float,
+        portfolio: Portfolio,
+        prices: dict[str, float],
+        bar_index: int,
+        signal_bar_index: int,
+        signal_date: pd.Timestamp,
+        execution_date: pd.Timestamp,
+        reason: str = "",
+    ) -> Fill | None:
+        """Trade intent'i market fill'e çevir."""
+        position = portfolio.get_or_create_position(symbol)
+        actual_intent = intent
+
+        if intent == "BUY":
+            if position.quantity < 0:
+                side = OrderSide.BUY
+                quantity = abs(position.quantity)
+                actual_intent = "COVER"
+            elif not position.is_open:
+                side = OrderSide.BUY
+                fill_price = self._calculate_slippage(open_price, side)
+                quantity = self._calculate_position_size(portfolio, fill_price, prices)
+                if quantity <= 0:
+                    return None
+            else:
+                return None
+        elif intent == "SELL":
+            if position.quantity > 0:
+                side = OrderSide.SELL
+                quantity = position.quantity
+            else:
+                return None
+        elif intent == "SHORT":
+            if not self.config.allow_short:
+                return None
+            if position.quantity > 0:
+                side = OrderSide.SELL
+                quantity = position.quantity
+                actual_intent = "SELL"
+            elif not position.is_open:
+                side = OrderSide.SELL
+                fill_price = self._calculate_slippage(open_price, side)
+                quantity = self._calculate_position_size(portfolio, fill_price, prices)
+                if quantity <= 0:
+                    return None
+            else:
+                return None
+        elif intent == "COVER":
+            if position.quantity < 0:
+                side = OrderSide.BUY
+                quantity = abs(position.quantity)
+            else:
+                return None
+        else:
+            return None
+
+        fill_price = self._calculate_slippage(open_price, side)
+        commission = self._calculate_commission(fill_price, quantity)
+        per_unit_slippage = abs(fill_price - open_price)
+        slippage_cost = per_unit_slippage * quantity
+
+        order = Order(
+            symbol=symbol,
+            side=side,
+            quantity=quantity,
+            order_type=OrderType.MARKET,
+            signal_bar_index=signal_bar_index,
+            signal_timestamp=signal_date.to_pydatetime(),
+            execution_bar_index=bar_index,
+            execution_timestamp=execution_date.to_pydatetime(),
+            status=OrderStatus.FILLED,
+            order_id=f"{symbol}_{bar_index}_{actual_intent}",
+            intent=actual_intent,
+        )
+
+        fill = Fill(
+            order=order,
+            fill_price=fill_price,
+            fill_quantity=quantity,
+            commission=commission,
+            slippage=per_unit_slippage,
+            slippage_cost=slippage_cost,
+            fill_timestamp=execution_date.to_pydatetime(),
+            bar_index=bar_index,
+        )
+
+        logger.debug(
+            f"📊 {execution_date:%Y-%m-%d} | {actual_intent} {quantity}x "
+            f"{symbol} @ {fill_price:.2f} | Komisyon: ₺{commission:.2f} | "
+            f"Sinyal: {signal_date:%Y-%m-%d} | {reason}"
+        )
+
+        return fill
 
     def _execute_signal(
         self,

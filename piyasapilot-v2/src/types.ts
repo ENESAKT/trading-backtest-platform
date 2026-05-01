@@ -3,7 +3,18 @@
 export type AssetType = 'equity' | 'fx' | 'crypto' | 'commodity' | 'derivative';
 export type Timeframe = '1m' | '5m' | '15m' | '30m' | '1h' | '4h' | '1d' | '1w';
 export type ChartType = 'candlestick' | 'line' | 'bar';
+export type ChartDataRenderReason = 'initial' | 'symbol' | 'timeframe' | 'append';
+export type ChartDataStatus = 'idle' | 'loading' | 'ready' | 'empty' | 'error';
 export type ConnectionStatus = 'live' | 'delayed' | 'offline';
+
+export interface ChartViewOptions {
+  reason?: ChartDataRenderReason;
+  symbol?: string;
+  timeframe?: Timeframe;
+  preserveTimeRange?: boolean;
+  status?: ChartDataStatus;
+  message?: string;
+}
 
 // ─── OHLCV ────────────────────────────────────────────────────────────────────
 
@@ -61,24 +72,39 @@ export interface IndicatorSet {
 // ─── Strategy & Signals ───────────────────────────────────────────────────────
 
 export interface Signal {
-  type: 'BUY' | 'SELL' | 'HOLD';
+  type: 'BUY' | 'SELL' | 'SHORT' | 'COVER' | 'HOLD';
   reason: string;
   price: number;
   timestamp: number;
   strength: number;   // 1–10
+  quantity?: number;
+  bar_index?: number;
+  pnl?: number | null;
+  equity?: number | null;
+  open_position?: boolean;
 }
 
 // Backend ``POST /api/backtest/run`` payload — Sprint 3.4'te frontend
 // doğrudan API'den dönen JSON'u tüketir (eski TS-içi backtest sökündü).
 
 export interface BacktestMetrics {
+  initial_capital?: number;
   final_equity: number;
+  net_pnl?: number;
   total_return_pct: number;
+  annualized_return_pct?: number;
   max_drawdown_pct: number;
   total_trades: number;
   total_commission: number;
+  total_slippage?: number;
   sharpe_ratio: number;
   win_rate: number;
+  profit_factor?: number;
+  best_trade?: number;
+  worst_trade?: number;
+  avg_win?: number;
+  avg_loss?: number;
+  benchmark_return_pct?: number;
   has_open_position: boolean;
 }
 
@@ -89,10 +115,14 @@ export interface EquityPoint {
   position_value: number;
   total_equity: number;
   drawdown: number;
+  drawdown_pct?: number;
 }
 
 export interface BacktestTrade {
   symbol: string;
+  side?: 'LONG' | 'SHORT';
+  entry_type?: 'BUY' | 'SHORT';
+  exit_type?: 'SELL' | 'COVER';
   entry_time: number;
   exit_time: number;
   entry_price: number;
@@ -101,15 +131,59 @@ export interface BacktestTrade {
   net_pnl: number;
   return_pct: number;
   is_winner: boolean;
+  commission?: number;
+  slippage_cost?: number;
+  entry_bar_index?: number;
+  exit_bar_index?: number;
+}
+
+export interface StrategySpec {
+  name?: string;
+  note?: string;
+  rules: {
+    long_entry?: string;
+    long_exit?: string;
+    short_entry?: string;
+    short_exit?: string;
+  };
+  risk?: {
+    stop_loss_pct?: number;
+    take_profit_pct?: number;
+    trailing_stop_pct?: number;
+  };
 }
 
 export interface BacktestResult {
+  run_id?: string;
+  title?: string;
+  generated_at?: string;
   symbol: string;
   interval: string;
+  last_price?: number;
   strategy_id: string;
+  strategy_name?: string;
   params: Record<string, unknown>;
+  strategy_spec?: StrategySpec | null;
   capital: number;
   lookback_bars: number;
+  source_mode?: string;
+  date_range?: {
+    start?: number | null;
+    end?: number | null;
+    start_iso?: string;
+    end_iso?: string;
+  };
+  data_source?: {
+    source?: string;
+    provider_name?: string;
+    is_real?: boolean;
+    status?: string;
+    data_coverage_pct?: number;
+    bar_count?: number;
+  };
+  summary_text?: string;
+  assumptions?: Record<string, unknown>;
+  warnings?: string[];
   metrics: BacktestMetrics;
   equity_curve: EquityPoint[];
   trades: BacktestTrade[];

@@ -1,5 +1,7 @@
 # İlerleme Raporu — PiyasaPilot v2
 
+> Arşiv notu: Bu dosya tarihsel ilerleme snapshot'ıdır. Güncel yürütme sırası için `genelplanlama.md`, plan index'i için `planlama.md` esas alınır.
+>
 > **Tarih:** 2026-04-30
 > **Branch:** `main`
 > **Tek doğruluk kaynağı:** `planlama.md`.

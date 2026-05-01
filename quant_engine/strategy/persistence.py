@@ -47,6 +47,20 @@ class StrategyRecord:
     checksum: str
 
 
+@dataclass(frozen=True)
+class PaperActivation:
+    id: int
+    uid: str
+    strategy_record_id: int
+    report_id: str
+    symbol: str
+    interval: str
+    active: bool
+    created_at: str
+    updated_at: str
+    warnings: list[str]
+
+
 class StrategyStore:
     """Append-only SQLite store for user strategy configurations."""
 
@@ -84,6 +98,29 @@ class StrategyStore:
                 """
                 CREATE INDEX IF NOT EXISTS idx_strategy_records_created
                 ON strategy_records(created_at DESC)
+                """
+            )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS paper_strategy_activations (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    uid TEXT NOT NULL UNIQUE,
+                    strategy_record_id INTEGER NOT NULL,
+                    report_id TEXT NOT NULL DEFAULT '',
+                    symbol TEXT NOT NULL,
+                    interval TEXT NOT NULL,
+                    active INTEGER NOT NULL DEFAULT 1,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL,
+                    warnings_json TEXT NOT NULL DEFAULT '[]',
+                    FOREIGN KEY(strategy_record_id) REFERENCES strategy_records(id)
+                )
+                """
+            )
+            conn.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idx_paper_strategy_activations_active
+                ON paper_strategy_activations(active, symbol, interval)
                 """
             )
 
@@ -174,6 +211,76 @@ class StrategyStore:
             return None
         return self._row_to_record(row)
 
+    def activate_paper(
+        self,
+        *,
+        strategy_record_id: int,
+        report_id: str = "",
+        symbol: str,
+        interval: str,
+        warnings: list[str] | None = None,
+    ) -> PaperActivation:
+        if self.get_strategy(strategy_record_id) is None:
+            raise ValueError("Strateji kaydı bulunamadı.")
+        now = _utc_now_iso()
+        uid = str(uuid.uuid4())
+        with self._connect() as conn:
+            cursor = conn.execute(
+                """
+                INSERT INTO paper_strategy_activations (
+                    uid, strategy_record_id, report_id, symbol, interval,
+                    active, created_at, updated_at, warnings_json
+                )
+                VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?)
+                """,
+                [
+                    uid,
+                    int(strategy_record_id),
+                    report_id,
+                    symbol.upper().strip(),
+                    interval,
+                    now,
+                    now,
+                    _stable_json(warnings or []),
+                ],
+            )
+            activation_id = int(cursor.lastrowid)
+        return PaperActivation(
+            id=activation_id,
+            uid=uid,
+            strategy_record_id=int(strategy_record_id),
+            report_id=report_id,
+            symbol=symbol.upper().strip(),
+            interval=interval,
+            active=True,
+            created_at=now,
+            updated_at=now,
+            warnings=list(warnings or []),
+        )
+
+    def deactivate_paper(self, activation_id: int) -> bool:
+        now = _utc_now_iso()
+        with self._connect() as conn:
+            cursor = conn.execute(
+                """
+                UPDATE paper_strategy_activations
+                SET active = 0, updated_at = ?
+                WHERE id = ?
+                """,
+                [now, int(activation_id)],
+            )
+        return bool(cursor.rowcount)
+
+    def list_paper_activations(self, active_only: bool = False) -> list[PaperActivation]:
+        sql = "SELECT * FROM paper_strategy_activations"
+        args: list[Any] = []
+        if active_only:
+            sql += " WHERE active = 1"
+        sql += " ORDER BY updated_at DESC, id DESC"
+        with self._connect() as conn:
+            rows = conn.execute(sql, args).fetchall()
+        return [self._row_to_activation(row) for row in rows]
+
     @staticmethod
     def _row_to_record(row: sqlite3.Row) -> StrategyRecord:
         return StrategyRecord(
@@ -189,4 +296,19 @@ class StrategyStore:
             notes=str(row["notes"]),
             created_at=str(row["created_at"]),
             checksum=str(row["checksum"]),
+        )
+
+    @staticmethod
+    def _row_to_activation(row: sqlite3.Row) -> PaperActivation:
+        return PaperActivation(
+            id=int(row["id"]),
+            uid=str(row["uid"]),
+            strategy_record_id=int(row["strategy_record_id"]),
+            report_id=str(row["report_id"]),
+            symbol=str(row["symbol"]),
+            interval=str(row["interval"]),
+            active=bool(row["active"]),
+            created_at=str(row["created_at"]),
+            updated_at=str(row["updated_at"]),
+            warnings=json.loads(row["warnings_json"]),
         )

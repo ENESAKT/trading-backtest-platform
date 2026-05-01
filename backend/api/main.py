@@ -23,10 +23,12 @@ from __future__ import annotations
 
 import asyncio
 import datetime as dt
+import itertools
 import logging
 import os
 import signal
 from contextlib import asynccontextmanager
+from dataclasses import asdict
 from pathlib import Path
 from typing import Any, AsyncIterator
 
@@ -39,11 +41,14 @@ from pydantic import BaseModel, Field
 from backend.api.quote_bus import QuoteBus
 from backend.api.signal_bus import SignalBus
 from backend.backtest import (
+    BacktestArchive,
     BacktestNotEnoughData,
     BacktestRunError,
     UnknownStrategy,
+    equity_csv,
     list_blueprints,
     run_backtest,
+    trades_csv,
 )
 from backend.config import getenv, llm_configured, mask_sensitive, telegram_configured
 from backend.data.cache import OHLCVCache
@@ -66,10 +71,13 @@ from quant_engine.data.live_feed import (
     LiveDataService,
     PaperTradingRecorder,
 )
+from quant_engine.strategy.persistence import StrategyRecord, StrategyStore
 from quant_engine.workspace.json_store import WorkspaceJsonStore
 
 ROOT = Path(__file__).resolve().parents[2]
 _PAPER_DB_PATH = "data/cache/ohlcv.sqlite3"
+_BACKTEST_ARCHIVE_PATH = "data/strategy_lab/backtest_reports.sqlite3"
+_STRATEGY_STORE_PATH = "data/strategy_lab/strategies.sqlite3"
 _logger = logging.getLogger(__name__)
 
 # Cache miss eşiği: cache'teki en yeni bar'dan beri bu süreden uzun zaman
@@ -118,6 +126,57 @@ def _interval_to_seconds(interval: str) -> int:
         "1h": 3600, "4h": 14400, "1d": 86400, "1w": 604800,
     }
     return table.get(interval, 900)
+
+
+def _replace_placeholders(value: Any, replacements: dict[str, Any]) -> Any:
+    """Optimizasyon grid değerlerini ``{fast}`` gibi formül placeholder'larına bas."""
+    if isinstance(value, str):
+        out = value
+        for key, replacement in replacements.items():
+            out = out.replace("{" + str(key) + "}", str(replacement))
+        return out
+    if isinstance(value, dict):
+        return {k: _replace_placeholders(v, replacements) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_replace_placeholders(v, replacements) for v in value]
+    return value
+
+
+def _extract_spec_indicators(strategy_spec: dict[str, Any] | None) -> list[str]:
+    if not strategy_spec:
+        return []
+    known = [
+        "SMA", "EMA", "RSI", "MACD_LINE", "MACD_SIGNAL", "MACD_HIST",
+        "BB_UPPER", "BB_MID", "BB_LOWER", "ATR", "VWAP", "HIGHEST",
+        "LOWEST", "CROSS_UP", "CROSS_DOWN", "BARS_SINCE",
+    ]
+    text = " ".join(
+        str(v)
+        for v in (strategy_spec.get("rules") or {}).values()
+    ).upper()
+    return [name for name in known if name in text]
+
+
+def _strategy_record_payload(record: StrategyRecord) -> dict[str, Any]:
+    payload = asdict(record)
+    payload["strategy_spec"] = record.params.get("strategy_spec")
+    payload["settings"] = record.params.get("settings", {})
+    return payload
+
+
+def _paper_activation_warnings(record: StrategyRecord) -> list[str]:
+    spec = record.params.get("strategy_spec")
+    if not isinstance(spec, dict):
+        return ["Paper aktivasyonu hazır blueprint kayıtları için canlı spec sinyali üretmez."]
+    rules = spec.get("rules") or {}
+    warnings: list[str] = []
+    if rules.get("short_entry") or rules.get("short_exit"):
+        warnings.append(
+            "Paper executor güvenlik nedeniyle short emri üretmez; short kuralları "
+            "yalnızca backtest simülasyonunda kullanılır."
+        )
+    warnings.append("Paper mode simülasyondur; gerçek emir göndermez.")
+    return warnings
 
 
 def _build_default_supervisor(
@@ -190,6 +249,8 @@ def create_app(
     signal_bus: SignalBus | None = None,
     signal_generator: SignalGenerator | None = None,
     paper_executor: PaperExecutor | None = None,
+    backtest_archive: BacktestArchive | None = None,
+    strategy_store: StrategyStore | None = None,
 ) -> FastAPI:
     """FastAPI app factory.
 
@@ -217,6 +278,8 @@ def create_app(
     paper_db = PaperDB(ROOT / _PAPER_DB_PATH)
     paper_db.ensure_tables()
     paper_executor = paper_executor or PaperExecutor(db=paper_db)
+    backtest_archive = backtest_archive or BacktestArchive(ROOT / _BACKTEST_ARCHIVE_PATH)
+    strategy_store = strategy_store or StrategyStore(ROOT / _STRATEGY_STORE_PATH)
 
     if supervisor is None:
         if os.environ.get("PIYASAPILOT_DISABLE_WORKERS") == "1":
@@ -284,6 +347,8 @@ def create_app(
     app.state.signal_generator = signal_generator
     app.state.paper_db = paper_db
     app.state.paper_executor = paper_executor
+    app.state.backtest_archive = backtest_archive
+    app.state.strategy_store = strategy_store
 
     app.add_middleware(
         CORSMiddleware,
@@ -440,21 +505,282 @@ def create_app(
     @app.post("/api/backtest/run")
     def backtest_run(req: BacktestRequest) -> dict[str, Any]:
         try:
-            return run_backtest(
+            result = run_backtest(
                 cache=cache,
+                data_service=data_service,
                 symbol=req.symbol,
                 interval=req.interval,
                 strategy_id=req.strategy_id,
                 params=req.params,
                 capital=req.capital,
                 lookback_bars=req.lookback_bars,
+                start_date=req.start_date,
+                end_date=req.end_date,
+                commission_rate=req.commission_rate,
+                slippage_bps=req.slippage_bps,
+                max_position_pct=req.max_position_pct,
+                allow_short=req.allow_short,
+                source_mode=req.source_mode,
+                strategy_spec=req.strategy_spec,
+                csv_text=req.csv_text,
+                csv_bars=req.csv_bars,
             )
+            run_id = backtest_archive.save(result)
+            result["run_id"] = run_id
+            return result
         except UnknownStrategy as exc:
             raise HTTPException(status_code=400, detail=str(exc))
         except BacktestNotEnoughData as exc:
             raise HTTPException(status_code=409, detail=str(exc))
         except BacktestRunError as exc:
             raise HTTPException(status_code=400, detail=str(exc))
+
+    @app.get("/api/backtest/reports")
+    def backtest_reports(limit: int = 50) -> dict[str, Any]:
+        return {"reports": backtest_archive.list(limit=limit)}
+
+    @app.get("/api/backtest/reports/{run_id}")
+    def backtest_report(run_id: str) -> dict[str, Any]:
+        report = backtest_archive.get(run_id)
+        if report is None:
+            raise HTTPException(status_code=404, detail="Backtest raporu bulunamadı.")
+        return report
+
+    @app.get("/api/backtest/reports/{run_id}/export")
+    def backtest_report_export(run_id: str, format: str = "json") -> Any:
+        report = backtest_archive.get(run_id)
+        if report is None:
+            raise HTTPException(status_code=404, detail="Backtest raporu bulunamadı.")
+        if format == "json":
+            return report
+        if format == "trades_csv":
+            return PlainTextResponse(trades_csv(report), media_type="text/csv")
+        if format == "equity_csv":
+            return PlainTextResponse(equity_csv(report), media_type="text/csv")
+        raise HTTPException(
+            status_code=400,
+            detail="format json, trades_csv veya equity_csv olmalı.",
+        )
+
+    @app.post("/api/backtest/optimize")
+    def backtest_optimize(req: OptimizeRequest) -> dict[str, Any]:
+        grid = req.param_grid or {}
+        if not grid:
+            raise HTTPException(status_code=400, detail="param_grid boş olamaz.")
+        keys = list(grid.keys())
+        values = [list(v) for v in grid.values()]
+        combos = [dict(zip(keys, combo, strict=False)) for combo in itertools.product(*values)]
+        if len(combos) > req.max_combinations:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Kombinasyon sayısı {req.max_combinations} üst sınırını aşıyor.",
+            )
+
+        rows: list[dict[str, Any]] = []
+        errors: list[dict[str, Any]] = []
+        for combo in combos:
+            try:
+                params = dict(req.params)
+                params.update(combo)
+                spec = (
+                    _replace_placeholders(req.strategy_spec, combo)
+                    if req.strategy_spec
+                    else None
+                )
+                result = run_backtest(
+                    cache=cache,
+                    data_service=data_service,
+                    symbol=req.symbol,
+                    interval=req.interval,
+                    strategy_id=req.strategy_id,
+                    params=params,
+                    capital=req.capital,
+                    lookback_bars=req.lookback_bars,
+                    start_date=req.start_date,
+                    end_date=req.end_date,
+                    commission_rate=req.commission_rate,
+                    slippage_bps=req.slippage_bps,
+                    max_position_pct=req.max_position_pct,
+                    allow_short=req.allow_short,
+                    source_mode=req.source_mode,
+                    strategy_spec=spec,
+                )
+                metrics = result["metrics"]
+                score = (
+                    float(metrics["total_return_pct"])
+                    - float(metrics["max_drawdown_pct"]) * 0.7
+                    + min(int(metrics["total_trades"]), 20) * 0.1
+                )
+                warnings = list(result.get("warnings") or [])
+                if int(metrics["total_trades"]) < 2:
+                    warnings.append("Az işlem üretti; sonuç istatistiksel olarak zayıf olabilir.")
+                    score -= 10
+                rows.append({
+                    "params": combo,
+                    "metrics": metrics,
+                    "score": score,
+                    "warnings": warnings,
+                })
+            except Exception as exc:  # noqa: BLE001
+                errors.append({"params": combo, "error": str(exc)})
+
+        rows.sort(key=lambda row: float(row["score"]), reverse=True)
+        return {
+            "symbol": req.symbol.upper(),
+            "interval": req.interval,
+            "results": rows,
+            "errors": errors,
+            "best": rows[0] if rows else None,
+        }
+
+    @app.post("/api/backtest/scan")
+    def backtest_scan(req: ScanRequest) -> dict[str, Any]:
+        rows: list[dict[str, Any]] = []
+        errors: list[dict[str, Any]] = []
+        for symbol in req.symbols[: req.limit]:
+            try:
+                result = run_backtest(
+                    cache=cache,
+                    data_service=data_service,
+                    symbol=symbol,
+                    interval=req.interval,
+                    strategy_id=req.strategy_id,
+                    params=req.params,
+                    capital=req.capital,
+                    lookback_bars=req.lookback_bars,
+                    start_date=req.start_date,
+                    end_date=req.end_date,
+                    commission_rate=req.commission_rate,
+                    slippage_bps=req.slippage_bps,
+                    max_position_pct=req.max_position_pct,
+                    allow_short=req.allow_short,
+                    source_mode=req.source_mode,
+                    strategy_spec=req.strategy_spec,
+                )
+                signals = result.get("signals") or []
+                last_signal = signals[-1] if signals else None
+                metrics = result["metrics"]
+                rows.append({
+                    "symbol": result["symbol"],
+                    "last_price": result.get("last_price"),
+                    "last_signal": last_signal,
+                    "total_return_pct": metrics["total_return_pct"],
+                    "max_drawdown_pct": metrics["max_drawdown_pct"],
+                    "total_trades": metrics["total_trades"],
+                    "score": (
+                        float(metrics["total_return_pct"])
+                        - float(metrics["max_drawdown_pct"]) * 0.7
+                    ),
+                })
+            except Exception as exc:  # noqa: BLE001
+                errors.append({"symbol": symbol, "error": str(exc)})
+        rows.sort(key=lambda row: float(row["score"]), reverse=True)
+        return {"results": rows, "errors": errors}
+
+    @app.get("/api/strategy-lab/strategies")
+    def strategy_lab_list() -> dict[str, Any]:
+        records = strategy_store.list_strategies()
+        return {"strategies": [_strategy_record_payload(r) for r in records]}
+
+    @app.get("/api/strategy-lab/strategies/{record_id}")
+    def strategy_lab_get(record_id: int) -> dict[str, Any]:
+        record = strategy_store.get_strategy(record_id)
+        if record is None:
+            raise HTTPException(status_code=404, detail="Strateji kaydı bulunamadı.")
+        return _strategy_record_payload(record)
+
+    @app.post("/api/strategy-lab/strategies")
+    def strategy_lab_save(req: StrategySaveRequest) -> dict[str, Any]:
+        params = dict(req.params)
+        if req.strategy_spec is not None:
+            params["strategy_spec"] = req.strategy_spec
+        params["settings"] = req.settings
+        record = strategy_store.save_strategy(
+            name=req.name,
+            base_strategy=req.strategy_id or "strategy_spec",
+            params=params,
+            indicators=_extract_spec_indicators(req.strategy_spec),
+            symbol=req.symbol,
+            market=req.market,
+            timeframe=req.interval,
+            notes=req.notes,
+        )
+        return _strategy_record_payload(record)
+
+    @app.post("/api/strategy-lab/strategies/{record_id}/paper/activate")
+    def strategy_lab_activate_paper(record_id: int, req: PaperActivateRequest) -> dict[str, Any]:
+        record = strategy_store.get_strategy(record_id)
+        if record is None:
+            raise HTTPException(status_code=404, detail="Strateji kaydı bulunamadı.")
+        warnings = _paper_activation_warnings(record)
+        activation = strategy_store.activate_paper(
+            strategy_record_id=record_id,
+            report_id=req.report_id,
+            symbol=req.symbol or record.symbol,
+            interval=req.interval or record.timeframe,
+            warnings=warnings,
+        )
+        return {"activation": asdict(activation), "warnings": warnings}
+
+    @app.post("/api/strategy-lab/paper/{activation_id}/deactivate")
+    def strategy_lab_deactivate_paper(activation_id: int) -> dict[str, Any]:
+        ok = strategy_store.deactivate_paper(activation_id)
+        if not ok:
+            raise HTTPException(status_code=404, detail="Paper aktivasyonu bulunamadı.")
+        return {"status": "ok", "activation_id": activation_id, "active": False}
+
+    @app.get("/api/strategy-lab/paper")
+    def strategy_lab_paper_activations(active_only: bool = False) -> dict[str, Any]:
+        return {
+            "activations": [
+                asdict(a) for a in strategy_store.list_paper_activations(active_only=active_only)
+            ]
+        }
+
+    @app.post("/api/backtest/reports/{run_id}/paper/activate")
+    def backtest_report_activate_paper(run_id: str) -> dict[str, Any]:
+        report = backtest_archive.get(run_id)
+        if report is None:
+            raise HTTPException(status_code=404, detail="Backtest raporu bulunamadı.")
+        spec = report.get("strategy_spec")
+        if not isinstance(spec, dict):
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "Hazır blueprint raporu paper'a alınmadan önce "
+                    "strategy_spec olarak kaydedilmeli."
+                ),
+            )
+        record = strategy_store.save_strategy(
+            name=str(spec.get("name") or report.get("strategy_name") or "Paper strateji"),
+            base_strategy="strategy_spec",
+            params={
+                "strategy_spec": spec,
+                "settings": {
+                    "capital": report.get("capital"),
+                    "source_mode": report.get("source_mode"),
+                    "assumptions": report.get("assumptions"),
+                },
+            },
+            indicators=_extract_spec_indicators(spec),
+            symbol=str(report.get("symbol", "")),
+            market="",
+            timeframe=str(report.get("interval", "")),
+            notes=f"Backtest raporundan paper'a alındı: {run_id}",
+        )
+        warnings = _paper_activation_warnings(record)
+        activation = strategy_store.activate_paper(
+            strategy_record_id=record.id,
+            report_id=run_id,
+            symbol=record.symbol,
+            interval=record.timeframe,
+            warnings=warnings,
+        )
+        return {
+            "strategy": _strategy_record_payload(record),
+            "activation": asdict(activation),
+            "warnings": warnings,
+        }
 
     # ── Paper Trading API (Sprint 4) ─────────────────────────────────────
 
@@ -716,10 +1042,85 @@ class BacktestRequest(BaseModel):
 
     symbol: str = Field(..., description="Sembol — frontend native (örn. BTCUSDT, THYAO.IS)")
     interval: str = Field("15m", description="Timeframe — 1m..1w")
-    strategy_id: str = Field(..., description="Blueprint id (sma_crossover, rsi_reversion, ...)")
+    strategy_id: str = Field(
+        "",
+        description="Blueprint id veya strategy_spec için boş/strategy_spec",
+    )
     params: dict[str, Any] = Field(default_factory=dict)
     capital: float = Field(100_000.0, gt=0, description="Başlangıç sermayesi (TL)")
     lookback_bars: int = Field(500, ge=50, le=5000, description="Cache'ten alınacak son bar sayısı")
+    start_date: str | None = Field(None, description="Backtest başlangıç tarihi")
+    end_date: str | None = Field(None, description="Backtest bitiş tarihi")
+    commission_rate: float = Field(0.001, ge=0, le=0.10, description="Komisyon oranı")
+    slippage_bps: int = Field(5, ge=0, le=500, description="Slippage baz puan")
+    max_position_pct: float = Field(0.20, gt=0, le=1.0, description="Maksimum pozisyon oranı")
+    allow_short: bool = Field(False, description="Short simülasyonuna izin ver")
+    source_mode: str = Field(
+        "cache_only",
+        description="cache_only, cache_then_provider, csv_import",
+    )
+    strategy_spec: dict[str, Any] | None = Field(None, description="Güvenli DSL strategy_spec")
+    csv_text: str | None = Field(None, description="CSV import içeriği")
+    csv_bars: list[dict[str, Any]] | None = Field(
+        None,
+        description="CSV yerine doğrudan OHLCV bar listesi",
+    )
+
+
+class StrategySaveRequest(BaseModel):
+    name: str = Field(..., min_length=1)
+    symbol: str = Field(..., min_length=1)
+    interval: str = Field("1d")
+    market: str = Field("")
+    strategy_id: str = Field("strategy_spec")
+    strategy_spec: dict[str, Any] | None = None
+    params: dict[str, Any] = Field(default_factory=dict)
+    settings: dict[str, Any] = Field(default_factory=dict)
+    source_mode: str = Field("cache_only")
+    notes: str = Field("")
+
+
+class PaperActivateRequest(BaseModel):
+    report_id: str = Field("")
+    symbol: str = Field("")
+    interval: str = Field("")
+
+
+class OptimizeRequest(BaseModel):
+    symbol: str
+    interval: str = "1d"
+    strategy_id: str = "strategy_spec"
+    params: dict[str, Any] = Field(default_factory=dict)
+    strategy_spec: dict[str, Any] | None = None
+    param_grid: dict[str, list[Any]] = Field(default_factory=dict)
+    max_combinations: int = Field(80, ge=1, le=200)
+    capital: float = Field(100_000.0, gt=0)
+    lookback_bars: int = Field(500, ge=50, le=5000)
+    start_date: str | None = None
+    end_date: str | None = None
+    commission_rate: float = Field(0.001, ge=0, le=0.10)
+    slippage_bps: int = Field(5, ge=0, le=500)
+    max_position_pct: float = Field(0.20, gt=0, le=1.0)
+    allow_short: bool = False
+    source_mode: str = "cache_only"
+
+
+class ScanRequest(BaseModel):
+    symbols: list[str] = Field(default_factory=list)
+    interval: str = "1d"
+    strategy_id: str = "strategy_spec"
+    params: dict[str, Any] = Field(default_factory=dict)
+    strategy_spec: dict[str, Any] | None = None
+    limit: int = Field(30, ge=1, le=150)
+    capital: float = Field(100_000.0, gt=0)
+    lookback_bars: int = Field(500, ge=50, le=5000)
+    start_date: str | None = None
+    end_date: str | None = None
+    commission_rate: float = Field(0.001, ge=0, le=0.10)
+    slippage_bps: int = Field(5, ge=0, le=500)
+    max_position_pct: float = Field(0.20, gt=0, le=1.0)
+    allow_short: bool = False
+    source_mode: str = "cache_only"
 
 
 # Uvicorn entry point: `uvicorn backend.api.main:app`

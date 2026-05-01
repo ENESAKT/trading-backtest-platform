@@ -19,8 +19,8 @@ fi
 
 # 2. Son planlama durumu
 if [ -f "$PROJECT_ROOT/planlama.md" ]; then
-  DONE=$(grep -c '\- \[x\]' "$PROJECT_ROOT/planlama.md" 2>/dev/null || echo "0")
-  TODO=$(grep -c '\- \[ \]' "$PROJECT_ROOT/planlama.md" 2>/dev/null || echo "0")
+  DONE=$(grep -c '^- \[x\]' "$PROJECT_ROOT/planlama.md" 2>/dev/null || echo "0")
+  TODO=$(grep -c '^- \[ \]' "$PROJECT_ROOT/planlama.md" 2>/dev/null || echo "0")
   echo "📋 Planlama: $DONE tamamlandı, $TODO kalan"
 fi
 

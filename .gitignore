@@ -25,6 +25,15 @@ data/viop/
 data/*.duckdb
 data/cache/
 data/runtime/
+data/strategy_lab/*.sqlite3
+data/strategy_lab/*.sqlite3-*
+
+# Büyük/yerel analiz çıktıları
+artifacts/
+
+# Test/build çıktıları
+piyasapilot-v2/test-results/
+piyasapilot-v2/playwright-report/
 
 # Loglar
 logs/
@@ -38,3 +47,10 @@ Thumbs.db
 .claude/settings.local.json
 
 .env
+
+# Matriks referans dokümanları (PDF'den üretilir, repoya girmez)
+matriks.md
+scripts/build_matriks_md.py
+
+# Lokal backtest rapor arşivi
+data/strategy_lab/backtest_reports.sqlite3
