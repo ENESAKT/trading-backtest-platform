@@ -69,9 +69,9 @@ Okuma yöntemi şu an ses transkripti değil, macOS AVFoundation + Vision frame 
 ### 2. Eğitimler sekmesi altyapısı
 
 - [ ] Klavye sırası korunacak: Sinyaller `5`, Eğitimler `6`, Mali Analiz `7`.
-- [ ] `EgitimlerPanel.ts` ve içerik klasörleri eklenecek.
-- [ ] İlk sürümde güvenli markdown render, kategori, arama ve köprü aksiyonları olacak.
-- [ ] İlk içerik dalgası: Bollinger, RSI, MACD, SMA/EMA, ATR.
+- [x] `EgitimlerPanel.ts` ve içerik klasörleri eklenecek.
+- [x] İlk sürümde güvenli markdown render, kategori, arama ve köprü aksiyonları olacak.
+- [x] İlk içerik dalgası: Bollinger, RSI, MACD, SMA/EMA, ATR.
 
 ### 3. Grafik ve eğitim köprüleri
 
