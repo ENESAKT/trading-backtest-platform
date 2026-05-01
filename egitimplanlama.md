@@ -93,12 +93,12 @@ Bu iki kursun urun backlog'u `planlama.md` icinde Borfin master planina ek olara
   - Gozlem: Bollinger, ADX/ADXR, ATR, CCI, CMO, Chaikin/CMF, DEMA, DPO, DI/DX, Heiken Ashi, Ichimoku, MACD, MFI, Momentum, MOST, OBV/OBVx, Parabolic SAR, RSI/RMI, Stochastic ailesi, TRIX, VHF, Volume indikatörleri, Williams, ZigZag ve bant/yön/güç/hacim ayrimlari ekranda goruldu.
   - Urune donusen ana fikir: indikator katalogu kategori, parametre, grafik yerlesimi, risk uyarisi ve stratejiye cevir aksiyonlariyla tasarlanacak.
 - Dilim B: `TEKNİK ANALİZ DR. YAŞAR ERDİNÇ` ve `İleri Düzey Teknik Analiz Eğitimi DR. YAŞAR ERDİNÇ`
-  - Durum: temel teknik analiz kursu icin ilk OCR turu tamamlandi; ileri duzey teknik analiz bekliyor.
-  - Kayit: `artifacts/borfin_teknik_analiz_yasar_ocr/ocr_report.md`.
-  - Kapsam: 74 video, 1613 OCR satiri, 92 slaytlik `.pptx` yardimci sunum ve `ACTIVE_CHARTS_TANITIM.docx` incelendi.
+  - Durum: temel ve ileri duzey teknik analiz icin ilk OCR turlari tamamlandi.
+  - Kayit: `artifacts/borfin_teknik_analiz_yasar_ocr/ocr_report.md` ve `artifacts/borfin_ileri_teknik_analiz_yasar_ocr/ocr_report.md`.
+  - Kapsam: 207 video, 3169 OCR satiri, 92 slaytlik `.pptx` yardimci sunum, `ACTIVE_CHARTS_TANITIM.docx`, `tumformuller.doc`, `tradesistemmakro2.xls` string taramasi ve 52 `.mst` sistem dosyasinin zip envanteri incelendi.
   - Yontem: macOS Vision frame OCR + yardimci dosya metin cikarimi. Ses transkripti yok; konusmada kalip ekranda gorunmeyen detaylar eksik olabilir.
-  - Gozlem: teknik analiz varsayimlari, trend/kanal cizimleri, mum stratejisi, strateji kriterleri, Fibonacci geri donus/fan/zaman/yay/quadrant/hiz direnc, OBO, ucgen/bayrak/elmas/cift tepe-dip/fincan/canak formasyonlari, gap turleri, gostergelerde aykirilik, TKE/gosterge gelistirme ve strateji uygulama dosyasi ekranda goruldu.
-  - Urune donusen ana fikir: teknik analiz cizimleri, formasyonlari ve disiplin/journal akisi alarm, StrategySpec taslagi, backtest ve paper takip akislariyla birlestirilecek.
+  - Gozlem: teknik analiz varsayimlari, trend/kanal cizimleri, mum stratejisi, strateji kriterleri, Fibonacci geri donus/fan/zaman/yay/quadrant/hiz direnc, OBO, ucgen/bayrak/elmas/cift tepe-dip/fincan/canak formasyonlari, gap turleri, gostergelerde aykirilik, TKE/gosterge gelistirme, Indicator Builder, System Tester, Explorer, Expert Advisor, optimizasyon parametreleri, sistem sonucu metrikleri ve strateji uygulama dosyasi ekranda goruldu.
+  - Urune donusen ana fikir: teknik analiz cizimleri, formasyonlari, guvenli formul DSL'i, sistem katalogu, tarayici/debug paneli ve disiplin/journal akisi alarm, StrategySpec taslagi, backtest ve paper takip akislariyla birlestirilecek.
 - Dilim C: `FUAT AKMAN Sistem Trading ve Araçları Eğitimi`
   - Cikti: sistem tester mantigi, formulle kural kurma, explorer, rapor okuma ve debug paneli.
 - Dilim D: `VOB DR. YAŞAR ERDİNÇ` ve `Vadeli Trade Öğreniyorum`
