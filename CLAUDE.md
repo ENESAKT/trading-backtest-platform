@@ -9,6 +9,21 @@
 `backend/`) ve TypeScript/Vite SPA (`piyasapilot-v2/`) iceren trading terminali
 reposudur.
 
+## Language and Reuse Memory
+
+- Internal agent instructions, reusable skill docs, and reusable error/solution
+  entries are written in English.
+- User-facing chat with Enes must be Turkish unless Enes explicitly asks for
+  another language.
+- For local video content reading, use
+  `/Users/enes/.codex/skills/local-video-content-reader`.
+- Before debugging a recurring or specific error, search
+  `/Users/enes/.codex/skills/solution-history/references/solution-log.md`.
+- If a new reusable fix is discovered and verified, append an English entry to
+  that solution log.
+- Do not record secrets, tokens, private credentials, or huge logs in solution
+  history.
+
 Aktif servisler:
 
 - FastAPI gateway: `backend/api/main.py`, yerelde port 8000.

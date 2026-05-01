@@ -1,4 +1,4 @@
-import type { OHLCV, SymbolInfo, Timeframe, Signal } from '../types.js';
+import type { OHLCV, SymbolInfo, Timeframe, Signal, ChartDataRenderReason } from '../types.js';
 import { ChartPanel } from './ChartPanel.js';
 import { loadHistorical } from '../core/HistoricalLoader.js';
 import { QuoteStream, type QuoteMessage } from '../core/QuoteStream.js';
@@ -105,6 +105,10 @@ export class MultiChartLayout {
     this.panes.forEach(p => p.chartPanel.clearSignals());
   }
 
+  focusActivePaneTime(timestamp: number): void {
+    this.getActivePane()?.chartPanel.focusTime(timestamp);
+  }
+
   onSymbolChange(listener: SymbolChangeListener): () => void {
     this.symbolChangeListeners.add(listener);
     return () => this.symbolChangeListeners.delete(listener);
@@ -127,7 +131,7 @@ export class MultiChartLayout {
     const pane = this.getActivePane();
     if (!pane || pane.timeframe === tf) return;
     pane.timeframe = tf;
-    void this.loadPaneData(pane);
+    void this.loadPaneData(pane, 'timeframe', true);
   }
 
   /** Aktif pane'in mum verisini al (strateji paneli beslemek için) */
@@ -257,7 +261,7 @@ export class MultiChartLayout {
     this.bindPaneHeader(pane, headerEl);
 
     // Veri yükle
-    void this.loadPaneData(pane);
+    void this.loadPaneData(pane, 'initial');
 
     // İlk pane ise aktif yap
     if (this.panes.length === 1) {
@@ -344,15 +348,29 @@ export class MultiChartLayout {
     if (selectEl) selectEl.value = info.symbol;
 
     this.symbolChangeListeners.forEach(l => l(pane.id, info));
-    await this.loadPaneData(pane);
+    await this.loadPaneData(pane, 'symbol');
   }
 
-  private async loadPaneData(pane: ChartPaneState): Promise<void> {
+  private async loadPaneData(
+    pane: ChartPaneState,
+    reason: ChartDataRenderReason = 'initial',
+    preserveTimeRange = false,
+  ): Promise<void> {
     if (pane.loading) return;
     pane.loading = true;
 
     // Eski bağlantıyı kes
     this.disconnectPane(pane);
+
+    const symbol = pane.symbol.symbol;
+    const timeframe = pane.timeframe;
+    pane.chartPanel.setData([], {
+      status: 'loading',
+      reason,
+      symbol,
+      timeframe,
+      message: TR.LOADING,
+    });
 
     const badgeEl = pane.containerEl.querySelector<HTMLElement>(`#pane-badge-${pane.id}`);
     if (badgeEl) {
@@ -362,11 +380,19 @@ export class MultiChartLayout {
 
     try {
       // 1) Tarihsel veri
-      const candles = await loadHistorical(pane.symbol.symbol, pane.timeframe, {
+      const candles = await loadHistorical(symbol, timeframe, {
         assetType: pane.symbol.assetType,
       });
+      if (pane.symbol.symbol !== symbol || pane.timeframe !== timeframe) return;
+
       pane.candles = candles;
-      pane.chartPanel.setData(candles);
+      pane.chartPanel.setData(candles, {
+        status: 'ready',
+        reason,
+        symbol,
+        timeframe,
+        preserveTimeRange,
+      });
 
       if (badgeEl) {
         badgeEl.textContent = TR.DELAYED;
@@ -384,7 +410,17 @@ export class MultiChartLayout {
           badgeEl.className = candles.length > 0 ? 'pane-badge status-delayed' : 'pane-badge status-offline';
         }
       }
-    } catch {
+    } catch (err) {
+      const message = err instanceof Error ? err.message : TR.CONNECTION_ERROR;
+      const status = message.includes('Empty OHLCV') ? 'empty' : 'error';
+      pane.candles = [];
+      pane.chartPanel.setData([], {
+        status,
+        reason,
+        symbol,
+        timeframe,
+        message: status === 'empty' ? TR.NO_DATA : message,
+      });
       if (badgeEl) {
         badgeEl.textContent = TR.OFFLINE;
         badgeEl.className = 'pane-badge status-offline';
@@ -411,7 +447,12 @@ export class MultiChartLayout {
           pane.chartPanel.updateLastCandle(bar);
         } else {
           pane.candles = [...pane.candles, bar];
-          pane.chartPanel.setData(pane.candles);
+          pane.chartPanel.setData(pane.candles, {
+            reason: 'append',
+            symbol: pane.symbol.symbol,
+            timeframe: pane.timeframe,
+            preserveTimeRange: true,
+          });
         }
       }
 

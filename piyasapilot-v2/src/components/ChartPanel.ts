@@ -10,8 +10,12 @@ import {
   type HistogramData,
   type BarData,
   type SeriesMarker,
+  type IPriceLine,
+  type Range,
+  type Time,
+  LineStyle,
 } from 'lightweight-charts';
-import type { OHLCV, Timeframe, ChartType, IndicatorSet, Signal } from '../types.js';
+import type { OHLCV, Timeframe, ChartType, IndicatorSet, Signal, ChartDataStatus, ChartViewOptions } from '../types.js';
 import { computeIndicators, lastValid } from '../indicators/index.js';
 import { TR, formatNumber, formatDateTime } from '../constants/tr.js';
 
@@ -40,6 +44,10 @@ const CHART_OPTIONS = {
   handleScroll: { mouseWheel: true, pressedMouseMove: true },
   handleScale:  { axisPressedMouseMove: true, mouseWheel: true, pinch: true },
 };
+
+type MainPriceSeries = ISeriesApi<'Candlestick'> | ISeriesApi<'Line'> | ISeriesApi<'Bar'>;
+
+const PRICE_SHIFT_RESET_RATIO = 2.5;
 
 // ─── ChartPanel ───────────────────────────────────────────────────────────────
 
@@ -79,9 +87,21 @@ export class ChartPanel {
 
   // Crosshair info overlay
   private infoEl!: HTMLElement;
+  private stateEl!: HTMLElement;
 
   private activeIndicators: Set<string> = new Set(['bb', 'ema', 'vwap', 'rsi', 'macd', 'vol']);
   private candles: OHLCV[] = [];
+  private markerSignals: Signal[] = [];
+  private chartType: ChartType = 'candlestick';
+  private autoPriceScale = true;
+  private showPreviousClose = true;
+  private lastMedianPrice: number | null = null;
+  private lastSymbol = '';
+  private lastTimeframe: Timeframe | null = null;
+  private dataStatus: ChartDataStatus = 'idle';
+  private lastPriceLine: IPriceLine | null = null;
+  private previousCloseLine: IPriceLine | null = null;
+  private priceLineSeries: MainPriceSeries | null = null;
   private isFullscreen = false;
   private resizeObserver!: ResizeObserver;
 
@@ -98,7 +118,7 @@ export class ChartPanel {
 
   private buildDOM(): void {
     this.container.innerHTML = '';
-    this.container.style.cssText = 'display:flex;flex-direction:column;height:100%;background:' + C.bg;
+    this.container.style.cssText = 'display:flex;flex-direction:column;height:100%;position:relative;background:' + C.bg;
 
     // Controls bar
     const controls = document.createElement('div');
@@ -109,7 +129,13 @@ export class ChartPanel {
     // Crosshair info overlay
     this.infoEl = document.createElement('div');
     this.infoEl.className = 'chart-info-overlay';
+    this.infoEl.style.display = 'none';
     this.container.appendChild(this.infoEl);
+
+    this.stateEl = document.createElement('div');
+    this.stateEl.className = 'chart-state-overlay';
+    this.stateEl.style.display = 'none';
+    this.container.appendChild(this.stateEl);
 
     // Chart rows
     this.mainEl = this.addChartRow('60%');
@@ -155,6 +181,12 @@ export class ChartPanel {
         <button class="ctrl-btn ind-btn active" data-ind="rsi">RSI</button>
         <button class="ctrl-btn ind-btn active" data-ind="macd">MACD</button>
       </div>
+      <div class="ctrl-group">
+        <span class="ctrl-label">Ölçek</span>
+        <button class="ctrl-btn scale-auto-btn active" id="auto-price-btn" title="Otomatik fiyat ölçeği">Oto</button>
+        <button class="ctrl-btn scale-reset-btn" id="price-reset-btn" title="Fiyatı yeniden ortala">⟲</button>
+        <button class="ctrl-btn prev-close-btn active" id="prev-close-btn" title="Önceki kapanış çizgisi">ÖK</button>
+      </div>
       <div class="ctrl-group ml-auto">
         <button class="ctrl-btn" id="fullscreen-btn" title="${TR.FULLSCREEN} (F)">⛶</button>
       </div>
@@ -195,6 +227,25 @@ export class ChartPanel {
         this.updateIndicatorVisibility();
       }
 
+      // Price scale / reference lines
+      if (btn.id === 'auto-price-btn') {
+        this.autoPriceScale = !this.autoPriceScale;
+        btn.classList.toggle('active', this.autoPriceScale);
+        if (this.autoPriceScale) this.resetPriceScales();
+      }
+
+      if (btn.id === 'price-reset-btn') {
+        this.autoPriceScale = true;
+        controls.querySelector('#auto-price-btn')?.classList.add('active');
+        this.resetPriceScales();
+      }
+
+      if (btn.id === 'prev-close-btn') {
+        this.showPreviousClose = !this.showPreviousClose;
+        btn.classList.toggle('active', this.showPreviousClose);
+        this.updateReferenceLines();
+      }
+
       // Fullscreen
       if (btn.id === 'fullscreen-btn') {
         this.toggleFullscreen();
@@ -215,9 +266,11 @@ export class ChartPanel {
       upColor:   C.green, downColor: C.red,
       borderUpColor: C.green, borderDownColor: C.red,
       wickUpColor:   C.green, wickDownColor:   C.red,
+      priceLineVisible: false,
+      lastValueVisible: false,
     });
-    this.lineSeries = this.mainChart.addLineSeries({ color: C.blue, lineWidth: 2, visible: false });
-    this.barSeries  = this.mainChart.addBarSeries({ upColor: C.green, downColor: C.red, visible: false });
+    this.lineSeries = this.mainChart.addLineSeries({ color: C.blue, lineWidth: 2, visible: false, priceLineVisible: false, lastValueVisible: false });
+    this.barSeries  = this.mainChart.addBarSeries({ upColor: C.green, downColor: C.red, visible: false, priceLineVisible: false, lastValueVisible: false });
 
     // Overlay indicators on main chart
     this.bbUpperSeries = this.mainChart.addLineSeries({ color: C.purple + '80', lineWidth: 1, lineStyle: 2 });
@@ -274,9 +327,30 @@ export class ChartPanel {
 
   // ─── Data rendering ─────────────────────────────────────────────────────
 
-  setData(candles: OHLCV[]): void {
-    if (candles.length === 0) return;
+  setData(candles: OHLCV[], options: ChartViewOptions = {}): void {
+    const reason = options.reason ?? 'initial';
+    const status = options.status ?? (candles.length > 0 ? 'ready' : 'empty');
+    const savedVisibleRange = options.preserveTimeRange
+      ? this.mainChart.timeScale().getVisibleRange()
+      : null;
+
+    this.lastSymbol = options.symbol ?? this.lastSymbol;
+    this.lastTimeframe = options.timeframe ?? this.lastTimeframe;
+    this.container.dataset['chartSymbol'] = this.lastSymbol;
+    if (this.lastTimeframe) this.container.dataset['chartTimeframe'] = this.lastTimeframe;
+
+    if (candles.length === 0 || status !== 'ready') {
+      this.clearChartData();
+      this.setStatusOverlay(status, options.message);
+      return;
+    }
+
+    const currentMedian = this.medianClose(candles);
+    const shouldResetPrice = this.shouldResetPriceScale(reason, currentMedian, options.preserveTimeRange);
+
     this.candles = candles;
+    this.dataStatus = 'ready';
+    this.hideStatus();
 
     const cData = candles.map(c => ({
       time: c.time as UTCTimestamp,
@@ -289,32 +363,258 @@ export class ChartPanel {
 
     this.renderVolume(candles);
     this.renderIndicators(candles);
+    this.updateReferenceLines();
 
-    this.mainChart.timeScale().fitContent();
+    if (options.preserveTimeRange && savedVisibleRange) {
+      this.restoreVisibleRange(savedVisibleRange);
+    } else if (reason !== 'append') {
+      this.mainChart.timeScale().fitContent();
+    }
+
+    if (shouldResetPrice) {
+      this.resetPriceScales();
+    }
+    this.lastMedianPrice = currentMedian;
+  }
+
+  setStatus(status: ChartDataStatus, message?: string): void {
+    this.setData([], { status, message });
+  }
+
+  private clearChartData(): void {
+    this.candles = [];
+    this.markerSignals = [];
+    this.candleSeries.setData([] as CandlestickData[]);
+    this.lineSeries.setData([] as LineData[]);
+    this.barSeries.setData([] as BarData[]);
+    this.volSeries.setData([] as HistogramData[]);
+    this.bbUpperSeries.setData([] as LineData[]);
+    this.bbMidSeries.setData([] as LineData[]);
+    this.bbLowerSeries.setData([] as LineData[]);
+    this.ema9Series.setData([] as LineData[]);
+    this.ema21Series.setData([] as LineData[]);
+    this.ema50Series.setData([] as LineData[]);
+    this.vwapSeries.setData([] as LineData[]);
+    this.rsiSeries.setData([] as LineData[]);
+    this.macdLineSeries.setData([] as LineData[]);
+    this.macdSigSeries.setData([] as LineData[]);
+    this.macdHistSeries.setData([] as HistogramData[]);
+    this.candleSeries.setMarkers([]);
+    this.infoEl.style.display = 'none';
+    this.clearReferenceLines();
+    this.lastMedianPrice = null;
+    this.container.dataset['lastPrice'] = '';
+    this.container.dataset['chartStatus'] = this.dataStatus;
+  }
+
+  private setStatusOverlay(status: ChartDataStatus, message?: string): void {
+    this.dataStatus = status;
+    this.container.dataset['chartStatus'] = status;
+
+    if (status === 'idle' || status === 'ready') {
+      this.hideStatus();
+      return;
+    }
+
+    const label =
+      status === 'loading' ? TR.LOADING
+        : status === 'empty' ? TR.NO_DATA
+          : status === 'error' ? TR.CONNECTION_ERROR
+            : TR.WAITING_DATA;
+    const detail = message && message !== label ? `<small>${this.escapeHtml(message)}</small>` : '';
+    this.stateEl.className = `chart-state-overlay state-${status}`;
+    this.stateEl.innerHTML = `<strong>${label}</strong>${detail}`;
+    this.stateEl.style.display = 'flex';
+  }
+
+  private hideStatus(): void {
+    this.stateEl.style.display = 'none';
+    this.stateEl.innerHTML = '';
+    this.container.dataset['chartStatus'] = this.dataStatus;
+  }
+
+  private medianClose(candles: OHLCV[]): number | null {
+    const values = candles
+      .map(c => c.close)
+      .filter(v => Number.isFinite(v) && v > 0)
+      .sort((a, b) => a - b);
+    if (values.length === 0) return null;
+    const mid = Math.floor(values.length / 2);
+    return values.length % 2 === 0
+      ? (values[mid - 1]! + values[mid]!) / 2
+      : values[mid]!;
+  }
+
+  private shouldResetPriceScale(
+    reason: ChartViewOptions['reason'],
+    currentMedian: number | null,
+    preserveTimeRange?: boolean,
+  ): boolean {
+    if (!this.autoPriceScale) return false;
+    if (reason === 'append') return false;
+    if (reason === 'symbol' || reason === 'initial') return true;
+    if (!currentMedian || !this.lastMedianPrice) return !preserveTimeRange;
+    const ratio = currentMedian / this.lastMedianPrice;
+    return ratio >= PRICE_SHIFT_RESET_RATIO || ratio <= 1 / PRICE_SHIFT_RESET_RATIO;
+  }
+
+  private restoreVisibleRange(range: Range<Time>): void {
+    [this.mainChart, this.volChart, this.rsiChart, this.macdChart].forEach(chart => {
+      try {
+        chart.timeScale().setVisibleRange(range);
+      } catch {
+        // Farklı timeframe'lerde range dışarı taşarsa sessizce yeni veriye sığdır.
+      }
+    });
+  }
+
+  private resetPriceScales(): void {
+    const mainMargins = { top: 0.08, bottom: 0.14 };
+    const lowerMargins = { top: 0.1, bottom: 0.1 };
+    const scaleUpdates: Array<() => void> = [
+      () => this.mainChart.priceScale('right').applyOptions({ autoScale: true, scaleMargins: mainMargins }),
+      () => this.candleSeries.priceScale().applyOptions({ autoScale: true, scaleMargins: mainMargins }),
+      () => this.lineSeries.priceScale().applyOptions({ autoScale: true, scaleMargins: mainMargins }),
+      () => this.barSeries.priceScale().applyOptions({ autoScale: true, scaleMargins: mainMargins }),
+      () => this.volSeries.priceScale().applyOptions({ autoScale: true }),
+      () => this.rsiChart.priceScale('right').applyOptions({ autoScale: true, scaleMargins: lowerMargins }),
+      () => this.macdChart.priceScale('right').applyOptions({ autoScale: true, scaleMargins: lowerMargins }),
+      () => this.rsiSeries.priceScale().applyOptions({ autoScale: true, scaleMargins: lowerMargins }),
+      () => this.macdLineSeries.priceScale().applyOptions({ autoScale: true, scaleMargins: lowerMargins }),
+      () => this.macdHistSeries.priceScale().applyOptions({ autoScale: true, scaleMargins: lowerMargins }),
+    ];
+    for (const update of scaleUpdates) {
+      try {
+        update();
+      } catch {
+        // Bazı overlay scale'leri görünmez olabilir; kalan scale'ler yine resetlenir.
+      }
+    }
+    this.container.dataset['priceScaleResetAt'] = String(Date.now());
+  }
+
+  private activeMainSeries(): MainPriceSeries {
+    if (this.chartType === 'line') return this.lineSeries;
+    if (this.chartType === 'bar') return this.barSeries;
+    return this.candleSeries;
+  }
+
+  private clearReferenceLines(): void {
+    if (!this.priceLineSeries) return;
+    if (this.lastPriceLine) this.priceLineSeries.removePriceLine(this.lastPriceLine);
+    if (this.previousCloseLine) this.priceLineSeries.removePriceLine(this.previousCloseLine);
+    this.lastPriceLine = null;
+    this.previousCloseLine = null;
+    this.priceLineSeries = null;
+  }
+
+  private updateReferenceLines(): void {
+    this.clearReferenceLines();
+    const last = this.candles[this.candles.length - 1];
+    if (!last) return;
+
+    const series = this.activeMainSeries();
+    this.priceLineSeries = series;
+    const lastColor = this.chartType === 'line'
+      ? C.blue
+      : last.close >= last.open ? C.green : C.red;
+    this.lastPriceLine = series.createPriceLine({
+      id: 'last-price',
+      price: last.close,
+      color: lastColor,
+      lineWidth: 1,
+      lineStyle: LineStyle.Solid,
+      axisLabelVisible: true,
+      title: 'Son',
+      axisLabelColor: lastColor,
+      axisLabelTextColor: C.bg,
+    });
+    this.container.dataset['lastPrice'] = String(last.close);
+
+    const prev = this.candles[this.candles.length - 2];
+    if (this.showPreviousClose && prev) {
+      this.previousCloseLine = series.createPriceLine({
+        id: 'previous-close',
+        price: prev.close,
+        color: C.text,
+        lineWidth: 1,
+        lineStyle: LineStyle.Dashed,
+        axisLabelVisible: true,
+        title: 'ÖK',
+        axisLabelColor: C.border,
+        axisLabelTextColor: C.textBold,
+      });
+    }
+  }
+
+  private escapeHtml(value: string): string {
+    return value
+      .replaceAll('&', '&amp;')
+      .replaceAll('<', '&lt;')
+      .replaceAll('>', '&gt;')
+      .replaceAll('"', '&quot;')
+      .replaceAll("'", '&#39;');
   }
 
   // ─── Backtest / strateji sinyallerini mum üstünde göster ─────────────────
-  // ▲ yeşil = AL (mumun altında), ▼ kırmızı = SAT (mumun üstünde).
+  // ▲ yeşil = AL, ▼ kırmızı = SAT, ▼ turuncu = SHORT, ▲ mavi = COVER.
   // Sembol ya da timeframe değişince çağrı tarafı `clearSignals()` etmeli.
 
   setSignals(signals: Signal[]): void {
+    this.markerSignals = signals;
     const markers: SeriesMarker<UTCTimestamp>[] = signals
-      .filter(s => s.type === 'BUY' || s.type === 'SELL')
-      .map(s => ({
-        time: s.timestamp as UTCTimestamp,
-        position: s.type === 'BUY' ? 'belowBar' : 'aboveBar',
-        color: s.type === 'BUY' ? C.green : C.red,
-        shape: s.type === 'BUY' ? 'arrowUp' : 'arrowDown',
-        text: `${s.type === 'BUY' ? '▲' : '▼'} ${formatNumber(s.price)}`,
-      }));
+      .filter(s => ['BUY', 'SELL', 'SHORT', 'COVER'].includes(s.type))
+      .map(s => {
+        const cfg = {
+          BUY:   { position: 'belowBar', color: C.green,  shape: 'arrowUp',   label: 'AL' },
+          SELL:  { position: 'aboveBar', color: C.red,    shape: 'arrowDown', label: 'SAT' },
+          SHORT: { position: 'aboveBar', color: C.orange, shape: 'arrowDown', label: 'SHORT' },
+          COVER: { position: 'belowBar', color: C.blue,   shape: 'arrowUp',   label: 'COVER' },
+          HOLD:  { position: 'belowBar', color: C.text,   shape: 'circle',    label: 'BEKLE' },
+        }[s.type];
+        return {
+          time: s.timestamp as UTCTimestamp,
+          position: cfg.position as SeriesMarker<UTCTimestamp>['position'],
+          color: cfg.color,
+          shape: cfg.shape as SeriesMarker<UTCTimestamp>['shape'],
+          text: `${s.open_position ? 'AÇIK ' : ''}${cfg.label} ${formatNumber(s.price)}`,
+        };
+      });
     this.candleSeries.setMarkers(markers);
   }
 
   clearSignals(): void {
+    this.markerSignals = [];
     this.candleSeries.setMarkers([]);
   }
 
+  focusTime(timestamp: number): void {
+    if (this.candles.length === 0) return;
+    const idx = this.candles.findIndex(c => c.time >= timestamp);
+    const center = idx >= 0 ? idx : this.candles.length - 1;
+    const fromIdx = Math.max(0, center - 20);
+    const toIdx = Math.min(this.candles.length - 1, center + 20);
+    const range = {
+      from: this.candles[fromIdx]!.time as UTCTimestamp,
+      to: this.candles[toIdx]!.time as UTCTimestamp,
+    };
+    [this.mainChart, this.volChart, this.rsiChart, this.macdChart].forEach(chart => {
+      chart.timeScale().setVisibleRange(range);
+    });
+  }
+
   updateLastCandle(candle: OHLCV): void {
+    if (this.candles.length === 0) {
+      this.setData([candle], { reason: 'append', preserveTimeRange: true });
+      return;
+    }
+    const idx = this.candles.findIndex(c => c.time === candle.time);
+    if (idx >= 0) {
+      this.candles[idx] = candle;
+    } else {
+      this.candles = [...this.candles, candle];
+    }
+
     const data = {
       time: candle.time as UTCTimestamp,
       open: candle.open, high: candle.high, low: candle.low, close: candle.close,
@@ -329,6 +629,9 @@ export class ChartPanel {
       color: candle.close >= candle.open ? C.green + '90' : C.red + '90',
     };
     this.volSeries.update(vol);
+    this.dataStatus = 'ready';
+    this.hideStatus();
+    this.updateReferenceLines();
   }
 
   private renderVolume(candles: OHLCV[]): void {
@@ -391,9 +694,11 @@ export class ChartPanel {
   // ─── Chart type switching ───────────────────────────────────────────────
 
   setChartType(type: ChartType): void {
+    this.chartType = type;
     this.candleSeries.applyOptions({ visible: type === 'candlestick' });
     this.lineSeries.applyOptions({ visible: type === 'line' });
     this.barSeries.applyOptions({ visible: type === 'bar' });
+    this.updateReferenceLines();
   }
 
   // ─── Crosshair info overlay ────────────────────────────────────────────
@@ -403,6 +708,7 @@ export class ChartPanel {
     const macd  = inds.macd?.macd[i];
     const ema9  = inds.ema9?.[i];
     const ema21 = inds.ema21?.[i];
+    const marker = this.markerSignals.find(s => s.timestamp === c.time);
 
     const fmt = (v: number | null | undefined) => v != null && !isNaN(v) ? formatNumber(v, 2) : '—';
 
@@ -417,6 +723,15 @@ export class ChartPanel {
       ${macd  != null && !isNaN(macd) ? `<div class="ci-row"><span>MACD</span><b style="color:${C.blue}">${fmt(macd)}</b></div>` : ''}
       ${ema9  != null && !isNaN(ema9)  ? `<div class="ci-row"><span>EMA9</span><b style="color:${C.yellow}">${fmt(ema9)}</b></div>` : ''}
       ${ema21 != null && !isNaN(ema21) ? `<div class="ci-row"><span>EMA21</span><b style="color:${C.orange}">${fmt(ema21)}</b></div>` : ''}
+      ${marker ? `
+        <div class="ci-signal">
+          <b>${marker.type}</b> ${fmt(marker.price)}
+          ${marker.quantity ? `<span>Adet ${formatNumber(marker.quantity, 0)}</span>` : ''}
+          ${marker.pnl != null ? `<span class="${marker.pnl >= 0 ? 'pos' : 'neg'}">PnL ${formatNumber(marker.pnl, 2)}</span>` : ''}
+          ${marker.equity != null ? `<span>Equity ${formatNumber(marker.equity, 2)}</span>` : ''}
+          <small>${marker.reason}</small>
+        </div>
+      ` : ''}
       <div class="ci-time">${formatDateTime(c.time)}</div>
     `;
   }

@@ -38,7 +38,9 @@ from backend.config import getenv
 from backend.data.cache import OHLCVCache
 from quant_engine.backtest.domain import Portfolio
 from quant_engine.research import lightgbm_model
+from quant_engine.strategy.persistence import StrategyStore
 from quant_engine.strategy.registry import StrategyRegistry, get_registry
+from quant_engine.strategy.spec import evaluate_strategy_rules
 
 logger = logging.getLogger(__name__)
 
@@ -152,6 +154,7 @@ class SignalGenerator:
         self.skipped_untrusted = 0
         self.last_skip_reason: str | None = None
         self.last_lgbm_prob: float | None = None
+        self._strategy_store = StrategyStore()
 
     @staticmethod
     def _trusted_metadata(metadata: dict[str, Any] | None) -> tuple[bool, str]:
@@ -326,7 +329,76 @@ class SignalGenerator:
                 }
             )
 
+        individual_signals.extend(
+            self._compute_active_paper_spec_signals(canonical, interval, df, price)
+        )
+
         return individual_signals
+
+    def _compute_active_paper_spec_signals(
+        self,
+        symbol: str,
+        interval: str,
+        df: pd.DataFrame,
+        price: float,
+    ) -> list[dict[str, Any]]:
+        """Kayıtlı strategy_spec paper aktivasyonlarını canlı sinyale çevir.
+
+        Paper executor bugün long-only BUY/SELL uygular. Bu nedenle aktif
+        spec'lerin short_entry/short_exit kuralları canlı paper emrine
+        çevrilmez; gerçek emir güvenliği açısından short yalnızca backtest
+        simülasyonunda kalır.
+        """
+        out: list[dict[str, Any]] = []
+        try:
+            activations = self._strategy_store.list_paper_activations(active_only=True)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("paper activation listesi okunamadı: %s", exc)
+            return out
+
+        for activation in activations:
+            if activation.symbol != symbol or activation.interval != interval:
+                continue
+            record = self._strategy_store.get_strategy(activation.strategy_record_id)
+            if record is None:
+                continue
+            spec = record.params.get("strategy_spec")
+            if not isinstance(spec, dict):
+                continue
+            try:
+                rules = evaluate_strategy_rules(spec, df)
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("paper spec sinyali üretilemedi: %s", exc)
+                continue
+            last_index = len(df) - 1
+            signal_type = ""
+            reason_key = ""
+            if bool(rules["long_entry"].iloc[last_index]):
+                signal_type = "BUY"
+                reason_key = "long_entry"
+            elif bool(rules["long_exit"].iloc[last_index]):
+                signal_type = "SELL"
+                reason_key = "long_exit"
+            if not signal_type:
+                continue
+            out.append(
+                {
+                    "symbol": symbol,
+                    "signal_type": signal_type,
+                    "price": price,
+                    "strategy_id": f"paper_spec_{record.id}",
+                    "reason": f"{record.name}: {reason_key} @ {price:.2f}",
+                    "strength": 6,
+                    "interval": interval,
+                    "metadata": {
+                        "source": "strategy_lab",
+                        "strategy_record_id": record.id,
+                        "activation_id": activation.id,
+                        "report_id": activation.report_id,
+                    },
+                }
+            )
+        return out
 
     def _lgbm_probability(self, bars: list[dict[str, Any]]) -> float | None:
         model_path = getenv("LIGHTGBM_MODEL_PATH")

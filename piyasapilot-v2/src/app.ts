@@ -1,4 +1,4 @@
-import type { Timeframe, DataUpdateEvent, PriceUpdateEvent } from './types.js';
+import type { Timeframe, DataUpdateEvent, PriceUpdateEvent, SymbolInfo } from './types.js';
 import { dataEngine } from './core/DataEngine.js';
 import { PortfolioEngine } from './core/PortfolioEngine.js';
 import { MultiChartLayout, type LayoutMode } from './components/MultiChartLayout.js';
@@ -70,6 +70,14 @@ void _screener;
 // SignalFeed connects on instantiation; reference kept to prevent GC
 const _signalFeed = new SignalFeed(signalsEl);
 void _signalFeed;
+
+async function openSymbol(info: SymbolInfo): Promise<void> {
+  symbolTitle.textContent = `${info.name} (${info.symbol})`;
+  sidebar.setActiveSymbol(info.symbol);
+  multiChart.clearSignals();
+  await multiChart.setActivePaneSymbol(info);
+  await dataEngine.setActiveSymbol(info);
+}
 
 // ─── Tab routing ──────────────────────────────────────────────────────────────
 
@@ -149,15 +157,7 @@ chartEl.addEventListener('timeframeChange', (e) => {
 
 // ─── Symbol selection from Sidebar ───────────────────────────────────────────
 
-sidebar.onSymbolSelect(async (info) => {
-  symbolTitle.textContent = `${info.name} (${info.symbol})`;
-  sidebar.setActiveSymbol(info.symbol);
-  // Aktif pane'in sembolünü değiştir
-  multiChart.clearSignals();
-  await multiChart.setActivePaneSymbol(info);
-  // Ana DataEngine'i de güncelle (portfolio ve screener için)
-  await dataEngine.setActiveSymbol(info);
-});
+sidebar.onSymbolSelect(openSymbol);
 
 // Aktif pane değiştiğinde sembol başlığını güncelle
 multiChart.onActivePaneChange(() => {
@@ -181,8 +181,16 @@ multiChart.onSymbolChange((_paneId, info) => {
   }
 });
 
-// Strateji panelinin ürettiği BUY/SELL sinyallerini aktif pane'in chart'ına çiz.
+// Strateji panelinin ürettiği marker'ları aktif pane'in chart'ına çiz.
 strategyPanel.onSignalsUpdate(signals => multiChart.setSignals(signals));
+strategyPanel.onFocusTime(timestamp => {
+  showTab('chart');
+  multiChart.focusActivePaneTime(timestamp);
+});
+strategyPanel.onSymbolSelect(info => {
+  showTab('chart');
+  void openSymbol(info);
+});
 
 // ─── Data Engine events (sidebar ticker + portfolio + screener) ──────────────
 

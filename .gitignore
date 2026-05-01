@@ -31,6 +31,10 @@ data/strategy_lab/*.sqlite3-*
 # Büyük/yerel analiz çıktıları
 artifacts/
 
+# Test/build çıktıları
+piyasapilot-v2/test-results/
+piyasapilot-v2/playwright-report/
+
 # Loglar
 logs/
 .claude/agent-logs/
