@@ -1262,7 +1262,22 @@ Her eğitim fikri `planlama.md` içine ancak şu soruların cevabı netse girer:
 - [x] Branch oluştur: `codex/education-feature-planning`.
 - [x] Commit 1: `egitimplanlama.md` iskeleti ve Borfin okuma süreci.
 - [x] Commit 2: `planlama.md` eğitim kaynaklı özellik radar'ı ve ürün backlog başlıkları.
-- [ ] Commit 3: Algo Trade + Hareketli Ortalamalar OCR'ına dayalı seçilmiş özelliklerin ilk detaylandırması.
+- [x] Commit 3: Algo Trade + Hareketli Ortalamalar OCR'ına dayalı seçilmiş özelliklerin ilk detaylandırması.
 - [ ] Commit 4: İndikatör ve teknik analiz eğitimlerinin OCR/transkript çıktılarından seçilen özellikler.
 - [ ] Commit 5: VİOP/Vadeli ve Sistem Trading eğitimlerinin OCR/transkript çıktılarından seçilen özellikler.
 - [ ] Commit 6+: Uygulama geliştirmeleri başladığında API, frontend, eğitim drawer'ı, testler ve demo ayrı commit'lere bölünecek.
+
+### 21.8 İlk Derin Okuma Çıktısı - Algo Trade ve Hareketli Ortalamalar
+
+Kaynak: `artifacts/borfin_ocr/ocr_report.md`. Yöntem: macOS Vision ile aralıklı kare OCR; konuşma içinde olup ekranda görünmeyen detaylar eksik olabilir.
+
+- [ ] **Strateji Fikri Kartı:** Kullanıcı stratejiye başlamadan hedef, piyasa koşulu, vade, beklenen davranış, veri ihtiyacı ve geçersizleşme şartını yazacak. Problem: kullanıcı doğrudan indikatör seçip hipotezsiz backtest çalıştırıyor. Ürün noktası: Strategy Lab `Fikir` sekmesi. Test: boş hedefle strateji kaydetme uyarı verir.
+- [ ] **Kuraldan Rapora İzlenebilirlik:** Her AL/SAT sinyali hangi kural, filtre ve risk bloğuyla oluştuğunu raporda gösterecek. Problem: kullanıcı backtest sonucunda sinyalin neden geldiğini göremiyor. Ürün noktası: Backtest report + chart marker tooltip. Test: örnek StrategySpec'te marker tooltip kural adını içerir.
+- [ ] **Backtest Kalite Kapısı:** İşlem sayısı, maliyet etkisi, tek sembol yanlılığı, parametre sayısı, veri süresi ve piyasa rejimi çeşitliliği skora bağlanacak. Problem: yüksek getiri tek başına başarı sanılıyor. Ürün noktası: Backtest raporu `quality_score`. Test: az işlemli optimize sonuç kalite skorunda ceza alır.
+- [ ] **Optimizasyon Sağlamlık Haritası:** En iyi tek parametre yerine komşu parametrelerin de iyi olup olmadığı heatmap ile gösterilecek. Problem: overfit parametre seçimi. Ürün noktası: Parametre Deneyleri v2. Test: komşu sonuçları zayıf olan en iyi skor "kırılgan" etiketi alır.
+- [ ] **Walk-Forward Geçiş Kapısı:** Optimize edilen strateji paper izlemeye alınmadan önce in-sample/out-of-sample pencerelerinden geçecek. Problem: geçmişe uydurulmuş strateji canlıda deneniyor. Ürün noktası: Robustness Lab. Test: WFE eşiği altında kalan stratejide paper aksiyonu pasif kalır.
+- [ ] **Monte Carlo Risk Kartı:** İşlem sırası ve PnL dağılımı simüle edilerek kötü senaryo drawdown ve zarar olasılığı gösterilecek. Problem: kullanıcı tek equity curve'e bakarak risk algısını düşük tutuyor. Ürün noktası: Backtest raporu risk sekmesi. Test: sabit seed ile deterministik Monte Carlo özetleri üretilir.
+- [ ] **Hareketli Ortalama Period/Vade Koruyucusu:** MA periodu, timeframe ve beklenen trade süresi uyumsuzsa uyarı verilecek. Problem: kısa vadeli grafikte aşırı uzun period veya uzun vadede aşırı kısa period yanlış yorumlanıyor. Ürün noktası: İndikatör ayarı + StrategySpec validation. Test: 1m grafikte çok uzun period uyarı üretir ama kullanıcı bilinçli override edebilir.
+- [ ] **MA Strateji Paketi:** Fiyat-HO kesişimi, HO-HO kesişimi, HO sıralama, eğim, uzaklık yüzdesi ve sıkışma/gevşeme presetleri StrategySpec'e çevrilecek. Problem: kullanıcı hareketli ortalamaları görsel izliyor ama kurala dönüştüremiyor. Ürün noktası: Eğitim presetleri + Kural Lab. Test: EMA50/EMA200 cross preset'i backtest marker'ı üretir.
+- [ ] **Komisyon/Slipaj Gerçekçilik Anahtarı:** Maliyet varsayımları kapalıysa rapor eğitim modu uyarısı verecek; açık/kapalı farkı yan yana gösterilecek. Problem: sık işlem yapan sistemlerde maliyet performansı tersine çevirebiliyor. Ürün noktası: Backtest varsayım kartı. Test: aynı stratejide maliyet açıkken final equity farkı raporlanır.
+- [ ] **Paper Robot Ön Kontrol Listesi:** Gerçek veri, yeterli bar, maliyet varsayımı, WFA, Monte Carlo, likidite ve audit log hazır olmadan robot izlemeye alınmayacak. Problem: backtestten doğrudan otomasyona geçmek riskli. Ürün noktası: Paper aktivasyon modalı. Test: eksik gerçek veri durumunda paper aktivasyonu pasif kalır.
