@@ -92,7 +92,8 @@ Her derin okuma kaydi su alanlarla yazilir:
 - [x] Commit 7+: Uygulama gelistirmeleri — Egitimler sekmesi altyapisi.
 - [x] Commit 8+: Blog makaleleri — Indikatorler kategori (20 makale).
 - [x] Commit 9+: Blog makaleleri — Formasyonlar kategori.
-- [ ] Commit 10+: Mali Analiz sekmesi backend + frontend.
+- [x] Commit 10+: Blog makaleleri — Sistem & Backtest kategori.
+- [ ] Commit 11+: Mali Analiz sekmesi backend + frontend.
 
 ## 7. Tamamlanan Kurs Okuma Kayitlari
 

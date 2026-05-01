@@ -1,6 +1,6 @@
 # Eğitimler Sekmesi — Plan
 
-> Durum: Eğitimler sekmesi altyapısı, E-Faz 2B ilk 20 indikatör makalesi ve E-Faz 3 formasyon makaleleri tamamlandı (32/57 makale).
+> Durum: Eğitimler sekmesi altyapısı, E-Faz 2B ilk 20 indikatör makalesi, E-Faz 3 formasyon makaleleri ve E-Faz 4 Sistem & Backtest makaleleri tamamlandı (42/57 makale).
 > Kaynak: BORFİN eğitim arşivi (26 kurs, 825 video; 9 kurs/469 video OCR ile incelendi, 17 kurs/356 video bekliyor).
 > Tarih: 2026-05-01
 
@@ -256,7 +256,7 @@ Her makale için:
 - [x] E26–E37: Formasyon makaleleri (OBO, Çift Tepe, Üçgen vb.)
 
 ### E-Faz 4: Sistem & Backtest (10 makale)
-- [ ] E38–E47: Sistem trading ve backtest makaleleri
+- [x] E38–E47: Sistem trading ve backtest makaleleri
 
 ### E-Faz 5: VIOP & Vadeli (8 makale)
 - [ ] E48–E55: VIOP makaleleri
