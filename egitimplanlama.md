@@ -1,0 +1,97 @@
+# Egitim Planlama ve Borfin Okuma Sureci
+
+> Bu dosya egitim arsivini okuma, kanit toplama ve urun fikrine donusturme
+> surecini yonetir. Urune girecek secilmis backlog maddeleri `planlama.md`
+> icinde tutulur.
+
+## 1. Kaynak ve Ilke
+
+- Ana kaynak klasor: `/Users/enes/Documents/Ders videoları/BORFİN`
+- Bulunan kapsam: 26 egitim klasoru, 825 video.
+- Mevcut derin OCR kapsami: `KIVANÇ ÖZBİLGİÇ  Algo Trade` ve `KIVANÇ ÖZBİLGİÇ Hareketli Ortalamalarla Algo Trade`; toplam 37 video.
+- Mevcut ham rapor: `artifacts/borfin_ocr/ocr_report.md`.
+- Kural: Video icerigi dosya adindan tahmin edilmeyecek; ses transkripti, kare OCR'i veya manuel kare incelemesiyle dogrulanacak.
+- Kural: Borfin, Matriks, TradingView, Active Charts ya da egitimlerdeki metin/formul/dosya icerikleri birebir kopyalanmayacak; PiyasaPilot'a ozgu ozgun urun fikrine donusturulecek.
+
+## 2. Arac Durumu
+
+- `swiftc`: var; macOS AVFoundation/Vision OCR hatti calistirilabilir.
+- `ffmpeg` / `ffprobe`: bulunamadi.
+- `whisper` / `faster_whisper`: Python ortaminda bulunamadi.
+- Varsayilan yontem: once mevcut OCR raporlarini kullan, yeni kurslarda macOS frame OCR ile basla, ses agirlikli videolar icin yerel transkripsiyon bagimliligi eklenene kadar "konusma icerigi eksik olabilir" notu dus.
+
+## 3. Kurs Envanteri ve Oncelik
+
+| Kurs | Video | Oncelik | PiyasaPilot baglantisi |
+|---|---:|---:|---|
+| İleri Düzey Teknik Analiz Eğitimi DR. YAŞAR ERDİNÇ | 133 | 1 | Teknik analiz lab, formasyon, trend, sistem fikri |
+| FUAT AKMAN Sistem Trading ve Araçları Eğitimi | 76 | 1 | Kural kurucu, system tester, rapor okuma, explorer mantigi |
+| TEKNİK ANALİZ DR. YAŞAR ERDİNÇ | 74 | 1 | Baslangic teknik analiz, grafik okuma, uygulama akisi |
+| İndikatörlerin Seçimi ve Kullanımı FUAT AKMAN | 67 | 1 | Indikator merkezi, kategori, parametre, sinyal riski |
+| VOB DR. YAŞAR ERDİNÇ | 49 | 1 | VIOP/VOB, vadeli backtest varsayimlari |
+| KIVANÇ ÖZBİLGİÇ  Algo Trade | 22 | 1 | Strateji lifecycle, backtest, optimizasyon, WFA, Monte Carlo |
+| KIVANÇ ÖZBİLGİÇ Hareketli Ortalamalarla Algo Trade | 15 | 1 | Hareketli ortalama stratejileri, period/vade uyumu |
+| Vadeli Trade Öğreniyorum DOÇ.DR. EVREN BOLGÜN | 14 | 2 | VIOP/vadeli urun bilgisi, risk varsayimlari |
+| Opsiyon / Varant / Swap-Forward egitimleri | 33 | 2 | Turev urun uyarilari, kapsam disi/gelecek moduller |
+| Yatırımcı Psikolojisi ve Beynin Zaaflarını Yenmek | 19 | 2 | Disiplin, stop, postmortem, davranissal risk |
+| Temel analiz, mali analiz, platform egitimleri | 318 | 3 | Hisse secimi, finansal analiz, ileri donem veri modeli |
+
+## 4. Urune Deger Filtresi
+
+Her video veya konu su sorularla degerlendirilir:
+
+- PiyasaPilot'un ana konusu olan grafik, teknik analiz, backtest, strateji, risk veya paper trading akisini guclendiriyor mu?
+- Kullanici icin fark yaratan bir is akisi uretiyor mu, yoksa sadece bilgi notu mu?
+- Test edilebilir mi: unit, integration, E2E veya kabul senaryosu yazilabilir mi?
+- Veri kalitesi, repaint, overfit, slippage, VIOP vade/kontrat gibi riskleri daha gorunur kiliyor mu?
+- Mevcut mimariye uyuyor mu: StrategySpec, indikator merkezi, grafik paneli, backtest raporu, paper robot veya tarayiciya baglanabiliyor mu?
+
+Sadece bu filtreden gecen maddeler `planlama.md` icine urun backlog'u olarak tasinir.
+
+## 5. Okuma Ciktisi Formati
+
+Her derin okuma kaydi su alanlarla yazilir:
+
+- Kaynak kurs ve video.
+- Okuma yontemi: transkript, OCR, manuel kare veya hibrit.
+- Gozlenen icerik: slayt/platform/formul/rapor ekrani kanitlari.
+- PiyasaPilot'a donusen fikir.
+- Kullanici problemi.
+- Uygulama noktasi: frontend, backend, StrategySpec, backtest, data, paper, docs.
+- Test/kabul senaryosu.
+- Guven notu: yuksek, orta, dusuk.
+
+## 6. Checkpoint ve GitHub Akisi
+
+- Branch: `codex/education-feature-planning`.
+- Commit 1: `egitimplanlama.md` iskeleti ve Borfin okuma sureci.
+- Commit 2: `planlama.md` egitim kaynakli fark yaratan ozellik radar'i.
+- Commit 3: Algo Trade + Hareketli Ortalamalar OCR'ina dayali secilmis ozellikler.
+- Commit 4: Indikator ve teknik analiz OCR/transkriptlerinden secilmis ozellikler.
+- Commit 5: VIOP/Vadeli ve Sistem Trading OCR/transkriptlerinden secilmis ozellikler.
+- Her commit path bazli veya hunk bazli stage edilecek; mevcut kullanici degisiklikleri ezilmeyecek.
+- Her commit sonrasi `git push` yapilacak; geri donus icin commit gecmisi kucuk tutulacak.
+
+## 7. Ilk Derin Okuma Durumu
+
+Kaynak: `artifacts/borfin_ocr/ocr_report.md`.
+
+Okunan kurslar:
+
+- `KIVANÇ ÖZBİLGİÇ  Algo Trade`: algoritmik trade tanimi, sistem olusturma, momentum/trend/mean reversion/firsat stratejileri, indikator kullanimi, bilimsel yontem, backtest, optimizasyon, komisyon/slipaj, walk-forward, Monte Carlo, portfoy cesitlendirme, robot kurma ve veri aktarimi.
+- `KIVANÇ ÖZBİLGİÇ Hareketli Ortalamalarla Algo Trade`: hareketli ortalama turleri, period/vade secimi, kesişim/fiyat-HO/HO siralama stratejileri, Matriks ve TradingView paylasim mantigi.
+
+Bu iki kursun urun backlog'u `planlama.md` icinde Borfin master planina ek olarak "egitim kaynakli fark radar'i" altinda secilmis ozelliklere donusturulecek.
+
+## 8. Siradaki Okuma Dilimleri
+
+- Dilim A: `İndikatörlerin Seçimi ve Kullanımı FUAT AKMAN`
+  - Cikti: indikator kategorileri, parametre rehberi, repaint/gecikme riski, grafik/strateji baglantilari.
+- Dilim B: `TEKNİK ANALİZ DR. YAŞAR ERDİNÇ` ve `İleri Düzey Teknik Analiz Eğitimi DR. YAŞAR ERDİNÇ`
+  - Cikti: teknik analiz uygulama lab'i, cizimden alarma/backteste donusum, analiz checklist'i.
+- Dilim C: `FUAT AKMAN Sistem Trading ve Araçları Eğitimi`
+  - Cikti: sistem tester mantigi, formulle kural kurma, explorer, rapor okuma ve debug paneli.
+- Dilim D: `VOB DR. YAŞAR ERDİNÇ` ve `Vadeli Trade Öğreniyorum`
+  - Cikti: VIOP/vadeli backtest varsayimlari, kontrat/vade/teminat/slippage/rollover kontrol listesi.
+- Dilim E: yatırım psikolojisi
+  - Cikti: strateji disiplini, stop/postmortem, paper robot davranissal risk uyarilari.
