@@ -100,7 +100,12 @@ Bu iki kursun urun backlog'u `planlama.md` icinde Borfin master planina ek olara
   - Gozlem: teknik analiz varsayimlari, trend/kanal cizimleri, mum stratejisi, strateji kriterleri, Fibonacci geri donus/fan/zaman/yay/quadrant/hiz direnc, OBO, ucgen/bayrak/elmas/cift tepe-dip/fincan/canak formasyonlari, gap turleri, gostergelerde aykirilik, TKE/gosterge gelistirme, Indicator Builder, System Tester, Explorer, Expert Advisor, optimizasyon parametreleri, sistem sonucu metrikleri ve strateji uygulama dosyasi ekranda goruldu.
   - Urune donusen ana fikir: teknik analiz cizimleri, formasyonlari, guvenli formul DSL'i, sistem katalogu, tarayici/debug paneli ve disiplin/journal akisi alarm, StrategySpec taslagi, backtest ve paper takip akislariyla birlestirilecek.
 - Dilim C: `FUAT AKMAN Sistem Trading ve Araçları Eğitimi`
-  - Cikti: sistem tester mantigi, formulle kural kurma, explorer, rapor okuma ve debug paneli.
+  - Durum: ilk OCR turu ve yardimci dokuman taramasi tamamlandi.
+  - Kayit: `artifacts/borfin_sistem_trading_fuat_ocr/ocr_report.md` ve `artifacts/borfin_sistem_trading_fuat_docs_text/`.
+  - Kapsam: 76 video, 1102 OCR satiri ve 19 `.doc` yardimci dosyasi incelendi.
+  - Yontem: macOS Vision frame OCR + yardimci `.doc` metin cikarimi. Ses transkripti yok; konusmada kalip ekranda gorunmeyen detaylar eksik olabilir.
+  - Gozlem: Indicator Builder fonksiyon ailesi, `ref`/`cross`/`barssince`/`valuewhen`/`highest`/`lowest`/`security data` gibi seri fonksiyonlari, System Tester AL/SAT/aciga sat/acik pozisyon kapat bolumleri, simulasyon ayarlari, optimizasyon degiskenleri, sonuc raporu, Explorer kolon/filtreleri, Expert Advisor alarm ekranlari ve 18 ornek sistem dosyasi goruldu.
+  - Urune donusen ana fikir: StrategySpec DSL fonksiyon sozlugu, no-lookahead kural dogrulayici, backtest varsayim karti, optimizasyon korumasi, Explorer kolon/filtre builder'i, alarm audit'i ve rapor drilldown'u tasarlanacak.
 - Dilim D: `VOB DR. YAŞAR ERDİNÇ` ve `Vadeli Trade Öğreniyorum`
   - Cikti: VIOP/vadeli backtest varsayimlari, kontrat/vade/teminat/slippage/rollover kontrol listesi.
 - Dilim E: yatırım psikolojisi
