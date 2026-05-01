@@ -107,6 +107,11 @@ Bu iki kursun urun backlog'u `planlama.md` icinde Borfin master planina ek olara
   - Gozlem: Indicator Builder fonksiyon ailesi, `ref`/`cross`/`barssince`/`valuewhen`/`highest`/`lowest`/`security data` gibi seri fonksiyonlari, System Tester AL/SAT/aciga sat/acik pozisyon kapat bolumleri, simulasyon ayarlari, optimizasyon degiskenleri, sonuc raporu, Explorer kolon/filtreleri, Expert Advisor alarm ekranlari ve 18 ornek sistem dosyasi goruldu.
   - Urune donusen ana fikir: StrategySpec DSL fonksiyon sozlugu, no-lookahead kural dogrulayici, backtest varsayim karti, optimizasyon korumasi, Explorer kolon/filtre builder'i, alarm audit'i ve rapor drilldown'u tasarlanacak.
 - Dilim D: `VOB DR. YAŞAR ERDİNÇ` ve `Vadeli Trade Öğreniyorum`
-  - Cikti: VIOP/vadeli backtest varsayimlari, kontrat/vade/teminat/slippage/rollover kontrol listesi.
+  - Durum: ilk OCR turlari tamamlandi.
+  - Kayit: `artifacts/borfin_vob_yasar_ocr/ocr_report.md` ve `artifacts/borfin_vadeli_trade_bolgun_ocr/ocr_report.md`.
+  - Kapsam: 63 video ve 1263 OCR satiri incelendi.
+  - Yontem: macOS Vision frame OCR. Ses transkripti yok; konusmada kalip ekranda gorunmeyen detaylar eksik olabilir.
+  - Gozlem: VOB30 teminat/pozisyon/kaldirac tablolari, strateji unsurlari, uzun vadeli long/short ve TKE/HO/MACD odakli VOB stratejileri, futures/forward/swap/opsiyon ayrimi, hedge/spekulasyon/arbitraj rolleri, BIST30 kontrat ozellikleri, VIOP endeks/pay kontrat ekranlari, uzlasma/teorik fiyat/acik pozisyon kolonlari, temettu ve ozsermaye hali uyarlamalari goruldu.
+  - Urune donusen ana fikir: VIOP backtest akisi kontrat zinciri, vade/rollover, teminat/kaldirac, teorik fiyat-baz farki, kurumsal aksiyon uyarlamasi, komisyon/slippage ve gercek veri uyarilariyla spot backtestten ayrilacak.
 - Dilim E: yatırım psikolojisi
   - Cikti: strateji disiplini, stop/postmortem, paper robot davranissal risk uyarilari.
