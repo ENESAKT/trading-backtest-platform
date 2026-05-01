@@ -94,7 +94,8 @@ Her derin okuma kaydi su alanlarla yazilir:
 - [x] Commit 9+: Blog makaleleri — Formasyonlar kategori.
 - [x] Commit 10+: Blog makaleleri — Sistem & Backtest kategori.
 - [x] Commit 11+: Blog makaleleri — VIOP & Vadeli kategori.
-- [ ] Commit 12+: Mali Analiz sekmesi backend + frontend.
+- [x] Commit 12+: Blog makaleleri — Psikoloji & Disiplin kategori.
+- [ ] Commit 13+: Mali Analiz sekmesi backend + frontend.
 
 ## 7. Tamamlanan Kurs Okuma Kayitlari
 

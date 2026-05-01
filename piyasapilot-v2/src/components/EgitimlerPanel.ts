@@ -21,6 +21,7 @@ const SOURCE_LABELS: Record<string, string> = {
   yasar_teknik_analiz: 'Yaşar Erdinç - Teknik Analiz',
   yasar_vob: 'Yaşar Erdinç - VOB',
   bolgun_vadeli_trade: 'Evren Bolgün - Vadeli Trade',
+  yatirimci_psikolojisi: 'Yaşar Erdinç - Yatırımcı Psikolojisi',
 };
 
 const CONFIDENCE_LABELS: Record<string, string> = {

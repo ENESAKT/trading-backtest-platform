@@ -62,8 +62,8 @@ Okuma yöntemi şu an ses transkripti değil, macOS AVFoundation + Vision frame 
 
 ### 1. Eğitim kaynak modelini sabitle
 
-- [ ] `planlama-egitimler.md` içindeki makale listesi OCR kanıtı ve güven notuyla eşleşecek.
-- [ ] Her makale frontmatter'ına kaynak kurs, yöntem ve güven alanı eklenecek.
+- [x] `planlama-egitimler.md` içindeki makale listesi OCR kanıtı ve güven notuyla eşleşecek.
+- [x] Her makale frontmatter'ına kaynak kurs, yöntem ve güven alanı eklenecek.
 - [x] Borfin OCR'da açık kanıtı olmayan `VWAP` başlığı Eğitimler v1 listesinden çıkarıldı; yerine OCR'da görülen hacim indikatörleri kullanıldı.
 
 ### 2. Eğitimler sekmesi altyapısı
