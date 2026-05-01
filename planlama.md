@@ -963,3 +963,306 @@ Globaldeki `~/.claude/projects/-Users-enes-AgentWorkspace-Backtest/memory/` (kul
 - [ ] Ayarlar tek seferde ekrana yığılmayacak; ana grafik hızlı kalacak, detaylar drawer/modal ile açılacak.
 - [ ] Boş/yanlış/eksik veri durumları grafik boşmuş gibi görünmeyecek; kullanıcıya net durum mesajı ve yeniden dene aksiyonu verilecek.
 - [ ] Her yeni görsel özellik önce veri doğruluğunu koruyacak; analiz motoru ve backtest orijinal veri serisini kullanmaya devam edecek.
+
+---
+
+## 20. Borfin Algoritmik Trade Entegrasyon Master Planı (2026-05-01)
+
+> **Kaynak:** Yerel Borfin eğitim videoları:
+> - `/Users/enes/Documents/Ders videoları/BORFİN/KIVANÇ ÖZBİLGİÇ  Algo Trade`
+> - `/Users/enes/Documents/Ders videoları/BORFİN/KIVANÇ ÖZBİLGİÇ Hareketli Ortalamalarla Algo Trade`
+>
+> **İnceleme yöntemi:** Video dosyalarından aralıklı kareler alındı, slayt ve platform ekranları macOS Vision OCR ile okundu. Ham rapor: `artifacts/borfin_ocr/ocr_report.md`.
+>
+> **Kural:** Eğitimlerdeki kavramlar PiyasaPilot'a özgü ürün akışına dönüştürülecek. Borfin/Matriks/TradingView ekranları, metinleri, özel dosyaları veya marka dili birebir kopyalanmayacak. Amaç: aynı olgun algoritmik trade prensiplerini kendi güvenli backend, DSL, backtest, paper robot ve grafik mimarimize taşımak.
+
+### 20.1 Ürün Hedefi
+
+- [ ] PiyasaPilot, sadece indikatör gösteren bir terminal değil; **strateji fikri -> kural -> test -> optimizasyon -> dayanıklılık analizi -> paper robot -> postmortem** zincirini tek ekranda yöneten algoritmik trade laboratuvarı olacak.
+- [ ] Kullanıcı bir strateji fikrini momentum, trend takip, mean reversion, fırsat/kırılım, hareketli ortalama veya hibrit kategori olarak tanımlayabilecek.
+- [ ] Her strateji için hedef, vade, piyasa koşulu, veri kaynağı, komisyon, slippage, hacim uygunluğu ve risk kuralı açıkça kaydedilecek.
+- [ ] Backtest sonucu tek başına "başarılı" sayılmayacak; walk-forward, out-of-sample, Monte Carlo, işlem sayısı, drawdown, profit factor ve canlı/paper karşılaştırması birlikte değerlendirilecek.
+- [ ] Gerçek emir gönderimi kapsam dışı kalacak; otomasyon **paper robot** ve alarm/sinyal üretimiyle sınırlı olacak.
+
+### 20.2 Video Konularının Modül Haritası
+
+| Eğitim konusu | PiyasaPilot karşılığı | Mevcut durum | Açık entegrasyon |
+|---|---|---:|---|
+| Algoritma nedir, sistem oluşturma | Strateji Lab + StrategySpec | Kısmen hazır | Strateji hedef/hipotez alanları |
+| Momentum stratejileri | Momentum presetleri | Kısmen hazır | Momentum/RSI/MO preset katalogu |
+| Trend takip | EMA/SMA/T3/MOST trend stratejileri | Kısmen hazır | Gelişmiş HO ve T3/MOST blokları |
+| Mean reversion | BB/Kairi/VWAP dönüş stratejileri | Kısmen hazır | Kairi, BB SS3, uzaklık tabanlı bloklar |
+| Fırsat/kırılım | Breakout, mum/formasyon, trend çizgi alarmı | Kısmen hazır | Formasyon/kırılım tarayıcı v2 |
+| İndikatör seçimi ve repaint | İndikatör Merkezi + güvenli sinyal kapısı | Kısmen hazır | Repaint uyarı sistemi |
+| Bilimsel yöntem | Strateji lifecycle ve kalite kapıları | Planlanacak | Hipotez, ön eleme, test notları |
+| Backtest tuzakları | Veri uyarıları, bias kontrolleri | Kısmen hazır | Bias checklist ve kalite skoru |
+| Optimizasyon | Parametre Deneyleri | v1 hazır | Overfit cezası, heatmap, stabilite |
+| Komisyon/slippage | Backtest varsayımları | Hazır | Likidite ve hacim kapasite kontrolü |
+| Walk Forward | Robustness Lab | Yok | WFA motoru ve WFE raporu |
+| Monte Carlo | Risk simülasyonu | Yok | İşlem sırası/olasılık simülasyonu |
+| Portföy çeşitlendirme | Portfolio Lab | Kısmen hazır | Korelasyon, multi-strategy allocation |
+| Robot kurma | Paper Robot | Hazır | Robot sağlık paneli ve kill switch UX |
+| Paylaşılan dosyalar | Şablon/preset import-export | Kısmen hazır | PiyasaPilot strategy pack formatı |
+| Matriks/TradingView kullanımı | Interop/export | Kısmen hazır | Pine/Matriks değil, PiyasaPilot DSL odaklı |
+| Hareketli ortalama türleri | Indicator Center v2 | Kısmen hazır | Geniş HO kütüphanesi |
+| HO period/vade | Vade rehberi ve period guard | Yok | Timeframe/period uygunluk uyarısı |
+| HO stratejileri | MA Strategy Pack | Kısmen hazır | Sıkışma, sıralama, destek/direnç, smoothing |
+
+### 20.3 Ana Tasarım İlkeleri
+
+- [ ] **Lookahead-free:** Sinyal `bar[t]` kapanışında, emir simülasyonu `bar[t+1]` açılışında kalacak.
+- [ ] **No fake data:** Provider `is_real=true` ve güvenli status yoksa canlı/paper sinyal üretimi yapılmayacak.
+- [ ] **Backtest gerçeğe yakınlığı:** Komisyon, slippage, spread/kademe, hacim kapasitesi ve veri eksikliği rapora dahil edilecek.
+- [ ] **Overfit'e karşı şüphe:** En yüksek getiri varsayılan seçim olmayacak; daha düşük drawdown, daha stabil parametre ve yeterli işlem sayısı ödüllendirilecek.
+- [ ] **Vade uyumu:** Strateji periyodu, grafik timeframe'i ve beklenen trade süresi birbiriyle uyumsuzsa UI uyarı verecek.
+- [ ] **Eğitim ama disiplinli:** Kullanıcıya sonuçların garanti olmadığı raporda gösterilecek; gerçek emir yoluna otomatik geçiş eklenmeyecek.
+
+### 20.4 Sprint B1 - Strateji Kataloğu ve Eğitimden Gelen Presetler
+
+- [ ] `quant_engine/strategy/catalog.py` içinde strateji taksonomisi oluşturulacak: `momentum`, `trend_following`, `mean_reversion`, `breakout/opportunity`, `moving_average`, `hybrid`, `ml`.
+- [ ] Her strateji için metadata alanları eklenecek: beklenen piyasa koşulu, önerilen timeframe, minimum bar sayısı, önerilen stop/TP, repaint riski, likidite ihtiyacı.
+- [ ] Hazır presetler eklenecek: Momentum-MO cross, RSI-HO cross, RSI çift HO cross, RSI-MOST, SMA/EMA cross, fiyat-HO cross, T3 renk değişimi, Kairi mean reversion, BB SS3 dönüş.
+- [ ] Presetler `StrategySpec` DSL'e çevrilecek; Python tarafında tek doğruluk kaynağı korunacak.
+- [ ] Frontend Strateji Lab'da "Eğitim presetleri" segmenti olacak; kullanıcı preset seçip parametreleri değiştirebilecek.
+- [ ] Kabul: En az 10 Borfin kaynaklı preset backtest edilebilir ve grafikte marker üretebilir.
+
+### 20.5 Sprint B2 - İndikatör Merkezi v2 ve Hareketli Ortalama Kütüphanesi
+
+- [ ] `quant_engine/strategy/indicators.py` genişletilecek: WMA, TMA, DEMA, TEMA, ZLEMA, TSF, WWMA, VIDYA, T3, KAMA, FRAMA, HMA, ALMA, MAMA/FAMA, MavilimW, GANN HiLo, RMTA, McNMA/JMA araştırma listesi.
+- [ ] Her yeni indikatör için TypeScript karşılığı veya backend hesaplanmış seri endpoint'i seçilecek; frontend ile backend sonuçları için parite testi yazılacak.
+- [ ] Kairi, MOST, BB Width, Guppy Multiple Moving Average ve oscillator smoothing blokları eklenecek.
+- [ ] İndikatör parametreleri: period, kaynak data, MA türü, renk, çizgi kalınlığı, overlay/alt panel, sinyal için bar kapanışı bekle.
+- [ ] Repaint riski yüksek indikatörler için metadata ve UI uyarısı eklenecek.
+- [ ] Kabul: EMA/SMA dışı en az 8 hareketli ortalama türü grafikte çizilebilir, DSL içinde kullanılabilir ve backtestte çalışabilir.
+
+### 20.6 Sprint B3 - Görsel Kurucu Blokları ve Güvenli DSL Genişletmesi
+
+- [ ] Görsel kurucuya yeni bloklar eklenecek: `CROSS_UP`, `CROSS_DOWN`, `ABOVE`, `BELOW`, `BARS_SINCE`, `DISTANCE_PCT`, `SLOPE`, `RISING`, `FALLING`, `VOLUME_ABOVE_AVG`.
+- [ ] Risk blokları genişletilecek: sabit stop, yüzde stop, ATR stop, trailing stop, take profit, time stop, bar sayısı kadar bekle.
+- [ ] Vade ve trend filtresi blokları eklenecek: `C > SMA(C,200)`, `MA_ORDERED`, `TREND_FILTER`, `VOLATILITY_FILTER`.
+- [ ] Bir stratejiye birden fazla giriş/çıkış koşulu eklenebilecek; AND/OR grupları adlandırılabilecek.
+- [ ] Kural açıklaması otomatik üretilecek: "RSI kendi EMA'sını yukarı kesince ve fiyat EMA200 üstündeyse AL".
+- [ ] Kabul: Kod bilmeden momentum, trend, mean reversion ve HO sıkışma stratejisi kurulabilir.
+
+### 20.7 Sprint B4 - Backtest Gerçekçilik, Komisyon, Slipaj ve Likidite
+
+- [ ] Backtest raporunda "varsayım kartı" zorunlu olacak: başlangıç sermayesi, komisyon, slippage bps, işlem yönü, pozisyon yüzdesi, veri kaynağı, fill modeli.
+- [ ] Slippage modelleri eklenecek: sabit bps, sabit kademe/tick, hacim oranına göre artan slippage.
+- [ ] Likidite kapasite kontrolü: işlem tutarı son N bar ortalama hacminin belirli yüzdesini aşarsa uyarı.
+- [ ] Hacimsiz tahta riski BIST sembollerinde ayrıca raporlanacak.
+- [ ] Short işlemler BIST için "simülasyon" etiketiyle kalacak; gerçek piyasa uygunluğu garanti edilmeyecek.
+- [ ] Kabul: Aynı strateji komisyon/slippage açık ve kapalı çalıştırıldığında metrik farkı raporda net görünür.
+
+### 20.8 Sprint B5 - Backtest Tuzakları ve Kalite Skoru
+
+- [ ] Backtest raporuna "kalite kontrol" bölümü eklenecek: veri kapsama, işlem sayısı, test aralığı, piyasa rejimi çeşitliliği, parametre sayısı, outlier etkisi.
+- [ ] Önyargı tuzağı uyarısı: kullanıcı sadece kazandıran sembolde test yaptıysa "tek sembol riski" işaretlenecek.
+- [ ] Geçmiş veri tuzağı uyarısı: intrabar high/low bilgisiyle gerçek dışı fill varsa rapor uyaracak.
+- [ ] Optimizasyon tuzağı uyarısı: parametre sayısı arttıkça kalite skoru düşecek.
+- [ ] Minimum örneklem kuralı: indikatör periodu / test bar sayısı oranı çok yüksekse uyarı.
+- [ ] Kabul: Backtest sonucu "getiri" yanında `quality_score` ve kırmızı/sarı/yeşil uyarılarla döner.
+
+### 20.9 Sprint B6 - Walk Forward Analysis ve Out-of-Sample Lab
+
+- [ ] `quant_engine/research/walk_forward.py` modülü eklenecek.
+- [ ] Kullanıcı optimizasyon penceresi ve walk-forward penceresi seçecek: örn. 5 ay in-sample, 1 ay out-of-sample.
+- [ ] Her pencere için en iyi parametre seçilecek, sonraki out-of-sample bölümde uygulanacak.
+- [ ] Rapor alanları: WFA toplam getiri, klasik optimizasyon getirisi, WFE, pencere bazlı başarı oranı, drawdown, işlem sayısı.
+- [ ] WFA tablo ve grafik UI eklenecek: optimizasyon pencereleri, out-of-sample performans şeritleri.
+- [ ] Kabul: Bir strateji klasik optimize edilmiş sonuçta iyi görünse bile WFA'da başarısızsa UI bunu açıkça gösterir.
+
+### 20.10 Sprint B7 - Monte Carlo Risk Simülasyonu
+
+- [ ] `quant_engine/research/monte_carlo.py` modülü eklenecek.
+- [ ] İşlem PnL serisi üzerinden bootstrap/permutation simülasyonu yapılacak.
+- [ ] Rapor alanları: median final equity, %5/%95 senaryo, olası max drawdown, zarar etme olasılığı, yıllık getiri/drawdown dağılımı.
+- [ ] Kullanıcı başlangıç sermayesi, risk yüzdesi ve tekrar sayısı seçecek.
+- [ ] Monte Carlo sonucu paper robot öncesi son eleme kapısı olacak.
+- [ ] Kabul: Backtestte karlı görünen stratejinin risk dağılımı ve kötü senaryo sermaye eğrisi görülebilir.
+
+### 20.11 Sprint B8 - Parametre Deneyleri v2 ve Anti-Overfit Optimizasyon
+
+- [ ] Grid search v1 korunacak; sonuçlara stabilite skoru eklenecek.
+- [ ] Parametre heatmap'i eklenecek: iki parametre için getiri/drawdown/profit factor yüzeyi.
+- [ ] En iyi tek nokta yerine "sağlam bölge" yaklaşımı gösterilecek: komşu parametreler de iyi mi?
+- [ ] Parametre deneyleri WFA ve Monte Carlo ile zincirlenebilecek.
+- [ ] Aşırı az işlem yapan veya çok yüksek drawdown üreten sonuçlar sıralamada cezalandırılacak.
+- [ ] Kabul: "En yüksek getiri" ile "en dengeli strateji" ayrımı raporda ayrı gösterilir.
+
+### 20.12 Sprint B9 - Piyasa Tarayıcı / Explorer v3
+
+- [ ] StrategySpec tüm sembol evreninde taranabilecek: BIST 100, kripto, ABD, FX/emtia, özel liste.
+- [ ] Tarama koşulları: son sinyal, yeni kesişim, fiyat-HO uzaklığı, Kairi eşikleri, BB band teması, RSI bölgesi, hacim filtresi, trend filtresi.
+- [ ] Sonuç tablosu: sembol, son fiyat, sinyal tipi, sinyal zamanı, strateji kalite skoru, veri durumu, likidite uyarısı.
+- [ ] Tarama sonucu tek tıkla grafiğe, backtest raporuna veya paper izleme listesine taşınacak.
+- [ ] Toplu gerçek emir yok; sadece analiz, alarm ve paper aday listesi.
+- [ ] Kabul: "EMA50 EMA200 yukarı kesen ve hacmi ortalamanın üstünde olan BIST hisseleri" gibi taramalar yapılabilir.
+
+### 20.13 Sprint B10 - Portföy ve Strateji Çeşitlendirme Lab
+
+- [ ] Birden fazla strateji ve sembolün birleşik equity curve'ü hesaplanacak.
+- [ ] Korelasyon matrisi ve strateji korelasyonu gösterilecek.
+- [ ] Strateji başına risk bütçesi ve maksimum sermaye payı ayarlanacak.
+- [ ] Portfolio-level max drawdown, profit factor, Sharpe, aylık getiri dağılımı ve en kötü dönem raporlanacak.
+- [ ] Aynı anda çalışan paper robotların toplam risk/korelasyon uyarısı eklenecek.
+- [ ] Kabul: Kullanıcı tek strateji değil, "3 strateji + 10 sembol" portföyünün geçmişte nasıl davrandığını görebilir.
+
+### 20.14 Sprint B11 - Paper Robot Operasyon Paneli
+
+- [ ] Paper robot listesi: aktif stratejiler, semboller, timeframe, son sinyal, son emir, PnL, sağlık durumu.
+- [ ] Kill switch: tüm paper robotları durdur, sadece seçili stratejiyi durdur, günlük risk limitini düşür.
+- [ ] Robot başlamadan önce kontrol listesi: gerçek veri, yeterli bar, WFA/Monte Carlo sonucu, komisyon/slippage varsayımları, likidite.
+- [ ] Alarm ve paper aksiyonu ayrılacak: alarm üretmek paper trade açmak anlamına gelmeyecek.
+- [ ] Gap/vade geçişi gibi özel durumlar için "işlem yapma" filtresi eklenecek.
+- [ ] Kabul: Paper robot canlı çalışırken neden işlem yaptığı veya yapmadığı audit log'dan okunur.
+
+### 20.15 Sprint B12 - Strategy Pack, Import/Export ve Interop
+
+- [ ] PiyasaPilot strateji paketi formatı tanımlanacak: `.piyasapilot-strategy.json`.
+- [ ] Paket içeriği: StrategySpec, parametreler, indikatör seti, açıklama, versiyon, risk ayarları, örnek backtest metadata.
+- [ ] Hazır "Borfin esinli eğitim preset paketi" oluşturulacak; telifli/proprietary kod veya metin içermeyecek.
+- [ ] TradingView/Pine için doğrudan birebir çeviri yerine referans notu ve manuel eşleştirme alanı olacak.
+- [ ] Matriks formülleri doğrudan import edilmeyecek; kullanıcı PiyasaPilot DSL ile yeniden kuracak.
+- [ ] Kabul: Kullanıcı stratejisini dışa aktarır, başka workspace'e alır ve aynı backtest varsayımlarıyla tekrar çalıştırır.
+
+### 20.16 Sprint B13 - UI Bilgi Mimarisi
+
+- [ ] Strateji Lab sekmeleri netleşecek: `Fikir`, `Kurallar`, `Test`, `Optimizasyon`, `WFA`, `Monte Carlo`, `Paper`, `Postmortem`.
+- [ ] Her strateji raporunda "Bu ne anlatıyor?" açıklaması kısa ve teknik olacak; ekranda uzun eğitim metni yığılmayacak.
+- [ ] Risk uyarıları kart formatında gösterilecek: veri, overfit, likidite, slippage, short simülasyon, repaint.
+- [ ] Strateji lifecycle durumları eklenecek: taslak, ön test, optimize edildi, WFA geçti, Monte Carlo geçti, paper izleniyor, emekliye ayrıldı.
+- [ ] Kabul: Kullanıcı bir stratejinin hangi aşamada olduğunu ve sıradaki mantıklı adımı tek bakışta görür.
+
+### 20.17 Test ve Kabul Kapıları
+
+- [ ] Unit: Yeni hareketli ortalama ve indikatör fonksiyonları sabit fixture veride beklenen çıktıyı verir.
+- [ ] Unit: DSL tehlikeli ifade kabul etmez; yeni bloklar StrategySpec'e doğru çevrilir.
+- [ ] Unit: Slippage, komisyon, hacim kapasite kontrolü ve short PnL doğru hesaplanır.
+- [ ] Unit: WFA pencereleri sızıntısız ayrılır; out-of-sample veri optimizasyonda kullanılmaz.
+- [ ] Unit: Monte Carlo sabit seed ile deterministik rapor üretir.
+- [ ] Integration: Strateji preset -> backtest -> kalite skoru -> WFA -> Monte Carlo zinciri çalışır.
+- [ ] E2E: Kullanıcı preset seçer, parametre değiştirir, backtest çalıştırır, WFA raporunu açar, paper izlemeye alır.
+- [ ] E2E: Explorer taraması sonucundan sembol grafiğe açılır ve marker'lar görünür.
+- [ ] E2E: Strategy pack export/import sonrası aynı kurallar geri gelir.
+- [ ] Kabul: Finansal gerçekçilik varsayımları raporda eksiksiz görünmeden "paper çalıştır" aktif olmaz.
+
+### 20.18 Uygulama Sırası
+
+- [ ] **Sprint B1:** Strateji kataloğu, Borfin presetleri, metadata ve StrategySpec eşlemesi.
+- [ ] **Sprint B2:** İndikatör Merkezi v2 için geniş HO/indikatör kütüphanesi ve parite testleri.
+- [ ] **Sprint B3:** Görsel kurucu + DSL blokları: cross, distance, slope, volume, risk kuralları.
+- [ ] **Sprint B4:** Backtest gerçekçilik katmanı: slippage, komisyon, likidite, bias kalite skoru.
+- [ ] **Sprint B5:** Backtest tuzakları UI ve kalite skoru raporu.
+- [ ] **Sprint B6:** Walk Forward Analysis motoru, WFE ve pencere grafikleri.
+- [ ] **Sprint B7:** Monte Carlo simülasyonu ve risk dağılım raporu.
+- [ ] **Sprint B8:** Optimizasyon v2, heatmap ve stabil parametre bölgesi.
+- [ ] **Sprint B9:** Explorer v3, strateji tarama ve aday listesi.
+- [ ] **Sprint B10:** Portföy/strateji çeşitlendirme labı.
+- [ ] **Sprint B11:** Paper robot operasyon paneli ve kill switch.
+- [ ] **Sprint B12:** Strategy pack import/export ve eğitim preset paketi.
+- [ ] **Sprint B13:** UI bilgi mimarisi, lifecycle durumları ve postmortem akışı.
+
+### 20.19 Borfin İçeriklerinden Çıkan Özellik Backlog'u
+
+- [ ] Momentum: MO/RSI/CCI/Stochastic tabanlı momentum ve aşırı alım-satım strateji blokları.
+- [ ] Trend takip: fiyat-HO, HO-HO, T3 renk değişimi, trend çizgisi kırılımı ve Guppy ribbon blokları.
+- [ ] Mean reversion: Kairi, BB SS3, VWAP uzaklığı, HO uzaklık yüzdesi ve dönüş hedefi blokları.
+- [ ] Fırsat stratejileri: mum formasyonu, kanal/kırılım, formasyon teyit seviyesi ve önceden tanımlı stop/TP.
+- [ ] İndikatör kullanımı: leading/lagging ayrımı, kategori etiketleri, repaint uyarısı ve bar kapanışı bekleme ayarı.
+- [ ] Bilimsel yöntem: hipotez, ön eleme, optimizasyon, analiz, canlı/paper kıyaslama ve vazgeçme kararı.
+- [ ] Backtest: önyargı, geçmiş veri, intrabar fill, overfit ve piyasa rejimi uyarıları.
+- [ ] Optimizasyon: parametre aralığı, test sayısı, sonuç sıralama, stabilite ve overfit cezası.
+- [ ] Komisyon/slippage: bps, kademe, hacim ve işlem sayısı maliyet etkisi.
+- [ ] Walk Forward: in-sample/out-of-sample pencereler, WFE ve pencere bazlı rapor.
+- [ ] Monte Carlo: işlem sırası simülasyonu, kayıp olasılığı, final equity dağılımı.
+- [ ] Çeşitlendirme: farklı period, sembol, strateji ve korelasyonla risk dağıtımı.
+- [ ] Robot: paper çalışma, sinyal/alarm/emir ayrımı, audit log ve güvenli durdurma.
+- [ ] Veri aktarımı: CSV import, tarih/saat format kontrolü ve özel sembol veri seti.
+- [ ] Paylaşılan dosyalar: PiyasaPilot'a özgü strateji paketi, indikatör seti ve rapor dışa aktarımı.
+
+### 20.20 Kapsam Dışı ve Güvenlik Notları
+
+- [ ] Gerçek aracı kurum emir iletimi bu planın kapsamı dışında kalacak.
+- [ ] HFT veya milisaniye seviye emir altyapısı yapılmayacak; proje bar/tick verisi güvenilir hale gelmeden bu alana girmeyecek.
+- [ ] Lisanssız veri gerçek veri gibi etiketlenmeyecek.
+- [ ] Eğitim videolarındaki platform arayüzleri, formül dosyaları ve metinleri birebir kopyalanmayacak.
+- [ ] Her strateji sonucu eğitim/araştırma simülasyonu olarak etiketlenecek; gelecek getiri garantisi verilmediği raporda kalacak.
+
+---
+
+## 21. Eğitim Kaynaklı Fark Yaratan Özellik Radar'ı (2026-05-01)
+
+> **Amaç:** Borfin arşivindeki her bilgiyi ürüne taşımak değil; PiyasaPilot'u grafik, teknik analiz, backtest, strateji, risk ve paper trading tarafında farklılaştıracak fikirleri seçmek.
+>
+> **Kaynak yönetimi:** Detaylı video okuma ve kürasyon `egitimplanlama.md` içinde tutulur. Bu bölüm yalnızca ürüne girecek seçilmiş özellik backlog'udur.
+>
+> **Checkpoint kuralı:** Her anlamlı aşama küçük commit ve push ile ilerler. Kirli çalışma ağacında yalnızca ilgili dosya/hunk stage edilir.
+
+### 21.1 Değer Filtresi
+
+Her eğitim fikri `planlama.md` içine ancak şu soruların cevabı netse girer:
+
+- [ ] Kullanıcı problemi: Kullanıcı grafikte, strateji kurarken, backtest okurken veya VİOP varsayımı yaparken hangi somut sorunu çözüyor?
+- [ ] Ürün noktası: Fikir grafik paneli, indikatör merkezi, StrategySpec, backtest raporu, tarayıcı, paper robot veya eğitim drawer'ına bağlanıyor mu?
+- [ ] Test edilebilirlik: Unit, integration, E2E veya kabul senaryosu yazılabiliyor mu?
+- [ ] Risk görünürlüğü: Repaint, gecikme, overfit, slippage, veri kalitesi, likidite, VİOP vade/kontrat veya davranışsal disiplin risklerinden en az birini daha görünür yapıyor mu?
+- [ ] Özgünleştirme: Eğitimdeki marka/metin/formül kopyalanmadan PiyasaPilot'a özgü bir iş akışına dönüşüyor mu?
+
+### 21.2 İndikatör Merkezi v2 - Eğitimden Ürüne
+
+- [ ] Kullanıcı problemi: Kullanıcı "Bollinger, RSI, MACD, ADX, CCI, OBV, MFI, Ichimoku, Parabolic SAR veya MOST ne işe yarar?" sorusunu grafikten ayrılmadan cevaplayabilmeli.
+- [ ] Ürün noktası: Grafik üstünde indikatör ekleme paneli, parametre drawer'ı ve StrategySpec kural kurucu.
+- [ ] Özellik: İndikatörler kategoriye ayrılacak: trend, momentum, volatilite/bant, hacim, yön-güç, fiyat dönüşü, formasyon yardımcıları.
+- [ ] Özellik: Her indikatör kartında kullanım amacı, gecikme/repaint riski, önerilen veri uzunluğu, backtest uyumluluğu ve stratejiye çevir aksiyonu olacak.
+- [ ] Özellik: Aynı indikatörün birden fazla instance'ı desteklenecek; kullanıcı Bollinger 20/2 ve Bollinger 50/2.5 gibi varyasyonları aynı grafikte karşılaştırabilecek.
+- [ ] Özellik: Parametre değişimi rapora kaydedilecek; backtest sonucunda "bu sinyal hangi parametrelerle üretildi?" geriye dönük okunabilecek.
+- [ ] Test: E2E'de Bollinger grafiğe eklenir, parametre değiştirilir, aynı ayarlar backtest preset'ine taşınır.
+
+### 21.3 Teknik Analiz Uygulama Labı
+
+- [ ] Kaynak odağı: Yaşar Erdinç teknik analiz ve ileri teknik analiz eğitimleri, teknik analiz araçlarını sadece açıklama olarak değil uygulama akışı olarak besleyecek.
+- [ ] Kullanıcı problemi: Kullanıcı trend çizgisi, destek/direnç, kanal, formasyon veya hacim teyidini çizdikten sonra bunu unutulan bir çizim olarak bırakmamalı; alarm veya backtest fikrine dönüştürebilmeli.
+- [ ] Ürün noktası: Grafik çizim altyapısı, alarm motoru, StrategySpec aday kural üretimi ve eğitim drawer'ı.
+- [ ] Özellik: Çizimlerden türetilen olaylar planlanacak: trend çizgisi kırılımı, yatay destek/direnç teması, kanal üst/alt bant teması, formasyon teyit seviyesi, hacimle kırılım.
+- [ ] Özellik: Analiz checklist'i olacak: trend yönü, ana destek/direnç, hacim teyidi, risk/ödül, stop seviyesi, geçersizleşme şartı, backtest edilebilir kural.
+- [ ] Özellik: "Analizi strateji fikrine çevir" akışı kullanıcı çizimlerini doğal dil açıklama ve StrategySpec taslağına dönüştürecek; otomatik gerçek emir yok.
+- [ ] Test: E2E'de kullanıcı destek çizgisi ekler, alarm taslağı açılır, aynı seviye backtest kural adayında görünür.
+
+### 21.4 Sistem Trading Labı
+
+- [ ] Kaynak odağı: Fuat Akman Sistem Trading ve Kıvanç Özbilgiç Algo Trade eğitimlerinden kural kurma, sistem testi, rapor okuma ve debug akışı süzülecek.
+- [ ] Kullanıcı problemi: Kullanıcı "stratejim neden çalıştı/çalışmadı?" sorusunu yalnızca equity curve ile değil kural bazlı nedenlerle görebilmeli.
+- [ ] Ürün noktası: StrategySpec editörü, backtest runner, rapor arşivi, kalite skoru ve tarayıcı.
+- [ ] Özellik: Kural debug paneli eklenecek: her bar için hangi giriş/çıkış koşulu true/false oldu, hangi filtre sinyali engelledi, kaç bar sonra sinyal geldi.
+- [ ] Özellik: Explorer mantığı StrategySpec tarayıcıya bağlanacak; kullanıcı "son barda RSI dönen, hacmi artan ve fiyat EMA üstünde olan semboller" gibi setleri tarayabilecek.
+- [ ] Özellik: Backtest raporunda eğitim kaynaklı kalite kapıları olacak: minimum işlem sayısı, parametre sayısı, tek sembol yanlılığı, out-of-sample durumu, maliyet etkisi.
+- [ ] Test: Integration testte bir StrategySpec koşulu tarayıcıda sembol listesi üretir; backtest raporu kural debug özetini döndürür.
+
+### 21.5 VİOP / Vadeli Labı
+
+- [ ] Kaynak odağı: VOB, Vadeli Trade, opsiyon/varant ve türev eğitimleri yalnızca PiyasaPilot'un ana kapsamına uygun risk ve varsayım katmanlarını besleyecek.
+- [ ] Kullanıcı problemi: Kullanıcı VİOP backtest sonucunu spot hisse backtesti gibi okumamalı; kontrat, vade, teminat, kaldıraç ve rollover varsayımlarını açıkça görmeli.
+- [ ] Ürün noktası: VİOP provider, backtest varsayım kartı, risk raporu ve eğitim drawer'ı.
+- [ ] Özellik: VİOP backtestlerinde kontrat türü, yakın vade, vade geçişi, teminat varsayımı, kaldıraç etkisi, tick size, komisyon ve slippage alanları zorunlu varsayım olarak gösterilecek.
+- [ ] Özellik: Lisanslı veri yoksa VİOP sonuçları gerçek veri gibi sunulmayacak; `not_configured` ve veri kaynağı uyarısı raporda kalacak.
+- [ ] Özellik: Rollover simülasyonu v1'de uyarı ve manuel varsayım olarak başlayacak; gerçek kontrat zinciri bağlanmadan otomatik birleştirme yapılmayacak.
+- [ ] Test: VİOP sembolünde backtest raporu veri kaynağı, vade/kontrat ve slippage varsayımı olmadan "paper'a al" aksiyonunu pasif bırakır.
+
+### 21.6 Eğitim Bağlantılı Kullanım Deneyimi
+
+- [ ] Kullanıcı problemi: Eğitim bilgisi ayrı bir dokümanda kaybolmamalı; kullanıcı merak ettiği kavramdan doğrudan grafiğe, stratejiye veya backteste geçebilmeli.
+- [ ] Ürün noktası: Yeni Eğitimler sekmesi, bağlamsal drawer, indikatör kartları, strateji presetleri ve backtest raporu.
+- [ ] Özellik: Eğitimler sekmesinde arama olacak: Bollinger, RSI, trend çizgisi, stop, backtest, walk-forward, Monte Carlo, VİOP, slippage.
+- [ ] Özellik: Konu sayfası üç aksiyonla bitecek: grafikte göster, strateji preset'ine geç, backtest raporunda ilgili metrikleri aç.
+- [ ] Özellik: Her konu sayfasında "bu bilgi nerede yaniltir?" alanı olacak; özellikle overfit, repaint, gecikme, işlem maliyeti ve veri kalitesi uyarıları öne çıkarılacak.
+- [ ] Test: E2E'de kullanıcı Eğitimler'de Bollinger arar, konu detayını açar, Bollinger'i grafiğe ekler ve Bollinger backtest preset'ine geçer.
+
+### 21.7 GitHub Checkpoint Uygulaması
+
+- [x] Branch oluştur: `codex/education-feature-planning`.
+- [x] Commit 1: `egitimplanlama.md` iskeleti ve Borfin okuma süreci.
+- [x] Commit 2: `planlama.md` eğitim kaynaklı özellik radar'ı ve ürün backlog başlıkları.
+- [ ] Commit 3: Algo Trade + Hareketli Ortalamalar OCR'ına dayalı seçilmiş özelliklerin ilk detaylandırması.
+- [ ] Commit 4: İndikatör ve teknik analiz eğitimlerinin OCR/transkript çıktılarından seçilen özellikler.
+- [ ] Commit 5: VİOP/Vadeli ve Sistem Trading eğitimlerinin OCR/transkript çıktılarından seçilen özellikler.
+- [ ] Commit 6+: Uygulama geliştirmeleri başladığında API, frontend, eğitim drawer'ı, testler ve demo ayrı commit'lere bölünecek.
