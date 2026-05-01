@@ -1,6 +1,6 @@
 # Eğitimler Sekmesi — Plan
 
-> Durum: Eğitimler sekmesi altyapısı ve E-Faz 2A ilk 10 indikatör makalesi tamamlandı.
+> Durum: Eğitimler sekmesi altyapısı ve E-Faz 2B ilk 20 indikatör makalesi tamamlandı.
 > Kaynak: BORFİN eğitim arşivi (26 kurs, 825 video; 9 kurs/469 video OCR ile incelendi, 17 kurs/356 video bekliyor).
 > Tarih: 2026-05-01
 
@@ -250,7 +250,7 @@ Her makale için:
 - [x] E15: Ichimoku makalesi
 
 ### E-Faz 2B: Kalan 10 indikatör makalesi
-- [ ] E16–E25: CCI, MFI, MOST, CMF, Williams %R, VPT/VOSC, Hacim, ileri HO, ZigZag, Heiken Ashi
+- [x] E16–E25: CCI, MFI, MOST, CMF, Williams %R, VPT/VOSC, Hacim, ileri HO, ZigZag, Heiken Ashi
 
 ### E-Faz 3: Formasyonlar (12 makale)
 - [ ] E26–E37: Formasyon makaleleri (OBO, Çift Tepe, Üçgen vb.)
