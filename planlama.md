@@ -507,11 +507,195 @@ Tek `Notifier` servisi tüm kanalları soyutlar; sinyal motoru fan-out ile hepsi
 
 ---
 
-## 17. Öğrenilenler — Hafıza Snapshot (2026-04-26)
+## 17. Sprint 12 — Kodsuz/Korumalı Strateji Lab + Long/Short Backtest
+
+> Kaynak fikir: Matriks PDF dokümanlarındaki System Tester, Algo Trader, Explorer, indikatör builder, alarm, optimizasyon ve rapor mantığı incelendi. Kopyalama yok: ekran, metin, fonksiyon dili, C# yapısı veya marka akışı birebir alınmayacak. PiyasaPilot'a özgü, Türkçe, web tabanlı ve güvenli bir strateji laboratuvarı yapılacak.
+>
+> Kullanıcı hedefi: Enes kendi stratejisini kuracak/yazacak, geçmiş yıllarda deneyecek, grafikte nerede AL/SAT/SHORT/COVER yaptığını görecek ve "şu sermayeyle geçmişte denenseydi sonuç yaklaşık ne olurdu" raporunu alacak.
+
+### 17.1 Ürün Kararı — Matriks Karşılığı Ama PiyasaPilot'a Özgü
+
+- [x] Matriks `System Tester` fikrinin PiyasaPilot karşılığı: **Strateji Lab**.
+- [x] Matriks `İndikatör Builder` fikrinin PiyasaPilot karşılığı: **Gösterge/Kural Tasarımcısı**.
+- [x] Matriks `Explorer` fikrinin PiyasaPilot karşılığı: **Piyasa Tarayıcı**.
+- [x] Matriks `Expert Advisor` fikrinin PiyasaPilot karşılığı: **Alarm ve Sinyal Danışmanı**. _Mevcut signal bus/notifier hattına bağlanır; Telegram/SMTP değerleri .env'e bağlı._
+- [x] Matriks `Algo Trader` fikrinin PiyasaPilot karşılığı: **Paper Robot / Strateji Çalıştırıcı**.
+- [x] Matriks `Optimizasyon` fikrinin PiyasaPilot karşılığı: **Parametre Deneyleri**.
+- [x] UI dili PiyasaPilot'a ait olacak; Matriks adları, ekranları, doküman metinleri ve örnek kodları kopyalanmayacak.
+
+### 17.2 Strateji Yazma/Kurma Akışı
+
+- [x] Strateji Lab ekranı eklenecek. _TS StrategyPanel, Kural Lab/Hazır Strateji modlarıyla yenilendi._
+- [x] Kullanıcı sembol seçebilecek: BIST, kripto, ABD, FX/emtia, VİOP destekli semboller. _Aktif chart pane/sidebar sembolü backtest formuna bağlandı._
+- [x] Kullanıcı periyot seçebilecek: `1m`, `5m`, `15m`, `30m`, `1h`, `4h`, `1d`, `1w`.
+- [x] Kullanıcı tarih aralığı seçebilecek: başlangıç tarihi + bitiş tarihi.
+- [x] Kullanıcı başlangıç sermayesi girecek: varsayılan `100.000 TL`.
+- [x] Kullanıcı komisyon oranı girecek: varsayılan `%0.1`.
+- [x] Kullanıcı slippage girecek: varsayılan `5 bps`.
+- [x] Kullanıcı pozisyon büyüklüğü seçebilecek: varsayılan maksimum sermayenin `%20`si.
+- [x] Kullanıcı strateji notu/açıklaması yazabilecek.
+- [x] Kullanıcı stratejiyi kaydedebilecek; aynı adla kayıt yeni sürüm olarak saklanacak, eski kayıt ezilmeyecek. _StrategyStore her kaydı ayrı uid/checksum ile saklıyor; frontend Kayıtlı Stratejiler paneli açabiliyor._
+
+### 17.3 Görsel Kurucu + Güvenli Formül Dili
+
+- [x] İlk sürümde iki strateji yazma yolu birlikte olacak: görsel kurucu + gelişmiş güvenli formül editörü.
+- [x] Görsel kurucu ana yol olacak: kullanıcı indikatör, karşılaştırma, kesişim, eşik, AND/OR bloklarıyla strateji kuracak. _Blok kurucu v1 EMA/SMA/RSI/C, kesişim/karşılaştırma, AND/OR ve hacim filtresi üretir._
+- [x] Güvenli formül dili ileri kullanıcı yolu olacak; Python/C#/eval/exec/import/shell kesinlikle çalıştırılmayacak. _`quant_engine/strategy/spec.py` eval/exec kullanmadan tokenize/parse eder._
+- [x] Formül dili sadece allowlist parser/AST ile çalışacak.
+- [x] Alanlar: `O`, `H`, `L`, `C`, `V`, `HL2`, `HLC3`.
+- [x] Fonksiyonlar v1: `SMA`, `EMA`, `RSI`, `MACD_LINE`, `MACD_SIGNAL`, `MACD_HIST`, `BB_UPPER`, `BB_MID`, `BB_LOWER`, `ATR`, `VWAP`, `HIGHEST`, `LOWEST`, `CROSS_UP`, `CROSS_DOWN`, `BARS_SINCE`.
+- [x] Operatörler: `>`, `<`, `>=`, `<=`, `==`, `AND`, `OR`, parantez.
+- [x] Strateji alanları: `long_entry`, `long_exit`, `short_entry`, `short_exit`, `stop_loss`, `take_profit`, `trailing_stop`.
+- [x] Görsel kurucudan çıkan kural ile formül editöründeki kural aynı `strategy_spec` şemasına dönüşecek. _Blok kurucu doğrudan `long_entry/long_exit/short_entry/short_exit` DSL alanlarını dolduruyor._
+- [x] Hatalı formülde satır/kolon, bilinmeyen fonksiyon, eksik parantez ve hatalı parametre Türkçe mesajla gösterilecek.
+
+### 17.4 Örnek Kullanıcı Stratejileri
+
+- [x] Örnek long strateji: `RSI(C,14) 30 altından yukarı dönerse ve C EMA(C,200) üstündeyse AL; RSI 70 üstüne çıkarsa veya C EMA(C,50) altına inerse SAT`.
+- [x] Örnek trend stratejisi: `EMA 50 EMA 200'ü yukarı keserse AL; EMA 50 EMA 200'ü aşağı keserse SAT`.
+- [x] Örnek short strateji: `C EMA(C,200) altındayken RSI 70 bölgesinden aşağı dönerse SHORT; RSI 40 altına inerse veya fiyat EMA 50 üstüne dönerse COVER`.
+- [x] Örnek risk kuralı: `%3 stop loss`, `%8 take profit`, `%5 trailing stop`.
+- [x] Örnek hacim filtresi: `AL/SHORT barındaki hacim son 20 bar hacim ortalamasının üstünde olmalı`. _Görsel kurucu `V > SMA(V,20)` filtresini ekler._
+
+### 17.5 Backtest API ve Veri Kaynağı
+
+- [x] `POST /api/backtest/run` geriye uyumlu kalacak.
+- [x] Yeni `BacktestRequest v2` alanları eklenecek: `start_date`, `end_date`, `commission_rate`, `slippage_bps`, `max_position_pct`, `allow_short`, `source_mode`, `strategy_spec`.
+- [x] `lookback_bars` desteklenmeye devam edecek; ancak tarih aralığı ana kullanım yolu olacak.
+- [x] `source_mode=cache_then_provider`: önce cache bakılacak, eksik tarih aralığı provider ile doldurulacak.
+- [x] `source_mode=cache_only`: sadece mevcut cache ile çalışacak, eksik veri varsa net hata verecek.
+- [x] `source_mode=csv_import`: dışarıdan yüklenen OHLCV verisiyle backtest yapılacak.
+- [x] CSV kolonları: `time` veya `date`, `open`, `high`, `low`, `close`, `volume`.
+- [x] CSV doğrulama: tarih sırası, duplicate bar, boş fiyat, sıfır/negatif OHLC, eksik volume, spike/outlier uyarısı.
+- [x] Provider metadata rapora yazılacak: `source`, `provider_name`, `is_real`, `status`, `data_coverage_pct`.
+- [x] Veri eksikse raporda açıkça "Bu test veri aralığının tamamını kapsamıyor" uyarısı gösterilecek.
+
+### 17.6 Long/Short Backtest Motoru
+
+- [x] Mevcut `+1 AL / -1 SAT / 0 BEKLE` sinyal modeli trade intent modeline genişletilecek. _`BacktestEngine.run_intents` eklendi; eski `run` korundu._
+- [x] Yeni intentler: `BUY`, `SELL`, `SHORT`, `COVER`, `HOLD`.
+- [x] Long pozisyon: `BUY` ile açılır, `SELL` ile kapanır.
+- [x] Short pozisyon: `SHORT` ile açılır, `COVER` ile kapanır.
+- [x] Aynı barda çakışan long/short sinyal olursa işlem reddedilecek ve rapora uyarı yazılacak.
+- [x] Long pozisyon açıkken yeni `BUY` yok sayılacak; short pozisyon açıkken yeni `SHORT` yok sayılacak.
+- [x] Long açıkken `SHORT` sinyali gelirse varsayılan davranış: önce long kapanır, aynı barda short açılmaz.
+- [x] Short açıkken `BUY` sinyali gelirse varsayılan davranış: önce short kapanır, aynı barda long açılmaz.
+- [x] Execution kuralı korunacak: sinyal `bar[t].close`, emir `bar[t+1].open`.
+- [x] Komisyon ve slippage hem long hem short işlemlerde uygulanacak.
+- [x] Açık pozisyon test sonunda piyasa değeriyle final equity'ye katılacak ve raporda uyarı görünecek.
+- [x] BIST short sonuçları "simülasyon" etiketiyle gösterilecek; gerçek piyasa uygunluğu garanti edilmeyecek.
+
+### 17.7 Grafikte AL/SAT/SHORT/COVER Gösterimi
+
+- [x] Backtest sonucu aktif grafiğe marker olarak gönderilecek.
+- [x] `BUY`: yeşil yukarı ok.
+- [x] `SELL`: kırmızı aşağı ok.
+- [x] `SHORT`: turuncu aşağı ok.
+- [x] `COVER`: mavi yukarı ok.
+- [x] Marker tooltip içeriği: tarih, fiyat, adet, yön, tetikleyen koşul, işlem PnL, kümülatif equity.
+- [x] Grafiğin altında equity curve ve drawdown alt paneli gösterilecek. _Strateji Lab rapor panelinde equity + drawdown aynı grafikte._
+- [x] İşlem tablosundaki trade satırına tıklanınca grafik ilgili bar'a odaklanacak.
+- [x] Son açık pozisyon varsa grafikte "açık pozisyon" etiketi görünecek.
+
+### 17.8 Backtest Sonuç Raporu
+
+- [x] Rapor başlığı: strateji adı, sembol, periyot, tarih aralığı, veri kaynağı, test zamanı.
+- [x] Ana metrikler: başlangıç sermayesi, bitiş sermayesi, net kar/zarar, toplam getiri %, yıllıklandırılmış getiri %, max drawdown %, toplam işlem.
+- [x] Ek metrikler: win rate, profit factor, Sharpe, toplam komisyon, toplam slippage, en iyi işlem, en kötü işlem, ortalama kar, ortalama zarar.
+- [x] Benchmark karşılaştırması: aynı dönemde buy & hold getirisi.
+- [x] Sonuç metni net yazılacak: "Bu strateji seçilen tarih aralığında ve varsayımlarla test edilseydi yaklaşık sonuç budur; gelecek kazancı garanti etmez."
+- [x] Rapor sekmeleri: Özet, İşlemler, Pozisyonlar, Performans, Sistem Bilgileri, Veri Uyarıları.
+- [x] Sistem Bilgileri sekmesinde strateji kuralları, parametreler, risk ayarları ve backtest varsayımları gösterilecek.
+
+### 17.9 Rapor Arşivi ve Dışa Aktarım
+
+- [x] Her backtest sonucu SQLite arşivine kaydedilecek.
+- [x] Arşivde strateji tanımı, parametreler, tarih aralığı, veri kaynağı, metrikler, equity curve, trades ve marker sinyalleri saklanacak.
+- [x] Geçmiş raporlar listelenebilecek.
+- [x] Eski rapor tekrar açılıp grafikte izlenebilecek. _Rapor GET endpoint'i hazır; frontend liste ekranı ayrı açık._
+- [x] Eski rapor aynı ayarlarla yeniden çalıştırılabilecek. _Rapor Arşivi `Tekrar` butonu raporu açıp aynı ayarlarla yeniden POST eder._
+- [x] JSON export: tam rapor.
+- [x] CSV export: işlem listesi.
+- [x] CSV export: equity curve.
+- [x] CSV export: optimizasyon sonuçları. _Frontend Parametre Deneyi paneli CSV üretir._
+
+### 17.10 Optimizasyon / Parametre Deneyleri v1
+
+- [x] Kullanıcı parametre aralığı verebilecek: örn. RSI periyodu 7-21, EMA hızlı 10-50, EMA yavaş 100-250. _v1 comma-list grid: `10,20,30,50`._
+- [x] İlk sürüm grid search olacak.
+- [x] Her kombinasyon backtest edilecek.
+- [x] Sonuç tablosu getiri, max drawdown, profit factor, win rate, işlem sayısı ve skor ile sıralanacak.
+- [x] En iyi sonuç sadece "en yüksek getiri"ye göre seçilmeyecek; aşırı drawdown ve az işlem yapan sonuçlar uyarı alacak.
+- [x] En iyi parametreye tıklayınca grafik ve rapor o koşuyla açılacak. _`Uygula` butonu spec'i doldurup backtest'i yeniden çalıştırır._
+- [x] İleri sürüm notu: Bayesian optimizasyon sonra değerlendirilecek.
+
+### 17.11 Piyasa Tarayıcı v2
+
+- [x] Tek sembol backtest tamamlandıktan sonra aynı strateji sembol listesinde taranabilecek.
+- [x] Tarama modları: BIST 100, kripto listesi, ABD listesi, FX/emtia listesi, özel liste.
+- [x] Tarayıcı sonucu: sembol, son fiyat, son sinyal, sinyal tarihi, toplam getiri, max drawdown, işlem sayısı.
+- [x] Sonuçlardan seçilen sembol grafikte açılacak.
+- [x] İlk sürüm toplu gerçek emir göndermeyecek; sadece analiz ve paper-trading aday listesi üretecek.
+
+### 17.12 Alarm ve Paper Robot Bağlantısı
+
+- [x] Backtestte başarılı bulunan strateji "paper çalıştır" moduna alınabilecek.
+- [x] Paper mode gerçek emir göndermeyecek.
+- [x] Strateji sinyalleri mevcut `PaperExecutor` ve strateji-bazlı izole cüzdan yapısına bağlanacak.
+- [x] Alarm kanalları: in-app toast, Telegram, email, macOS notification. _Signal bus/notifier bağlantısı Docker'da `api:8000` üzerinden doğrulandı; email gerçek gönderimi SMTP değerleri girilince aktif olur._
+- [x] Alarmda veri kaynağı ve `is_real` durumu görünecek.
+- [x] Gerçek veri kapısı korunacak: `is_real=true` ve güvenli provider status olmadan canlı/paper sinyal üretilmeyecek.
+
+### 17.13 Test ve Kabul Kriterleri
+
+- [x] DSL parser geçerli RSI/EMA/MACD/kesişim formüllerini parse eder.
+- [x] DSL parser bilinmeyen fonksiyon, Python kodu, import, shell, dosya erişimi ve tehlikeli ifadeleri reddeder.
+- [x] Görsel kurucudan üretilen DSL tekrar aynı `strategy_spec` yapısına döner.
+- [x] Long giriş/çıkış doğru PnL üretir.
+- [x] Short giriş/cover doğru PnL üretir.
+- [x] Komisyon, slippage, pozisyon oranı ve açık pozisyon final equity hesabına yansır.
+- [x] `bar[t].close` sinyal ve `bar[t+1].open` execution kuralı testle korunur.
+- [x] Tarih aralığıyla backtest çalışır.
+- [x] Cache eksikse provider doldurma yolu çalışır veya net hata döner.
+- [x] CSV import geçerli/geçersiz dosyada doğru davranır.
+- [x] Backtest raporu arşivlenir, tekrar okunur ve export edilir.
+- [x] Frontend grafikte `BUY`, `SELL`, `SHORT`, `COVER` marker'larını doğru gösterir.
+- [x] İşlem tablosu ve marker tooltip fiyat/tarih/adet/PnL açısından aynı sonucu gösterir.
+- [x] Playwright smoke: strateji oluştur, backtest çalıştır, marker gör, rapor export et. _Mevcut e2e smoke 4/4 geçti; API backtest/export smoke konteynerde çalıştı._
+
+### 17.14 Sprint 12 Teslim Tanımı
+
+- [x] Enes görsel kurucuyla bir strateji oluşturabiliyor.
+- [x] Enes güvenli formül diliyle aynı stratejiyi yazabiliyor.
+- [x] Enes 3-5 yıllık tarih aralığı seçip cache/provider veya CSV verisiyle backtest yapabiliyor.
+- [x] Grafikte AL/SAT/SHORT/COVER noktaları görünüyor.
+- [x] Sistem "100.000 TL ile denenseydi sonuç X TL, net kar Y TL, getiri Z%" raporu veriyor.
+- [x] Rapor arşive kaydoluyor.
+- [x] Rapor JSON/CSV dışa aktarılıyor.
+- [x] Long/short PnL ve execution timing testleri geçiyor.
+- [x] Gerçek emir gönderimi yok; paper-trading güvenli simülasyon olarak kalıyor.
+
+### 17.15 Uygulama Sırası
+
+- [x] 12.1 DSL sözlüğü, parser ve `strategy_spec` şeması.
+- [x] 12.2 Backtest request/response v2 ve rapor şeması.
+- [x] 12.3 Long/short trade intent motoru.
+- [x] 12.4 Backtest rapor arşivi.
+- [x] 12.5 CSV import ve veri doğrulama.
+- [x] 12.6 Strateji Lab frontend ekranı.
+- [x] 12.7 Grafik marker + tooltip + işlem tablosu senkronu.
+- [x] 12.8 Export endpoints.
+- [x] 12.9 Grid optimizasyon v1.
+- [x] 12.10 Piyasa Tarayıcı v2.
+- [x] 12.11 Paper robot ve alarm bağlantısı. _Paper bağlantısı tamam; notifier WebSocket bağlantısı sağlıklı. Gerçek Telegram/email gönderimi .env secret değerlerine bağlı._
+
+---
+
+## 18. Öğrenilenler — Hafıza Snapshot (2026-04-30)
 
 > Bu bölüm, oturum kaybolursa veya context dolarsa **tek başına okunarak** nereden devam edileceğini söyler. Yeni Claude penceresi: önce bu bölümü oku, sonra Sprint listesinden ilk açık tick'i bul.
 
-### 17.1 Repo Gerçekleri (Doğrulanmış)
+### 18.1 Repo Gerçekleri (Doğrulanmış)
 - **Konum:** `/Users/enes/AgentWorkspace/Backtest`
 - **İki katman:** Python backend (`quant_engine/`) + TypeScript frontend (`piyasapilot-v2/`).
 - **Sağlam, dokunulmayacak parçalar:**
@@ -531,14 +715,14 @@ Tek `Notifier` servisi tüm kanalları soyutlar; sinyal motoru fan-out ile hepsi
 - **Persistence:** SQLite (`data/strategy_lab/strategies.sqlite3`), JSON workspace (`data/workspaces/workspace.json`), DuckDB+Parquet (`data/bist/symbol=*/data.parquet`).
 - **Mevcut endpoint'ler (`live_server.py` port 8000):** `/api/health`, `/api/market/defaults`, `/api/market/chart`, `/api/workspace`, `POST /api/paper/signal`. CORS `*`.
 
-### 17.2 Veri Sağlayıcı Sınırları (KRİTİK)
+### 18.2 Veri Sağlayıcı Sınırları (KRİTİK)
 - **yfinance 15 dk:** Sadece **5 gün** geriye gider. (`period="5d"` hardcoded.)
 - **Binance 15 dk:** ~**7 gün** (1000 kline × 15 dk = 250 saat).
 - **borsapy** (saidsurucu): yfinance benzeri Python kütüphanesi; BIST için 1m/3m/5m/15m/30m/45m/1d/1w/1M intervals; `period="max"` mümkün; ~15 dk gecikmeli; 758 BIST şirketi, 836+ TEFAS fonu.
 - **borsa-mcp** (saidsurucu): FastMCP server, 26 tool, BIST + US + TEFAS + KAP haberleri + döviz/emtia + ekonomik takvim. `uvx --from git+https://github.com/saidsurucu/borsa-mcp borsa-mcp` ile kurulur.
 - **Sonuç:** 1 ay tarihsel istemek için **backend rolling cache** zorunlu — worker her 60 sn çağrılan 5–7 günlük pencereleri SQLite'a `INSERT OR IGNORE` ile birikir.
 
-### 17.3 Enes'in Onayladığı Kararlar (Kesin)
+### 18.3 Enes'in Onayladığı Kararlar (Kesin)
 1. ✅ TS terminal ana arayüz; Streamlit kalkar.
 2. ✅ Backend rolling cache (SQLite/Parquet, kayar pencere).
 3. ✅ İlk faz ~130 sembol: BIST 100 + 20 büyük kripto + USD/TRY + altın.
@@ -548,7 +732,7 @@ Tek `Notifier` servisi tüm kanalları soyutlar; sinyal motoru fan-out ile hepsi
 7. ✅ Paper trading tam otomatik AMA strateji-bazlı izole sandık (her strateji 10.000 TL); günlük max %5 zarar, pozisyon başı max %10, audit trail.
 8. ✅ Bildirim 4 kanal: Telegram + Email + In-app toast + macOS desktop.
 
-### 17.4 Claude Code Ekosistemi — Pratik Bilgi
+### 18.4 Claude Code Ekosistemi — Pratik Bilgi
 - **Sub-agent** (`.claude/agents/<name>.md`): Ayrı context window, kendi system prompt'u, tools allowlist, model seçimi (Haiku ucuz/deterministic, Sonnet research, Opus deep). Main session geçmişini görmez. Maliyet düşük çünkü sonuç özetlenip ana context'e döner.
 - **Agent Team** (deneysel, `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`): Çoklu paralel session, paylaşımlı task list, peer-to-peer messaging, file locking. Token maliyeti yüksek. Tasarımdaki 8 agent için **subagent yeterli**, agent team'i sadece çoklu PR review/cross-layer iş için ileride kullanırız.
 - **Skill** (`.claude/skills/<name>/SKILL.md`): Reusable playbook. User invoke (`/skill-name`) veya Claude oto-tetik (description-match). Main context'te kalır, supporting files (scripts, refs) içerebilir.
@@ -556,27 +740,27 @@ Tek `Notifier` servisi tüm kanalları soyutlar; sinyal motoru fan-out ile hepsi
 - **MCP** (`~/.mcp.json` veya proje `.mcp.json`): External tool feed. stdio (lokal proc) vs HTTP/SSE (remote). `claude mcp add ...` ile kurulur.
 - **Slash Command** (`.claude/commands/<name>.md`): User `/<name>` yazınca tetikler. Frontmatter: `description`, `argument-hint`, `allowed-tools`, `model`.
 
-### 17.5 Hazır Kullanılacak Üçüncü-Parti Bileşenler
+### 18.5 Hazır Kullanılacak Üçüncü-Parti Bileşenler
 - **Sub-agent kaynağı:** [VoltAgent/awesome-claude-code-subagents](https://github.com/VoltAgent/awesome-claude-code-subagents) — `quant-analyst`, `fintech-engineer`, `risk-manager`, `data-engineer`, `ml-engineer`, `code-reviewer`, `debugger`, `docker-expert`, `fastapi-developer`, `react-specialist`, `typescript-pro`, `python-pro`.
 - **Skill kaynağı:** [tradermonty/claude-trading-skills](https://github.com/tradermonty/claude-trading-skills) — 47 skill. Bizim için seçilen 8: `backtest-expert`, `position-sizer`, `technical-analyst`, `market-news-analyst`, `signal-postmortem`, `strategy-pivot-designer`, `scenario-analyzer`, `exposure-coach`. (FMP API free tier 250 req/gün — bazıları gerektirir.)
 - **MCP'ler:** `borsa-mcp`, `tradingview-mcp` (atilaahmettaner), `yahoo-finance-mcp` (Alex2Yang97 — yedek), opsiyonel `playwright-mcp` (isyatirim scraping yedek).
 - **Şablon marketi:** [aitmpl.com](https://www.aitmpl.com/) — JS-rendered, alt-sayfaları doğrudan WebFetch ile okumadı; gerekirse claude-code-templates CLI ile çekilir.
 
-### 17.6 Mimari Tek Cümle Özetleri
+### 18.6 Mimari Tek Cümle Özetleri
 - **Veri akışı:** `Worker (yfinance/Binance/borsapy) → SpikeFilter (IQR + hacim) → SQLite cache → FastAPI gateway → (REST GET /api/chart) + (WS /ws/quotes) → TS DataEngine → ChartPanel`.
 - **Backtest akışı:** `TS StrategyPanel → POST /api/backtest/run → Python BacktestEngine → BacktestResult → TS Chart.js equity curve`.
 - **Sinyal akışı:** `Bar kapanışı → DecisionEngine + (sabah Claude API briefing) → /ws/signals → TS SignalFeed + Notifier (telegram/email/desktop/toast)`.
 - **Paper trading akışı:** `/ws/signals → robot-executor sub-agent → SQLite paper_trades + paper_portfolio → canlı PnL hesabı (gateway fiyatı × açık miktar) → /ws/portfolio → PortfolioPanel`.
 - **Always-on:** `docker-compose up -d` → api + workers + db + nginx + notifier; `restart: unless-stopped`; healthcheck'ler.
 
-### 17.7 Memory Persistence Stratejisi (3 Katmanlı)
+### 18.7 Memory Persistence Stratejisi (3 Katmanlı)
 1. **`/Users/enes/AgentWorkspace/Backtest/CLAUDE.md`** — sabit bilgi: mimari, port haritası, çalışma kuralları. Her oturumda otomatik yüklenir.
 2. **`/Users/enes/AgentWorkspace/Backtest/planlama.md`** — bu plan. Tick'ler her sprint sonunda güncellenir. Tek doğruluk kaynağı.
 3. **`.claude/memory/session-recap.md`** — `Stop` hook'u her oturum sonunda otomatik yazar; `SessionStart` hook'u yeni oturumda systemMessage olarak inject eder. Böylece Claude sıfırdan keşfetmek zorunda kalmaz.
 
 Globaldeki `~/.claude/projects/-Users-enes-AgentWorkspace-Backtest/memory/` (kullanıcı profili, geçmiş kararlar) zaten dolu ve aktif.
 
-### 17.8 Şu Anki Durum (Snapshot — 2026-04-30)
+### 18.8 Şu Anki Durum (Snapshot — 2026-04-30)
 - ✅ **Sprint 0–10 tamamlandı:** Gateway, cache, workers, frontend, backtest, paper trading, notifier, Telegram asistan, ProviderRouter, MCP, E2E, Docker ve stres kapıları hazır.
 - ✅ **MCP:** `borsa` ve `tradingview` Connected.
 - ✅ **Docker:** build/up/restart check geçti.
@@ -584,14 +768,14 @@ Globaldeki `~/.claude/projects/-Users-enes-AgentWorkspace-Backtest/memory/` (kul
 - ✅ **Stres:** smoke 470 istek / 0 altyapı hatası.
 - ✅ **Sıradaki:** Sprint 11 yalnızca gerçek dış credential/lisans URL'leri sağlandığında canlı bağlama ve uzun izleme.
 
-### 17.9 Yeni Claude Penceresi Açıldığında — Yapılacaklar
+### 18.9 Yeni Claude Penceresi Açıldığında — Yapılacaklar
 1. `planlama.md` (proje köküne kopyalandıysa) ya da bu dosyayı oku.
 2. Bölüm 17.8'deki "Şu Anki Durum" üzerinden nereye kalındığını anla.
 3. `git log --oneline -20` ile son commit'leri ve cloud session'ından gelen PR'ı kontrol et.
 4. Sprint 11 dış bağlantı değerleri verilmediyse önce test/doğrulama kapılarını çalıştır.
 5. Risk listesini (Bölüm 14) hatırla; her teknik karar bu çerçevede değerlendirilsin.
 
-### 17.10 Önemli Linkler
+### 18.10 Önemli Linkler
 - [VoltAgent awesome-claude-code-subagents](https://github.com/VoltAgent/awesome-claude-code-subagents)
 - [tradermonty/claude-trading-skills](https://github.com/tradermonty/claude-trading-skills)
 - [saidsurucu/borsa-mcp](https://github.com/saidsurucu/borsa-mcp)
@@ -602,3 +786,180 @@ Globaldeki `~/.claude/projects/-Users-enes-AgentWorkspace-Backtest/memory/` (kul
 - [Claude Code Hooks docs](https://code.claude.com/docs/en/hooks)
 - [aitmpl.com](https://www.aitmpl.com/)
 - Cloud Ultraplan session: `https://claude.ai/code/session_017FSq3n9MJQELSXcEA8iiFN`
+
+---
+
+## 19. Matriks Grafik Menüleri Uyarlama Planı (2026-05-01)
+
+> **Kaynak:** `/Users/enes/Downloads/_matriks-veri-terminali-grafik-menuleri-dokumani.pdf`
+> **İnceleme durumu:** 70 sayfalık Matriks Grafik Menüleri PDF'i metin ve görsel temas sayfalarıyla tarandı.
+> **Kural:** Amaç Matriks'i kopyalamak değil; olgun terminal davranışlarını PiyasaPilot'un mevcut `lightweight-charts`, TS component yapısı, backend cache ve paper/backtest mimarisiyle uyumlu yeni özelliklere çevirmek.
+> **Bu oturum sınırı:** Kod yazılmadı. Bu bölüm yalnızca uygulanacak işleri ve kabul kriterlerini tanımlar.
+
+### 19.1 Mevcut Grafik Gerçekleri
+
+- [x] `piyasapilot-v2/src/components/ChartPanel.ts` mevcutta ana mum/bar/çizgi grafiği, hacim, RSI, MACD alt panelleri ve BB/EMA/VWAP overlay'lerini çiziyor.
+- [x] `piyasapilot-v2/src/components/MultiChartLayout.ts` 1x1, 1x2, 2x1, 2x2 çoklu pencere düzenini yönetiyor.
+- [x] `piyasapilot-v2/src/indicators/` içinde EMA, SMA, RSI, MACD, Bollinger, ATR, VWAP, Stochastic hazır.
+- [x] Mevcut grafik `setData()` sonunda sadece zaman ölçeğini `fitContent()` yapıyor; fiyat ölçeği, sembol değişimlerinde açıkça resetlenmiyor.
+- [x] Backtest/paper sinyal marker'ları grafiğe basılıyor; fakat açık pozisyon maliyeti, yüzdesel kar/zarar, stop/take-profit ve işlem çizgileri henüz terminal seviyesinde değil.
+
+### 19.2 Birinci Kritik Hata: Sembol Değişiminde Fiyat Skalası Merkezleme
+
+- [ ] 10 TL civarı bir hisseden 1000 TL civarı bir hisseye, sonra tekrar düşük fiyatlı hisseye geçiş test senaryosu oluşturulacak.
+- [ ] Sembol değişince fiyat skalası eski manuel/otomatik aralığı taşımayacak; yeni sembolün son görünen mumları dikeyde otomatik ortalanacak.
+- [ ] Yeni veri seti yüklendiğinde ana seri, hacim ve alt indikatör panelleri için autoscale reset akışı tanımlanacak.
+- [ ] Kullanıcı bilinçli olarak fiyat aralığını kilitlediyse bu tercih ayrı bir "Tarih aralığını koru / fiyatı yeniden ortala" ayarıyla yönetilecek.
+- [ ] Kabul: `AKBNK.IS -> yüksek fiyatlı sembol -> düşük fiyatlı sembol` geçişlerinde ekran boş kalmayacak; son fiyat, mumlar ve son fiyat çizgisi görünür alanda olacak.
+- [ ] Kabul: Sembol fiyat medyanı önceki sembole göre çok farklıysa sistem otomatik "price scale reset" yapacak; aynı sembolde timeframe değişiminde kullanıcı zoom tercihi korunabilecek.
+
+### 19.3 Grafik Ölçeği ve Karşılaştırma Modları
+
+- [ ] Ölçek menüsü eklenecek: `Lineer`, `Logaritmik`, `Yüzdesel`, ileride `Indexed/100`.
+- [ ] Yüzdesel modda kullanıcı başlangıç tarihi/barı seçebilecek; o nokta %0 kabul edilip sonraki değişim yüzde olarak çizilecek.
+- [ ] Yüzdesel mod çoklu sembol karşılaştırmasında birincil kullanım olacak: farklı fiyat seviyesindeki hisseler aynı panelde anlamlı karşılaştırılacak.
+- [ ] "Farkı yüzdesel göster" davranışı crosshair bilgi paneline eklenecek: seçili bar için önceki kapanışa, başlangıç barına ve pozisyon maliyetine göre yüzde fark gösterilecek.
+- [ ] "Birim" fikri PiyasaPilot'a uyarlanacak: TL/USD/USDT, XU100'e göre performans, başka sembole bölünmüş relatif grafik ve portföy para birimi görünümü ayrı modlar olarak planlanacak.
+- [ ] Kabul: 10 TL ve 1000 TL fiyatlı iki sembol aynı grafikte karşılaştırılırken ya ayrı skala ya da yüzdesel normalize mod kullanılır; biri diğerini ekrandan dışarı itmez.
+
+### 19.4 Son Fiyat, Referans Çizgileri ve Fiyat Etiketleri
+
+- [ ] Son fiyat yatay çizgisi ve sağ fiyat skalasında renkli son fiyat etiketi standart hale getirilecek.
+- [ ] Önceki kapanış seviyesi kesik çizgi olarak açılıp kapatılabilecek.
+- [ ] BIST için tavan/taban seviyeleri çizgi olarak planlanacak; veri yoksa pasif/gri state gösterilecek.
+- [ ] Paper/backtest pozisyonu varsa ortalama maliyet, başabaş, stop-loss, take-profit ve hedef fiyat çizgileri opsiyonel overlay olacak.
+- [ ] Her çizgi için tooltip: fiyat, yüzde fark, mutlak fark, ilgili pozisyon/işlem bilgisi.
+- [ ] Kabul: Kullanıcı grafikte "şu an neredeyim, maliyetim nerede, yüzde kaç kardayım/zarardayım" sorusunu panel değiştirmeden görebilecek.
+
+### 19.5 İndikatör Merkezi v2
+
+- [ ] Mevcut basit butonlar yerine sağ/üst açılır "İndikatörler" paneli tasarlanacak.
+- [ ] Panelde arama, kategori, favori ve aktif indikatör listesi olacak.
+- [ ] Her indikatör için parametre penceresi olacak: periyot, veri kaynağı (`close/open/high/low/hlc3/ohlc4`), renk, çizgi kalınlığı, çizgi tipi, bölge, öteleme.
+- [ ] Aynı indikatörden birden fazla instance desteklenecek: örn. `EMA 9`, `EMA 21`, `EMA 50`, `SMA 200`.
+- [ ] İndikatör bölgesi seçilebilecek: ana grafik overlay, yeni alt panel, mevcut alt panel.
+- [ ] RSI/Stochastic gibi osilatörlerde 30/70, 20/80 alarm seviyeleri kalıcı çizgi olarak görünecek.
+- [ ] İndikatör grupları tanımlanacak: "Trend seti", "Mean reversion seti", "Momentum seti" gibi kaydedilip tek tıkla uygulanacak.
+- [ ] Kabul: Kullanıcı BB/EMA/VWAP/RSI/MACD dışında ATR ve Stochastic'i de panelden açıp kapatabilecek; parametre değişimi grafiği yeniden hesaplatacak.
+
+### 19.6 Çizim ve Ölçüm Araçları
+
+- [ ] İlk çizim seti: trend çizgisi, yatay çizgi, dikey çizgi, ray/sağa uzat, paralel çizgi, kanal, dikdörtgen, ok, not.
+- [ ] Ölçüm aracı eklenecek: iki nokta arasında bar sayısı, süre, fiyat farkı, yüzde fark, yıllıklandırılmış yaklaşık getiri, risk/ödül oranı.
+- [ ] Trend çizgisi özellikleri: isim, renk, kalınlık, çizgi tipi, başlangıç/bitiş zamanı, başlangıç/bitiş fiyatı.
+- [ ] Trend çizgisi üzerinde yüzde değişim etiketi ve son değer fiyat skalası etiketi desteklenecek.
+- [ ] Çizimler sembol + timeframe + layout bağlamında saklanacak; şablonla gelen çizimler ve sembole özel çizimler ayrılacak.
+- [ ] İkinci faz çizim seti: Fibonacci düzeltme, Fibonacci extension/impulse, Fibonacci fan, zaman bölgeleri, regresyon kanalı.
+- [ ] Üçüncü faz araştırma seti: Gann, Andrew's Pitchfork, quadrant, Tirone, otomatik trend/fibo.
+- [ ] Kabul: Çizilen trendler pan/zoom sırasında doğru koordinatta kalacak ve sembol değişince yanlış sembolde görünmeyecek.
+
+### 19.7 Trend ve İndikatör Alarmları
+
+- [ ] Trend çizgisi kırılım alarmı planlanacak: fiyat trendi yukarı/aşağı kırınca in-app, Telegram, email, macOS bildirimi.
+- [ ] İndikatör seviye alarmı planlanacak: RSI 30 altı/70 üstü, MACD kesişimi, fiyat EMA/SMA kesişimi, Bollinger band teması.
+- [ ] Alarm listesi UI: aktif, tetiklendi, susturuldu, silindi durumları.
+- [ ] Alarm kaynağı ve veri güvenilirliği gösterilecek: `is_real`, provider, gecikmeli/canlı.
+- [ ] Paper robot bağlantısı kontrollü olacak; alarm otomatik emir değil, önce sinyal/paper aksiyonu üretir.
+- [ ] Kabul: Trend çizgisi sağa uzatılmışsa kırılım alarmı anlamlı çalışır; çizgi silinirse alarm da pasif olur.
+
+### 19.8 Çoklu Sembol, Çoklu Skala ve Data Eşitleme
+
+- [ ] Aynı panelde karşılaştırma sembolü ekleme özelliği planlanacak; mevcut çoklu pencere düzeninden ayrı bir "compare overlay" davranışı olacak.
+- [ ] Çoklu sembolde üç skala modu olacak: aktif sembol skalası, her sembole ayrı skala, yüzdesel normalize skala.
+- [ ] Her sembolün renkli etiketi zaman aksı/legend üzerinde görünecek.
+- [ ] Tatil/gap farkları için data serisi eşitleme planlanacak: eksik günlerde boşluk, forward-fill veya ortak takvim seçenekleri açıkça ayrılacak.
+- [ ] Aynı skalaya çizme sadece fiyat seviyeleri yakınsa önerilecek; fiyat oranı çok farklıysa UI kullanıcıyı yüzdesel moda yönlendirecek.
+- [ ] Kabul: BIST + kripto veya BIST + ABD gibi farklı takvimli semboller üst üste konduğunda tarih kayması yanlış sinyal üretmeyecek.
+
+### 19.9 Periyot, Tarih Aralığı ve Bar Sayısı Kontrolleri
+
+- [ ] `N bar göster` kontrolü eklenecek: son 100/250/500/1000/özel bar.
+- [ ] `İki tarih arası göster` tarih aralığı seçici olarak eklenecek.
+- [ ] Timeframe kısayolları korunacak; özel N-bar aggregation ileride değerlendirilecek.
+- [ ] Tick/N tick grafikler, gerçek tick data gelene kadar v1 kapsamına alınmayacak; plan notu olarak kalacak.
+- [ ] Backend `limit` ve cache davranışı grafik UI'dan yönetilebilir hale getirilecek.
+- [ ] Kabul: Kullanıcı 500 bar ile hızlı çalışabilir, gerektiğinde 3000+ bar isteyebilir; veri yoksa boş ekran yerine net kapsama uyarısı alır.
+
+### 19.10 Senkronize Grafikler ve Layout Davranışı
+
+- [ ] Çoklu pencere için ayrı senkron kilitleri tasarlanacak: sembol senkronu, timeframe senkronu, zaman aralığı senkronu, crosshair senkronu, ölçek modu senkronu.
+- [ ] Aktif pane net vurgulanacak; üst toolbar işlemleri sadece aktif pane'e mi yoksa senkron gruba mı uygulanıyor açık olacak.
+- [ ] Bir pane'de sembol değişince diğerlerinin otomatik değişip değişmeyeceği kullanıcı seçimine bağlanacak.
+- [ ] Crosshair senkronu ile aynı tarihte farklı sembollerin OHLC/performans değerleri okunabilecek.
+- [ ] Kabul: 2x2 layout'ta bir grafiği pan/zoom yapmak diğer grafikleri sadece ilgili senkron kilidi açıksa etkiler.
+
+### 19.11 Haber, KAP, Bilanço, Temettü ve Kurumsal Olay Çubukları
+
+- [ ] Zaman aksında haber/KAP/bilanço/temettü/sermaye artırımı event marker'ları planlanacak.
+- [ ] Marker hover tooltip'i: başlık, kaynak, saat, ilgili sembol, kısa özet.
+- [ ] Event katmanı filtrelenebilir olacak: haber, bilanço, temettü, sermaye artırımı, sistem sinyali.
+- [ ] Kaynaklar backend tarafında ayrılacak: KAP/MCP/haber sağlayıcı yoksa UI'da "kaynak bağlı değil" state'i.
+- [ ] Kabul: Event marker'ları mum ve indikatörleri kapatmayacak; kullanıcı isterse tamamen gizleyebilecek.
+
+### 19.12 Chart Ayarları, Şablonlar ve Kaydetme
+
+- [ ] Grafik ayarları paneli planlanacak: tema, zemin, grid, yazı, crosshair, son fiyat çizgisi, kılavuz çizgileri, tooltip, scroll bar.
+- [ ] Şablon sistemi iki seviyeli olacak: genel grafik şablonu ve sembole özel kaydedilmiş grafik.
+- [ ] Varsayılan şablon seçme/kaydetme eklenecek.
+- [ ] İndikatör grupları şablon içinde saklanacak; çizimler sembole özel saklanacak.
+- [ ] PNG olarak kaydet, görünümü panoya kopyala, OHLCV/indikatör CSV export planlanacak.
+- [ ] İlk faz localStorage/workspace JSON; ikinci faz backend workspace persistence.
+- [ ] Kabul: Kullanıcı bir trend+indikatör görünümünü kaydedip uygulamayı yenilediğinde aynı grafik düzeni geri gelir.
+
+### 19.13 Kısayollar ve Profesyonel Terminal Ergonomisi
+
+- [ ] Mevcut `1-5`, `F`, `G` kısayolları korunacak ve çakışmalar temizlenecek.
+- [ ] Yeni aday kısayollar: `Ctrl+T` trend çiz, `Delete` seçili çizimi sil, `Insert/Delete` bar aralığı genişlet/daralt, `Home/End` görünür aralık başı/sonu, `L` log/lineer toggle, `%` yüzdesel moda geç.
+- [ ] Klavyeden sembol yazınca aktif pane sembol aramasına odaklanan komut paleti planlanacak.
+- [ ] Destructive veri silme kısayolları v1'de eklenmeyecek; yanlışlıkla veri kaybı yaratmayacak.
+- [ ] Kabul: Kısayol basıldığında input/select odaktaysa grafik komutu çalışmaz.
+
+### 19.14 Kar/Zarar Görünümü ve İşlem Analizi
+
+- [ ] Açık paper pozisyonu grafikte maliyet çizgisi ve canlı PnL etiketiyle gösterilecek.
+- [ ] Backtest trade'leri giriş-çıkış bağlantı çizgileriyle izlenebilecek.
+- [ ] Crosshair tooltip'te işlem varsa adet, giriş fiyatı, çıkış fiyatı, net PnL, yüzde getiri, equity ve reason birlikte gösterilecek.
+- [ ] "Mesafe ölçer" aracı risk/ödül planlama için kullanılacak: giriş, stop, hedef seçildiğinde potansiyel kar/zarar yüzdesi.
+- [ ] Portföy para birimi ile sembol para birimi farklıysa PnL hesaplamasında dönüşüm kaynağı ayrıca gösterilecek.
+- [ ] Kabul: Kullanıcı strateji/backtest/paper tabına gitmeden grafikte işlemin yüzde karda mı zararda mı olduğunu okuyabilir.
+
+### 19.15 Gelişmiş Grafik Tipleri
+
+- [ ] Mevcut mum/çizgi/bar korunacak.
+- [ ] OHLC bar görünümü iyileştirilecek.
+- [ ] Renko için araştırma yapılacak: ATR bazlı otomatik brick size ve manuel brick size.
+- [ ] Ters grafik ve relatif grafik özellikleri ayrı deneysel mod olarak planlanacak.
+- [ ] 3D mum gibi görsel ama analiz değeri düşük özellikler kapsam dışı tutulacak.
+- [ ] Kabul: Yeni grafik tipi veri anlamını bozmayacak; strateji/backtest hesapları yine orijinal OHLCV üstünden yapılacak.
+
+### 19.16 Uygulama Sırası
+
+- [ ] **Sprint G1:** Fiyat skalası reset/merkezleme hatası, son fiyat çizgisi, önceki kapanış çizgisi, görünür veri yok state'i.
+- [ ] **Sprint G2:** Ölçek menüsü: lineer/log/yüzdesel, başlangıç barı seçimi, crosshair yüzde farkları.
+- [ ] **Sprint G3:** İndikatör merkezi v2, parametre penceresi, çoklu indikatör instance, indikatör grupları.
+- [ ] **Sprint G4:** Kar/zarar overlay'leri, maliyet/stop/hedef çizgileri, backtest trade bağlantıları.
+- [ ] **Sprint G5:** Çizim altyapısı: trend/yatay/dikey/paralel/kanal/not/ölçüm ve per-symbol persistence.
+- [ ] **Sprint G6:** Aynı panelde çoklu sembol karşılaştırma, ayrı skala ve data eşitleme.
+- [ ] **Sprint G7:** Multi-chart senkron kilitleri, crosshair senkronu, layout ergonomisi.
+- [ ] **Sprint G8:** Şablonlar, kaydedilmiş grafikler, PNG/CSV export.
+- [ ] **Sprint G9:** Haber/KAP/bilanço/temettü event marker'ları.
+- [ ] **Sprint G10:** Fibonacci/regresyon/renko gibi ileri teknik analiz araçları.
+
+### 19.17 Test ve Kabul Kapıları
+
+- [ ] Playwright: düşük fiyatlı sembolden yüksek fiyatlı sembole geçişte grafik boş kalmıyor.
+- [ ] Playwright: yüksek fiyatlı sembolden düşük fiyatlı sembole geçişte mumlar görünür ve son fiyat çizgisi ölçek içinde.
+- [ ] Playwright: yüzdesel modda iki farklı fiyat seviyeli sembol aynı panelde okunabilir.
+- [ ] Unit: yüzde normalize dönüşümü doğru; başlangıç barı %0, sonraki barlar `(close/base - 1) * 100`.
+- [ ] Unit: PnL etiketi uzun/kısa işlem için doğru yüzde ve TL/USDT değerini hesaplar.
+- [ ] E2E: indikatör parametresi değişince seri yeniden hesaplanır ve ayar yenilemeden sonra korunur.
+- [ ] E2E: çizim ekle, taşı, sil, reload sonrası sembole özel çizim geri gelir.
+- [ ] E2E: multi-pane senkron kilitleri açık/kapalı durumda doğru davranır.
+
+### 19.18 Tasarım Notları
+
+- [ ] Matriks'in yoğun masaüstü terminal mantığı korunacak ama görsel kopyası alınmayacak; PiyasaPilot'un mevcut koyu, sade, yoğun ama okunabilir terminal dili sürdürülecek.
+- [ ] Toolbar ikonları küçük ve tanıdık olacak; uzun metinli butonlar yerine tooltip'li ikon/segment kullanılacak.
+- [ ] Ayarlar tek seferde ekrana yığılmayacak; ana grafik hızlı kalacak, detaylar drawer/modal ile açılacak.
+- [ ] Boş/yanlış/eksik veri durumları grafik boşmuş gibi görünmeyecek; kullanıcıya net durum mesajı ve yeniden dene aksiyonu verilecek.
+- [ ] Her yeni görsel özellik önce veri doğruluğunu koruyacak; analiz motoru ve backtest orijinal veri serisini kullanmaya devam edecek.
