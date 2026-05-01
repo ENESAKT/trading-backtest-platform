@@ -86,7 +86,12 @@ Bu iki kursun urun backlog'u `planlama.md` icinde Borfin master planina ek olara
 ## 8. Siradaki Okuma Dilimleri
 
 - Dilim A: `İndikatörlerin Seçimi ve Kullanımı FUAT AKMAN`
-  - Cikti: indikator kategorileri, parametre rehberi, repaint/gecikme riski, grafik/strateji baglantilari.
+  - Durum: ilk OCR turu tamamlandi.
+  - Kayit: `artifacts/borfin_indikator_ocr/ocr_report.md`.
+  - Kapsam: 67 video, 1004 OCR satiri, icerige ek olarak 3 `.doc` ve 1 `.xls` yardimci dosyasi incelendi.
+  - Yontem: macOS Vision frame OCR + yardimci dosya metin cikarimi. Ses transkripti yok; konusmada kalip ekranda gorunmeyen detaylar eksik olabilir.
+  - Gozlem: Bollinger, ADX/ADXR, ATR, CCI, CMO, Chaikin/CMF, DEMA, DPO, DI/DX, Heiken Ashi, Ichimoku, MACD, MFI, Momentum, MOST, OBV/OBVx, Parabolic SAR, RSI/RMI, Stochastic ailesi, TRIX, VHF, Volume indikatörleri, Williams, ZigZag ve bant/yön/güç/hacim ayrimlari ekranda goruldu.
+  - Urune donusen ana fikir: indikator katalogu kategori, parametre, grafik yerlesimi, risk uyarisi ve stratejiye cevir aksiyonlariyla tasarlanacak.
 - Dilim B: `TEKNİK ANALİZ DR. YAŞAR ERDİNÇ` ve `İleri Düzey Teknik Analiz Eğitimi DR. YAŞAR ERDİNÇ`
   - Cikti: teknik analiz uygulama lab'i, cizimden alarma/backteste donusum, analiz checklist'i.
 - Dilim C: `FUAT AKMAN Sistem Trading ve Araçları Eğitimi`
