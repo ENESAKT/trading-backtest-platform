@@ -1,5 +1,7 @@
 # Yol Haritası — PiyasaPilot Trading Terminali
 
+> Arşiv notu: Bu dosya tarihsel snapshot'tır. Güncel yürütme sırası için `genelplanlama.md`, plan index'i için `planlama.md` esas alınır.
+>
 > Bu doküman **ne yapıldı, ne yapılacak, sonunda ne göreceksin**'i sade Türkçeyle anlatır.
 > Tick listesi (`- [x]` / `- [ ]`) için: [`planlama.md`](planlama.md). Bu dosya o planın hikâyesidir.
 >

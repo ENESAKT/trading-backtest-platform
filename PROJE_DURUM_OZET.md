@@ -1,5 +1,7 @@
 # PiyasaPilot Proje Durum Özeti
 
+> Arşiv notu: Bu dosya tarihsel durum snapshot'ıdır. Güncel yürütme sırası için `genelplanlama.md`, plan index'i için `planlama.md` esas alınır.
+>
 > Son güncelleme: 2026-04-30
 > Proje dizini: `/Users/enes/AgentWorkspace/Backtest`
 > Ana dal: `main` — Sprint 10 Aşama 1 kod commitleri ve doküman temizliği yerelde
