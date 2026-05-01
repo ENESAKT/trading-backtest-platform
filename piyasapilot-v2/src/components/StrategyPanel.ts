@@ -93,6 +93,27 @@ const DEFAULT_STRATEGIES: StrategyBlueprint[] = [
     default_params: {},
     schema: [],
   },
+  {
+    id: 'bollinger_reversion',
+    label: 'Bollinger Bands Reversion',
+    description: 'Bant dışına taşan fiyatın orta banda dönüşü.',
+    default_params: { period: 20, std_dev: 2 },
+    schema: [],
+  },
+  {
+    id: 'macd_divergence',
+    label: 'MACD Kesişimi',
+    description: 'MACD histogramı sıfır çizgisini geçtiğinde işlem.',
+    default_params: { fast_period: 12, slow_period: 26, signal_period: 9 },
+    schema: [],
+  },
+  {
+    id: 'supertrend',
+    label: 'Supertrend',
+    description: 'ATR tabanlı trend yönü.',
+    default_params: { period: 10, multiplier: 3 },
+    schema: [],
+  },
 ];
 
 const EXAMPLES: Record<string, Partial<StrategySpec>> = {
@@ -184,6 +205,20 @@ export class StrategyPanel {
   onSymbolSelect(listener: SymbolSelectListener): () => void {
     this.symbolSelectListeners.add(listener);
     return () => this.symbolSelectListeners.delete(listener);
+  }
+
+  openBlueprint(strategyId: string): void {
+    if (!strategyId.trim()) return;
+    if (!this.blueprints.some(strategy => strategy.id === strategyId)) {
+      this.showError(`${strategyId} preset'i bu oturumda yüklenmedi.`);
+      return;
+    }
+    this.mode = 'blueprint';
+    this.activeStrategy = strategyId;
+    this.renderStrategyCards();
+    this.syncControls();
+    this.lastRunKey = '';
+    void this.runAnalysis();
   }
 
   private emitSignals(signals: Signal[]): void {

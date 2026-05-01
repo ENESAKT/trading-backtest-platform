@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 
-const tabs = ['chart', 'portfolio', 'strategy', 'screener', 'signals'] as const;
+const tabs = ['chart', 'portfolio', 'strategy', 'screener', 'signals', 'education'] as const;
 const day = 24 * 60 * 60;
 const startTs = 1_714_521_600;
 
@@ -77,6 +77,7 @@ test('PiyasaPilot shell loads all primary tabs', async ({ page }) => {
     await expect(page.locator(`#panel-${tab}`)).toBeVisible();
   }
 
+  await page.locator('[data-tab="signals"]').click();
   await expect(page.locator('#tg-status')).toBeVisible();
   await expect(page.locator('#tg-save-prefs')).toBeVisible();
 });
@@ -88,6 +89,18 @@ test('start tab preference is persisted', async ({ page }) => {
 
   await expect(page.locator('#panel-signals')).toBeVisible();
   await expect(page.locator('#start-tab-select')).toHaveValue('signals');
+});
+
+test('education tab renders searchable indicator articles', async ({ page }) => {
+  await page.goto('/');
+  await page.locator('[data-tab="education"]').click();
+
+  await expect(page.locator('#panel-education')).toBeVisible();
+  await expect(page.locator('.education-article-header h2')).toContainText(/ADX|ATR|Bollinger|Ichimoku|MACD|OBV|Parabolic|RSI|Stochastic|Hareketli/);
+
+  await page.locator('#education-search').fill('rsi');
+  await expect(page.locator('.education-row.active')).toContainText('RSI');
+  await expect(page.locator('.education-source-note')).toContainText('kare OCR');
 });
 
 test('mobile viewport keeps the primary shell usable', async ({ page }) => {

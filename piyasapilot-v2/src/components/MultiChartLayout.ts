@@ -109,6 +109,10 @@ export class MultiChartLayout {
     this.getActivePane()?.chartPanel.focusTime(timestamp);
   }
 
+  setActivePaneIndicator(indicator: string, active = true): void {
+    this.getActivePane()?.chartPanel.setIndicatorActive(indicator, active);
+  }
+
   onSymbolChange(listener: SymbolChangeListener): () => void {
     this.symbolChangeListeners.add(listener);
     return () => this.symbolChangeListeners.delete(listener);

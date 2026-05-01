@@ -1,6 +1,6 @@
 # Eğitimler Sekmesi — Plan
 
-> Durum: Plan revize edildi, kodlama başlamadı.
+> Durum: Eğitimler sekmesi altyapısı ve E-Faz 2A ilk 10 indikatör makalesi tamamlandı.
 > Kaynak: BORFİN eğitim arşivi (26 kurs, 825 video; 9 kurs/469 video OCR ile incelendi, 17 kurs/356 video bekliyor).
 > Tarih: 2026-05-01
 
@@ -231,23 +231,23 @@ Her makale için:
 ## 7. Uygulama Adımları (Öncelik Sırası)
 
 ### E-Faz 1: Altyapı (kod, içerik yok)
-- [ ] E1: `src/content/egitimler/` klasör yapısı
-- [ ] E2: `EgitimlerPanel.ts` iskelet (render yok, sadece şablon)
-- [ ] E3: `marked` kütüphanesi + frontmatter parser kurulumu
-- [ ] E4: `fuse.js` arama kurulumu
-- [ ] E5: `app.ts`'e Eğitimler sekmesi + klavye `6`
+- [x] E1: `src/content/egitimler/` klasör yapısı
+- [x] E2: `EgitimlerPanel.ts` iskelet (render yok, sadece şablon)
+- [x] E3: `marked` kütüphanesi + frontmatter parser kurulumu
+- [x] E4: `fuse.js` arama kurulumu
+- [x] E5: `app.ts`'e Eğitimler sekmesi + klavye `6`
 
 ### E-Faz 2A: İlk 10 makale (İndikatörler)
-- [ ] E6: Bollinger Bandı makalesi + köprü testi
-- [ ] E7: RSI makalesi
-- [ ] E8: MACD makalesi
-- [ ] E9: SMA/EMA makalesi
-- [ ] E10: ATR makalesi
-- [ ] E11: Stochastic makalesi
-- [ ] E12: ADX makalesi
-- [ ] E13: OBV makalesi
-- [ ] E14: Parabolic SAR makalesi
-- [ ] E15: Ichimoku makalesi
+- [x] E6: Bollinger Bandı makalesi + köprü testi
+- [x] E7: RSI makalesi
+- [x] E8: MACD makalesi
+- [x] E9: SMA/EMA makalesi
+- [x] E10: ATR makalesi
+- [x] E11: Stochastic makalesi
+- [x] E12: ADX makalesi
+- [x] E13: OBV makalesi
+- [x] E14: Parabolic SAR makalesi
+- [x] E15: Ichimoku makalesi
 
 ### E-Faz 2B: Kalan 10 indikatör makalesi
 - [ ] E16–E25: CCI, MFI, MOST, CMF, Williams %R, VPT/VOSC, Hacim, ileri HO, ZigZag, Heiken Ashi

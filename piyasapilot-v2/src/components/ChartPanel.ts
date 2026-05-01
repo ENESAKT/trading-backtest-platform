@@ -59,12 +59,14 @@ export class ChartPanel {
   private volEl!:    HTMLElement;
   private rsiEl!:    HTMLElement;
   private macdEl!:   HTMLElement;
+  private atrEl!:    HTMLElement;
 
   // Chart instances
   private mainChart!:  IChartApi;
   private volChart!:   IChartApi;
   private rsiChart!:   IChartApi;
   private macdChart!:  IChartApi;
+  private atrChart!:   IChartApi;
 
   // Series references
   private candleSeries!:  ISeriesApi<'Candlestick'>;
@@ -75,6 +77,7 @@ export class ChartPanel {
   private macdLineSeries!:   ISeriesApi<'Line'>;
   private macdSigSeries!:    ISeriesApi<'Line'>;
   private macdHistSeries!:   ISeriesApi<'Histogram'>;
+  private atrSeries!:        ISeriesApi<'Line'>;
 
   // Overlay indicator series (on main chart)
   private bbUpperSeries!: ISeriesApi<'Line'>;
@@ -138,10 +141,11 @@ export class ChartPanel {
     this.container.appendChild(this.stateEl);
 
     // Chart rows
-    this.mainEl = this.addChartRow('60%');
-    this.volEl  = this.addChartRow('12%');
-    this.rsiEl  = this.addChartRow('14%');
-    this.macdEl = this.addChartRow('14%');
+    this.mainEl = this.addChartRow('56%');
+    this.volEl  = this.addChartRow('10%');
+    this.rsiEl  = this.addChartRow('12%');
+    this.macdEl = this.addChartRow('12%');
+    this.atrEl  = this.addChartRow('10%');
 
     this.bindControls(controls);
   }
@@ -180,6 +184,7 @@ export class ChartPanel {
         <button class="ctrl-btn ind-btn active" data-ind="vwap">VWAP</button>
         <button class="ctrl-btn ind-btn active" data-ind="rsi">RSI</button>
         <button class="ctrl-btn ind-btn active" data-ind="macd">MACD</button>
+        <button class="ctrl-btn ind-btn" data-ind="atr">ATR</button>
       </div>
       <div class="ctrl-group">
         <span class="ctrl-label">Ölçek</span>
@@ -260,6 +265,7 @@ export class ChartPanel {
     this.volChart  = createChart(this.volEl,  { ...CHART_OPTIONS, height: this.volEl.clientHeight  || 60, rightPriceScale: { visible: false }, timeScale: { visible: false } });
     this.rsiChart  = createChart(this.rsiEl,  { ...CHART_OPTIONS, height: this.rsiEl.clientHeight  || 80, rightPriceScale: { scaleMargins: { top: 0.1, bottom: 0.1 } }, timeScale: { visible: false } });
     this.macdChart = createChart(this.macdEl, { ...CHART_OPTIONS, height: this.macdEl.clientHeight || 80, rightPriceScale: { scaleMargins: { top: 0.1, bottom: 0.1 } }, timeScale: { visible: false } });
+    this.atrChart  = createChart(this.atrEl,  { ...CHART_OPTIONS, height: this.atrEl.clientHeight  || 60, rightPriceScale: { scaleMargins: { top: 0.1, bottom: 0.1 } }, timeScale: { visible: false } });
 
     // Main series (initially candlestick)
     this.candleSeries = this.mainChart.addCandlestickSeries({
@@ -291,6 +297,7 @@ export class ChartPanel {
     this.macdLineSeries  = this.macdChart.addLineSeries({ color: C.blue,  lineWidth: 1 });
     this.macdSigSeries   = this.macdChart.addLineSeries({ color: C.orange, lineWidth: 1 });
     this.macdHistSeries  = this.macdChart.addHistogramSeries({ priceScaleId: '' });
+    this.atrSeries       = this.atrChart.addLineSeries({ color: C.yellow, lineWidth: 1 });
 
     // Sync time scales
     this.syncTimeScales();
@@ -309,12 +316,14 @@ export class ChartPanel {
       const i = this.candles.indexOf(c);
       this.updateInfoOverlay(c, inds, i);
     });
+
+    this.updateIndicatorVisibility();
   }
 
   // ─── Time scale sync ────────────────────────────────────────────────────
 
   private syncTimeScales(): void {
-    const charts = [this.mainChart, this.volChart, this.rsiChart, this.macdChart];
+    const charts = [this.mainChart, this.volChart, this.rsiChart, this.macdChart, this.atrChart];
     charts.forEach((chart, idx) => {
       chart.timeScale().subscribeVisibleLogicalRangeChange(range => {
         if (!range) return;
@@ -399,6 +408,7 @@ export class ChartPanel {
     this.macdLineSeries.setData([] as LineData[]);
     this.macdSigSeries.setData([] as LineData[]);
     this.macdHistSeries.setData([] as HistogramData[]);
+    this.atrSeries.setData([] as LineData[]);
     this.candleSeries.setMarkers([]);
     this.infoEl.style.display = 'none';
     this.clearReferenceLines();
@@ -482,6 +492,8 @@ export class ChartPanel {
       () => this.rsiSeries.priceScale().applyOptions({ autoScale: true, scaleMargins: lowerMargins }),
       () => this.macdLineSeries.priceScale().applyOptions({ autoScale: true, scaleMargins: lowerMargins }),
       () => this.macdHistSeries.priceScale().applyOptions({ autoScale: true, scaleMargins: lowerMargins }),
+      () => this.atrChart.priceScale('right').applyOptions({ autoScale: true, scaleMargins: lowerMargins }),
+      () => this.atrSeries.priceScale().applyOptions({ autoScale: true, scaleMargins: lowerMargins }),
     ];
     for (const update of scaleUpdates) {
       try {
@@ -598,7 +610,7 @@ export class ChartPanel {
       from: this.candles[fromIdx]!.time as UTCTimestamp,
       to: this.candles[toIdx]!.time as UTCTimestamp,
     };
-    [this.mainChart, this.volChart, this.rsiChart, this.macdChart].forEach(chart => {
+    [this.mainChart, this.volChart, this.rsiChart, this.macdChart, this.atrChart].forEach(chart => {
       chart.timeScale().setVisibleRange(range);
     });
   }
@@ -661,6 +673,7 @@ export class ChartPanel {
     this.vwapSeries.setData(lineData(inds.vwap));
 
     this.rsiSeries.setData(lineData(inds.rsi));
+    this.atrSeries.setData(lineData(inds.atr));
 
     if (inds.macd) {
       this.macdLineSeries.setData(lineData(inds.macd.macd));
@@ -689,6 +702,39 @@ export class ChartPanel {
     this.rsiEl.style.display  = has('rsi')  ? '' : 'none';
     this.macdEl.style.display = has('macd') ? '' : 'none';
     this.volEl.style.display  = has('vol')  ? '' : 'none';
+    this.atrEl.style.display  = has('atr')  ? '' : 'none';
+    this.resizeCharts();
+  }
+
+  setIndicatorActive(indicator: string, active = true): void {
+    const key = this.normalizeIndicatorKey(indicator);
+    if (!key) return;
+    if (active) this.activeIndicators.add(key);
+    else this.activeIndicators.delete(key);
+    this.updateIndicatorButtons();
+    this.updateIndicatorVisibility();
+  }
+
+  private normalizeIndicatorKey(indicator: string): string {
+    const key = indicator.trim().toLowerCase();
+    const aliases: Record<string, string> = {
+      bollinger: 'bb',
+      bollinger_bands: 'bb',
+      'bollinger-bands': 'bb',
+      sma: 'ema',
+      ma: 'ema',
+    };
+    const normalized = aliases[key] ?? key;
+    return ['bb', 'ema', 'vwap', 'rsi', 'macd', 'vol', 'atr'].includes(normalized)
+      ? normalized
+      : '';
+  }
+
+  private updateIndicatorButtons(): void {
+    this.container.querySelectorAll<HTMLElement>('.ind-btn').forEach(btn => {
+      const ind = btn.dataset['ind'];
+      btn.classList.toggle('active', !!ind && this.activeIndicators.has(ind));
+    });
   }
 
   // ─── Chart type switching ───────────────────────────────────────────────
@@ -708,6 +754,7 @@ export class ChartPanel {
     const macd  = inds.macd?.macd[i];
     const ema9  = inds.ema9?.[i];
     const ema21 = inds.ema21?.[i];
+    const atr   = inds.atr?.[i];
     const marker = this.markerSignals.find(s => s.timestamp === c.time);
 
     const fmt = (v: number | null | undefined) => v != null && !isNaN(v) ? formatNumber(v, 2) : '—';
@@ -723,6 +770,7 @@ export class ChartPanel {
       ${macd  != null && !isNaN(macd) ? `<div class="ci-row"><span>MACD</span><b style="color:${C.blue}">${fmt(macd)}</b></div>` : ''}
       ${ema9  != null && !isNaN(ema9)  ? `<div class="ci-row"><span>EMA9</span><b style="color:${C.yellow}">${fmt(ema9)}</b></div>` : ''}
       ${ema21 != null && !isNaN(ema21) ? `<div class="ci-row"><span>EMA21</span><b style="color:${C.orange}">${fmt(ema21)}</b></div>` : ''}
+      ${atr   != null && !isNaN(atr)   ? `<div class="ci-row"><span>ATR</span><b style="color:${C.yellow}">${fmt(atr)}</b></div>` : ''}
       ${marker ? `
         <div class="ci-signal">
           <b>${marker.type}</b> ${fmt(marker.price)}
@@ -796,15 +844,17 @@ export class ChartPanel {
     const controlsH = (this.container.querySelector('.chart-controls') as HTMLElement)?.offsetHeight ?? 40;
     const available = h - controlsH;
 
-    const mainH = Math.floor(available * 0.60);
-    const volH  = Math.floor(available * 0.12);
-    const rsiH  = Math.floor(available * 0.14);
-    const macdH = Math.floor(available * 0.14);
+    const mainH = Math.floor(available * 0.56);
+    const volH  = Math.floor(available * 0.10);
+    const rsiH  = Math.floor(available * 0.12);
+    const macdH = Math.floor(available * 0.12);
+    const atrH  = Math.floor(available * 0.10);
 
     this.mainChart.resize(w, mainH);
     this.volChart.resize(w, volH);
     this.rsiChart.resize(w, rsiH);
     this.macdChart.resize(w, macdH);
+    this.atrChart.resize(w, atrH);
   }
 
   // ─── Cleanup ─────────────────────────────────────────────────────────────
@@ -815,5 +865,6 @@ export class ChartPanel {
     this.volChart.remove();
     this.rsiChart.remove();
     this.macdChart.remove();
+    this.atrChart.remove();
   }
 }
