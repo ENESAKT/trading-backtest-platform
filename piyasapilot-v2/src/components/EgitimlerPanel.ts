@@ -19,6 +19,8 @@ const SOURCE_LABELS: Record<string, string> = {
   kivanc_hareketli_ortalamalar: 'Kıvanç Özbilgiç - Hareketli Ortalamalar',
   kivanc_algo_trade: 'Kıvanç Özbilgiç - Algo Trade',
   yasar_teknik_analiz: 'Yaşar Erdinç - Teknik Analiz',
+  yasar_vob: 'Yaşar Erdinç - VOB',
+  bolgun_vadeli_trade: 'Evren Bolgün - Vadeli Trade',
 };
 
 const CONFIDENCE_LABELS: Record<string, string> = {
