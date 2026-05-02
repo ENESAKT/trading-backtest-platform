@@ -1,7 +1,7 @@
 # PLANLAMA — PiyasaPilot Trading Terminali (Ana Index)
 
 > Bu dosya index'tir. Sıra ve öncelik için önce `genelplanlama.md`, kodlama için ilgili alt plan dosyasını oku.
-> Tarih: 2026-05-01 · Branch: codex/education-feature-planning
+> Tarih: 2026-05-02 · Branch: codex/education-feature-planning
 
 ---
 
@@ -11,7 +11,7 @@
 
 **Hedef:** TradingView benzeri tek SPA; strateji fikri → kural → backtest → optimizasyon → paper robot zincirini tek ekranda yöneten algoritmik trade laboratuvarı.
 
-**Durum (2026-05-01):** Sprint 0–12 tamamlandı. Aktif fazlar: Eğitimler sekmesi, Grafik Lab (G2+), Backtest Lab kalan işleri ve Mali Analiz için ön okuma.
+**Durum (2026-05-02):** Sprint 0–12 tamamlandı. Yeni ana fazlar: BIST/VIOP veri platformu, repo temizliği/canlıya çıkış, bu konuları denetleyen skill ve mentor agent katmanı. Eğitimler, Grafik Lab, Backtest Lab ve Mali Analiz planları mevcut sırada korunur.
 
 ---
 
@@ -24,6 +24,9 @@
 | Veri workers | — | `backend/workers/` |
 | Paper executor | — | `backend/paper/` |
 | Notifier | — | `backend/notifier/` |
+| Gelecek ClickHouse | 8123/9000 | `infra/clickhouse/` |
+| Gelecek MySQL | 3306 | `infra/mysql/` |
+| Gelecek Redis | 6379 | `infra/docker-compose.*.yml` |
 
 **Dokunma listesi:** `quant_engine/backtest/engine.py`, `quant_engine/data/providers/binance_provider.py`, `quant_engine/data/providers/yfinance_provider.py`, `quant_engine/data/live_feed.py`
 
@@ -41,15 +44,25 @@
 - [x] Bildirim: Telegram + Email + In-app + macOS desktop
 - [x] Gerçek emir gönderimi kapsam dışı
 - [x] Eğitim içerikleri: telifsiz, PiyasaPilot'a özgü iş akışına dönüştürülecek
+- [x] Yeni veri hedefi: önce BIST 100 + VIOP; sonra tüm BIST; sonra diğer piyasalar
+- [x] Production veri omurgası: ClickHouse + MySQL + Redis
+- [x] BIST hisse `1m` veri yalnızca son 1 yıl tutulacak
+- [x] VIOP `1m` veri 10 yıl hedefleyecek
+- [x] BIST hisse `5m` ve üstü timeframe'ler 10 yıl hedefleyecek
+- [x] Günlükten dakikalık sahte veri üretilmeyecek
+- [x] Borfin OCR/frame/video artifact'leri production paketine girmeyecek
+- [x] Veri/deploy/repo temizliği için kontrol skill'leri ve mentor agent planlanacak
 
 ---
 
 ## 4. Mimari (Tek Cümle Özetler)
 
-- **Veri:** Worker → SpikeFilter → SQLite cache → FastAPI → REST/WS → TS DataEngine → ChartPanel
+- **Mevcut Veri:** Worker → SpikeFilter → SQLite/Parquet cache → FastAPI → REST/WS → TS DataEngine → ChartPanel
+- **Hedef Veri:** Provider/Ingestor → Validate/Quality → ClickHouse `market_bars` → Repository → API/Backtest/Screener; MySQL metadata/job/inventory, Redis quote/cache/lock/pub-sub
 - **Backtest:** StrategyPanel → POST /api/backtest/run → BacktestEngine → sonuç → Chart.js
 - **Sinyal:** Bar kapanışı → DecisionEngine → /ws/signals → SignalFeed + Notifier
 - **Paper:** /ws/signals → PaperExecutor → SQLite → PnL → PortfolioPanel
+- **Production:** nginx → frontend/API/WS; Docker Compose prod → api/ingestor/scheduler/clickhouse/mysql/redis/backup
 
 ---
 
@@ -61,6 +74,9 @@
 | `planlama.md` | Bu index |
 | `planlama-sprint-gecmis.md` | Sprint 0–12 arşiv (tamamlananlar, referans) |
 | `planlama-sprint-aktif.md` | Aktif geliştirme fazları ve sıraları |
+| `planlama-veri-platformu.md` | BIST/VIOP veri platformu, ClickHouse/MySQL/Redis, retention, inventory |
+| `planlama-temizlik-canliya-cikis.md` | Repo temizliği, Borfin artifact ayrımı, Docker production package, deploy |
+| `planlama-agent-skill-mentor.md` | Veri/deploy/temizlik skill'leri ve mentor/data/release agent planı |
 | `planlama-grafik.md` | Grafik Lab — Sprint G2–G10 |
 | `planlama-backtest.md` | Backtest Lab — Sprint B1–B13 (Borfin) |
 | `planlama-egitimler.md` | Eğitimler sekmesi + Blog içerik planı |
@@ -73,6 +89,11 @@
 ## 6. Geliştirme Faz Sırası
 
 ```
+Faz 0 — Veri platformu ve production hazırlığı
+  ├── Veri platformu → planlama-veri-platformu.md
+  ├── Repo temizlik/canlıya çıkış → planlama-temizlik-canliya-cikis.md
+  └── Denetim skill'leri + mentor agent → planlama-agent-skill-mentor.md
+
 Faz 1 — Eğitim kaynak modeli ve yeni sekmeler
   ├── Eğitimler sekmesi  → planlama-egitimler.md (klavye: 6)
   └── Mali Analiz ön okuma → planlama-mali-analiz.md (klavye hedefi: 7)
@@ -100,6 +121,23 @@ Faz 4 — İleri analitik (WFA, Monte Carlo, Portföy Lab)
 | Fundamentals | borsa-mcp | borsapy |
 
 Cache: Worker 60s'de bir çağırır → SQLite INSERT OR IGNORE → zamanla 1 ay+ birikir.
+
+Yeni veri platformu hedefi:
+
+| Katman | Sorumluluk |
+|--------|------------|
+| ClickHouse | OHLCV, raw/derived bar, hızlı backtest/screener |
+| MySQL | Sembol, VIOP kontrat, provider, ingest job, data inventory, retention policy |
+| Redis | Son quote, kısa candle cache, WebSocket pub/sub, ingest lock |
+| Parquet/DuckDB | Lokal yedek, cold archive, fallback |
+
+Retention özeti:
+
+| Market | Timeframe | Saklama |
+|--------|-----------|---------|
+| BIST hisse | `1m` | 1 yıl |
+| BIST hisse | `5m` ve üstü | 10 yıl |
+| VIOP | `1m` ve üstü | 10 yıl |
 
 ---
 

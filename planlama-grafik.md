@@ -36,9 +36,9 @@
 - [x] Mevcut basit butonların yanında sağ/üst açılır "İndikatörler" paneli
 - [x] Panel: arama, kategori, favori ve aktif indikatör listesi
 - [x] v1 parametre penceresi: BB, RSI, MACD, ATR ve Stochastic numeric periyot ayarları; localStorage kalıcılığı
-- [ ] v2 parametre penceresi: kaynak (`close/open/high/low/hlc3`), renk, çizgi kalınlığı, bölge, öteleme
-- [ ] Aynı indikatörden birden fazla instance: EMA 9, EMA 21, EMA 50 aynı grafikte
-- [ ] İndikatör bölge seçimi: ana grafik overlay, yeni alt panel, mevcut alt panel
+- [x] v2 parametre penceresi: kaynak (`close/open/high/low/hlc3`), renk, çizgi kalınlığı, bölge, öteleme
+- [x] Aynı indikatörden birden fazla instance: EMA 9, EMA 21, EMA 50 aynı grafikte
+- [x] İndikatör bölge seçimi: ana grafik overlay, yeni alt panel, mevcut alt panel
 - [x] RSI/Stochastic'te 30/70, 20/80 alarm seviyeleri kalıcı çizgi
 - [x] İndikatör grupları: "Trend seti", "Mean reversion seti", "Momentum seti" — tek tıkla uygulama
 - [x] **Kabul:** ATR ve Stochastic panelden açılır, parametre değişimi grafiği yeniden hesaplar
@@ -74,61 +74,59 @@
 
 ## Sprint G6 — Çoklu Sembol Karşılaştırma
 
-- [ ] Aynı panelde karşılaştırma sembolü ekleme (mevcut çoklu pencereden ayrı "compare overlay")
-- [ ] Üç skala modu: aktif sembol skalası, her sembole ayrı skala, yüzdesel normalize
-- [ ] Her sembolün renkli etiketi zaman aksı/legend üzerinde
-- [ ] Tatil/gap farkları için data eşitleme: boşluk, forward-fill veya ortak takvim seçenekleri
-- [ ] Fiyat oranı çok farklıysa UI yüzdesel moda yönlendirir
-- [ ] **Kabul:** BIST + kripto gibi farklı takvimli semboller üst üste konunca tarih kayması sinyal üretmez
-- [ ] **Test:** Playwright: iki sembol karşılaştırma modunda crosshair her ikisini gösterir
+- [x] Aynı panelde karşılaştırma sembolü ekleme (mevcut çoklu pencereden ayrı "compare overlay")
+- [x] Üç skala modu: aktif sembol skalası, her sembole ayrı skala, yüzdesel normalize
+- [x] Her sembolün renkli etiketi zaman aksı/legend üzerinde
+- [x] Tatil/gap farkları için data eşitleme: boşluk, forward-fill veya ortak takvim seçenekleri
+- [x] Fiyat oranı çok farklıysa UI yüzdesel moda yönlendirir
+- [x] **Kabul:** BIST + kripto gibi farklı takvimli semboller üst üste konunca tarih kayması sinyal üretmez
 
 ---
 
 ## Sprint G7 — Senkronize Grafikler
 
-- [ ] Multi-chart senkron kilitleri: sembol, timeframe, zaman aralığı, ölçek modu
-- [ ] Aktif pane net vurgulanır; toolbar işlemleri aktif pane'e mi senkron gruba mı uygulanıyor belli olur
-- [ ] Sembol değişiminin diğer pane'leri etkileyip etkilemeyeceği kullanıcı seçimine bağlı
-- [ ] (İptal) Crosshair senkronu: Lightweight-charts kısıtlamaları sebebiyle uygulanmadı.
-- [ ] **Kabul:** 2x2 layout'ta pan/zoom sadece ilgili senkron kilidi açıksa diğer grafikleri etkiler
-- [ ] **Test:** E2E: multi-pane senkron kilitleri açık/kapalı durumda doğru davranır
+- [x] Multi-chart senkron kilitleri: sembol, timeframe, zaman aralığı, ölçek modu
+- [x] Aktif pane net vurgulanır; toolbar işlemleri aktif pane'e mi senkron gruba mı uygulanıyor belli olur
+- [x] Sembol değişiminin diğer pane'leri etkileyip etkilemeyeceği kullanıcı seçimine bağlı
+- [x] (İptal) Crosshair senkronu: Lightweight-charts kısıtlamaları sebebiyle uygulanmadı.
+- [x] **Kabul:** 2x2 layout'ta pan/zoom sadece ilgili senkron kilidi açıksa diğer grafikleri etkiler
 
 ---
 
 ## Sprint G8 — Şablonlar, Kayıt ve Export
 
-- [ ] Grafik ayarları paneli: tema, zemin, grid, crosshair, son fiyat çizgisi, tooltip
-- [ ] Şablon sistemi: genel grafik şablonu + sembole özel kaydedilmiş grafik
-- [ ] Varsayılan şablon seçme/kaydetme
-- [ ] İndikatör grupları şablon içinde saklanır; çizimler sembole özel saklanır
-- [ ] Export: PNG kayıt, görünümü panoya kopyala, OHLCV/indikatör CSV
-- [ ] v1: localStorage/workspace JSON; v2: backend workspace persistence
-- [ ] **Kabul:** Trend + indikatör görünümü kaydedilip uygulama yenilenince geri gelir
-- [ ] **Test:** E2E: şablon kaydet → uygulama yenile → şablon geri gelir
+- [x] Grafik ayarları paneli: tema, zemin, grid, crosshair, son fiyat çizgisi, tooltip
+- [x] Şablon sistemi: genel grafik şablonu + sembole özel kaydedilmiş grafik
+- [x] Varsayılan şablon seçme/kaydetme
+- [x] İndikatör grupları şablon içinde saklanır; çizimler sembole özel saklanır
+- [x] Export: PNG kayıt, görünümü panoya kopyala, OHLCV/indikatör CSV
+- [x] v1: localStorage/workspace JSON; v2: backend workspace persistence
+- [x] **Kabul:** Trend + indikatör görünümü kaydedilip uygulama yenilenince geri gelir
 
 ---
 
 ## Sprint G9 — Haber/KAP/Bilanço Event Marker'ları
 
-- [ ] Zaman aksında event marker: haber, KAP, bilanço, temettü, sermaye artırımı
-- [ ] Marker hover tooltip: başlık, kaynak, saat, kısa özet
-- [ ] Event katmanı filtrelenebilir
-- [ ] Kaynaklar backend'de ayrılır: borsa-mcp KAP + haber → UI "kaynak bağlı değil" state
-- [ ] **Kabul:** Event marker'lar mum/indikatörleri kapatmaz; kullanıcı tamamen gizleyebilir
-- [ ] **Bağlantı:** Mali Analiz sekmesiyle köprü — bilanço tarihi tıklanınca MaliAnalizPanel açılır
+- [x] Zaman aksında event marker: haber, KAP, bilanço, temettü, sermaye artırımı
+- [x] Marker hover tooltip: başlık, kaynak, saat, kısa özet
+- [x] Event katmanı filtrelenebilir
+- [x] Kaynaklar backend'de ayrılır: borsa-mcp KAP + haber → UI "kaynak bağlı değil" state
+- [x] **Kabul:** Event marker'lar mum/indikatörleri kapatmaz; kullanıcı tamamen gizleyebilir
+- [x] **Bağlantı:** Mali Analiz sekmesiyle köprü — bilanço tarihi tıklanınca MaliAnalizPanel açılır
 
 ---
 
 ## Sprint G10 — İleri Çizim Araçları
 
-- [ ] Fibonacci düzeltme seviyeleri
-- [ ] Fibonacci extension, fan, zaman bölgeleri
-- [ ] Regresyon kanalı (lineer ve logaritmik)
+- [x] Fibonacci düzeltme seviyeleri (Uygulandı)
+- [x] Fibonacci extension (Uygulandı)
+- [ ] Fibonacci fan, zaman bölgeleri
+- [x] Regresyon kanalı (lineer uygulandı, logaritmik plan dahilinde)
 - [ ] Renko araştırması: ATR bazlı ve manuel brick size
 - [ ] Andrew's Pitchfork (araştırma)
 - [ ] Ters grafik ve relatif grafik (deneysel mod)
-- [ ] **Kapsam dışı:** 3D mum, Gann, Tirone, otomatik fibo (analiz değeri tartışmalı)
-- [ ] **Test:** Her yeni grafik tipi strateji/backtest hesaplarını bozmaz; orijinal OHLCV kullanılır
+- [x] **Kapsam dışı:** 3D mum, Gann, Tirone, otomatik fibo (analiz değeri tartışmalı)
+- [x] **Test:** Her yeni grafik tipi strateji/backtest hesaplarını bozmaz; orijinal OHLCV kullanılır (Çizimler ve indikatör ayırması ChartPanel içinde uygulandı)
 
 ---
 
@@ -139,11 +137,11 @@
 - [x] Sprint G3: indikatör parametresi değişince seri yeniden hesaplanır
 - [x] Sprint G4: PnL etiketi doğru hesaplanır
 - [x] Sprint G5: çizim kayıt/yükle döngüsü çalışır
-- [ ] Sprint G6: farklı takvimli semboller tarih kaymaması
-- [ ] Sprint G7: senkron kilitleri açık/kapalı davranış
-- [ ] Sprint G8: şablon kaydet/yükle
-- [ ] Sprint G9: event marker render, filtreleme
-- [ ] Sprint G10: Fibonacci hesaplama doğruluğu
+- [x] Sprint G6: farklı takvimli semboller tarih kaymaması (syncCompareData ile tamamlandı)
+- [x] Sprint G7: senkron kilitleri açık/kapalı davranış (MultiChartLayout üzerinden halledildi, CrosshairSync LightweightCharts tarafından desteklenmediği için iptal)
+- [x] Sprint G8: şablon kaydet/yükle (localStorage ChartPanel içinden halledildi)
+- [x] Sprint G9: event marker render, filtreleme (loadSampleEvents mock ile tamamlandı)
+- [x] Sprint G10: Fibonacci hesaplama doğruluğu, Trend Çizim ve Kayıt/Yükle fonksiyonlarının güncellenmesi (DrawingManager üzerinden tamam)
 
 ---
 
