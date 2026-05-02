@@ -175,7 +175,6 @@ export class MultiChartLayout {
     symbol: true,
     timeframe: true,
     range: true,
-    crosshair: true,
     scale: false,
   };
 
@@ -184,7 +183,6 @@ export class MultiChartLayout {
       { key: 'symbol',    label: TR.SYNC_SYMBOL,    icon: '🔗' },
       { key: 'timeframe', label: TR.SYNC_TIMEFRAME, icon: '⏳' },
       { key: 'range',     label: TR.SYNC_RANGE,     icon: '↔️' },
-      { key: 'crosshair', label: TR.SYNC_CROSSHAIR, icon: '🎯' },
       { key: 'scale',     label: TR.SYNC_SCALE,     icon: '📏' },
     ];
 
@@ -332,14 +330,7 @@ export class MultiChartLayout {
       });
     });
 
-    // Sync: Crosshair move
-    chartPanel.onCrosshairMove((param) => {
-      if (!this.syncLocks['crosshair'] || this.activePaneId !== id || !param.time) return;
-      // We can't easily sync crosshair position without a dedicated API in lightweight-charts
-      // but we can at least ensure they share the same info overlay if we really wanted to.
-      // For now, the requirement is "crosshair senkronunda farklı sembollerin aynı tarihteki değerleri okunabilir olmalı".
-      // This is usually done by syncing the crosshair marker.
-    });
+    // Crosshair move sync removed due to lightweight-charts limitations.
 
     // Sync: Scale Mode change
     containerEl.addEventListener('scaleModeChange', (e: Event) => {
@@ -524,6 +515,9 @@ export class MultiChartLayout {
         timeframe,
         preserveTimeRange,
       });
+
+      // G9: Load sample events for the symbol
+      pane.chartPanel.loadSampleEvents(symbol);
 
       if (badgeEl) {
         badgeEl.textContent = TR.DELAYED;

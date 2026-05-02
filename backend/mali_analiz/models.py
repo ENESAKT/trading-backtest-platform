@@ -32,7 +32,8 @@ class FinancialAnalysisResponse(BaseModel):
     balance_sheet: dict[str, Any] = Field(default_factory=dict)
     income_statement: dict[str, Any] = Field(default_factory=dict)
     cash_flow: dict[str, Any] = Field(default_factory=dict)
-    ratios: dict[str, Any] = Field(default_factory=dict)
+    financial_statements: list[dict[str, Any]] = Field(default_factory=list)
+    ratios: list[dict[str, Any]] = Field(default_factory=list)
     source_status: SourceStatus = Field(default_factory=SourceStatus)
     warnings: list[str] = Field(default_factory=list)
 

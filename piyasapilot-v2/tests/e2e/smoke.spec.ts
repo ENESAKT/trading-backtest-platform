@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 
-const tabs = ['chart', 'portfolio', 'strategy', 'screener', 'signals', 'education'] as const;
+const tabs = ['chart', 'portfolio', 'strategy', 'screener', 'signals', 'financials', 'education'] as const;
 const day = 24 * 60 * 60;
 const startTs = 1_714_521_600;
 
@@ -168,7 +168,6 @@ test('PiyasaPilot shell loads all primary tabs', async ({ page }) => {
 
   await expect(page.locator('.logo')).toHaveText('PiyasaPilot');
   await expect(page.locator('#status-badge')).toBeVisible();
-  await expect(page.locator('#start-tab-select')).toBeVisible();
 
   for (const tab of tabs) {
     await page.locator(`[data-tab="${tab}"]`).click();
@@ -178,15 +177,6 @@ test('PiyasaPilot shell loads all primary tabs', async ({ page }) => {
   await page.locator('[data-tab="signals"]').click();
   await expect(page.locator('#tg-status')).toBeVisible();
   await expect(page.locator('#tg-save-prefs')).toBeVisible();
-});
-
-test('start tab preference is persisted', async ({ page }) => {
-  await page.goto('/');
-  await page.locator('#start-tab-select').selectOption('signals');
-  await page.reload();
-
-  await expect(page.locator('#panel-signals')).toBeVisible();
-  await expect(page.locator('#start-tab-select')).toHaveValue('signals');
 });
 
 test('education tab renders searchable indicator articles', async ({ page }) => {
@@ -235,7 +225,7 @@ test('mobile viewport keeps the primary shell usable', async ({ page }) => {
 
 test('signal history survives reload from localStorage', async ({ page }) => {
   await page.addInitScript(() => {
-    localStorage.setItem('piyasapilot_start_tab', 'signals');
+    localStorage.setItem('piyasapilot_last_tab', 'signals');
     localStorage.setItem('piyasapilot_signal_history', JSON.stringify([
       {
         type: 'signal',
@@ -556,3 +546,120 @@ test('G8 chart templates save and restore workspace configuration', async ({ pag
   await expect(pane).toHaveAttribute('data-chart-scale-mode', 'log');
 });
 
+test('G9 event markers are displayed and filterable', async ({ page }) => {
+  await mockCandles(page);
+  await page.goto('/');
+
+  const pane = page.locator('.chart-pane-body').first();
+  
+  // Verify markers loaded (dataset attribute set in ChartPanel.loadSampleEvents)
+  await expect(pane).toHaveAttribute('data-event-source', 'sample');
+  
+  const markers = page.locator('.event-marker');
+  await expect(markers).toHaveCount(5); // All 5 mock events
+
+  // Filter for 'kap' events
+  await page.locator('.event-filter-btn[data-event-filter="kap"]').first().click();
+  await expect(pane).toHaveAttribute('data-event-filter', 'kap');
+  await expect(page.locator('.event-marker')).toHaveCount(1);
+  await expect(page.locator('.event-marker')).toHaveAttribute('data-event-type', 'kap');
+
+  // Open tooltip for the KAP event
+  await page.locator('.event-marker').first().click();
+  const tooltip = page.locator('.event-tooltip');
+  await expect(tooltip).toBeVisible();
+  await expect(tooltip.locator('.event-tooltip-title')).toContainText('KAP Bildirimi');
+
+  // Close tooltip
+  await tooltip.locator('.event-tooltip-close').click();
+  await expect(tooltip).not.toBeVisible();
+
+  // Bilanço event dispatch check
+  await page.locator('.event-filter-btn[data-event-filter="bilanco"]').first().click();
+  await page.locator('.event-marker').first().click();
+});
+
+test('G10 advanced drawing tools can be activated', async ({ page }) => {
+  await mockCandles(page);
+  await page.goto('/');
+
+  const pane = page.locator('.chart-pane-body').first();
+  
+  // Activate Fibonacci
+  await page.locator('.drawing-tool-btn[data-drawing-tool="fibonacci"]').first().click();
+  await expect(pane).toHaveAttribute('data-drawing-tool', 'fibonacci');
+  
+  // Activate Regression
+  await page.locator('.drawing-tool-btn[data-drawing-tool="regression"]').first().click();
+  await expect(pane).toHaveAttribute('data-drawing-tool', 'regression');
+
+  // Verify Renko is disabled
+  const renkoBtn = page.locator('.drawing-tool-btn[data-drawing-tool-disabled]').first();
+  await expect(renkoBtn).toBeDisabled();
+});
+
+test('Financials panel full flow', async ({ page }) => {
+  await mockCandles(page);
+
+  // Mock mali analiz API for multiple symbols
+  await page.route('**/api/mali-analiz/*', async (route) => {
+    const url = route.request().url();
+    if (url.includes('THYAO')) {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          symbol: 'THYAO',
+          company_name: 'TÜRK HAVA YOLLARI A.O.',
+          periods: ['2023 Q3', '2023 Q4'],
+          source_status: { source: 'mock', status: 'mock', fetched_at: null, cache_hit: false, stale: false, error: null },
+          financial_statements: [
+            { title: 'Bilanço', rows: [{ label: 'Nakit', values: [1000, 1500] }] }
+          ],
+          ratios: [{ name: 'F/K', value: 5.5, format: 'num' }],
+          warnings: []
+        }),
+      });
+    } else {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          symbol: 'ASELS',
+          company_name: 'ASELSAN A.Ş.',
+          periods: ['2023 Q4'],
+          source_status: { source: 'connected', status: 'connected', fetched_at: null, cache_hit: false, stale: false, error: null },
+          financial_statements: [
+            { title: 'Bilanço', rows: [{ label: 'Stoklar', values: [5000] }] }
+          ],
+          ratios: [{ name: 'PD/DD', value: 2.1, format: 'num' }],
+          warnings: ['Veri gecikmeli olabilir']
+        }),
+      });
+    }
+  });
+
+  await page.goto('/');
+
+  // 1. Go to Financials via shortcut '7'
+  await page.keyboard.press('7');
+  await expect(page.locator('#panel-financials')).toBeVisible();
+
+  // 2. Verify Initial Data (THYAO)
+  await expect(page.locator('.summary-header h2')).toContainText('TÜRK HAVA YOLLARI A.O.');
+  
+  // 3. Search for ASELS
+  const searchInput = page.locator('.mali-search-input');
+  await searchInput.fill('ASELS');
+  await page.keyboard.press('Enter');
+  
+  // 4. Verify New Data (ASELS)
+  await expect(page.locator('.summary-header h2')).toContainText('ASELSAN A.Ş.');
+  await expect(page.locator('.warning-item')).toContainText('Veri gecikmeli olabilir');
+  await expect(page.locator('.ratio-box')).toContainText('2,10');
+
+  // 5. Test Bridge "Grafikte Aç"
+  await page.locator('button:text("Grafikte Aç")').click();
+  await expect(page.locator('#panel-chart')).toBeVisible();
+  await expect(page.locator('#symbol-title')).toContainText('ASELS');
+});

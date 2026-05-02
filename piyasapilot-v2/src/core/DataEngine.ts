@@ -5,7 +5,7 @@ import type {
 import { PollingManager } from './PollingManager.js';
 import { QuoteStream, type QuoteMessage } from './QuoteStream.js';
 import { loadHistorical } from './HistoricalLoader.js';
-import { DEFAULT_SYMBOL } from '../constants/symbols.js';
+import { DEFAULT_SYMBOL, resolveSymbol } from '../constants/symbols.js';
 
 // ─── Simple EventEmitter ──────────────────────────────────────────────────────
 
@@ -228,6 +228,10 @@ export class DataEngine extends EventEmitter {
       result.set(symbol, entry.data);
     }
     return result;
+  }
+
+  getSymbolInfo(symbol: string): SymbolInfo | undefined {
+    return resolveSymbol(symbol);
   }
 }
 

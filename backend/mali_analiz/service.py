@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
-from typing import Callable, Protocol
+from typing import Any, Callable, Protocol
 
 from backend.mali_analiz.cache import DEFAULT_TTL, FinancialAnalysisCache
 from backend.mali_analiz.models import FinancialAnalysisResponse, SourceStatus
@@ -23,7 +23,7 @@ def _utc_now() -> datetime:
 
 @dataclass(frozen=True)
 class FinancialProviderResult:
-    payload: FinancialAnalysisResponse
+    payload: FinancialAnalysisResponse | dict[str, Any]
     source: str
     status: str = "ok"
     fetched_at: datetime | None = None
@@ -50,7 +50,7 @@ class MockFinancialAnalysisProvider:
             balance_sheet={},
             income_statement={},
             cash_flow={},
-            ratios={},
+            ratios=[],
             warnings=["Mali analiz için mock provider kullanıldı."],
         )
         return FinancialProviderResult(payload=payload, source=self.source, status="mock")
@@ -82,11 +82,7 @@ class FinancialAnalysisService:
         now = self._now_provider().astimezone(timezone.utc)
         cached = self.cache.get(normalized)
 
-        if (
-            cached is not None
-            and not force_refresh
-            and cached.is_fresh(ttl=self.ttl, now=now)
-        ):
+        if cached is not None and not force_refresh and cached.is_fresh(ttl=self.ttl, now=now):
             return cached.to_response(cache_hit=True, stale=False)
 
         try:
@@ -100,11 +96,11 @@ class FinancialAnalysisService:
                     stale=True,
                     error=error,
                 )
-                return fallback.with_warning(warning)
+                return fallback.with_warning(warning).with_warning("cache stale kullanıldı")
 
             status = SourceStatus(
                 source="none",
-                status="error",
+                status="provider_error",
                 fetched_at=None,
                 cache_hit=False,
                 stale=False,
@@ -117,12 +113,26 @@ class FinancialAnalysisService:
             )
 
         fetched_at = (result.fetched_at or now).astimezone(timezone.utc)
-        payload = result.payload.model_copy(update={"symbol": normalized})
+
+        # Eğer provider hazır model dönmemişse veya dönmüşse de normalize etmeliyiz
+        from backend.mali_analiz.normalization import normalize_provider_response
+
+        if isinstance(result.payload, dict):
+            payload = normalize_provider_response(result.payload, normalized)
+        else:
+            # Model olarak döndüyse dict'e çevirip normalize et
+            payload = normalize_provider_response(result.payload.model_dump(), normalized)
+
+        # status overwrite
+        if payload.source_status.status == "ok" and getattr(result, "status", None):
+            payload.source_status.status = result.status
+        payload.source_status.source = result.source
+
         entry = self.cache.upsert(
             normalized,
             payload,
             source=result.source,
-            status=result.status,
+            status=payload.source_status.status,
             fetched_at=fetched_at,
         )
         return entry.to_response(cache_hit=False, stale=False)

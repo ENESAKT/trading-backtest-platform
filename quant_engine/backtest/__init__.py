@@ -7,10 +7,12 @@ from .realism import (
     volume_capacity_warning,
     build_assumption_card,
 )
+from .quality import compute_quality_score
 
 __all__ = [
     "fixed_bps_slippage",
     "fixed_tick_slippage",
     "volume_capacity_warning",
     "build_assumption_card",
+    "compute_quality_score",
 ]

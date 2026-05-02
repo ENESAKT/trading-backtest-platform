@@ -327,3 +327,58 @@ export interface ChartTemplate {
     textColor: string;
   };
 }
+
+// ─── G9: Chart Event Marker ───────────────────────────────────────────────────
+
+export type ChartEventType = 'haber' | 'kap' | 'bilanco' | 'temettu' | 'sermaye';
+
+export interface ChartEvent {
+  id: string;
+  type: ChartEventType;
+  time: number;           // unix timestamp seconds
+  title: string;
+  summary: string;
+  source: string;
+  symbol: string;
+}
+
+// ─── G10: Advanced Drawing Tool Types ─────────────────────────────────────────
+
+export type AdvancedDrawingTool = 'fibonacci' | 'fibonacci_ext' | 'regression' | 'renko';
+
+// ─── Mali Analiz (Financial Analysis) ─────────────────────────────────────────
+
+export interface FinancialRatio {
+  name: string;
+  value: number | null;
+  format?: 'pct' | 'num' | 'currency';
+}
+
+export interface FinancialStatementRow {
+  label: string;
+  values: (number | null)[]; // One value per period
+}
+
+export interface FinancialStatement {
+  title: string;
+  rows: FinancialStatementRow[];
+}
+
+export interface SourceStatus {
+  source: string;
+  status: string;
+  fetched_at: string | null;
+  cache_hit: boolean;
+  stale: boolean;
+  error: string | null;
+}
+
+export interface MaliAnalizResponse {
+  symbol: string;
+  company_name: string | null;
+  periods: string[]; // e.g. ["2023 Q1", "2023 Q2", "2023 Q3", "2023 Q4"]
+  source_status: SourceStatus;
+  financial_statements: FinancialStatement[]; // balance sheet, income statement
+  ratios: FinancialRatio[];
+  warnings: string[];
+}

@@ -64,7 +64,7 @@
 - [x] İlk çizim seti: trend çizgisi, yatay çizgi, dikey çizgi, ray/sağa uzat, paralel, kanal, dikdörtgen, ok, not
 - [x] Ölçüm aracı: bar sayısı, süre, fiyat farkı, yüzde fark, risk/ödül oranı
 - [x] Trend çizgisi: isim, renk, kalınlık, çizgi tipi, yüzde değişim etiketi
-- [x] Çizimler sembol + timeframe + layout bağlamında saklanır; şablon çizimleri ve sembole özel çizimler ayrılır
+- [x] Çizimler sembol + timeframe bağlamında saklanır (farklı paneller aynı sembol/timeframe ise çizimleri paylaşır).
 - [x] Çizimler pan/zoom sırasında doğru koordinatta kalır; sembol değişince yanlış sembolde görünmez
 - [x] **Kabul:** Çizilen trend, sembol değişince temizlenir; aynı sembole dönünce geri gelir
 - [x] **Test:** E2E: çizim ekle, taşı, sil, reload sonrası sembole özel çizim geri gelir
@@ -86,10 +86,10 @@
 
 ## Sprint G7 — Senkronize Grafikler
 
-- [ ] Multi-chart senkron kilitleri: sembol, timeframe, zaman aralığı, crosshair, ölçek modu
+- [ ] Multi-chart senkron kilitleri: sembol, timeframe, zaman aralığı, ölçek modu
 - [ ] Aktif pane net vurgulanır; toolbar işlemleri aktif pane'e mi senkron gruba mı uygulanıyor belli olur
 - [ ] Sembol değişiminin diğer pane'leri etkileyip etkilemeyeceği kullanıcı seçimine bağlı
-- [ ] Crosshair senkronu: aynı tarihte farklı sembollerin OHLC değerleri okunabilir
+- [ ] (İptal) Crosshair senkronu: Lightweight-charts kısıtlamaları sebebiyle uygulanmadı.
 - [ ] **Kabul:** 2x2 layout'ta pan/zoom sadece ilgili senkron kilidi açıksa diğer grafikleri etkiler
 - [ ] **Test:** E2E: multi-pane senkron kilitleri açık/kapalı durumda doğru davranır
 

@@ -21,7 +21,8 @@ def _payload(symbol: str, company_name: str = "Test A.S.") -> FinancialAnalysisR
         balance_sheet={"assets": {"2025-Q4": 1000}},
         income_statement={"revenue": {"2025-Q4": 250}},
         cash_flow={"operating_cash_flow": {"2025-Q4": 80}},
-        ratios={"current_ratio": {"2025-Q4": 1.6}},
+        financial_statements=[],
+        ratios=[{"name": "current_ratio", "value": 1.6, "format": "num"}],
     )
 
 
@@ -128,7 +129,7 @@ def test_provider_failure_returns_last_cache_as_stale_fallback(tmp_path):
     assert response.source_status.cache_hit is True
     assert response.source_status.stale is True
     assert response.source_status.error == "network unavailable"
-    assert "son cache döndü" in response.warnings[-1]
+    assert any("son cache döndü" in w for w in response.warnings)
 
 
 def test_provider_failure_without_cache_returns_controlled_warning_response(tmp_path):
@@ -147,11 +148,11 @@ def test_provider_failure_without_cache_returns_controlled_warning_response(tmp_
     assert response.balance_sheet == {}
     assert response.income_statement == {}
     assert response.cash_flow == {}
-    assert response.ratios == {}
-    assert response.source_status.status == "error"
+    assert response.ratios == []
+    assert response.source_status.status == "provider_error"
     assert response.source_status.cache_hit is False
     assert response.source_status.error == "timeout"
-    assert "kullanılabilir cache yok" in response.warnings[0]
+    assert any("Provider hatası" in w for w in response.warnings)
 
 
 def test_response_model_is_json_serializable(tmp_path):
@@ -176,6 +177,7 @@ def test_response_model_is_json_serializable(tmp_path):
         "balance_sheet",
         "income_statement",
         "cash_flow",
+        "financial_statements",
         "ratios",
         "source_status",
         "warnings",

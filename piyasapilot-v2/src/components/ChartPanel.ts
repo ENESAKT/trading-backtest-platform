@@ -16,7 +16,7 @@ import {
   LineStyle,
   PriceScaleMode,
 } from 'lightweight-charts';
-import type { OHLCV, Timeframe, ChartType, IndicatorSet, Signal, ChartDataStatus, ChartViewOptions, ChartTemplate } from '../types.js';
+import type { OHLCV, Timeframe, ChartType, IndicatorSet, Signal, ChartDataStatus, ChartViewOptions, ChartTemplate, ChartEvent, ChartEventType } from '../types.js';
 import { computeIndicators, lastValid, type IndicatorCalculationOptions } from '../indicators/index.js';
 import { TR, formatNumber, formatDateTime } from '../constants/tr.js';
 import { DrawingManager } from './DrawingManager.js';
@@ -248,6 +248,12 @@ export class ChartPanel {
   private compareCandles: OHLCV[] = [];
   private comparePercentBaseClose: number | null = null;
 
+  // G9: Event markers
+  private chartEvents: ChartEvent[] = [];
+  private eventFilter: ChartEventType | 'all' = 'all';
+  private eventTooltipEl: HTMLElement | null = null;
+  private eventMarkerEls: Map<string, HTMLElement> = new Map();
+
   constructor(container: HTMLElement) {
     this.container = container;
     this.loadIndicatorPrefs();
@@ -277,6 +283,12 @@ export class ChartPanel {
     controls.className = 'chart-controls';
     controls.innerHTML = this.controlsHTML() + this.drawingToolbarHTML();
     this.container.appendChild(controls);
+
+    // G9: Event filter row (second controls row)
+    const eventRow = document.createElement('div');
+    eventRow.className = 'chart-event-controls';
+    eventRow.id = 'chart-event-controls';
+    this.container.appendChild(eventRow);
 
     // Crosshair info overlay
     this.infoEl = document.createElement('div');
@@ -401,6 +413,13 @@ export class ChartPanel {
         <button class="ctrl-btn drawing-tool-btn" data-drawing-tool="vline" title="Dikey Çizgi">│</button>
         <button class="ctrl-btn drawing-tool-btn" data-drawing-tool="measure" title="Ölçüm Aracı">📏</button>
         <button class="ctrl-btn drawing-clear-btn" id="drawing-clear-btn" title="Tüm çizimleri sil">🗑</button>
+      </div>
+      <div class="ctrl-group">
+        <span class="ctrl-label">İleri</span>
+        <button class="ctrl-btn drawing-tool-btn" data-drawing-tool="fibonacci" title="Fibonacci Düzeltme (iki nokta)">Fib</button>
+        <button class="ctrl-btn drawing-tool-btn" data-drawing-tool="fibonacci_ext" title="Fibonacci Uzantı (iki nokta)">FibX</button>
+        <button class="ctrl-btn drawing-tool-btn" data-drawing-tool="regression" title="Regresyon Kanalı (iki nokta)">Reg</button>
+        <button class="ctrl-btn drawing-tool-btn" data-drawing-tool-disabled title="Renko — Yakında" disabled style="opacity:0.4;cursor:not-allowed">Rnk</button>
       </div>
     `;
   }
@@ -651,7 +670,30 @@ export class ChartPanel {
       this.container.dataset['drawingCount'] = String(count);
     });
     const ctrlsEl = this.container.querySelector('.chart-controls') as HTMLElement;
-    if (ctrlsEl) this.drawingManager.bindToolbar(ctrlsEl);
+    if (ctrlsEl) {
+      this.drawingManager.bindToolbar(ctrlsEl);
+      ctrlsEl.addEventListener('click', (e) => {
+        const target = e.target as HTMLElement;
+        if (target.closest('.drawing-tool-btn') || target.closest('#drawing-clear-btn')) {
+          this.container.dataset['drawingTool'] = this.drawingManager.getTool();
+        }
+      });
+    }
+
+    // G9: Event marker container
+    this.initEventLayer();
+
+    // Populate and bind event filter controls
+    const eventRowEl = this.container.querySelector('#chart-event-controls') as HTMLElement;
+    if (eventRowEl) {
+      eventRowEl.innerHTML = this.eventFilterHTML();
+      this.bindEventFilterControls(eventRowEl);
+    }
+
+    // Reposition markers on scroll/zoom
+    this.mainChart.timeScale().subscribeVisibleLogicalRangeChange(() => {
+      this.repositionEventMarkers();
+    });
   }
 
   private addLevelLine(series: ISeriesApi<'Line'>, price: number, color: string, title: string): void {
@@ -730,6 +772,9 @@ export class ChartPanel {
     this.updateReferenceLines();
     this.renderPnlOverlays(this.markerSignals);
 
+    // G10: Pass candles to DrawingManager for regression channel
+    this.drawingManager?.setCandles(candles);
+
     if (options.preserveTimeRange && savedVisibleRange) {
       this.restoreVisibleRange(savedVisibleRange);
     } else if (reason !== 'append') {
@@ -740,6 +785,9 @@ export class ChartPanel {
       this.resetPriceScales();
     }
     this.lastMedianPrice = currentMedian;
+
+    // G9: Render event markers after data is loaded
+    this.renderEventMarkers();
   }
 
   setStatus(status: ChartDataStatus, message?: string): void {
@@ -2047,5 +2095,236 @@ export class ChartPanel {
     this.container.removeAttribute('data-compare-symbol');
     this.applyScaleMode();
     this.updateUnitBadge();
+  }
+
+  // ─── G9: Event Marker System ─────────────────────────────────────────────
+
+  private initEventLayer(): void {
+    // Shared tooltip element (reused by all markers)
+    this.eventTooltipEl = document.createElement('div');
+    this.eventTooltipEl.className = 'event-tooltip';
+    this.eventTooltipEl.style.display = 'none';
+    this.mainEl.appendChild(this.eventTooltipEl);
+
+    // Hide tooltip on click outside
+    document.addEventListener('click', (e) => {
+      if (this.eventTooltipEl && !this.eventTooltipEl.contains(e.target as Node)) {
+        this.eventTooltipEl.style.display = 'none';
+      }
+    });
+  }
+
+  /** Load sample/mock events for current symbol. Called on symbol change. */
+  loadSampleEvents(symbol: string): void {
+    // Sample events – always show as "örnek olay verisi" until real backend is connected
+    const base = 1_714_521_600; // 2024-05-01
+    const day = 86_400;
+    this.chartEvents = [
+      {
+        id: `${symbol}_haber_1`,
+        type: 'haber',
+        time: base + 5 * day,
+        title: `${symbol} Kurul Kararı`,
+        summary: 'Yönetim kurulu yeni yatırım planını açıkladı.',
+        source: 'Reuters',
+        symbol,
+      },
+      {
+        id: `${symbol}_kap_1`,
+        type: 'kap',
+        time: base + 15 * day,
+        title: 'KAP Bildirimi',
+        summary: 'Önemli ortaklık bilgisi güncellendi.',
+        source: 'KAP',
+        symbol,
+      },
+      {
+        id: `${symbol}_bilanco_1`,
+        type: 'bilanco',
+        time: base + 30 * day,
+        title: 'Q1 2024 Bilanço',
+        summary: 'Net kâr beklentilerin üzerinde geldi.',
+        source: 'KAP',
+        symbol,
+      },
+      {
+        id: `${symbol}_temettu_1`,
+        type: 'temettu',
+        time: base + 45 * day,
+        title: 'Temettü Dağıtımı',
+        summary: 'Hisse başına 2.50 ₺ temettü ödendi.',
+        source: 'KAP',
+        symbol,
+      },
+      {
+        id: `${symbol}_sermaye_1`,
+        type: 'sermaye',
+        time: base + 60 * day,
+        title: 'Sermaye Artırımı',
+        summary: '%20 bedelsiz hisse ihracı onaylandı.',
+        source: 'KAP',
+        symbol,
+      },
+    ];
+
+    // Dataset attribute so tests can verify
+    this.container.dataset['eventSource'] = 'sample';
+    this.container.dataset['eventCount'] = String(this.chartEvents.length);
+    this.renderEventMarkers();
+  }
+
+  setEventFilter(filter: ChartEventType | 'all'): void {
+    this.eventFilter = filter;
+    this.container.dataset['eventFilter'] = filter;
+    this.renderEventMarkers();
+  }
+
+  private getFilteredEvents(): ChartEvent[] {
+    if (this.eventFilter === 'all') return this.chartEvents;
+    return this.chartEvents.filter(e => e.type === this.eventFilter);
+  }
+
+  private clearEventMarkers(): void {
+    this.eventMarkerEls.forEach(el => el.remove());
+    this.eventMarkerEls.clear();
+  }
+
+  renderEventMarkers(): void {
+    this.clearEventMarkers();
+    if (!this.mainChart || this.candles.length === 0) return;
+
+    const events = this.getFilteredEvents();
+    const timeScale = this.mainChart.timeScale();
+
+    events.forEach(ev => {
+      const x = timeScale.timeToCoordinate(ev.time as any);
+      if (x == null) return;
+
+      const marker = document.createElement('div');
+      marker.className = `event-marker event-marker-${ev.type}`;
+      marker.dataset['eventId'] = ev.id;
+      marker.dataset['eventType'] = ev.type;
+      marker.title = ev.title;
+
+      // Icon per type
+      const icons: Record<string, string> = {
+        haber: 'N', kap: 'K', bilanco: 'B', temettu: 'T', sermaye: 'S',
+      };
+      marker.textContent = icons[ev.type] ?? '●';
+      marker.style.left = `${x}px`;
+
+      // Click → show tooltip / dispatch event
+      marker.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.showEventTooltip(ev, marker);
+
+        if (ev.type === 'bilanco') {
+          this.container.dispatchEvent(new CustomEvent('openFinancialAnalysis', {
+            bubbles: true,
+            detail: { symbol: ev.symbol, date: ev.time, eventId: ev.id },
+          }));
+        }
+      });
+
+      this.mainEl.appendChild(marker);
+      this.eventMarkerEls.set(ev.id, marker);
+    });
+  }
+
+  private repositionEventMarkers(): void {
+    if (!this.mainChart) return;
+    const timeScale = this.mainChart.timeScale();
+    this.chartEvents.forEach(ev => {
+      const el = this.eventMarkerEls.get(ev.id);
+      if (!el) return;
+      const x = timeScale.timeToCoordinate(ev.time as any);
+      if (x == null) {
+        el.style.display = 'none';
+      } else {
+        el.style.display = '';
+        el.style.left = `${x}px`;
+      }
+    });
+  }
+
+  private showEventTooltip(ev: ChartEvent, anchorEl: HTMLElement): void {
+    if (!this.eventTooltipEl) return;
+
+    const typeLabels: Record<string, string> = {
+      haber: TR.EVENT_HABER,
+      kap: TR.EVENT_KAP,
+      bilanco: TR.EVENT_BILANCO,
+      temettu: TR.EVENT_TEMETTU,
+      sermaye: TR.EVENT_SERMAYE,
+    };
+
+    const dateStr = new Date(ev.time * 1000).toLocaleDateString('tr-TR', {
+      day: '2-digit', month: '2-digit', year: 'numeric',
+    });
+
+    this.eventTooltipEl.innerHTML = `
+      <div class="event-tooltip-header">
+        <span class="event-badge event-badge-${ev.type}">${typeLabels[ev.type] ?? ev.type}</span>
+        <button class="event-tooltip-close" title="Kapat">×</button>
+      </div>
+      <div class="event-tooltip-title">${ev.title}</div>
+      <div class="event-tooltip-summary">${ev.summary}</div>
+      <div class="event-tooltip-meta">
+        <span>${TR.EVENT_DATE}: ${dateStr}</span>
+        <span>${TR.EVENT_SOURCE}: ${ev.source}</span>
+      </div>
+      <div class="event-tooltip-notice">${TR.EVENT_SAMPLE}</div>
+      ${ev.type === 'bilanco' ? `<button class="event-open-financial" data-event-id="${ev.id}">${TR.EVENT_OPEN_FINANCIAL}</button>` : ''}
+    `;
+
+    // Position tooltip near marker
+    const markerRect = anchorEl.getBoundingClientRect();
+    const containerRect = this.mainEl.getBoundingClientRect();
+    let left = markerRect.left - containerRect.left + 10;
+    const top = markerRect.bottom - containerRect.top + 4;
+    // Keep in bounds
+    left = Math.min(left, containerRect.width - 260);
+
+    this.eventTooltipEl.style.left = `${left}px`;
+    this.eventTooltipEl.style.top = `${top}px`;
+    this.eventTooltipEl.style.display = 'block';
+
+    // Close button
+    this.eventTooltipEl.querySelector('.event-tooltip-close')?.addEventListener('click', () => {
+      this.eventTooltipEl!.style.display = 'none';
+    });
+  }
+
+  /** Build the G9 event filter toolbar HTML */
+  eventFilterHTML(): string {
+    const types: Array<{ key: ChartEventType | 'all'; label: string }> = [
+      { key: 'all', label: TR.EVENT_ALL },
+      { key: 'haber', label: TR.EVENT_HABER },
+      { key: 'kap', label: TR.EVENT_KAP },
+      { key: 'bilanco', label: TR.EVENT_BILANCO },
+      { key: 'temettu', label: TR.EVENT_TEMETTU },
+      { key: 'sermaye', label: TR.EVENT_SERMAYE },
+    ];
+
+    return `
+      <div class="ctrl-group event-filter-group">
+        <span class="ctrl-label">${TR.EVENTS}</span>
+        ${types.map(t => `
+          <button class="ctrl-btn event-filter-btn${t.key === 'all' ? ' active' : ''}"
+                  data-event-filter="${t.key}">${t.label}</button>
+        `).join('')}
+        <span class="event-source-badge" title="${TR.EVENT_NO_SOURCE}">⚠ ${TR.EVENT_SAMPLE}</span>
+      </div>
+    `;
+  }
+
+  bindEventFilterControls(controls: HTMLElement): void {
+    controls.addEventListener('click', (e) => {
+      const btn = (e.target as HTMLElement).closest<HTMLElement>('.event-filter-btn');
+      if (!btn) return;
+      controls.querySelectorAll('.event-filter-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      this.setEventFilter(btn.dataset['eventFilter'] as ChartEventType | 'all');
+    });
   }
 }

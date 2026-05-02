@@ -8,7 +8,7 @@ import { formatNumber } from '../constants/tr.js';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-export type DrawingTool = 'trendline' | 'hline' | 'vline' | 'measure' | 'none';
+export type DrawingTool = 'trendline' | 'hline' | 'vline' | 'measure' | 'fibonacci' | 'fibonacci_ext' | 'regression' | 'none';
 
 export interface DrawingPoint {
   time: number;   // unix seconds
@@ -43,6 +43,11 @@ const DEFAULT_STYLE: DrawingStyle = {
 };
 const COLORS = ['#58a6ff', '#3fb950', '#f85149', '#bc8cff', '#d29922', '#e3b341', '#8b949e'];
 const HANDLE_RADIUS = 5;
+
+// G10: Fibonacci levels
+const FIBO_LEVELS = [0, 0.236, 0.382, 0.5, 0.618, 0.786, 1];
+const FIBO_EXT_LEVELS = [0, 0.618, 1, 1.272, 1.618, 2, 2.618];
+const FIBO_COLORS = ['#f85149', '#e3b341', '#3fb950', '#58a6ff', '#bc8cff', '#d29922', '#8b949e'];
 
 // ─── DrawingManager ───────────────────────────────────────────────────────────
 
@@ -174,7 +179,7 @@ export class DrawingManager {
       return;
     }
 
-    // Trendline & measure: two-click
+    // Trendline, measure & G10 tools: two-click
     this.pendingPoints.push(point);
     if (this.pendingPoints.length === 2) {
       this.addDrawing({
@@ -304,6 +309,12 @@ export class DrawingManager {
   private _externalSeries: any = null;
   setMainSeries(series: any): void {
     this._externalSeries = series;
+  }
+
+  // Candle reference for regression calculations
+  private _candlesRef: Array<{ time: number; close: number }> | null = null;
+  setCandles(candles: Array<{ time: number; close: number }>): void {
+    this._candlesRef = candles;
   }
 
   // ─── Hit testing ───────────────────────────────────────────────────────
@@ -474,6 +485,159 @@ export class DrawingManager {
       }
       this.ctx.restore();
     }
+
+    // ── G10: Fibonacci Retracement ─────────────────────────────────────────
+    if ((drawing.tool === 'fibonacci' || drawing.tool === 'fibonacci_ext') && drawing.points.length === 2) {
+      const p1 = this.chartToScreen(drawing.points[0]!);
+      const p2 = this.chartToScreen(drawing.points[1]!);
+      if (!p1 || !p2) return;
+
+      const priceHigh = Math.max(drawing.points[0]!.price, drawing.points[1]!.price);
+      const priceLow  = Math.min(drawing.points[0]!.price, drawing.points[1]!.price);
+      const priceRange = priceHigh - priceLow;
+      const levels = drawing.tool === 'fibonacci_ext' ? FIBO_EXT_LEVELS : FIBO_LEVELS;
+
+      const canvasW = this.canvas.clientWidth;
+      const x1 = Math.min(p1.x, p2.x);
+      const x2 = Math.max(p1.x, p2.x);
+
+      this.ctx.save();
+      this.ctx.font = '10px "JetBrains Mono", monospace';
+
+      levels.forEach((level, idx) => {
+        const levelPrice = drawing.tool === 'fibonacci_ext'
+          ? priceLow + priceRange * level          // extension goes above high
+          : priceHigh - priceRange * level;        // retracement from high
+
+        // Map price -> screen y via main series
+        const series = this.getMainSeries();
+        const yCoord = series ? (series as any).priceToCoordinate?.(levelPrice) : null;
+        if (yCoord == null || !Number.isFinite(yCoord)) return;
+
+        const color = FIBO_COLORS[idx % FIBO_COLORS.length]!;
+        this.ctx.strokeStyle = color;
+        this.ctx.lineWidth = 1;
+        this.ctx.setLineDash([4, 3]);
+        this.ctx.beginPath();
+        this.ctx.moveTo(x1, yCoord);
+        this.ctx.lineTo(x2 || canvasW, yCoord);
+        this.ctx.stroke();
+
+        // Label
+        const levelPct = (level * 100).toFixed(1);
+        const labelText = `${levelPct}%  ${formatNumber(levelPrice, 2)}`;
+        const metrics = this.ctx.measureText(labelText);
+        const lx = x2 + 4;
+        const ly = yCoord - 2;
+        this.ctx.setLineDash([]);
+        this.ctx.fillStyle = 'rgba(13,17,23,0.85)';
+        this.ctx.fillRect(lx - 2, ly - 10, metrics.width + 6, 14);
+        this.ctx.fillStyle = color;
+        this.ctx.fillText(labelText, lx, ly);
+      });
+
+      // Draggable handles
+      if (isSelected) {
+        this.ctx.restore();
+        this.ctx.save();
+        this.drawHandle(p1.x, p1.y);
+        this.drawHandle(p2.x, p2.y);
+      }
+      this.ctx.restore();
+      return;
+    }
+
+    // ── G10: Linear Regression Channel ────────────────────────────────────
+    if (drawing.tool === 'regression' && drawing.points.length === 2) {
+      const p1 = this.chartToScreen(drawing.points[0]!);
+      const p2 = this.chartToScreen(drawing.points[1]!);
+      if (!p1 || !p2) return;
+
+      // Gather candle prices in range to do regression
+      const tMin = Math.min(drawing.points[0]!.time, drawing.points[1]!.time);
+      const tMax = Math.max(drawing.points[0]!.time, drawing.points[1]!.time);
+      const inRange = this._candlesRef?.filter(c => c.time >= tMin && c.time <= tMax) ?? [];
+
+      if (inRange.length < 2) {
+        // Fallback: draw a simple line
+        this.ctx.save();
+        this.applyStyle(drawing.style);
+        this.ctx.beginPath();
+        this.ctx.moveTo(p1.x, p1.y);
+        this.ctx.lineTo(p2.x, p2.y);
+        this.ctx.stroke();
+        if (isSelected) { this.drawHandle(p1.x, p1.y); this.drawHandle(p2.x, p2.y); }
+        this.ctx.restore();
+        return;
+      }
+
+      // Linear regression: y = a*x + b  (x = index, y = close)
+      const n = inRange.length;
+      const xs = inRange.map((_, i) => i);
+      const ys = inRange.map(c => c.close);
+      const sumX = xs.reduce((s, x) => s + x, 0);
+      const sumY = ys.reduce((s, y) => s + y, 0);
+      const sumXY = xs.reduce((s, x, i) => s + x * ys[i]!, 0);
+      const sumXX = xs.reduce((s, x) => s + x * x, 0);
+      const slope = (n * sumXY - sumX * sumY) / (n * sumXX - sumX * sumX);
+      const intercept = (sumY - slope * sumX) / n;
+
+      // Standard deviation of residuals
+      const residuals = ys.map((y, i) => y - (slope * i + intercept));
+      const stdDev = Math.sqrt(residuals.reduce((s, r) => s + r * r, 0) / n);
+
+      // Build regression screen points
+      const series = this.getMainSeries();
+      const priceToY = (price: number): number | null => {
+        const y = series ? (series as any).priceToCoordinate?.(price) : null;
+        return (y != null && Number.isFinite(y)) ? y : null;
+      };
+
+      // Endpoints for each channel line
+      const startX = Math.min(p1.x, p2.x);
+      const endX   = Math.max(p1.x, p2.x);
+      const regrAt = (i: number) => slope * i + intercept;
+
+      const midY1 = priceToY(regrAt(0));
+      const midY2 = priceToY(regrAt(n - 1));
+      const topY1 = priceToY(regrAt(0) + stdDev);
+      const topY2 = priceToY(regrAt(n - 1) + stdDev);
+      const botY1 = priceToY(regrAt(0) - stdDev);
+      const botY2 = priceToY(regrAt(n - 1) - stdDev);
+
+      this.ctx.save();
+      const drawLine = (x1: number, y1: number | null, x2: number, y2: number | null, dash: number[], color: string) => {
+        if (y1 == null || y2 == null) return;
+        this.ctx.strokeStyle = color;
+        this.ctx.lineWidth = 1.5;
+        this.ctx.setLineDash(dash);
+        this.ctx.beginPath();
+        this.ctx.moveTo(x1, y1);
+        this.ctx.lineTo(x2, y2);
+        this.ctx.stroke();
+      };
+
+      drawLine(startX, topY1, endX, topY2, [4, 3], drawing.style.color + '99');
+      drawLine(startX, midY1, endX, midY2, [], drawing.style.color);
+      drawLine(startX, botY1, endX, botY2, [4, 3], drawing.style.color + '99');
+
+      // Fill between channels
+      if (topY1 != null && topY2 != null && botY1 != null && botY2 != null) {
+        this.ctx.globalAlpha = 0.07;
+        this.ctx.fillStyle = drawing.style.color;
+        this.ctx.beginPath();
+        this.ctx.moveTo(startX, topY1);
+        this.ctx.lineTo(endX, topY2);
+        this.ctx.lineTo(endX, botY2);
+        this.ctx.lineTo(startX, botY1);
+        this.ctx.closePath();
+        this.ctx.fill();
+        this.ctx.globalAlpha = 1;
+      }
+
+      if (isSelected) { this.drawHandle(p1.x, p1.y); this.drawHandle(p2.x, p2.y); }
+      this.ctx.restore();
+    }
   }
 
   private applyStyle(style: DrawingStyle): void {
@@ -626,6 +790,13 @@ export class DrawingManager {
         <button class="ctrl-btn drawing-tool-btn" data-drawing-tool="vline" title="Dikey Çizgi">│</button>
         <button class="ctrl-btn drawing-tool-btn" data-drawing-tool="measure" title="Ölçüm Aracı">📏</button>
         <button class="ctrl-btn drawing-clear-btn" id="drawing-clear-btn" title="Tüm çizimleri sil">🗑</button>
+      </div>
+      <div class="ctrl-group">
+        <span class="ctrl-label">İleri</span>
+        <button class="ctrl-btn drawing-tool-btn" data-drawing-tool="fibonacci" title="Fibonacci Düzeltme (iki nokta)">Fib</button>
+        <button class="ctrl-btn drawing-tool-btn" data-drawing-tool="fibonacci_ext" title="Fibonacci Uzantı (iki nokta)">FibX</button>
+        <button class="ctrl-btn drawing-tool-btn" data-drawing-tool="regression" title="Regresyon Kanalı (iki nokta)">Reg</button>
+        <button class="ctrl-btn drawing-tool-btn" data-drawing-tool-disabled title="Renko — Yakında" disabled style="opacity:0.4;cursor:not-allowed">Rnk</button>
       </div>
     `;
   }
