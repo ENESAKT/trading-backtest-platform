@@ -27,6 +27,7 @@ const C = {
   bg:       '#0B0E14',
   panel:    '#131722',
   border:   'rgba(255, 255, 255, 0.08)',
+  borderSolid: '#222834',
   text:     '#94A3B8',
   textBold: '#F8FAFC',
   green:    '#10B981',
@@ -704,7 +705,7 @@ export class ChartPanel {
       lineStyle: LineStyle.Dashed,
       axisLabelVisible: true,
       title,
-      axisLabelColor: C.border,
+      axisLabelColor: C.borderSolid,
       axisLabelTextColor: C.textBold,
     });
   }
@@ -992,7 +993,7 @@ export class ChartPanel {
         lineStyle: LineStyle.Dashed,
         axisLabelVisible: true,
         title: this.scaleMode === 'percent' ? 'ÖK %' : 'ÖK',
-        axisLabelColor: C.border,
+        axisLabelColor: C.borderSolid,
         axisLabelTextColor: C.textBold,
       });
     }
@@ -1170,7 +1171,7 @@ export class ChartPanel {
       lineStyle: strong ? LineStyle.Solid : LineStyle.Dashed,
       axisLabelVisible: true,
       title,
-      axisLabelColor: strong ? color : C.border,
+      axisLabelColor: strong ? color : C.borderSolid,
       axisLabelTextColor: strong ? C.bg : C.textBold,
     });
     this.pnlPriceLines.push({ series, line });
