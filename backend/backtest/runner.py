@@ -29,6 +29,7 @@ import pandas as pd
 
 from backend.backtest import blueprints as _blueprints  # noqa: F401  (registry trigger)
 from backend.data.cache import OHLCVCache
+from backend.data.historical_store import HistoricalStore
 from quant_engine.backtest.engine import BacktestConfig, BacktestEngine
 from quant_engine.strategy.registry import get_registry
 from quant_engine.strategy.spec import FormulaError, StrategySpecSignal, validate_strategy_spec
@@ -408,6 +409,7 @@ def run_backtest(
     csv_text: str | None = None,
     csv_bars: list[dict[str, Any]] | None = None,
     data_service: Any | None = None,
+    historical_store: HistoricalStore | None = None,
 ) -> dict[str, Any]:
     """Backtest çalıştır — JSON-uyumlu sonuç dict'i döndür.
 
@@ -465,6 +467,24 @@ def run_backtest(
             end_ts=end_ts,
             limit=None if start_ts or end_ts else int(lookback_bars),
         )
+        if len(raw_bars) < MIN_BARS and historical_store is not None:
+            historical = historical_store.read_bars(
+                canonical,
+                interval=interval,
+                limit=None if start_date or end_date else int(lookback_bars),
+                start=start_date,
+                end=end_date,
+            )
+            if historical.bars:
+                cache.upsert_bars(canonical, interval, historical.bars)
+                raw_bars = historical.bars
+                provider_meta = {
+                    "source": "local_parquet",
+                    "provider_name": "HistoricalStore",
+                    "is_real": True,
+                    "status": "ok",
+                    "storage_symbol": historical.storage_symbol,
+                }
         if (
             source_mode == "cache_then_provider"
             and len(raw_bars) < MIN_BARS
@@ -490,12 +510,26 @@ def run_backtest(
                     limit=None if start_ts or end_ts else int(lookback_bars),
                 )
         if not provider_meta:
-            provider_meta = {
-                "source": "cache",
-                "provider_name": "OHLCVCache",
-                "is_real": False,
-                "status": "ok" if raw_bars else "empty",
-            }
+            if (
+                interval == "1d"
+                and historical_store is not None
+                and historical_store.has_symbol(canonical)
+                and raw_bars
+            ):
+                provider_meta = {
+                    "source": "local_parquet_cache",
+                    "provider_name": "HistoricalStore/OHLCVCache",
+                    "is_real": True,
+                    "status": "ok",
+                    "storage_symbol": historical_store.storage_symbol(canonical),
+                }
+            else:
+                provider_meta = {
+                    "source": "cache",
+                    "provider_name": "OHLCVCache",
+                    "is_real": False,
+                    "status": "ok" if raw_bars else "empty",
+                }
         if raw_bars:
             data_warnings.extend(_validate_ohlcv_bars(raw_bars, source="Cache"))
 

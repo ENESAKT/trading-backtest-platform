@@ -19,6 +19,7 @@ import {
 import type { OHLCV, Timeframe, ChartType, IndicatorSet, Signal, ChartDataStatus, ChartViewOptions, ChartTemplate, ChartEvent, ChartEventType } from '../types.js';
 import { computeIndicators, lastValid, type IndicatorCalculationOptions } from '../indicators/index.js';
 import { TR, formatNumber, formatDateTime } from '../constants/tr.js';
+import { ALL_SYMBOLS } from '../constants/symbols.js';
 import { DrawingManager } from './DrawingManager.js';
 
 // ─── Theme constants ──────────────────────────────────────────────────────────
@@ -42,7 +43,7 @@ const COMPARE_COLOR = '#F2B84B';
 const COMPARE_DOWN_COLOR = '#C084FC';
 
 const CHART_OPTIONS = {
-  layout:     { background: { type: ColorType.Solid, color: C.bg }, textColor: C.text },
+  layout:     { background: { type: ColorType.Solid, color: C.bg }, textColor: C.text, attributionLogo: false },
   grid:       { vertLines: { color: C.border }, horzLines: { color: C.border } },
   crosshair:  { mode: CrosshairMode.Normal },
   timeScale:  { borderColor: C.border, timeVisible: true, secondsVisible: false },
@@ -100,6 +101,10 @@ const DEFAULT_INDICATOR_PARAMS: Required<IndicatorCalculationOptions> = {
   atrPeriod: 14,
   stochasticKPeriod: 14,
   stochasticDPeriod: 3,
+  kairiPeriod: 14,
+  mostPeriod: 3,
+  mostPercent: 2.0,
+  gmma: true,
 };
 const INDICATOR_CATEGORIES: Array<{ id: IndicatorCategory | 'all'; label: string }> = [
   { id: 'all', label: 'Tümü' },
@@ -162,12 +167,47 @@ const INDICATOR_DEFS: IndicatorDefinition[] = [
       { key: 'stochasticDPeriod', label: '%D', min: 1, max: 30, step: 1 },
     ],
   },
+  {
+    key: 'kairi',
+    label: 'Kairi Relative Index',
+    category: 'momentum',
+    region: 'overlay', // or panel
+    description: 'Fiyatın hareketli ortalamadan sapma yüzdesi.',
+    params: [{ key: 'kairiPeriod', label: 'Periyot', min: 2, max: 100, step: 1 }],
+  },
+  {
+    key: 'most',
+    label: 'MOST',
+    category: 'trend',
+    region: 'overlay',
+    description: 'Hareketli ortalama bazlı takip eden stop mekanizması.',
+    params: [
+      { key: 'mostPeriod', label: 'Periyot', min: 2, max: 100, step: 1 },
+      { key: 'mostPercent', label: '% Yüzde', min: 0.1, max: 10, step: 0.1 },
+    ],
+  },
+  {
+    key: 'bbw',
+    label: 'BB Width',
+    category: 'volatility',
+    region: 'overlay', // or panel
+    description: 'Bollinger bantları daralma genişleme.',
+    // params can share bb params
+  },
+  {
+    key: 'gmma',
+    label: 'Guppy MMA',
+    category: 'trend',
+    region: 'overlay',
+    description: 'Çoklu üstel hareketli ortalama şelalesi.',
+  },
 ];
 const INDICATOR_GROUPS: Array<{ id: string; label: string; keys: string[] }> = [
   { id: 'trend', label: 'Trend Seti', keys: ['ema', 'vwap', 'macd'] },
   { id: 'mean-reversion', label: 'Mean Reversion', keys: ['bb', 'rsi', 'stoch'] },
   { id: 'momentum', label: 'Momentum', keys: ['rsi', 'macd', 'stoch', 'atr'] },
 ];
+const EVENT_FILTER_TYPES: ChartEventType[] = ['haber', 'kap', 'bilanco', 'temettu', 'sermaye'];
 
 // ─── ChartPanel ───────────────────────────────────────────────────────────────
 
@@ -212,6 +252,13 @@ export class ChartPanel {
   private ema50Series!:   ISeriesApi<'Line'>;
   private vwapSeries!:    ISeriesApi<'Line'>;
 
+  // Yeni indikatör serileri
+  private kairiSeries?: ISeriesApi<'Line'>;
+  private mostSeries?: ISeriesApi<'Line'>;
+  private mostEmaSeries?: ISeriesApi<'Line'>;
+  private bbwSeries?:   ISeriesApi<'Line'>;
+  private gmmaSeriesDict: { [key: string]: ISeriesApi<'Line'> } = {};
+
   // Crosshair info overlay
   private infoEl!: HTMLElement;
   private stateEl!: HTMLElement;
@@ -252,10 +299,11 @@ export class ChartPanel {
   private compareSeries: any = null;
   private compareCandles: OHLCV[] = [];
   private comparePercentBaseClose: number | null = null;
+  private compareSuggestionIndex = 0;
 
   // G9: Event markers
   private chartEvents: ChartEvent[] = [];
-  private eventFilter: ChartEventType | 'all' = 'all';
+  private activeEventTypes: Set<ChartEventType> = new Set(EVENT_FILTER_TYPES);
   private eventTooltipEl: HTMLElement | null = null;
   private eventMarkerEls: Map<string, HTMLElement> = new Map();
 
@@ -286,14 +334,8 @@ export class ChartPanel {
     // Controls bar
     const controls = document.createElement('div');
     controls.className = 'chart-controls';
-    controls.innerHTML = this.controlsHTML() + this.drawingToolbarHTML();
+    controls.innerHTML = this.controlsHTML();
     this.container.appendChild(controls);
-
-    // G9: Event filter row (second controls row)
-    const eventRow = document.createElement('div');
-    eventRow.className = 'chart-event-controls';
-    eventRow.id = 'chart-event-controls';
-    this.container.appendChild(eventRow);
 
     // Crosshair info overlay
     this.infoEl = document.createElement('div');
@@ -378,7 +420,10 @@ export class ChartPanel {
       <div class="tool-cluster compare-cluster">
         <button class="tool-trigger" type="button"><span>Karşılaştır</span><b>+ Sembol</b></button>
         <div class="tool-inline compare-inline">
-          <input type="text" class="search-input compare-input" id="compare-input" placeholder="+ Sembol" autocomplete="off">
+          <div class="compare-search-wrap">
+            <input type="text" class="search-input compare-input" id="compare-input" placeholder="+ Sembol" autocomplete="off" spellcheck="false" role="combobox" aria-expanded="false" aria-controls="compare-suggestions">
+            <div class="compare-suggestions" id="compare-suggestions" role="listbox"></div>
+          </div>
           <button class="ctrl-btn" id="compare-add-btn" title="Ekle/Değiştir">Ekle</button>
           <button class="ctrl-btn" id="compare-clear-btn" title="Temizle">x</button>
           <div id="compare-options" class="compare-options">
@@ -393,6 +438,8 @@ export class ChartPanel {
       </div>
 
       ${this.drawingToolbarHTML()}
+
+      ${this.eventFilterHTML()}
 
       <div class="tool-cluster ml-auto">
         <button class="tool-trigger" type="button"><span>Çıktı</span><b>Şablon</b></button>
@@ -606,18 +653,18 @@ export class ChartPanel {
 
       // Compare
       if (btn.id === 'compare-add-btn') {
-        const input = controls.querySelector<HTMLInputElement>('#compare-input');
-        if (input && input.value.trim()) {
-          this.container.dispatchEvent(new CustomEvent('compareRequest', { detail: input.value.trim().toUpperCase(), bubbles: true }));
-        }
+        this.submitCompareSymbol(controls);
       }
 
       if (btn.id === 'compare-clear-btn') {
         const input = controls.querySelector<HTMLInputElement>('#compare-input');
         if (input) input.value = '';
+        this.hideCompareSuggestions(controls);
         this.clearCompare();
       }
     });
+
+    this.bindCompareSearch(controls);
 
     const compareColorPicker = controls.querySelector<HTMLInputElement>('#compare-color-picker');
     if (compareColorPicker) {
@@ -663,6 +710,9 @@ export class ChartPanel {
       if (!target.closest('#export-dropdown')) {
         this.container.querySelector('#export-menu')?.classList.remove('show');
       }
+      if (!target.closest('.compare-search-wrap')) {
+        this.hideCompareSuggestions(controls);
+      }
       // H2: Indicator dropdown
       if (!target.closest('#indicator-dropdown')) {
         this.container.querySelector('#indicator-dropdown-menu')?.classList.remove('show');
@@ -677,6 +727,166 @@ export class ChartPanel {
         this.container.querySelector('#template-menu')?.classList.remove('show');
       }
     });
+  }
+
+  private bindCompareSearch(controls: HTMLElement): void {
+    const input = controls.querySelector<HTMLInputElement>('#compare-input');
+    const suggestions = controls.querySelector<HTMLElement>('#compare-suggestions');
+    if (!input || !suggestions) return;
+
+    input.addEventListener('input', () => {
+      this.compareSuggestionIndex = 0;
+      this.renderCompareSuggestions(controls);
+    });
+
+    input.addEventListener('focus', () => {
+      this.renderCompareSuggestions(controls);
+    });
+
+    input.addEventListener('keydown', (e) => {
+      const items = Array.from(suggestions.querySelectorAll<HTMLElement>('.compare-suggestion'));
+      if (e.key === 'ArrowDown' && items.length > 0) {
+        e.preventDefault();
+        this.compareSuggestionIndex = Math.min(this.compareSuggestionIndex + 1, items.length - 1);
+        this.updateCompareSuggestionActive(suggestions);
+        return;
+      }
+
+      if (e.key === 'ArrowUp' && items.length > 0) {
+        e.preventDefault();
+        this.compareSuggestionIndex = Math.max(this.compareSuggestionIndex - 1, 0);
+        this.updateCompareSuggestionActive(suggestions);
+        return;
+      }
+
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        const active = items[this.compareSuggestionIndex];
+        if (active?.dataset['symbol']) {
+          input.value = active.dataset['symbol'];
+        }
+        this.submitCompareSymbol(controls);
+        return;
+      }
+
+      if (e.key === 'Escape') {
+        this.hideCompareSuggestions(controls);
+      }
+    });
+
+    suggestions.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      const item = (e.target as HTMLElement).closest<HTMLElement>('.compare-suggestion');
+      if (!item?.dataset['symbol']) return;
+      input.value = item.dataset['symbol'];
+      this.submitCompareSymbol(controls);
+    });
+  }
+
+  private submitCompareSymbol(controls: HTMLElement): void {
+    const input = controls.querySelector<HTMLInputElement>('#compare-input');
+    if (!input?.value.trim()) return;
+    const symbol = this.resolveCompareInput(input.value.trim());
+    input.value = symbol;
+    this.hideCompareSuggestions(controls);
+    this.container.dispatchEvent(new CustomEvent('compareRequest', { detail: symbol, bubbles: true }));
+  }
+
+  private renderCompareSuggestions(controls: HTMLElement): void {
+    const input = controls.querySelector<HTMLInputElement>('#compare-input');
+    const suggestions = controls.querySelector<HTMLElement>('#compare-suggestions');
+    if (!input || !suggestions) return;
+
+    const matches = this.compareMatches(input.value);
+    if (matches.length === 0) {
+      this.hideCompareSuggestions(controls);
+      return;
+    }
+
+    this.compareSuggestionIndex = Math.min(this.compareSuggestionIndex, matches.length - 1);
+    suggestions.innerHTML = matches.map((s, index) => {
+      const cleanSymbol = s.symbol.replace('.IS', '');
+      return `
+        <button class="compare-suggestion${index === this.compareSuggestionIndex ? ' active' : ''}" type="button" role="option" data-symbol="${this.escapeHtml(s.symbol)}" aria-selected="${index === this.compareSuggestionIndex ? 'true' : 'false'}">
+          <span class="compare-suggestion-symbol">${this.escapeHtml(cleanSymbol)}</span>
+          <span class="compare-suggestion-name">${this.escapeHtml(s.name)}</span>
+          <span class="compare-suggestion-group">${this.escapeHtml(s.group)}</span>
+        </button>
+      `;
+    }).join('');
+    suggestions.classList.add('show');
+    input.setAttribute('aria-expanded', 'true');
+  }
+
+  private hideCompareSuggestions(controls: HTMLElement): void {
+    const input = controls.querySelector<HTMLInputElement>('#compare-input');
+    const suggestions = controls.querySelector<HTMLElement>('#compare-suggestions');
+    if (!suggestions) return;
+    suggestions.classList.remove('show');
+    suggestions.innerHTML = '';
+    input?.setAttribute('aria-expanded', 'false');
+  }
+
+  private updateCompareSuggestionActive(suggestions: HTMLElement): void {
+    suggestions.querySelectorAll<HTMLElement>('.compare-suggestion').forEach((item, index) => {
+      const active = index === this.compareSuggestionIndex;
+      item.classList.toggle('active', active);
+      item.setAttribute('aria-selected', active ? 'true' : 'false');
+      if (active) item.scrollIntoView({ block: 'nearest' });
+    });
+  }
+
+  private compareMatches(query: string): typeof ALL_SYMBOLS {
+    const normalizedQuery = this.normalizeCompareQuery(query);
+    const candidates = normalizedQuery
+      ? ALL_SYMBOLS.filter(s => {
+          const symbol = this.normalizeCompareQuery(s.symbol);
+          const cleanSymbol = this.normalizeCompareQuery(s.symbol.replace('.IS', ''));
+          const name = this.normalizeCompareQuery(s.name);
+          const group = this.normalizeCompareQuery(s.group);
+          return symbol.includes(normalizedQuery)
+            || cleanSymbol.includes(normalizedQuery)
+            || name.includes(normalizedQuery)
+            || group.includes(normalizedQuery);
+        })
+      : ALL_SYMBOLS;
+
+    return candidates
+      .slice()
+      .sort((a, b) => this.compareMatchScore(a, normalizedQuery) - this.compareMatchScore(b, normalizedQuery))
+      .slice(0, 8);
+  }
+
+  private compareMatchScore(symbolInfo: typeof ALL_SYMBOLS[number], query: string): number {
+    if (!query) return symbolInfo.assetType === 'equity' ? 0 : 1;
+    const symbol = this.normalizeCompareQuery(symbolInfo.symbol);
+    const cleanSymbol = this.normalizeCompareQuery(symbolInfo.symbol.replace('.IS', ''));
+    const name = this.normalizeCompareQuery(symbolInfo.name);
+    if (cleanSymbol === query || symbol === query) return 0;
+    if (cleanSymbol.startsWith(query) || symbol.startsWith(query)) return 1;
+    if (name.startsWith(query)) return 2;
+    if (name.includes(query)) return 3;
+    return 4;
+  }
+
+  private resolveCompareInput(value: string): string {
+    const normalizedValue = this.normalizeCompareQuery(value);
+    const exact = ALL_SYMBOLS.find(s =>
+      this.normalizeCompareQuery(s.symbol) === normalizedValue
+      || this.normalizeCompareQuery(s.symbol.replace('.IS', '')) === normalizedValue
+    );
+    return exact?.symbol ?? value.trim().toUpperCase();
+  }
+
+  private normalizeCompareQuery(value: string): string {
+    return value
+      .trim()
+      .toLocaleLowerCase('tr-TR')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/ı/g, 'i')
+      .replace(/İ/g, 'i')
+      .replace(/[^a-z0-9=.:-]/g, '');
   }
 
   // ─── Chart initialization ───────────────────────────────────────────────
@@ -772,12 +982,7 @@ export class ChartPanel {
     // G9: Event marker container
     this.initEventLayer();
 
-    // Populate and bind event filter controls
-    const eventRowEl = this.container.querySelector('#chart-event-controls') as HTMLElement;
-    if (eventRowEl) {
-      eventRowEl.innerHTML = this.eventFilterHTML();
-      this.bindEventFilterControls(eventRowEl);
-    }
+    this.bindEventFilterControls(ctrlsEl);
 
     // Reposition markers on scroll/zoom
     this.mainChart.timeScale().subscribeVisibleLogicalRangeChange(() => {
@@ -1390,6 +1595,54 @@ export class ChartPanel {
     this.stochKSeries.setData(lineData(inds.stochastic?.k));
     this.stochDSeries.setData(lineData(inds.stochastic?.d));
 
+    // Yeni indikatörleri grafik üzerindeyse updatele ya da lazy yarat
+    if (this.activeIndicators.has('kairi') && inds.kairi) {
+      if (!this.kairiSeries) {
+        this.kairiSeries = this.mainChart.addLineSeries({ color: C.purple, lineWidth: 2, title: 'KAIRI' });
+      }
+      this.kairiSeries.setData(lineData(inds.kairi));
+    }
+    
+    if (this.activeIndicators.has('most') && inds.most && inds.mostEma) {
+      if (!this.mostSeries) {
+        this.mostSeries = this.mainChart.addLineSeries({ color: C.green, lineWidth: 2, title: 'MOST' });
+      }
+      if (!this.mostEmaSeries) {
+        this.mostEmaSeries = this.mainChart.addLineSeries({ color: C.blue, lineWidth: 1, lineStyle: 2, title: 'MOST EMA' });
+      }
+      this.mostSeries.setData(lineData(inds.most));
+      this.mostEmaSeries.setData(lineData(inds.mostEma));
+    }
+
+    if (this.activeIndicators.has('bbw') && inds.bbWidth) {
+      if (!this.bbwSeries) {
+        this.bbwSeries = this.mainChart.addLineSeries({ color: C.yellow, lineWidth: 1, title: 'BBW' });
+      }
+      this.bbwSeries.setData(lineData(inds.bbWidth));
+    }
+    
+    if (this.activeIndicators.has('gmma') && inds.gmma) {
+      Object.keys(inds.gmma).forEach(key => {
+        if (!this.gmmaSeriesDict[key]) {
+          const isShort = key.startsWith('short');
+          this.gmmaSeriesDict[key] = this.mainChart.addLineSeries({
+            color: isShort ? 'rgba(59, 130, 246, 0.4)' : 'rgba(239, 68, 68, 0.4)',
+            lineWidth: 1,
+            title: `GMMA ${key.replace('_', ' ')}`
+          });
+        }
+        
+        const gRow = inds.gmma![key];
+        if (gRow) {
+          const gData = gRow.map((x: any) => ({
+            time: x.time as UTCTimestamp,
+            value: x.value
+          })).filter(d => !isNaN(d.value)) as LineData[];
+          this.gmmaSeriesDict[key].setData(gData);
+        }
+      });
+    }
+
     if (inds.macd) {
       this.macdLineSeries.setData(lineData(inds.macd.macd));
       this.macdSigSeries.setData(lineData(inds.macd.signal));
@@ -1607,7 +1860,7 @@ export class ChartPanel {
         const key = target.dataset['indicatorParam'] as keyof IndicatorCalculationOptions;
         const value = Number(target.value);
         if (!Number.isFinite(value)) return;
-        this.indicatorParams[key] = value;
+        (this.indicatorParams as any)[key] = value;
         this.saveIndicatorPrefs();
         this.renderIndicators(this.candles);
         this.updateIndicatorVisibility();
@@ -1765,6 +2018,15 @@ export class ChartPanel {
     this.ema21Series.applyOptions({ visible: ema });
     this.ema50Series.applyOptions({ visible: ema });
     this.vwapSeries.applyOptions({ visible: has('vwap') });
+    
+    // Yeni indikatörler main grafikte varsa opacity/visible toggles:
+    this.kairiSeries?.applyOptions({ visible: has('kairi') });
+    this.mostSeries?.applyOptions({ visible: has('most') });
+    this.mostEmaSeries?.applyOptions({ visible: has('most') });
+    this.bbwSeries?.applyOptions({ visible: has('bbw') });
+    if (this.gmmaSeriesDict) {
+      Object.values(this.gmmaSeriesDict).forEach(s => s.applyOptions({ visible: has('gmma') }));
+    }
     this.rsiEl.style.display  = has('rsi')  ? '' : 'none';
     this.macdEl.style.display = has('macd') ? '' : 'none';
     this.volEl.style.display  = has('vol')  ? '' : 'none';
@@ -1797,9 +2059,11 @@ export class ChartPanel {
       sma: 'ema',
       ma: 'ema',
       stochastic: 'stoch',
+      'bb width': 'bbw',
+      bbwidth: 'bbw'
     };
     const normalized = aliases[key] ?? key;
-    return ['bb', 'ema', 'vwap', 'rsi', 'macd', 'vol', 'atr', 'stoch'].includes(normalized)
+    return ['bb', 'ema', 'vwap', 'rsi', 'macd', 'vol', 'atr', 'stoch', 'kairi', 'most', 'bbw', 'gmma'].includes(normalized)
       ? normalized
       : '';
   }
@@ -2233,6 +2497,24 @@ export class ChartPanel {
     this.compareCandles = candles;
     this.container.dataset['compareSymbol'] = symbol;
 
+    // G6: Fiyat oran uyuşmazlığı kontrolü (Auto-Percentage Mode)
+    if (this.candles.length > 0 && candles.length > 0 && this.scaleMode !== 'percent') {
+      const syncMatch = candles.find(c => c.time >= this.candles[0].time) || candles[0];
+      const mainPrice = this.candles[0].close;
+      const compPrice = syncMatch.close;
+      
+      if (mainPrice > 0 && compPrice > 0) {
+        const ratio = mainPrice > compPrice ? mainPrice / compPrice : compPrice / mainPrice;
+        if (ratio > 3) {
+          console.log(`[Chart] Fiyat farkı çok yüksek (${ratio.toFixed(1)}x). Otomatik yüzdesel moda geçiliyor.`);
+          this.scaleMode = 'percent';
+          // scaleMode değiştirdiğimiz için base recalculation tetiklenmeli
+          this.ensurePercentBase(this.candles);
+          this.updateScaleButtons();
+        }
+      }
+    }
+
     const colorPicker = this.container.querySelector<HTMLInputElement>('#compare-color-picker');
     const seriesColor = colorPicker ? colorPicker.value : COMPARE_COLOR;
     const compareTypeSelect = this.container.querySelector<HTMLSelectElement>('#compare-type-select');
@@ -2294,19 +2576,50 @@ export class ChartPanel {
     this.updateUnitBadge();
   }
 
+  private syncCompareData(mainRef: OHLCV[], compareSrc: OHLCV[]): OHLCV[] {
+    if (!mainRef.length || !compareSrc.length) return [];
+    
+    // G6: Data Eşitleme (Tatil/Gap - Forward-fill)
+    const synced: OHLCV[] = [];
+    let compIdx = 0;
+    let lastValidComp: OHLCV | null = null;
+  
+    for (const mc of mainRef) {
+      while (compIdx < compareSrc.length && (compareSrc[compIdx].time as number) <= (mc.time as number)) {
+        lastValidComp = compareSrc[compIdx];
+        if (compareSrc[compIdx].time === mc.time) {
+            compIdx++;
+            break;
+        }
+        compIdx++;
+      }
+      
+      if (lastValidComp) {
+        synced.push({
+          ...lastValidComp,
+          time: mc.time
+        });
+      }
+    }
+    return synced;
+  }
+
   private renderCompareSeries(): void {
-    if (!this.compareSeries || this.compareCandles.length === 0) return;
+    if (!this.compareSeries || this.compareCandles.length === 0 || this.candles.length === 0) return;
+
+    // G6: Tatil/Gap eşitlemesi
+    const syncedCompareCandles = this.syncCompareData(this.candles, this.compareCandles);
 
     // Determine compare base
     this.comparePercentBaseClose = null;
     if (this.scaleMode === 'percent' && this.percentBaseTime != null) {
-      const baseCandle = this.compareCandles.find(c => c.time >= this.percentBaseTime!) || this.compareCandles[0];
+      const baseCandle = syncedCompareCandles.find(c => c.time >= this.percentBaseTime!) || syncedCompareCandles[0];
       if (baseCandle) this.comparePercentBaseClose = baseCandle.close;
     }
 
     const compareType = this.container.dataset['compareType'] || 'candle';
     if (compareType === 'candle') {
-      const candleData = this.compareCandles.map(c => {
+      const candleData = syncedCompareCandles.map(c => {
         const base = this.comparePercentBaseClose;
         return {
           time: c.time as UTCTimestamp,
@@ -2320,7 +2633,7 @@ export class ChartPanel {
       return;
     }
 
-    const compareLineData = this.compareCandles.map(c => ({
+    const compareLineData = syncedCompareCandles.map(c => ({
       time: c.time as Time,
       value: this.scaleMode === 'percent' && this.comparePercentBaseClose
         ? this.percentChange(c.close, this.comparePercentBaseClose)
@@ -2430,14 +2743,15 @@ export class ChartPanel {
   }
 
   setEventFilter(filter: ChartEventType | 'all'): void {
-    this.eventFilter = filter;
-    this.container.dataset['eventFilter'] = filter;
+    this.activeEventTypes = filter === 'all'
+      ? new Set(EVENT_FILTER_TYPES)
+      : new Set([filter]);
+    this.syncEventFilterButtons();
     this.renderEventMarkers();
   }
 
   private getFilteredEvents(): ChartEvent[] {
-    if (this.eventFilter === 'all') return this.chartEvents;
-    return this.chartEvents.filter(e => e.type === this.eventFilter);
+    return this.chartEvents.filter(e => this.activeEventTypes.has(e.type));
   }
 
   private clearEventMarkers(): void {
@@ -2453,7 +2767,7 @@ export class ChartPanel {
     const timeScale = this.mainChart.timeScale();
 
     events.forEach(ev => {
-      const x = timeScale.timeToCoordinate(ev.time as any);
+      const x = timeScale.timeToCoordinate((ev.time as unknown) as UTCTimestamp);
       if (x == null) return;
 
       const marker = document.createElement('div');
@@ -2493,7 +2807,7 @@ export class ChartPanel {
     this.chartEvents.forEach(ev => {
       const el = this.eventMarkerEls.get(ev.id);
       if (!el) return;
-      const x = timeScale.timeToCoordinate(ev.time as any);
+      const x = timeScale.timeToCoordinate((ev.time as unknown) as UTCTimestamp);
       if (x == null) {
         el.style.display = 'none';
       } else {
@@ -2555,21 +2869,22 @@ export class ChartPanel {
   eventFilterHTML(): string {
     const types: Array<{ key: ChartEventType | 'all'; label: string }> = [
       { key: 'all', label: TR.EVENT_ALL },
-      { key: 'haber', label: TR.EVENT_HABER },
-      { key: 'kap', label: TR.EVENT_KAP },
-      { key: 'bilanco', label: TR.EVENT_BILANCO },
-      { key: 'temettu', label: TR.EVENT_TEMETTU },
-      { key: 'sermaye', label: TR.EVENT_SERMAYE },
+      ...EVENT_FILTER_TYPES.map(key => ({
+        key,
+        label: this.eventTypeLabel(key),
+      })),
     ];
 
     return `
-      <div class="ctrl-group event-filter-group">
-        <span class="ctrl-label">${TR.EVENTS}</span>
+      <div class="tool-cluster event-filter-cluster">
+        <button class="tool-trigger" type="button"><span>${TR.EVENTS}</span><b>Filtre</b></button>
+        <div class="tool-inline event-filter-group">
         ${types.map(t => `
-          <button class="ctrl-btn event-filter-btn${t.key === 'all' ? ' active' : ''}"
+          <button class="ctrl-btn event-filter-btn${t.key === 'all' || this.activeEventTypes.has(t.key as ChartEventType) ? ' active' : ''}"
                   data-event-filter="${t.key}">${t.label}</button>
         `).join('')}
         <span class="event-source-badge" title="${TR.EVENT_NO_SOURCE}">⚠ ${TR.EVENT_SAMPLE}</span>
+        </div>
       </div>
     `;
   }
@@ -2578,9 +2893,43 @@ export class ChartPanel {
     controls.addEventListener('click', (e) => {
       const btn = (e.target as HTMLElement).closest<HTMLElement>('.event-filter-btn');
       if (!btn) return;
-      controls.querySelectorAll('.event-filter-btn').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      this.setEventFilter(btn.dataset['eventFilter'] as ChartEventType | 'all');
+      const filter = btn.dataset['eventFilter'] as ChartEventType | 'all';
+
+      if (filter === 'all') {
+        this.activeEventTypes = new Set(EVENT_FILTER_TYPES);
+      } else {
+        if (this.activeEventTypes.has(filter)) {
+          this.activeEventTypes.delete(filter);
+        } else {
+          this.activeEventTypes.add(filter);
+        }
+      }
+
+      this.syncEventFilterButtons();
+      this.renderEventMarkers();
+    });
+  }
+
+  private eventTypeLabel(type: ChartEventType): string {
+    const labels: Record<ChartEventType, string> = {
+      haber: TR.EVENT_HABER,
+      kap: TR.EVENT_KAP,
+      bilanco: TR.EVENT_BILANCO,
+      temettu: TR.EVENT_TEMETTU,
+      sermaye: TR.EVENT_SERMAYE,
+    };
+    return labels[type];
+  }
+
+  private syncEventFilterButtons(): void {
+    const allActive = EVENT_FILTER_TYPES.every(type => this.activeEventTypes.has(type));
+    this.container.dataset['eventFilter'] = allActive
+      ? 'all'
+      : Array.from(this.activeEventTypes).join(',');
+
+    this.container.querySelectorAll<HTMLElement>('.event-filter-btn').forEach(btn => {
+      const filter = btn.dataset['eventFilter'] as ChartEventType | 'all';
+      btn.classList.toggle('active', filter === 'all' ? allActive : this.activeEventTypes.has(filter));
     });
   }
 }

@@ -368,3 +368,104 @@ def t3(series: pd.Series, period: int = 5, vfactor: float = 0.7) -> pd.Series:
     c4 = 1 + 3*v + v**3 + 3*v**2
 
     return c1 * e6 + c2 * e5 + c3 * e4 + c4 * e3
+
+
+def kairi(series: pd.Series, period: int = 14) -> pd.Series:
+    """
+    Kairi Relative Index (KRI).
+    """
+    if period < 1:
+        raise ValueError(f"Periyot 1'den küçük olamaz: {period}")
+    
+    ma = sma(series, period)
+    return ((series - ma) / ma) * 100.0
+
+
+def bb_width(series: pd.Series, period: int = 20, num_std: float = 2.0) -> pd.Series:
+    """
+    Bollinger Bands Width.
+    """
+    upper, middle, lower = bollinger_bands(series, period, num_std)
+    # middle 0 olma ihtimaline karsi
+    return (upper - lower) / middle.replace(0, np.nan)
+
+
+def gmma(series: pd.Series) -> dict[str, pd.Series]:
+    """
+    Guppy Multiple Moving Average (GMMA).
+    Kısa ve uzun vadeli EMA grupları döndürür.
+    
+    Short: [3, 5, 8, 10, 12, 15]
+    Long: [30, 35, 40, 45, 50, 60]
+    """
+    result = {}
+    short_periods = [3, 5, 8, 10, 12, 15]
+    long_periods = [30, 35, 40, 45, 50, 60]
+    
+    for p in short_periods:
+        result[f"short_{p}"] = ema(series, p)
+        
+    for p in long_periods:
+        result[f"long_{p}"] = ema(series, p)
+        
+    return result
+
+
+def most(
+    close: pd.Series, 
+    high: pd.Series, 
+    low: pd.Series, 
+    period: int = 3, 
+    percent: float = 2.0
+) -> tuple[pd.Series, pd.Series]:
+    """
+    Moving Average Trend (MOST) - Kivanc Ozbilgic tarafindan gelistirilmis
+    trend takip eden hareketli ortalama indikatoru (ATR mantigi barindirmaz, 
+    yuzdesel mesafe ile stop/trail kaydirir).
+    Ancak ema ile hesaplanan klasik MOST surumudur: MOST = EMA(Close) +/- %Percent
+    
+    Returns:
+        tuple: (most_line, ema_line)
+    """
+    if period < 1:
+        raise ValueError(f"Periyot 1'den kucuk olamaz: {period}")
+
+    ema_line = ema(close, period)
+    
+    most_line = np.full_like(close.values, np.nan, dtype=float)
+    trend = 1
+    
+    close_np = close.values
+    ema_np = ema_line.values
+    pct = percent / 100.0
+    
+    first_valid = ema_line.first_valid_index()
+    if first_valid is None:
+        return pd.Series(most_line, index=close.index), ema_line
+        
+    start_idx = close.index.get_loc(first_valid)
+    
+    most_line[start_idx] = ema_np[start_idx] * (1 - pct) if trend == 1 else ema_np[start_idx] * (1 + pct)
+    
+    for i in range(start_idx + 1, len(close_np)):
+        prev_most = most_line[i - 1]
+        curr_ema = ema_np[i]
+        
+        if np.isnan(curr_ema) or np.isnan(prev_most):
+             most_line[i] = prev_most if not np.isnan(prev_most) else curr_ema
+             continue
+             
+        if trend == 1:
+            if curr_ema < prev_most:
+                trend = -1
+                most_line[i] = curr_ema * (1 + pct)
+            else:
+                most_line[i] = max(prev_most, curr_ema * (1 - pct))
+        else: # trend == -1
+            if curr_ema > prev_most:
+                trend = 1
+                most_line[i] = curr_ema * (1 - pct)
+            else:
+                most_line[i] = min(prev_most, curr_ema * (1 + pct))
+                
+    return pd.Series(most_line, index=close.index), ema_line

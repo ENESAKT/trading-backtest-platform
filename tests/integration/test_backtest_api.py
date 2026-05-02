@@ -9,13 +9,16 @@ from __future__ import annotations
 import math
 from typing import Any
 
+import pandas as pd
 from fastapi.testclient import TestClient
 
 from backend.api.main import create_app
 from backend.api.quote_bus import QuoteBus
 from backend.backtest.archive import BacktestArchive
 from backend.data.cache import OHLCVCache
+from backend.data.historical_store import HistoricalStore
 from backend.workers import WorkerSupervisor
+from quant_engine.data_pipeline.storage_manager import StorageManager
 from quant_engine.strategy.persistence import StrategyStore
 
 
@@ -62,6 +65,24 @@ def _build_client(tmp_path) -> tuple[TestClient, OHLCVCache]:
         strategy_store=StrategyStore(tmp_path / "strategies.sqlite3"),
     )
     return TestClient(app), cache
+
+
+def _historical_store(tmp_path, symbol: str = "THYAO", n: int = 120) -> HistoricalStore:
+    storage = StorageManager(data_dir=str(tmp_path / "hist_data"))
+    rows = []
+    for i in range(n):
+        close = 100.0 + i * 0.5 + 5.0 * math.sin(i / 6.0)
+        rows.append({
+            "date": pd.Timestamp("2020-01-01") + pd.Timedelta(days=i),
+            "open": close - 0.2,
+            "high": close + 0.8,
+            "low": close - 0.8,
+            "close": close,
+            "volume": 10_000 + i,
+            "symbol": symbol,
+        })
+    storage.write_symbol_data(pd.DataFrame(rows), symbol, mode="overwrite")
+    return HistoricalStore(storage=storage)
 
 
 def test_strategies_endpoint_lists_blueprints(tmp_path):
@@ -120,6 +141,64 @@ def test_backtest_run_returns_metrics_and_curve(tmp_path):
         assert len(body["signals"]) >= 2 * len(body["trades"])
         assert {s["type"] for s in body["signals"]} <= {"BUY", "SELL"}
     assert body["run_id"]
+
+
+def test_v2_candles_prefers_local_daily_parquet_and_writes_cache(tmp_path):
+    cache = OHLCVCache(db_path=tmp_path / "c.sqlite3")
+    app = create_app(
+        cache=cache,
+        data_service=_NoopDataService(),
+        supervisor=WorkerSupervisor([]),
+        quote_bus=QuoteBus(),
+        backtest_archive=BacktestArchive(tmp_path / "reports.sqlite3"),
+        strategy_store=StrategyStore(tmp_path / "strategies.sqlite3"),
+        historical_store=_historical_store(tmp_path, "THYAO", n=90),
+    )
+    client = TestClient(app)
+
+    resp = client.get(
+        "/api/v2/candles",
+        params={"symbol": "THYAO.IS", "interval": "1d", "limit": 80},
+    )
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["status"] == "ok"
+    assert body["symbol"] == "THYAO.IS"
+    assert body["metadata"]["source"] == "local_parquet"
+    assert body["metadata"]["is_real"] is True
+    assert len(body["bars"]) == 80
+    assert len(cache.get_window("THYAO.IS", "1d", limit=100)) == 80
+
+
+def test_backtest_uses_local_daily_parquet_when_cache_is_empty(tmp_path):
+    cache = OHLCVCache(db_path=tmp_path / "c.sqlite3")
+    app = create_app(
+        cache=cache,
+        data_service=_NoopDataService(),
+        supervisor=WorkerSupervisor([]),
+        quote_bus=QuoteBus(),
+        backtest_archive=BacktestArchive(tmp_path / "reports.sqlite3"),
+        strategy_store=StrategyStore(tmp_path / "strategies.sqlite3"),
+        historical_store=_historical_store(tmp_path, "THYAO", n=160),
+    )
+    client = TestClient(app)
+
+    resp = client.post(
+        "/api/backtest/run",
+        json={
+            "symbol": "THYAO.IS",
+            "interval": "1d",
+            "strategy_id": "sma_crossover",
+            "params": {"fast_period": 5, "slow_period": 20},
+            "lookback_bars": 150,
+            "source_mode": "cache_only",
+        },
+    )
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["data_source"]["source"] == "local_parquet"
+    assert body["data_source"]["is_real"] is True
+    assert body["lookback_bars"] == 150
 
 
 def test_backtest_v2_strategy_spec_short_and_archive_export(tmp_path):

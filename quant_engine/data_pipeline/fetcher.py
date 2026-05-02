@@ -83,7 +83,12 @@ class BISTFetcher:
 
         try:
             ticker = yf.Ticker(yahoo_ticker)
-            df = ticker.history(start=start, end=end, interval=interval)
+            df = ticker.history(
+                start=start,
+                end=end,
+                interval=interval,
+                auto_adjust=True,
+            )
 
             if df.empty:
                 logger.warning(f"⚠️ {clean_symbol} için veri bulunamadı!")

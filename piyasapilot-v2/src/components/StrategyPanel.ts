@@ -5,6 +5,7 @@ import type {
   OHLCV,
   Signal,
   StrategyBlueprint,
+  StrategyPreset,
   StrategySpec,
   SymbolInfo,
   Timeframe,
@@ -30,7 +31,7 @@ const MIN_BARS_FOR_RUN = 50;
 type SignalsListener = (signals: Signal[]) => void;
 type FocusListener = (timestamp: number) => void;
 type SymbolSelectListener = (info: SymbolInfo) => void;
-type StrategyMode = 'blueprint' | 'spec';
+type StrategyMode = 'blueprint' | 'spec' | 'preset';
 type ReportTab = 'summary' | 'trades' | 'performance' | 'system' | 'warnings';
 
 interface SavedStrategy {
@@ -154,6 +155,7 @@ export class StrategyPanel {
   private mode: StrategyMode = 'spec';
   private reportTab: ReportTab = 'summary';
   private blueprints: StrategyBlueprint[] = DEFAULT_STRATEGIES;
+  private presets: StrategyPreset[] = [];
   private activeStrategy = 'sma_crossover';
   private candles: OHLCV[] = [];
   private activeSymbol = DEFAULT_SYMBOL.symbol;
@@ -243,9 +245,20 @@ export class StrategyPanel {
     try {
       const resp = await fetch(BACKTEST_STRATEGIES_ENDPOINT);
       if (!resp.ok) return;
-      const body = await resp.json() as { strategies?: StrategyBlueprint[] };
+      const body = await resp.json() as {
+        strategies?: StrategyBlueprint[];
+        presets?: StrategyPreset[];
+      };
+      let changed = false;
       if (body.strategies?.length) {
         this.blueprints = body.strategies;
+        changed = true;
+      }
+      if (body.presets?.length) {
+        this.presets = body.presets;
+        changed = true;
+      }
+      if (changed) {
         this.renderStrategyCards();
       }
     } catch {
@@ -283,7 +296,8 @@ export class StrategyPanel {
         <div class="strategy-topline">
           <div class="segmented">
             <button class="seg-btn" data-mode="spec">Kural Lab</button>
-            <button class="seg-btn" data-mode="blueprint">Hazır Strateji</button>
+            <button class="seg-btn" data-mode="preset">Katalog (Hazır)</button>
+            <button class="seg-btn" data-mode="blueprint">Eski Blueprintler</button>
           </div>
           <div class="topline-actions">
             <button class="btn-secondary" id="save-strategy">Kaydet</button>
@@ -318,6 +332,7 @@ export class StrategyPanel {
         </div>
 
         <div id="blueprint-editor" class="strategy-editor"></div>
+        <div id="preset-cards" class="strategy-editor"></div>
         <div id="spec-editor" class="strategy-editor"></div>
 
         <div class="lab-secondary">
@@ -410,19 +425,35 @@ export class StrategyPanel {
   }
 
   private renderStrategyCards(): void {
-    const el = this.container.querySelector('#blueprint-editor');
-    if (!el) return;
-    el.innerHTML = `
-      <div class="strategy-cards" id="strategy-cards">
-        ${this.blueprints.map(s => `
-          <button class="strategy-card${s.id === this.activeStrategy ? ' active' : ''}" data-strategy="${s.id}">
-            <span class="sc-name">${this.escape(s.label)}</span>
-            <span class="sc-desc">${this.escape(s.description)}</span>
-          </button>
-        `).join('')}
-      </div>
-    `;
-    el.toggleAttribute('hidden', this.mode !== 'blueprint');
+    const elBlueprint = this.container.querySelector('#blueprint-editor');
+    if (elBlueprint) {
+      elBlueprint.innerHTML = `
+        <div class="strategy-cards" id="strategy-cards">
+          ${this.blueprints.map(s => `
+            <button class="strategy-card${s.id === this.activeStrategy && this.mode === 'blueprint' ? ' active' : ''}" data-strategy="${s.id}">
+              <span class="sc-name">${this.escape(s.label)}</span>
+              <span class="sc-desc">${this.escape(s.description)}</span>
+            </button>
+          `).join('')}
+        </div>
+      `;
+      elBlueprint.toggleAttribute('hidden', this.mode !== 'blueprint');
+    }
+
+    const elPreset = this.container.querySelector('#preset-cards');
+    if (elPreset) {
+      elPreset.innerHTML = `
+        <div class="strategy-cards" id="strategy-cards-presets">
+          ${this.presets.map(s => `
+            <button class="strategy-card${s.id === this.activeStrategy && this.mode === 'preset' ? ' active' : ''}" data-strategy="${s.id}">
+              <span class="sc-name">${this.escape(s.label)} <small style="opacity:0.6;font-weight:normal;">(${this.escape(s.category)})</small></span>
+              <span class="sc-desc">${this.escape(s.description)}</span>
+            </button>
+          `).join('')}
+        </div>
+      `;
+      elPreset.toggleAttribute('hidden', this.mode !== 'preset');
+    }
   }
 
   private renderSpecEditor(spec?: Partial<StrategySpec>): void {
@@ -640,6 +671,8 @@ export class StrategyPanel {
     });
     this.container.querySelector<HTMLElement>('#blueprint-editor')
       ?.toggleAttribute('hidden', this.mode !== 'blueprint');
+    this.container.querySelector<HTMLElement>('#preset-cards')
+      ?.toggleAttribute('hidden', this.mode !== 'preset');
     this.container.querySelector<HTMLElement>('#spec-editor')
       ?.toggleAttribute('hidden', this.mode !== 'spec');
     this.container.querySelectorAll<HTMLElement>('.report-tab').forEach(btn => {
@@ -743,6 +776,10 @@ export class StrategyPanel {
     if (this.mode === 'spec') {
       payload['strategy_id'] = 'strategy_spec';
       payload['strategy_spec'] = this.buildSpec();
+    } else if (this.mode === 'preset') {
+      const preset = this.presets.find(p => p.id === this.activeStrategy);
+      payload['strategy_id'] = 'strategy_spec';
+      payload['strategy_spec'] = preset?.strategy_spec ?? this.buildSpec();
     } else {
       payload['strategy_id'] = this.activeStrategy;
       payload['params'] = {};
@@ -867,8 +904,13 @@ export class StrategyPanel {
   }
 
   private async saveStrategy(): Promise<void> {
-    const spec = this.mode === 'spec' ? this.buildSpec() : null;
+    const payload = this.buildPayload();
+    const strategySpec = payload['strategy_spec'] as StrategySpec | undefined;
+    const isSpecBased = this.mode === 'spec' || this.mode === 'preset';
+    
+    const spec = isSpecBased ? (strategySpec || this.buildSpec()) : null;
     const name = spec?.name || this.activeStrategy;
+    
     const resp = await fetch(STRATEGY_STORE_ENDPOINT, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
@@ -877,10 +919,10 @@ export class StrategyPanel {
         symbol: this.activeSymbol,
         interval: this.value<HTMLSelectElement>('#bt-interval') || this.activeInterval,
         market: '',
-        strategy_id: this.mode === 'spec' ? 'strategy_spec' : this.activeStrategy,
+        strategy_id: isSpecBased ? 'strategy_spec' : this.activeStrategy,
         strategy_spec: spec,
         params: {},
-        settings: this.buildPayload(),
+        settings: payload,
         source_mode: this.value<HTMLSelectElement>('#bt-source') || 'cache_only',
         notes: spec?.note || '',
       }),

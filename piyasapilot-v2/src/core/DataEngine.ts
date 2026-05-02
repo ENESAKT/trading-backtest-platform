@@ -38,6 +38,7 @@ export class DataEngine extends EventEmitter {
   private quoteStream: QuoteStream | null = null;
   private quoteUnsubscribe: (() => void) | null = null;
   private pollManager = new PollingManager();
+  private pollUnsubscribe: (() => void) | null = null;
 
   private activeSymbol: SymbolInfo = DEFAULT_SYMBOL;
   private activeTimeframe: Timeframe = '1d';
@@ -139,9 +140,14 @@ export class DataEngine extends EventEmitter {
   // ─── REST polling path (BIST / FX / Commodity / US) ──────────────────────
 
   private connectPolling(symbol: string, tf: Timeframe, assetType: typeof this.activeSymbol.assetType): void {
+    if (this.pollUnsubscribe) {
+      this.pollUnsubscribe();
+      this.pollUnsubscribe = null;
+    }
+    
     this.pollManager.start(symbol, tf, assetType);
 
-    this.pollManager.onData((candles, status) => {
+    this.pollUnsubscribe = this.pollManager.onData((candles, status) => {
       this.lastUpdate = Date.now();
       this.status = status;
 
@@ -170,6 +176,10 @@ export class DataEngine extends EventEmitter {
     if (this.quoteStream) {
       this.quoteStream.disconnect();
       this.quoteStream = null;
+    }
+    if (this.pollUnsubscribe) {
+      this.pollUnsubscribe();
+      this.pollUnsubscribe = null;
     }
     this.pollManager.stop();
   }

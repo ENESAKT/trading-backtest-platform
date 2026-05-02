@@ -52,6 +52,7 @@ from backend.backtest import (
 )
 from backend.config import getenv, llm_configured, mask_sensitive, telegram_configured
 from backend.data.cache import OHLCVCache
+from backend.data.historical_store import HistoricalStore
 from backend.data.spike_filter import filter_bars
 from backend.data.symbols import (
     BIST_STOCKS,
@@ -60,6 +61,8 @@ from backend.data.symbols import (
     YAHOO_INDEX_FX_COMMODITY,
 )
 from backend.env_validator import validate_env
+from backend.mali_analiz.cache import FinancialAnalysisCache
+from backend.mali_analiz.service import FinancialAnalysisService
 from backend.middleware.api_key_auth import APIKeyMiddleware
 from backend.paper import PaperDB, PaperExecutor
 from backend.signals import SignalGenerator
@@ -72,9 +75,8 @@ from quant_engine.data.live_feed import (
     PaperTradingRecorder,
 )
 from quant_engine.strategy.persistence import StrategyRecord, StrategyStore
+from quant_engine.strategy.catalog import list_strategy_presets
 from quant_engine.workspace.json_store import WorkspaceJsonStore
-from backend.mali_analiz.cache import FinancialAnalysisCache
-from backend.mali_analiz.service import FinancialAnalysisService
 
 ROOT = Path(__file__).resolve().parents[2]
 _PAPER_DB_PATH = "data/cache/ohlcv.sqlite3"
@@ -254,6 +256,7 @@ def create_app(
     backtest_archive: BacktestArchive | None = None,
     strategy_store: StrategyStore | None = None,
     mali_analiz_service: FinancialAnalysisService | None = None,
+    historical_store: HistoricalStore | None = None,
 ) -> FastAPI:
     """FastAPI app factory.
 
@@ -283,7 +286,8 @@ def create_app(
     paper_executor = paper_executor or PaperExecutor(db=paper_db)
     backtest_archive = backtest_archive or BacktestArchive(ROOT / _BACKTEST_ARCHIVE_PATH)
     strategy_store = strategy_store or StrategyStore(ROOT / _STRATEGY_STORE_PATH)
-    
+    historical_store = historical_store or HistoricalStore()
+
     if mali_analiz_service is None:
         ma_cache = FinancialAnalysisCache(ROOT / "data" / "cache" / "mali_analiz.sqlite3")
         mali_analiz_service = FinancialAnalysisService(cache=ma_cache)
@@ -507,7 +511,10 @@ def create_app(
     @app.get("/api/backtest/strategies")
     def backtest_strategies() -> dict[str, Any]:
         """Mevcut strateji blueprint'lerini listele (frontend form üretir)."""
-        return {"strategies": list_blueprints()}
+        return {
+            "strategies": list_blueprints(),
+            "presets": list_strategy_presets(include_spec=True)
+        }
 
     @app.post("/api/backtest/run")
     def backtest_run(req: BacktestRequest) -> dict[str, Any]:
@@ -531,6 +538,7 @@ def create_app(
                 strategy_spec=req.strategy_spec,
                 csv_text=req.csv_text,
                 csv_bars=req.csv_bars,
+                historical_store=historical_store,
             )
             run_id = backtest_archive.save(result)
             result["run_id"] = run_id
@@ -961,6 +969,29 @@ def create_app(
           4. Provider hata verirse cache'te biriken eski veriyi yine de döndür
              (graceful degradation), metadata'da ``status='stale'``.
         """
+        if interval == "1d":
+            try:
+                safe_limit = max(20, min(int(limit), 5000))
+            except (TypeError, ValueError):
+                safe_limit = 500
+            local_payload = historical_store.payload(
+                symbol=symbol,
+                interval=interval,
+                limit=safe_limit,
+            )
+            if local_payload is not None:
+                canonical_symbol = local_payload["symbol"]
+                cleaned, report = filter_bars(local_payload["bars"])
+                cache.upsert_bars(canonical_symbol, interval, cleaned)
+                local_payload["bars"] = cleaned
+                local_payload["metadata"]["spike_filter"] = {
+                    "total": report.total_bars,
+                    "winsorized": report.winsorized,
+                    "untouched_high_volume": report.untouched_high_volume,
+                }
+                local_payload["metadata"]["cache"] = "local_parquet_then_write"
+                return JSONResponse(local_payload)
+
         # Validation backend tarafında zaten yapılıyor; burada sadece çağrı.
         provider_payload = data_service.fetch_candles(
             symbol=symbol, interval=interval, limit=limit
@@ -1034,7 +1065,7 @@ def create_app(
     def get_mali_analiz(symbol: str, force_refresh: bool = False) -> dict[str, Any]:
         """Sembol için mali analiz raporunu döndürür."""
         try:
-            # FinancialAnalysisService zaten model_dump / JSON serializable FinancialAnalysisResponse döner.
+            # FinancialAnalysisService JSON-serializable FinancialAnalysisResponse döner.
             # (FinancialAnalysisResponse bir Pydantic modelidir)
             response = mali_analiz_service.get_analysis(symbol, force_refresh=force_refresh)
             return response.model_dump()

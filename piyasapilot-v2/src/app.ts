@@ -67,15 +67,22 @@ const sidebar         = new Sidebar(sidebarEl);
 const multiChart      = new MultiChartLayout(chartEl);
 const portfolioPanel  = new PortfolioPanel(portfolioEl, portfolioEngine);
 const strategyPanel   = new StrategyPanel(strategyEl);
-const educationPanel  = new EgitimlerPanel(educationEl, {
-  onOpenChartIndicator: (indicator) => {
-    showTab('chart');
-    multiChart.setActivePaneIndicator(indicator, true);
-  },
-  onOpenStrategy: (strategyId) => {
-    showTab('strategy');
-    strategyPanel.openBlueprint(strategyId);
-  },
+const educationPanel  = new EgitimlerPanel(educationEl);
+educationEl.addEventListener('egitimlerBridge:addIndicator', (e) => {
+  const customEvent = e as CustomEvent;
+  showTab('chart');
+  multiChart.setActivePaneIndicator(customEvent.detail.indicator, true);
+});
+educationEl.addEventListener('egitimlerBridge:loadPreset', (e) => {
+  const customEvent = e as CustomEvent;
+  showTab('strategy');
+  strategyPanel.openBlueprint(customEvent.detail.preset);
+});
+educationEl.addEventListener('egitimlerBridge:setScreenerFilter', (e) => {
+  const customEvent = e as CustomEvent;
+  showTab('screener');
+  // Temporary workaround since Screener might not have setFilter implemented yet
+  console.log("Applying screener filter:", customEvent.detail.filter);
 });
 void educationPanel;
 let maliAnalizPanel: MaliAnalizPanel | null = null;

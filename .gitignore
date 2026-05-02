@@ -54,3 +54,4 @@ scripts/build_matriks_md.py
 
 # Lokal backtest rapor arşivi
 data/strategy_lab/backtest_reports.sqlite3
+*.sqlite3

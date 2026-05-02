@@ -40,6 +40,14 @@ optuna>=3.5.0
 # Loglama
 loguru>=0.7.2
 
+# Veritabanı ve Redis (Yeni Veri Platformu)
+clickhouse-connect>=0.7.0
+pymysql>=1.1.0
+aiomysql>=0.2.0
+sqlalchemy>=2.0.0
+redis>=5.0.0
+aiofiles>=23.2.1
+
 # Web Gateway (FastAPI + ASGI)
 fastapi>=0.110.0
 uvicorn[standard]>=0.27.0

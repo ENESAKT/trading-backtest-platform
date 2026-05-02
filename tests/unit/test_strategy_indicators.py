@@ -3,7 +3,8 @@ import pandas as pd
 import pytest
 
 from quant_engine.strategy.indicators import (
-    sma, ema, wma, dema, tema, zlema, hma, alma, kama, t3
+    sma, ema, wma, dema, tema, zlema, hma, alma, kama, t3,
+    kairi, most, bb_width, gmma
 )
 
 @pytest.fixture
@@ -99,3 +100,39 @@ def test_insufficient_data():
     
     result_hma = hma(short_series, 10)
     assert result_hma.isna().all()
+
+def test_kairi(sample_series):
+    result = kairi(sample_series, 14)
+    assert len(result) == 20
+    assert np.isnan(result.iloc[12])
+    assert not np.isnan(result.iloc[13])
+
+def test_bb_width(sample_series):
+    result = bb_width(sample_series, 5, 2.0)
+    assert len(result) == 20
+    assert np.isnan(result.iloc[3])
+    assert not np.isnan(result.iloc[4])
+
+def test_gmma(sample_series):
+    result = gmma(sample_series)
+    assert isinstance(result, dict)
+    assert "short_3" in result
+    assert "long_60" in result
+    assert len(result["short_3"]) == 20
+    assert len(result["long_60"]) == 20
+
+def test_most(volatile_series):
+    # MOST requires close, high, low but our implementation uses mainly close for logic
+    # unless modified. 
+    # Current most(): most(close, high, low, period, percent)
+    # Actually the current signature is most(close, high, low, period, percent).
+    # Since high and low are not heavily used in the core EMA logic it just passes through.
+    
+    high = volatile_series + 1
+    low = volatile_series - 1
+    
+    most_line, ema_line = most(volatile_series, high, low, period=3, percent=2.0)
+    
+    assert len(most_line) == 14
+    assert len(ema_line) == 14
+    assert not np.isnan(most_line.iloc[-1])

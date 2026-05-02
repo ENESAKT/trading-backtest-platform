@@ -68,6 +68,11 @@ export interface IndicatorSet {
   atr?: number[];
   vwap?: number[];
   stochastic?: StochasticResult;
+  kairi?: number[];
+  most?: number[];
+  mostEma?: number[];
+  bbWidth?: number[];
+  gmma?: { [key: string]: Array<{ time: number; value: number }> };
 }
 
 // ─── Strategy & Signals ───────────────────────────────────────────────────────
@@ -210,13 +215,28 @@ export interface StrategyBlueprint {
   schema: Array<{
     key: string;
     label: string;
-    type: 'int' | 'float';
-    default: number;
+    type: string;
+    default: unknown;
     min?: number;
     max?: number;
     step?: number;
     help?: string;
   }>;
+}
+
+export interface StrategyPreset {
+  id: string;
+  label: string;
+  category: string;
+  expected_market: string;
+  suggested_timeframes: string[];
+  min_bars: number;
+  suggested_stop_pct: number;
+  suggested_take_profit_pct: number;
+  repaint_risk: string;
+  liquidity_need: string;
+  description: string;
+  strategy_spec?: StrategySpec;
 }
 
 // ─── Portfolio ────────────────────────────────────────────────────────────────
