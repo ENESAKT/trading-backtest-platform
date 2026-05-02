@@ -226,3 +226,5 @@
 
 - **Testlerdeki HTML Locator bağımlılıklarına dikkat edilmeli.** E2E testlerinde var olmayan `id` veya `data-tab` özelliklerinin kontrol edilmesi hatalara neden olur. Element kaldırıldığında testin güncellenmesi zorunludur (örneğin `start-tab-select`'in UI'dan kaldırılması).
 - **Backend modüllerinde API yüzeyinin (export edilen fonksiyon isimleri) testlerle tutarlı olması şarttır.** Bir modül refactor edilirken (örneğin `evaluate_rule` yerine `evaluate_strategy_rules` getirilmesi veya `run_portfolio_lab` yerine `portfolio_metrics`), entegrasyon testlerindeki mock ve import'ların da aynı hassasiyetle güncellenmesi gerekir, aksi halde pipeline testlerinde `ImportError` yaşanır.
+
+- **Frontend / Tasarım:** Arayüzün DOM yapısı korunarak, sadece CSS değişkenleri ve padding/margin/font-size değerleriyle premium dark mode hissiyatı veren bir UI revizyonu yapılması planlandı (`planlama-tasarim.md`).

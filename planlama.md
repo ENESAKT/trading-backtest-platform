@@ -65,6 +65,7 @@
 | `planlama-backtest.md` | Backtest Lab — Sprint B1–B13 (Borfin) |
 | `planlama-egitimler.md` | Eğitimler sekmesi + Blog içerik planı |
 | `planlama-mali-analiz.md` | Mali Analiz sekmesi planı |
+| `planlama-tasarim.md` | Arayüz (UI) ve tasarım revizyon planı |
 | `egitimplanlama.md` | BORFİN kurs okuma süreci ve OCR kayıtları |
 
 ---
