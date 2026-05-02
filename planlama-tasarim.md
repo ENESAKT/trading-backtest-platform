@@ -1,70 +1,83 @@
-# Tasarım ve UI Revizyon Planı — PiyasaPilot
+# Tasarım ve UI Revizyon Planı — PiyasaPilot v2.1 (Premium Terminal)
 
-> Bu dosya, uygulamanın ana yapısını (DOM/bileşen hiyerarşisini) bozmadan arayüzü daha modern, okunaklı ve "premium" hale getirme adımlarını içerir.
+> Bu dosya, uygulamanın HTML/DOM hiyerarşisini (yapısını) bozmadan, modern finansal terminallerin (ör: Hyperliquid, Tensor, modern TradingView temaları) sunduğu "Premium" ve "Akıcı" deneyimi yakalamak için izlenecek CSS ve UX adımlarını detaylandırır.
 > Tarih: 2026-05-02
 
 ---
 
-## 1. Mevcut Tasarım Analizi ve Sorunlar
+## 1. Vizyon ve Hedef ("Wow" Faktörü)
 
-Mevcut arayüz işlevsel olarak çalışsa da görsel olarak bazı eksiklikler barındırmaktadır:
-- **Bilgi Yoğunluğu (Clutter):** Menülerde (özellikle Grafik araç çubuğunda ve Strateji sayfasında) çok fazla öğe yan yana sıkıştırılmış durumda.
-- **Tipografi ve Okunabilirlik:** Yazı tipleri (9px, 10px, 11px) modern ekranlar için çok küçük. Uzun süreli kullanımlarda göz yoruyor.
-- **Boşluk (Whitespace) Eksikliği:** Padding ve margin değerleri çok düşük (`padding: 2px 7px` gibi), bu da arayüzün nefes almasını engelliyor.
-- **Renk Paleti (GitHub Dark):** Mevcut palet (bg: `#0d1117`, panel: `#161b22`) kod editörü için iyi olsa da, premium bir finans terminali hissiyatından ziyade teknik bir görünüm veriyor.
+Kullanıcıların piyasa pilotunu ilk açtığında karşılaşacağı hissiyat, klasik bir kod editörü (GitHub dark mode) olmaktan çıkıp, **hızlı, akıcı, odaklanmayı kolaylaştıran yüksek yoğunluklu (high-density) premium bir işlem laboratuvarı** olmalıdır.
+
+Bunu sağlarken ana kuralımız: **Hiçbir `app.ts`, `ChartPanel.ts` veya `MaliAnalizPanel.ts` DOM yapısını bozmak yok.** Sadece CSS sınıflarını (gerekirse JS içindeki class tanımlarını) ve `style.css` dosyasını güncelleyeceğiz.
 
 ---
 
-## 2. Çözüm Stratejisi (Ana Yapıyı Bozmadan)
+## 2. Modern UI / UX Prensipleri ve Çözümler
 
-HTML yapısını (`app.ts` veya komponent içi DOM ağacı) radikal şekilde değiştirmeden, **sadece CSS, stil değişkenleri ve ufak DOM sınıf değişiklikleriyle** şu hedeflere ulaşılacak:
+### A. Tipografi ve Rakamların Okunabilirliği
+- **Tabular Numaralar:** Fiyatlar, yüzdeler ve K/Z durumları sürekli değişir. Rakamların titremesini önlemek için CSS'te `font-variant-numeric: tabular-nums;` kullanılacak.
+- **Font Seçimi:** Arayüz metinleri için **Inter** veya **Outfit**, rakamlar ve kod/formül alanları için **JetBrains Mono** kullanılacak.
+- **Boyutlar:** 9px - 10px gibi göz yoran boyutlar terk edilecek. Min: `11px`, Temel: `13px`.
 
-1. **Premium Dark Mode:** Renk paletini daha sofistike bir koyu temaya geçirmek (örneğin arka plan için derin bir "slate/obsidian", vurgular için daha canlı neon mavi/yeşil/kırmızı).
-2. **Tipografi Güncellemesi:** Temel font boyutunu büyütmek (min 11px, temel 13px/14px). Menü başlıklarında daha modern ağırlıklar kullanmak.
-3. **Daha Büyük Tıklama Alanları:** Butonlar ve inputlar için padding değerlerini artırmak, "touch-friendly" ve estetik oranlar yakalamak.
-4. **Bölümlendirme (Hierarchy):** Paneller arasına daha belirgin görsel hiyerarşi (subtle box-shadow, glassmorphism veya belirgin border) eklemek.
-5. **Yuvarlatılmış Köşeler (Border Radius):** Köşeleri biraz daha yuvarlatarak (örn: 6px → 8px) daha yumuşak bir arayüz sunmak.
+### B. Renk ve Işık (Glassmorphism & Glow)
+- **Mat Arka Planlar:** Keskin `#000` veya `#0d1117` yerine, daha soft ve derin olan "Obsidian" (`#0A0E17`) veya "Midnight Slate" kullanılacak.
+- **Micro-Glow Efektleri:** Aktif stratejiler, kârda olan pozisyonlar veya açık indikatör butonları sadece renk değiştirmeyecek, hafif bir `box-shadow` (glow) ile vurgulanacak.
+- **Blur (Buzlu Cam):** Tooltipler, dropdown menüler ve yüzen (floating) bilgi kutuları (`.chart-info-overlay`) `backdrop-filter: blur(12px)` ile arka planı hafifçe flulaştırarak modern bir his verecek.
 
----
-
-## 3. Yeni Renk ve Tipografi Paleti Önerisi
-
-**Tipografi:**
-- Font: `Inter`, `Roboto` veya `Outfit` (varsayılan sans-serif için). Mono için `JetBrains Mono` veya `Fira Code` korunabilir.
-
-**Renk Paleti (Örnek Revizyon):**
-- `--bg`: `#0b0e14` (Daha derin ve soğuk bir siyah)
-- `--panel`: `#12161f` (Arka plandan hafifçe ayrışan lacivert-gri)
-- `--panel2`: `#181d29` (Hover ve ikinci katman)
-- `--border`: `#222834`
-- `--border2`: `#2a3241`
-- `--text`: `#94a3b8` (Slate 400 - Daha okunaklı gri)
-- `--text-bold`: `#f1f5f9` (Slate 100 - Net beyaz/gri)
-- `--blue`: `#3b82f6` veya `#60a5fa` (Premium Mavi)
-- `--green`: `#10b981` (Daha parlak zümrüt yeşili)
-- `--red`: `#ef4444` (Canlı ve uyarıcı kırmızı)
-- `--yellow`: `#f59e0b`
+### C. Yoğun Veri ve Kalabalık Menü Yönetimi (Clutter Reduction)
+- **Hap (Pill) Tasarımlar:** Grafik araç çubuğundaki (1D, 1H, BB, RSI vb.) kalabalık butonlar, köşeleri yuvarlatılmış hap (pill) tasarımlara çevrilecek.
+- **Sınır (Border) Temizliği:** Her butonun etrafındaki kutu çizgileri (border) kaldırılacak. Bunun yerine butonlar sadece `hover` veya `active` durumundayken hafif bir arka plan rengi kazanacak. Bu, arayüzdeki "çizgi kirliliğini" (border noise) yok eder.
+- **Kaydırılabilir (Scrollable) Alanların İyileştirilmesi:** Kaydırma çubukları ince (thin) ve temaya uygun, şeffaf hale getirilecek.
 
 ---
 
-## 4. Geliştirme Fazları ve Adımları
+## 3. Yeni Premium Renk Paleti (CSS Variables)
 
-Bu revizyon işleri `style.css` ve ilgili komponent içi CSS değişkenlerinde (`ChartPanel.ts` vb.) yapılacaktır.
-
-| Adım | İş | Etki Alanı | Durum |
-|------|----|------------|-------|
-| T1 | **Renk Paleti Değişimi:** `:root` içerisindeki `--bg`, `--panel`, `--text` vb. renklerin yeni premium paletle değiştirilmesi. | Tüm Uygulama (`style.css`, `ChartPanel.ts`) | Bekliyor |
-| T2 | **Tipografi İyileştirmesi:** Base font boyutlarının artırılması. 9px/10px olan yerlerin 11px/12px'e, 11px/12px olan yerlerin 13px/14px'e çekilmesi. | Tüm Uygulama | Bekliyor |
-| T3 | **Boşluk (Spacing) Ayarları:** `.ctrl-btn`, `input`, `td`, `th` padding değerlerinin artırılması. Flex `gap` değerlerinin 2px/4px'ten daha geniş değerlere çekilmesi. | Layout, Butonlar, Tablolar | Bekliyor |
-| T4 | **Grafik Toolbar Düzenlemesi:** `.chart-controls` içindeki aşırı sıkışıklığı gidermek için butonlara arka plansız (sadece hover'da beliren) stiller veya gruplama verilmesi. | Grafik Paneli | Bekliyor |
-| T5 | **Strateji Paneli Formları:** Strateji sayfasındaki lab formları ve inputların border-radius, padding ve border renklerinin yumuşatılması. | Strateji Lab | Bekliyor |
-| T6 | **Scrollbar ve Hover Efektleri:** Scrollbar'ların gizlenmesi veya inceltilip temaya uydurulması. Tablo ve listelerde hover efektlerinin (glow/opacity) eklenmesi. | Genel UX | Bekliyor |
+```css
+:root {
+  /* Temel Arka Planlar (Derin, göz yormayan) */
+  --bg:           #0B0E14; /* Ana arka plan */
+  --panel:        #131722; /* Panel arka planı */
+  --panel-hover:  #1C2130;
+  
+  /* Kenarlıklar (Çok daha şeffaf ve zarif) */
+  --border:       rgba(255, 255, 255, 0.08);
+  --border-focus: rgba(59, 130, 246, 0.5);
+  
+  /* Metin Renkleri */
+  --text-dim:     #64748B; /* Önemsiz metinler */
+  --text:         #94A3B8; /* Standart metinler */
+  --text-bold:    #F8FAFC; /* Başlık ve önemli veriler */
+  
+  /* Vurgu ve İşlem Renkleri (Daha canlı ve neon) */
+  --blue:         #3B82F6; /* Vurgu Rengi */
+  --blue-glow:    rgba(59, 130, 246, 0.15);
+  --green:        #10B981; /* Alış / Kâr */
+  --green-glow:   rgba(16, 185, 129, 0.15);
+  --red:          #EF4444; /* Satış / Zarar */
+  --red-glow:     rgba(239, 68, 68, 0.15);
+  --yellow:       #F59E0B; /* Uyarı / Favori */
+}
+```
 
 ---
 
-## 5. Kabul Kriterleri
+## 4. Geliştirme Fazları (Adım Adım CSS/UI Değişimi)
 
-1. Arayüzün HTML yapısı bozulmamalı, React/TypeScript/Vanilla JS içindeki mantık değişmemeli.
-2. Renk kontrast oranları WCAG standartlarına yakın, göz yormayan bir yapıda olmalı.
-3. Uygulama, mevcut durumda olduğu gibi karanlık (dark mode) hissini korurken, daha ferah görünmeli.
-4. E2E testleri (örneğin elementlerin `visible` olması) margin/padding değişikliklerinden etkilenmemeli (boyut değişimleri taşma yapmamalı).
+| Faz | Odak Alanı | Uygulanacak Spesifik CSS/UI Kararları | Durum |
+|-----|------------|-----------------------------------------|-------|
+| **F1** | **Global Renk & Tipografi** | `:root` değişkenlerinin güncellenmesi. `Inter` fontunun eklenmesi. `tabular-nums`'ın aktif edilmesi. İnce ve gizli scrollbar yapısına geçilmesi. | Bekliyor |
+| **F2** | **Grafik Toolbar (Top Bar) Temizliği** | `.chart-controls` içindeki butonların border'larının silinmesi, sadece hover'da belirginleşmesi. Aktif öğelere hafif glow (`box-shadow`) eklenmesi. Gap değerlerinin `2px`'ten `6px`'e çıkartılması. | Bekliyor |
+| **F3** | **Panel & Kart Hiyerarşisi** | `.panel-section`, `.wallet-card`, `.strategy-card` gibi alanların border'larının inceltilmesi. Köşe yuvarlamalarının (border-radius) `8px`'e çekilmesi. Hover durumlarında kartların hafif yukarı kalkması (`transform: translateY(-1px)`) veya aydınlanması. | Bekliyor |
+| **F4** | **Form ve Input Estetiği** | `.form-row input`, `select` ve `textarea`'ların iç padding'lerinin büyütülmesi (örn: `8px 12px`). Focus anında sert border yerine zarif bir mavi focus ring (`box-shadow: 0 0 0 2px var(--border-focus)`) verilmesi. | Bekliyor |
+| **F5** | **Cam Efektleri (Glassmorphism)** | `.chart-info-overlay`, `.indicator-center` ve açılır menülere `backdrop-filter: blur(12px)` ve `background: rgba(19, 23, 34, 0.8)` uygulanması. | Bekliyor |
+| **F6** | **Tablo ve Liste İyileştirmeleri** | İşlem geçmişi ve sembol listelerindeki satır aralıklarının (line-height ve padding) açılması. Kâr/Zarar hücrelerine `tabular-nums` ve pozitif/negatif renk atamalarının vurgulanması. | Bekliyor |
+
+---
+
+## 5. Uygulama Kuralları ve Kabul Kriterleri
+
+1. **Sıfır Yapısal Hasar:** Mevcut `.ts` ve `.html` içindeki etiket yapısı (div iç içeliği) asla bozulmayacak. Yeni div eklenmeyecek, silinmeyecek. Yalnızca class isimleri değiştirilebilir veya yeni css kuralları yazılabilir.
+2. **Kullanışlılık (Usability):** Hedef kitlenin traderlar olduğu unutulmamalıdır. Alanlar çok ferah yapılarak ekrandaki veri yoğunluğu kaybettirilmeyecektir. Yalnızca "gürültü" (kalın çizgiler, zıt renkler) temizlenecek, veriler "tabular" fontlarla ön plana çıkartılacaktır.
+3. **Performans:** Sık değişen grafik üzeri öğelerde (crosshair info vb.) ağır gölge ve blur efektleri ölçülü kullanılacak, Chart.js ve Lightweight Charts'ın canvas performansını etkilememesine dikkat edilecektir.
