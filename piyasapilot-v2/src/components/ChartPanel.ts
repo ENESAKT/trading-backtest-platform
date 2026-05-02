@@ -246,7 +246,7 @@ export class ChartPanel {
   private drawingManager!: DrawingManager;
 
   // G6: Multi-symbol comparison
-  private compareSeries: ISeriesApi<'Line'> | null = null;
+  private compareSeries: any = null;
   private compareCandles: OHLCV[] = [];
   private comparePercentBaseClose: number | null = null;
 
@@ -375,7 +375,14 @@ export class ChartPanel {
         <input type="text" class="search-input compare-input" id="compare-input" placeholder="Sembol" style="width: 70px; padding: 2px 4px; height: 18px;" autocomplete="off">
         <button class="ctrl-btn" id="compare-add-btn" title="Ekle/Değiştir">Ekle</button>
         <button class="ctrl-btn" id="compare-clear-btn" title="Temizle">x</button>
-        <input type="color" id="compare-color-picker" value="#bc8cff" title="Karşılaştırma Rengi" style="width: 20px; height: 18px; padding: 0; border: none; cursor: pointer; background: transparent; border-radius: 4px;">
+        <div id="compare-options" style="display: none; align-items: center; gap: 4px; margin-left: 4px;">
+          <input type="color" id="compare-color-picker" value="#bc8cff" title="Karşılaştırma Rengi" style="width: 20px; height: 18px; padding: 0; border: none; cursor: pointer; background: transparent; border-radius: 4px;">
+          <select id="compare-type-select" style="background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 4px; font-size: 10px; padding: 1px 4px; height: 18px;">
+            <option value="line">Çizgi</option>
+            <option value="candle">Mum</option>
+            <option value="area">Alan</option>
+          </select>
+        </div>
       </div>
       <div class="ctrl-group ml-auto">
         <!-- G8: Template Dropdown -->
@@ -576,7 +583,25 @@ export class ChartPanel {
       compareColorPicker.addEventListener('input', (e) => {
         if (this.compareSeries) {
           const color = (e.target as HTMLInputElement).value;
-          this.compareSeries.applyOptions({ color });
+          const type = this.container.dataset['compareType'] || 'line';
+          if (type === 'candle') {
+            this.compareSeries.applyOptions({ upColor: color, borderUpColor: color, wickUpColor: color, borderDownColor: color, wickDownColor: color });
+          } else if (type === 'area') {
+            this.compareSeries.applyOptions({ lineColor: color, topColor: `${color}80`, bottomColor: `${color}00` });
+          } else {
+            this.compareSeries.applyOptions({ color });
+          }
+        }
+      });
+    }
+
+    const compareTypeSelect = controls.querySelector<HTMLSelectElement>('#compare-type-select');
+    if (compareTypeSelect) {
+      compareTypeSelect.addEventListener('change', (e) => {
+        const type = (e.target as HTMLSelectElement).value;
+        this.container.dataset['compareType'] = type;
+        if (this.compareCandles.length > 0 && this.container.dataset['compareSymbol']) {
+          this.setCompareData(this.container.dataset['compareSymbol'], this.compareCandles);
         }
       });
     }
@@ -2060,16 +2085,40 @@ export class ChartPanel {
 
     const colorPicker = this.container.querySelector<HTMLInputElement>('#compare-color-picker');
     const seriesColor = colorPicker ? colorPicker.value : '#bc8cff';
+    const compareType = this.container.dataset['compareType'] || 'line';
 
-    this.compareSeries = this.mainChart.addLineSeries({
-      color: seriesColor,
-      lineWidth: 2,
-      priceLineVisible: true,
-      lastValueVisible: true,
-      crosshairMarkerVisible: true,
-      title: symbol,
-      priceScaleId: 'left',
-    });
+    if (compareType === 'candle') {
+      this.compareSeries = this.mainChart.addCandlestickSeries({
+        upColor: seriesColor, downColor: 'transparent',
+        borderUpColor: seriesColor, borderDownColor: seriesColor,
+        wickUpColor: seriesColor, wickDownColor: seriesColor,
+        priceScaleId: 'left',
+        title: symbol,
+      });
+    } else if (compareType === 'area') {
+      this.compareSeries = this.mainChart.addAreaSeries({
+        lineColor: seriesColor,
+        topColor: `${seriesColor}80`,
+        bottomColor: `${seriesColor}00`,
+        lineWidth: 2,
+        priceScaleId: 'left',
+        title: symbol,
+      });
+    } else {
+      this.compareSeries = this.mainChart.addLineSeries({
+        color: seriesColor,
+        lineWidth: 2,
+        priceLineVisible: true,
+        lastValueVisible: true,
+        crosshairMarkerVisible: true,
+        title: symbol,
+        priceScaleId: 'left',
+      });
+    }
+
+    this.mainChart.priceScale('left').applyOptions({ visible: true });
+    const compareOptions = this.container.querySelector<HTMLElement>('#compare-options');
+    if (compareOptions) compareOptions.style.display = 'flex';
 
     this.renderCompareSeries();
 
@@ -2101,9 +2150,13 @@ export class ChartPanel {
     if (this.compareSeries) {
       this.mainChart.removeSeries(this.compareSeries);
       this.compareSeries = null;
+      this.mainChart.priceScale('left').applyOptions({ visible: false });
     }
     this.compareCandles = [];
     this.container.removeAttribute('data-compare-symbol');
+
+    const compareOptions = this.container.querySelector<HTMLElement>('#compare-options');
+    if (compareOptions) compareOptions.style.display = 'none';
     this.applyScaleMode();
     this.updateUnitBadge();
   }
