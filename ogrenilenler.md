@@ -241,3 +241,7 @@
 ### Frontend (Toolbar Optimizasyonu ve UX Geliştirmeleri)
 - **Kompleks Araç Çubuklarının Optimize Edilmesi:** TradingView gibi yoğun finansal panellerde ekran daralmasını (özellikle çoklu grid layout modunda) önlemek için tüm kontrol elemanları (Timeframe, Çizim, Göstergeler vb.) CSS `flex-wrap: nowrap` ve `hover` temelli dropdown menülere (mega menu mantığına benzer `tool-inline` yapıları) geçirilmiştir.
 - **Kullanıcı Tetiklemeli Sabitleme (Pin) Özelliği:** Araç çubuklarındaki genişleyen (accordion veya dropdown) yapıların kullanım ergonomisini artırmak adına `.pinned` class'ı vasıtasıyla hover event'inden bağımsız, tıklama temelli kalıcı menü açık tutma mekanizması tasarlanıp entegre edilmiştir.
+
+### Frontend (Çizim ve Lejant Geliştirmeleri)
+- **Lightweight Charts Hit Testing ve Çizim Yönetimi:** Canvas üzerinden `pointer-events: none` olarak render edilen custom çizimlerin (Fibonacci, Regression, Measure vb.) native `click` eventleri alamaması sorunu, `container`'a bağlanan global `mousedown` eventleri ve `hitTestDrawing` (Point-to-Segment mesafe ölçümü) mantığı ile aşıldı. Tek tıklamayla (single-click) seçim (Selection) ve klavye (Delete) tuşuyla silme mekanizması entegre edildi.
+- **Dinamik Araç Çubuğu (Toolbar) Lejantları:** Karşılaştırma aracı (Compare) kullanıldığında, eklenen sembolün ekranda kolayca takip edilebilmesi için `.compare-cluster` içindeki `tool-trigger` etiketi dinamik olarak güncellenip renklendirilerek bir nevi interaktif lejant haline getirildi.

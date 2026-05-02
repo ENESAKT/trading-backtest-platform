@@ -137,15 +137,35 @@ export class DrawingManager {
     if (this.activeTool === 'none') {
       // Check if clicking on a drawing handle for dragging
       const point = this.screenToChart(e.offsetX, e.offsetY);
-      if (!point) return;
-      const hit = this.hitTestHandle(e.offsetX, e.offsetY);
-      if (hit) {
-        this.dragState = { drawingId: hit.drawingId, pointIndex: hit.pointIndex, startX: e.offsetX, startY: e.offsetY };
-        this.selectedDrawingId = hit.drawingId;
+      if (!point) {
+        if (this.selectedDrawingId) {
+          this.selectedDrawingId = null;
+          this.render();
+        }
+        return;
+      }
+      
+      const hitHandle = this.hitTestHandle(e.offsetX, e.offsetY);
+      if (hitHandle) {
+        this.dragState = { drawingId: hitHandle.drawingId, pointIndex: hitHandle.pointIndex, startX: e.offsetX, startY: e.offsetY };
+        this.selectedDrawingId = hitHandle.drawingId;
         this.canvas.style.pointerEvents = 'auto';
         this.canvas.style.cursor = 'grabbing';
         e.preventDefault();
         e.stopPropagation();
+        this.render();
+        return;
+      }
+
+      // Check for single click selection on drawing body
+      const hitDrawing = this.hitTestDrawing(e.offsetX, e.offsetY);
+      if (hitDrawing) {
+        this.selectedDrawingId = hitDrawing;
+        this.render();
+      } else if (this.selectedDrawingId) {
+        // Deselect if clicked empty space
+        this.selectedDrawingId = null;
+        this.render();
       }
       return;
     }
@@ -344,12 +364,17 @@ export class DrawingManager {
         const pt = this.chartToScreen(drawing.points[0]!);
         if (pt && Math.abs(screenX - pt.x) <= 5) return drawing.id;
       }
-      if ((drawing.tool === 'trendline' || drawing.tool === 'measure') && drawing.points.length === 2) {
+      if (
+        (drawing.tool === 'trendline' || drawing.tool === 'measure' || 
+         drawing.tool === 'fibonacci' || drawing.tool === 'fibonacci_ext' || 
+         drawing.tool === 'regression') 
+        && drawing.points.length === 2
+      ) {
         const p1 = this.chartToScreen(drawing.points[0]!);
         const p2 = this.chartToScreen(drawing.points[1]!);
         if (!p1 || !p2) continue;
         const dist = this.pointToSegmentDist(screenX, screenY, p1.x, p1.y, p2.x, p2.y);
-        if (dist <= 6) return drawing.id;
+        if (dist <= 10) return drawing.id;
       }
     }
     return null;

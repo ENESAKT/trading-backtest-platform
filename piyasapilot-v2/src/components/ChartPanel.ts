@@ -2239,6 +2239,13 @@ export class ChartPanel {
     const compareType = this.container.dataset['compareType'] || compareTypeSelect?.value || 'candle';
     this.container.dataset['compareType'] = compareType;
 
+    // H2: Toolbar'da eklenen sembolü ve rengini göster
+    const compareTrigger = this.container.querySelector('.compare-cluster .tool-trigger b') as HTMLElement;
+    if (compareTrigger) {
+      compareTrigger.textContent = symbol;
+      compareTrigger.style.color = seriesColor;
+    }
+
     if (compareType === 'candle') {
       this.compareSeries = this.mainChart.addCandlestickSeries({
         upColor: `${seriesColor}cc`,
@@ -2334,6 +2341,14 @@ export class ChartPanel {
 
     const compareOptions = this.container.querySelector<HTMLElement>('#compare-options');
     if (compareOptions) compareOptions.style.display = 'none';
+
+    // Toolbar metnini geri yükle
+    const compareTrigger = this.container.querySelector('.compare-cluster .tool-trigger b') as HTMLElement;
+    if (compareTrigger) {
+      compareTrigger.textContent = '+ Sembol';
+      compareTrigger.style.color = '';
+    }
+
     this.applyScaleMode();
     this.updateUnitBadge();
   }
