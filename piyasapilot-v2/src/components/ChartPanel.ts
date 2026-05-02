@@ -38,6 +38,9 @@ const C = {
   orange:   '#F97316',
 };
 
+const COMPARE_COLOR = '#F2B84B';
+const COMPARE_DOWN_COLOR = '#C084FC';
+
 const CHART_OPTIONS = {
   layout:     { background: { type: ColorType.Solid, color: C.bg }, textColor: C.text },
   grid:       { vertLines: { color: C.border }, horzLines: { color: C.border } },
@@ -309,12 +312,12 @@ export class ChartPanel {
     this.container.appendChild(this.indicatorCenterEl);
 
     // Chart rows
-    this.mainEl  = this.addChartRow('50%');
-    this.volEl   = this.addChartRow('9%');
-    this.rsiEl   = this.addChartRow('11%');
-    this.macdEl  = this.addChartRow('11%');
-    this.atrEl   = this.addChartRow('9%');
-    this.stochEl = this.addChartRow('10%');
+    this.mainEl  = this.addChartRow('64%');
+    this.volEl   = this.addChartRow('7%');
+    this.rsiEl   = this.addChartRow('9%');
+    this.macdEl  = this.addChartRow('9%');
+    this.atrEl   = this.addChartRow('5%');
+    this.stochEl = this.addChartRow('6%');
 
     this.bindControls(controls);
   }
@@ -336,71 +339,66 @@ export class ChartPanel {
       .join('');
 
     return `
-      <div class="ctrl-group">
-        <span class="ctrl-label">${TR.TIMEFRAME}</span>
-        ${tfs}
+      <div class="tool-cluster tool-cluster-wide">
+        <button class="tool-trigger" type="button"><span>Zaman</span><b>1G</b></button>
+        <div class="tool-inline">
+          ${tfs}
+            <button class="ctrl-btn type-btn active" data-type="candlestick" title="${TR.CANDLE}">Mum</button>
+            <button class="ctrl-btn type-btn" data-type="line" title="${TR.LINE}">Çizgi</button>
+            <button class="ctrl-btn type-btn" data-type="bar" title="${TR.BAR}">Bar</button>
+        </div>
       </div>
-      <div class="ctrl-group">
-        <span class="ctrl-label">${TR.CHART_TYPE}</span>
-        <button class="ctrl-btn type-btn active" data-type="candlestick">${TR.CANDLE}</button>
-        <button class="ctrl-btn type-btn" data-type="line">${TR.LINE}</button>
-        <button class="ctrl-btn type-btn" data-type="bar">${TR.BAR}</button>
+
+      <div class="tool-cluster indicator-toolbar-group">
+        <button class="tool-trigger indicator-center-btn" id="indicator-center-btn" type="button" title="İndikatör merkezi"><span>Gösterge</span><b>ƒx <i id="ind-active-badge">${this.activeIndicators.size}</i></b></button>
+        <div class="tool-inline" id="indicator-inline">
+          ${this.quickIndicatorButtonsHTML()}
+          ${this.favoritePinsHTML()}
+          <button class="pin-btn" id="pin-indicators-btn" title="Açık tut (Pin)">📌</button>
+        </div>
       </div>
-      <div class="ctrl-group indicator-toolbar-group">
-        <span class="ctrl-label">${TR.INDICATORS}</span>
-        <button class="ctrl-btn indicator-center-btn" id="indicator-center-btn" title="İndikatör merkezi">Merkez</button>
-        <div class="indicator-dropdown" id="indicator-dropdown">
-          <button class="ctrl-btn indicator-dropdown-trigger" id="indicator-dropdown-trigger">
-            Göstergeler <span class="ind-badge" id="ind-active-badge">${this.activeIndicators.size}</span> ▾
-          </button>
-          <div class="indicator-dropdown-menu" id="indicator-dropdown-menu">
-            ${INDICATOR_DEFS.map(def => `
-              <div class="ind-dropdown-item${this.activeIndicators.has(def.key) ? ' active' : ''}" data-ind="${def.key}">
-                <span class="ind-dropdown-icon">${this.activeIndicators.has(def.key) ? '✓' : '○'}</span>
-                <span class="ind-dropdown-label">${def.label}</span>
-                <span class="ind-dropdown-cat">${def.category}</span>
-              </div>
-            `).join('')}
+
+      <div class="tool-cluster">
+        <button class="tool-trigger" type="button"><span>Ölçek</span><b>Lin</b></button>
+        <div class="tool-inline">
+            <button class="ctrl-btn scale-mode-btn active" data-scale-mode="linear" title="Lineer">Lin</button>
+            <button class="ctrl-btn scale-mode-btn" data-scale-mode="log" title="Logaritmik">Log</button>
+            <button class="ctrl-btn scale-mode-btn" data-scale-mode="percent" title="Yüzdesel">%</button>
+            <button class="ctrl-btn scale-base-btn" id="scale-base-btn" title="Yüzdesel Baz">Baz</button>
+            <span class="unit-badge" id="chart-unit-badge"></span>
+            <button class="ctrl-btn scale-auto-btn active" id="auto-price-btn" title="Oto Ölçek">Oto</button>
+            <button class="ctrl-btn scale-reset-btn" id="price-reset-btn" title="Sıfırla">⟲</button>
+            <button class="ctrl-btn prev-close-btn active" id="prev-close-btn" title="Önceki Kapanış">ÖK</button>
+            <button class="ctrl-btn pnl-toggle-btn active" id="pnl-overlay-btn" title="Trade PnL">PnL</button>
+            <button class="ctrl-btn pnl-toggle-btn active" id="risk-line-btn" title="Stop/Hedef">Risk</button>
+            <button class="ctrl-btn pnl-toggle-btn active" id="bist-limit-btn" title="Tavan/Taban">T/T</button>
+        </div>
+      </div>
+
+      <div class="tool-cluster compare-cluster">
+        <button class="tool-trigger" type="button"><span>Karşılaştır</span><b>+ Sembol</b></button>
+        <div class="tool-inline compare-inline">
+          <input type="text" class="search-input compare-input" id="compare-input" placeholder="+ Sembol" autocomplete="off">
+          <button class="ctrl-btn" id="compare-add-btn" title="Ekle/Değiştir">Ekle</button>
+          <button class="ctrl-btn" id="compare-clear-btn" title="Temizle">x</button>
+          <div id="compare-options" class="compare-options">
+            <input type="color" id="compare-color-picker" value="${COMPARE_COLOR}" title="Renk">
+            <select id="compare-type-select">
+              <option value="candle" selected>Mum</option>
+              <option value="line">Çizgi</option>
+              <option value="area">Alan</option>
+            </select>
           </div>
         </div>
-        ${this.favoritePinsHTML()}
-        ${this.activeChipsHTML()}
       </div>
-      <div class="ctrl-group">
-        <span class="ctrl-label">Ölçek</span>
-        <button class="ctrl-btn scale-mode-btn active" data-scale-mode="linear" title="Lineer fiyat ölçeği">Lin</button>
-        <button class="ctrl-btn scale-mode-btn" data-scale-mode="log" title="Logaritmik fiyat ölçeği">Log</button>
-        <button class="ctrl-btn scale-mode-btn" data-scale-mode="percent" title="Yüzdesel değişim ölçeği">%</button>
-        <button class="ctrl-btn scale-base-btn" id="scale-base-btn" title="Yüzdesel baz noktasını görünür ilk bara al">Baz</button>
-        <span class="unit-badge" id="chart-unit-badge"></span>
-        <button class="ctrl-btn scale-auto-btn active" id="auto-price-btn" title="Otomatik fiyat ölçeği">Oto</button>
-        <button class="ctrl-btn scale-reset-btn" id="price-reset-btn" title="Fiyatı yeniden ortala">⟲</button>
-        <button class="ctrl-btn prev-close-btn active" id="prev-close-btn" title="Önceki kapanış çizgisi">ÖK</button>
-      </div>
-      <div class="ctrl-group">
-        <span class="ctrl-label">K/Z</span>
-        <button class="ctrl-btn pnl-toggle-btn active" id="pnl-overlay-btn" title="Trade bağlantıları ve PnL çizgileri">PnL</button>
-        <button class="ctrl-btn pnl-toggle-btn active" id="risk-line-btn" title="Stop ve hedef çizgileri">Risk</button>
-        <button class="ctrl-btn pnl-toggle-btn active" id="bist-limit-btn" title="BIST tavan/taban referansı">T/T</button>
-      </div>
-      <div class="ctrl-group">
-        <span class="ctrl-label">Karşılaştır</span>
-        <input type="text" class="search-input compare-input" id="compare-input" placeholder="Sembol" style="width: 70px; padding: 2px 4px; height: 18px;" autocomplete="off">
-        <button class="ctrl-btn" id="compare-add-btn" title="Ekle/Değiştir">Ekle</button>
-        <button class="ctrl-btn" id="compare-clear-btn" title="Temizle">x</button>
-        <div id="compare-options" style="display: none; align-items: center; gap: 4px; margin-left: 4px;">
-          <input type="color" id="compare-color-picker" value="#bc8cff" title="Karşılaştırma Rengi" style="width: 20px; height: 18px; padding: 0; border: none; cursor: pointer; background: transparent; border-radius: 4px;">
-          <select id="compare-type-select" style="background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 4px; font-size: 10px; padding: 1px 4px; height: 18px;">
-            <option value="line">Çizgi</option>
-            <option value="candle">Mum</option>
-            <option value="area">Alan</option>
-          </select>
-        </div>
-      </div>
-      <div class="ctrl-group ml-auto">
-        <!-- G8: Template Dropdown -->
-        <div class="template-dropdown" id="template-dropdown">
-          <button class="ctrl-btn" id="template-btn" title="${TR.TEMPLATES}">⚙ ${TR.TEMPLATES}</button>
+
+      ${this.drawingToolbarHTML()}
+
+      <div class="tool-cluster ml-auto">
+        <button class="tool-trigger" type="button"><span>Çıktı</span><b>Şablon</b></button>
+        <div class="tool-inline output-inline">
+          <div class="template-dropdown" id="template-dropdown">
+          <button class="ctrl-btn" id="template-btn" title="${TR.TEMPLATES}">⚙ Şablonlar</button>
           <div class="template-menu" id="template-menu">
             <div class="template-input-group">
               <input type="text" id="new-template-name" placeholder="${TR.TEMPLATE_NAME}">
@@ -413,36 +411,34 @@ export class ChartPanel {
           </div>
         </div>
 
-        <!-- G8: Export Dropdown -->
-        <div class="template-dropdown" id="export-dropdown">
-          <button class="ctrl-btn" id="export-btn" title="${TR.EXPORT_CHART}">⤓ ${TR.EXPORT_CHART}</button>
+          <div class="template-dropdown" id="export-dropdown">
+          <button class="ctrl-btn" id="export-btn" title="${TR.EXPORT_CHART}">⤓ Dışa Aktar</button>
           <div class="export-menu" id="export-menu">
             <div class="template-item" id="export-png-btn">📸 ${TR.EXPORT_PNG}</div>
             <div class="template-item" id="export-csv-btn">📊 ${TR.EXPORT_CSV}</div>
           </div>
+          </div>
+          <button class="ctrl-btn" id="fullscreen-btn" title="${TR.FULLSCREEN} (F)">⛶ Tam Ekran</button>
         </div>
-
-        <button class="ctrl-btn" id="fullscreen-btn" title="${TR.FULLSCREEN} (F)">⛶</button>
       </div>
     `;
   }
 
   private drawingToolbarHTML(): string {
     return `
-      <div class="ctrl-group">
-        <span class="ctrl-label">Çizim</span>
-        <button class="ctrl-btn drawing-tool-btn" data-drawing-tool="trendline" title="Trend Çizgisi">⟋</button>
-        <button class="ctrl-btn drawing-tool-btn" data-drawing-tool="hline" title="Yatay Çizgi">―</button>
-        <button class="ctrl-btn drawing-tool-btn" data-drawing-tool="vline" title="Dikey Çizgi">│</button>
-        <button class="ctrl-btn drawing-tool-btn" data-drawing-tool="measure" title="Ölçüm Aracı">📏</button>
-        <button class="ctrl-btn drawing-clear-btn" id="drawing-clear-btn" title="Tüm çizimleri sil">🗑</button>
-      </div>
-      <div class="ctrl-group">
-        <span class="ctrl-label">İleri</span>
-        <button class="ctrl-btn drawing-tool-btn" data-drawing-tool="fibonacci" title="Fibonacci Düzeltme (iki nokta)">Fib</button>
-        <button class="ctrl-btn drawing-tool-btn" data-drawing-tool="fibonacci_ext" title="Fibonacci Uzantı (iki nokta)">FibX</button>
-        <button class="ctrl-btn drawing-tool-btn" data-drawing-tool="regression" title="Regresyon Kanalı (iki nokta)">Reg</button>
-        <button class="ctrl-btn drawing-tool-btn" data-drawing-tool-disabled title="Renko — Yakında" disabled style="opacity:0.4;cursor:not-allowed">Rnk</button>
+      <div class="tool-cluster">
+        <button class="tool-trigger" type="button"><span>Çizim</span><b>Çizgiler</b></button>
+        <div class="tool-inline">
+          <button class="ctrl-btn drawing-tool-btn" data-drawing-tool="trendline" title="Trend Çizgisi">⟋</button>
+          <button class="ctrl-btn drawing-tool-btn" data-drawing-tool="hline" title="Yatay Çizgi">―</button>
+          <button class="ctrl-btn drawing-tool-btn" data-drawing-tool="vline" title="Dikey Çizgi">│</button>
+          <button class="ctrl-btn drawing-tool-btn" data-drawing-tool="measure" title="Ölçüm Aracı">📏</button>
+          <button class="ctrl-btn drawing-clear-btn" id="drawing-clear-btn" title="Tüm çizimleri sil">🗑</button>
+          <button class="ctrl-btn drawing-tool-btn" data-drawing-tool="fibonacci" title="Fibonacci Düzeltme">Fib</button>
+          <button class="ctrl-btn drawing-tool-btn" data-drawing-tool="fibonacci_ext" title="Fibonacci Uzantı">FibX</button>
+          <button class="ctrl-btn drawing-tool-btn" data-drawing-tool="regression" title="Regresyon Kanalı">Reg</button>
+          <button class="ctrl-btn drawing-tool-btn" data-drawing-tool-disabled title="Renko — Yakında" disabled style="opacity:0.4;cursor:not-allowed">Rnk</button>
+        </div>
       </div>
     `;
   }
@@ -450,6 +446,31 @@ export class ChartPanel {
   private bindControls(controls: HTMLElement): void {
     controls.addEventListener('click', (e) => {
       const target = e.target as HTMLElement;
+
+      // H2: Dropdown item tıklama (gösterge aç/kapat).
+      const dropdownItem = target.closest<HTMLElement>('.ind-dropdown-item');
+      if (dropdownItem) {
+        const ind = dropdownItem.dataset['ind']!;
+        if (this.activeIndicators.has(ind)) {
+          this.activeIndicators.delete(ind);
+        } else {
+          this.activeIndicators.add(ind);
+        }
+        this.saveIndicatorPrefs();
+        this.updateIndicatorButtons();
+        this.renderIndicatorCenter();
+        this.updateIndicatorVisibility();
+        return;
+      }
+
+      // Pin button logic
+      const pinBtn = target.closest<HTMLElement>('#pin-indicators-btn');
+      if (pinBtn) {
+        const cluster = pinBtn.closest('.tool-cluster');
+        if (cluster) cluster.classList.toggle('pinned');
+        return;
+      }
+
       const btn = target.closest('button') || target.closest('.template-item');
       if (!btn) return;
 
@@ -489,21 +510,6 @@ export class ChartPanel {
       if (btn.id === 'indicator-dropdown-trigger') {
         const menu = this.container.querySelector('#indicator-dropdown-menu');
         menu?.classList.toggle('show');
-      }
-
-      // H2: Dropdown item tıklama (gösterge aç/kapat)
-      const dropdownItem = (target as HTMLElement).closest<HTMLElement>('.ind-dropdown-item');
-      if (dropdownItem) {
-        const ind = dropdownItem.dataset['ind']!;
-        if (this.activeIndicators.has(ind)) {
-          this.activeIndicators.delete(ind);
-        } else {
-          this.activeIndicators.add(ind);
-        }
-        this.saveIndicatorPrefs();
-        this.updateIndicatorButtons();
-        this.renderIndicatorCenter();
-        this.updateIndicatorVisibility();
       }
 
       if (btn.id === 'indicator-center-btn') {
@@ -618,9 +624,16 @@ export class ChartPanel {
       compareColorPicker.addEventListener('input', (e) => {
         if (this.compareSeries) {
           const color = (e.target as HTMLInputElement).value;
-          const type = this.container.dataset['compareType'] || 'line';
+          const type = this.container.dataset['compareType'] || 'candle';
           if (type === 'candle') {
-            this.compareSeries.applyOptions({ upColor: color, borderUpColor: color, wickUpColor: color, borderDownColor: color, wickDownColor: color });
+            this.compareSeries.applyOptions({
+              upColor: `${color}cc`,
+              downColor: `${COMPARE_DOWN_COLOR}99`,
+              borderUpColor: color,
+              borderDownColor: COMPARE_DOWN_COLOR,
+              wickUpColor: color,
+              wickDownColor: COMPARE_DOWN_COLOR,
+            });
           } else if (type === 'area') {
             this.compareSeries.applyOptions({ lineColor: color, topColor: `${color}80`, bottomColor: `${color}00` });
           } else {
@@ -739,7 +752,6 @@ export class ChartPanel {
 
     this.applyScaleMode();
     this.updateIndicatorVisibility();
-
     // G5: Drawing Manager
     this.drawingManager = new DrawingManager(this.mainChart, this.mainEl);
     this.drawingManager.setMainSeries(this.candleSeries);
@@ -1414,6 +1426,7 @@ export class ChartPanel {
       : PriceScaleMode.Normal;
     const updates: Array<() => void> = [
       () => this.mainChart.priceScale('right').applyOptions({ mode }),
+      () => this.mainChart.priceScale('left').applyOptions({ mode }),
       () => this.candleSeries.priceScale().applyOptions({ mode }),
       () => this.lineSeries.priceScale().applyOptions({ mode }),
       () => this.barSeries.priceScale().applyOptions({ mode }),
@@ -1823,25 +1836,28 @@ export class ChartPanel {
     `).join('');
   }
 
-  /** H2: Aktif göstergeleri toolbar'da kompakt chip olarak göster */
-  private activeChipsHTML(): string {
-    const activeDefs = INDICATOR_DEFS.filter(d => this.activeIndicators.has(d.key));
-    if (activeDefs.length === 0) return '';
-    return `<div class="ind-active-chips">${activeDefs.map(def => `
-      <span class="ind-chip" data-ind="${def.key}" title="${def.description}">${def.key === 'stoch' ? 'STOCH' : def.key.toUpperCase()}</span>
-    `).join('')}</div>`;
+  private quickIndicatorButtonsHTML(): string {
+    return `
+      <div class="indicator-quick-strip" aria-label="Hızlı indikatörler">
+        ${INDICATOR_DEFS.map(def => `
+          <button class="ctrl-btn ind-btn${this.activeIndicators.has(def.key) ? ' active' : ''}" data-ind="${def.key}" title="${def.label}">
+            ${def.key === 'stoch' ? 'St' : def.key.toUpperCase()}
+          </button>
+        `).join('')}
+      </div>
+    `;
   }
 
   /** H2: Toolbar'daki favori ve aktif chip alanlarını yeniden render et */
   private refreshIndicatorToolbarPins(): void {
     const group = this.container.querySelector('.indicator-toolbar-group');
     if (!group) return;
-    // Mevcut pin ve chip'leri kaldır
-    group.querySelectorAll('.ind-fav-pin, .ind-active-chips').forEach(el => el.remove());
+    // Mevcut pin'leri kaldır
+    group.querySelectorAll('.ind-fav-pin').forEach(el => el.remove());
     // Yeniden ekle
     const dropdown = group.querySelector('.indicator-dropdown');
     if (dropdown) {
-      dropdown.insertAdjacentHTML('afterend', this.favoritePinsHTML() + this.activeChipsHTML());
+      dropdown.insertAdjacentHTML('afterend', this.favoritePinsHTML());
     }
   }
 
@@ -2081,7 +2097,7 @@ export class ChartPanel {
       this.container.requestFullscreen().catch(() => {
         // Fallback: CSS fullscreen
         this.container.classList.add('css-fullscreen');
-        this.isFullscreen = true;
+        this.setFullscreenUi(true);
         this.resizeCharts();
       });
     } else {
@@ -2090,24 +2106,26 @@ export class ChartPanel {
   }
 
   private onFullscreenChange(): void {
+    this.setFullscreenUi(document.fullscreenElement === this.container);
+    this.resizeCharts();
+  }
+
+  private setFullscreenUi(active: boolean): void {
     const controls = this.container.querySelector('.chart-controls') as HTMLElement | null;
     const eventRow = this.container.querySelector('.chart-event-controls') as HTMLElement | null;
 
-    if (document.fullscreenElement === this.container) {
+    if (active) {
       this.isFullscreen = true;
-      // H3: Toolbar'ı kompakt floating moduna al
       controls?.classList.add('fullscreen-compact');
       eventRow?.classList.add('fullscreen-hidden');
       this.addFullscreenHoverTrigger();
     } else {
       this.isFullscreen = false;
       this.container.classList.remove('css-fullscreen');
-      // H3: Toolbar'ı normal moda döndür
       controls?.classList.remove('fullscreen-compact', 'shown');
       eventRow?.classList.remove('fullscreen-hidden');
       this.removeFullscreenHoverTrigger();
     }
-    this.resizeCharts();
   }
 
   /** H3: Üst kenarda fare tetikleyicisi — toolbar'ı göster */
@@ -2161,7 +2179,7 @@ export class ChartPanel {
     this.resizeObserver.observe(this.container);
   }
 
-  private resizeCharts(): void {
+  public resizeCharts(): void {
     const w = this.isFullscreen ? window.innerWidth  : this.container.offsetWidth;
     const h = this.isFullscreen ? window.innerHeight : this.container.offsetHeight;
 
@@ -2171,22 +2189,22 @@ export class ChartPanel {
       : (this.container.querySelector('.chart-controls') as HTMLElement)?.offsetHeight ?? 40;
     const eventRowH = this.isFullscreen
       ? 0
-      : (this.container.querySelector('.chart-event-controls') as HTMLElement)?.offsetHeight ?? 0;
-    const available = h - controlsH - eventRowH;
+      : 0;
+    const available = Math.max(180, h - controlsH - eventRowH);
 
-    const mainH  = Math.floor(available * 0.50);
-    const volH   = Math.floor(available * 0.09);
-    const rsiH   = Math.floor(available * 0.11);
-    const macdH  = Math.floor(available * 0.11);
-    const atrH   = Math.floor(available * 0.09);
-    const stochH = Math.floor(available * 0.10);
+    const mainH  = Math.floor(available * 0.64);
+    const volH   = Math.floor(available * 0.07);
+    const rsiH   = Math.floor(available * 0.09);
+    const macdH  = Math.floor(available * 0.09);
+    const atrH   = Math.floor(available * 0.05);
+    const stochH = Math.floor(available * 0.06);
 
-    this.mainChart.resize(w, mainH);
-    this.volChart.resize(w, volH);
-    this.rsiChart.resize(w, rsiH);
-    this.macdChart.resize(w, macdH);
-    this.atrChart.resize(w, atrH);
-    this.stochChart.resize(w, stochH);
+    this.mainChart.resize(Math.max(1, w), Math.max(80, mainH));
+    this.volChart.resize(Math.max(1, w), Math.max(28, volH));
+    this.rsiChart.resize(Math.max(1, w), Math.max(32, rsiH));
+    this.macdChart.resize(Math.max(1, w), Math.max(32, macdH));
+    this.atrChart.resize(Math.max(1, w), Math.max(28, atrH));
+    this.stochChart.resize(Math.max(1, w), Math.max(32, stochH));
   }
 
   // ─── Cleanup ─────────────────────────────────────────────────────────────
@@ -2216,14 +2234,19 @@ export class ChartPanel {
     this.container.dataset['compareSymbol'] = symbol;
 
     const colorPicker = this.container.querySelector<HTMLInputElement>('#compare-color-picker');
-    const seriesColor = colorPicker ? colorPicker.value : '#bc8cff';
-    const compareType = this.container.dataset['compareType'] || 'line';
+    const seriesColor = colorPicker ? colorPicker.value : COMPARE_COLOR;
+    const compareTypeSelect = this.container.querySelector<HTMLSelectElement>('#compare-type-select');
+    const compareType = this.container.dataset['compareType'] || compareTypeSelect?.value || 'candle';
+    this.container.dataset['compareType'] = compareType;
 
     if (compareType === 'candle') {
       this.compareSeries = this.mainChart.addCandlestickSeries({
-        upColor: seriesColor, downColor: 'transparent',
-        borderUpColor: seriesColor, borderDownColor: seriesColor,
-        wickUpColor: seriesColor, wickDownColor: seriesColor,
+        upColor: `${seriesColor}cc`,
+        downColor: `${COMPARE_DOWN_COLOR}99`,
+        borderUpColor: seriesColor,
+        borderDownColor: COMPARE_DOWN_COLOR,
+        wickUpColor: seriesColor,
+        wickDownColor: COMPARE_DOWN_COLOR,
         priceScaleId: 'left',
         title: symbol,
       });
@@ -2274,13 +2297,28 @@ export class ChartPanel {
       if (baseCandle) this.comparePercentBaseClose = baseCandle.close;
     }
 
-    const compareLineData = this.compareCandles.map(c => {
-      let val = c.close;
-      if (this.scaleMode === 'percent' && this.comparePercentBaseClose) {
-        val = this.percentChange(val, this.comparePercentBaseClose);
-      }
-      return { time: c.time as Time, value: val };
-    });
+    const compareType = this.container.dataset['compareType'] || 'candle';
+    if (compareType === 'candle') {
+      const candleData = this.compareCandles.map(c => {
+        const base = this.comparePercentBaseClose;
+        return {
+          time: c.time as UTCTimestamp,
+          open: base ? this.percentChange(c.open, base) : c.open,
+          high: base ? this.percentChange(c.high, base) : c.high,
+          low: base ? this.percentChange(c.low, base) : c.low,
+          close: base ? this.percentChange(c.close, base) : c.close,
+        };
+      });
+      this.compareSeries.setData(candleData);
+      return;
+    }
+
+    const compareLineData = this.compareCandles.map(c => ({
+      time: c.time as Time,
+      value: this.scaleMode === 'percent' && this.comparePercentBaseClose
+        ? this.percentChange(c.close, this.comparePercentBaseClose)
+        : c.close,
+    }));
     this.compareSeries.setData(compareLineData);
   }
 
@@ -2291,6 +2329,7 @@ export class ChartPanel {
       this.mainChart.priceScale('left').applyOptions({ visible: false });
     }
     this.compareCandles = [];
+    this.comparePercentBaseClose = null;
     this.container.removeAttribute('data-compare-symbol');
 
     const compareOptions = this.container.querySelector<HTMLElement>('#compare-options');

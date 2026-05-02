@@ -88,8 +88,13 @@ export class MultiChartLayout {
       this.removeLastPane();
     }
 
-    this.updateGrid();
     this.updateControlsActive();
+    this.updateGrid();
+    
+    // Resize delay'ini kısa tutarak canvas'ların doğru çizilmesini sağla
+    setTimeout(() => {
+      this.panes.forEach(p => p.chartPanel.resizeCharts());
+    }, 50);
   }
 
   getLayout(): LayoutMode {
@@ -283,6 +288,10 @@ export class MultiChartLayout {
     for (const pane of this.panes) {
       this.gridEl.appendChild(pane.containerEl);
     }
+    // Resize'ı tetikle
+    setTimeout(() => {
+      this.panes.forEach(p => p.chartPanel.resizeCharts());
+    }, 50);
   }
 
   // ─── Pane yönetimi ────────────────────────────────────────────────────
@@ -565,15 +574,11 @@ export class MultiChartLayout {
     }
 
     try {
-      pane.chartPanel.setStatus('loading', 'Karşılaştırma yükleniyor...');
       const candles = await loadHistorical(symbolInfo.symbol, pane.timeframe, { assetType: symbolInfo.assetType });
       pane.chartPanel.setCompareData(symbolInfo.symbol, candles);
     } catch (e) {
       alert('Hata: ' + (e as Error).message);
       pane.chartPanel.clearCompare();
-    } finally {
-      // Re-trigger setStatus idle to hide the status if main chart is ready
-      pane.chartPanel.setData(pane.candles, { reason: 'append', preserveTimeRange: true });
     }
   }
 
