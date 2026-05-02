@@ -24,17 +24,17 @@ import { DrawingManager } from './DrawingManager.js';
 // ─── Theme constants ──────────────────────────────────────────────────────────
 
 const C = {
-  bg:       '#0d1117',
-  panel:    '#161b22',
-  border:   '#21262d',
-  text:     '#8b949e',
-  textBold: '#c9d1d9',
-  green:    '#3fb950',
-  red:      '#f85149',
-  blue:     '#58a6ff',
-  purple:   '#bc8cff',
-  yellow:   '#d29922',
-  orange:   '#e3b341',
+  bg:       '#0B0E14',
+  panel:    '#131722',
+  border:   'rgba(255, 255, 255, 0.08)',
+  text:     '#94A3B8',
+  textBold: '#F8FAFC',
+  green:    '#10B981',
+  red:      '#EF4444',
+  blue:     '#3B82F6',
+  purple:   '#A855F7',
+  yellow:   '#F59E0B',
+  orange:   '#F97316',
 };
 
 const CHART_OPTIONS = {
