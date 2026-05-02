@@ -190,3 +190,7 @@
 ## Grafik ve Çizim Altyapısı (G5)
 
 - **Çizimlerin `localStorage` kalıcılığı bağlama göre izole edilmeli.** Tek bir global array yerine `symbol + timeframe` birleşik anahtarı (örn: `BTCUSDT__1d`) ile saklamak, kullanıcı sembol değiştirdiğinde yanlış grafikte alakasız çizimlerin görünmesini engeller ve bellek yönetimini kolaylaştırır. Data attribute'lar (`data-drawing-count`) üzerinden test yazımı bu bağımsızlığı doğrulamak için idealdir.
+
+## Backtest Gerçekçiliği (B4)
+
+- **Slippage ve komisyon hesaplamaları helper katmanında ayrıştırıldı.** Ana backtest motoruna (`engine.py`) karmaşıklık eklemeden, `fixed_bps_slippage` ve `fixed_tick_slippage` gibi fonksiyonlarla order fiyatları simüle edilebilir. BIST hisselerinde açığa satış (short) için uptick kuralı veya likidite sınırı uyarıları bu bağımsız katmanda (`realism.py`) değerlendirilecek.
