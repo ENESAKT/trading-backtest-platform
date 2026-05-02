@@ -700,13 +700,11 @@ export class ChartPanel {
   private addLevelLine(series: ISeriesApi<'Line'>, price: number, color: string, title: string): void {
     series.createPriceLine({
       price,
-      color: `${color}80`,
+      color: color,
       lineWidth: 1,
       lineStyle: LineStyle.Dashed,
       axisLabelVisible: true,
       title,
-      axisLabelColor: C.borderSolid,
-      axisLabelTextColor: C.textBold,
     });
   }
 
@@ -988,13 +986,11 @@ export class ChartPanel {
       this.previousCloseLine = series.createPriceLine({
         id: 'previous-close',
         price: this.displayPrice(prev.close),
-        color: C.text,
+        color: '#475569',
         lineWidth: 1,
         lineStyle: LineStyle.Dashed,
         axisLabelVisible: true,
         title: this.scaleMode === 'percent' ? 'ÖK %' : 'ÖK',
-        axisLabelColor: C.borderSolid,
-        axisLabelTextColor: C.textBold,
       });
     }
   }
@@ -1152,8 +1148,8 @@ export class ChartPanel {
       return;
     }
     const series = this.activeMainSeries();
-    this.addOverlayPriceLine(series, prev.close * 1.10, C.text, 'Tavan', false);
-    this.addOverlayPriceLine(series, prev.close * 0.90, C.text, 'Taban', false);
+    this.addOverlayPriceLine(series, prev.close * 1.10, '#475569', 'Tavan', false);
+    this.addOverlayPriceLine(series, prev.close * 0.90, '#475569', 'Taban', false);
     this.container.dataset['bistLimitStatus'] = 'active';
   }
 
@@ -1171,8 +1167,6 @@ export class ChartPanel {
       lineStyle: strong ? LineStyle.Solid : LineStyle.Dashed,
       axisLabelVisible: true,
       title,
-      axisLabelColor: strong ? color : C.borderSolid,
-      axisLabelTextColor: strong ? C.bg : C.textBold,
     });
     this.pnlPriceLines.push({ series, line });
   }
