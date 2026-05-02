@@ -217,3 +217,154 @@ def macd(
     signal_line = ema(macd_line, signal_period)
     histogram = macd_line - signal_line
     return macd_line, signal_line, histogram
+
+
+def wma(series: pd.Series, period: int) -> pd.Series:
+    """
+    Weighted Moving Average.
+    """
+    if period < 1:
+        raise ValueError(f"Periyot 1'den küçük olamaz: {period}")
+    weights = np.arange(1, period + 1)
+
+    def apply_wma(x):
+        if len(x) < period:
+            return np.nan
+        return np.dot(x, weights) / weights.sum()
+
+    return series.rolling(window=period, min_periods=period).apply(apply_wma, raw=True)
+
+
+def dema(series: pd.Series, period: int) -> pd.Series:
+    """
+    Double Exponential Moving Average.
+    """
+    ema1 = ema(series, period)
+    ema2 = ema(ema1, period)
+    return 2 * ema1 - ema2
+
+
+def tema(series: pd.Series, period: int) -> pd.Series:
+    """
+    Triple Exponential Moving Average.
+    """
+    ema1 = ema(series, period)
+    ema2 = ema(ema1, period)
+    ema3 = ema(ema2, period)
+    return 3 * ema1 - 3 * ema2 + ema3
+
+
+def zlema(series: pd.Series, period: int) -> pd.Series:
+    """
+    Zero-Lag Exponential Moving Average.
+    """
+    if period < 1:
+        raise ValueError(f"Periyot 1'den küçük olamaz: {period}")
+    lag = int((period - 1) / 2)
+    shifted_series = series.shift(lag)
+    data = series + (series - shifted_series)
+    return ema(data, period)
+
+
+def hma(series: pd.Series, period: int) -> pd.Series:
+    """
+    Hull Moving Average.
+    """
+    if period < 1:
+        raise ValueError(f"Periyot 1'den küçük olamaz: {period}")
+    half_length = int(period / 2)
+    sqrt_length = int(np.sqrt(period))
+
+    wma1 = wma(series, half_length)
+    wma2 = wma(series, period)
+
+    raw_hma = 2 * wma1 - wma2
+    return wma(raw_hma, sqrt_length)
+
+
+def alma(series: pd.Series, period: int = 9, offset: float = 0.85, sigma: float = 6.0) -> pd.Series:
+    """
+    Arnaud Legoux Moving Average.
+    """
+    if period < 1:
+        raise ValueError(f"Periyot 1'den küçük olamaz: {period}")
+
+    m = offset * (period - 1)
+    s = period / sigma
+
+    weights = np.exp(-((np.arange(period) - m) ** 2) / (2 * s ** 2))
+    weights /= weights.sum()
+
+    def apply_alma(x):
+        if len(x) < period:
+            return np.nan
+        return np.dot(x, weights)
+
+    return series.rolling(window=period, min_periods=period).apply(apply_alma, raw=True)
+
+
+def kama(series: pd.Series, period: int = 10, fast_span: int = 2, slow_span: int = 30) -> pd.Series:
+    """
+    Kaufman's Adaptive Moving Average.
+    """
+    if period < 1:
+        raise ValueError(f"Periyot 1'den küçük olamaz: {period}")
+
+    change = series.diff(period).abs()
+    volatility = series.diff().abs().rolling(window=period, min_periods=period).sum()
+
+    er = change / volatility.replace(0, np.nan)
+    er = er.fillna(0)
+
+    fast_alpha = 2.0 / (fast_span + 1)
+    slow_alpha = 2.0 / (slow_span + 1)
+
+    sc = (er * (fast_alpha - slow_alpha) + slow_alpha) ** 2
+
+    kama_values = np.full_like(series, np.nan, dtype=float)
+
+    # KAMA calculations need a loop as it depends on its own previous value
+    first_valid = series.first_valid_index()
+    if first_valid is None:
+        return pd.Series(kama_values, index=series.index)
+
+    first_valid_idx = series.index.get_loc(first_valid)
+    start_idx = first_valid_idx + period
+
+    if start_idx < len(series):
+        # Initial KAMA value is the SMA of the first period
+        kama_values[start_idx-1] = series.iloc[first_valid_idx:start_idx].mean()
+
+        series_np = series.to_numpy()
+        sc_np = sc.to_numpy()
+
+        for i in range(start_idx, len(series)):
+            if np.isnan(series_np[i]) or np.isnan(sc_np[i]) or np.isnan(kama_values[i-1]):
+                kama_values[i] = series_np[i] if not np.isnan(series_np[i]) else kama_values[i-1]
+            else:
+                kama_values[i] = kama_values[i-1] + sc_np[i] * (series_np[i] - kama_values[i-1])
+
+    return pd.Series(kama_values, index=series.index)
+
+
+def t3(series: pd.Series, period: int = 5, vfactor: float = 0.7) -> pd.Series:
+    """
+    Tillson T3 Moving Average.
+    """
+    if period < 1:
+        raise ValueError(f"Periyot 1'den küçük olamaz: {period}")
+
+    e1 = ema(series, period)
+    e2 = ema(e1, period)
+    e3 = ema(e2, period)
+    e4 = ema(e3, period)
+    e5 = ema(e4, period)
+    e6 = ema(e5, period)
+
+    v = vfactor
+    c1 = -v**3
+    c2 = 3*v**2 + 3*v**3
+    c3 = -6*v**2 - 3*v - 3*v**3
+    c4 = 1 + 3*v + v**3 + 3*v**2
+
+    return c1 * e6 + c2 * e5 + c3 * e4 + c4 * e3

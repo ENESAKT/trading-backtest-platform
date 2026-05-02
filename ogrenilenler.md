@@ -202,7 +202,10 @@
 ## Backtest Gerçekçiliği (B4)
 
 - **Slippage ve komisyon hesaplamaları helper katmanında ayrıştırıldı.** Ana backtest motoruna (`engine.py`) karmaşıklık eklemeden, `fixed_bps_slippage` ve `fixed_tick_slippage` gibi fonksiyonlarla order fiyatları simüle edilebilir. BIST hisselerinde açığa satış (short) için uptick kuralı veya likidite sınırı uyarıları bu bağımsız katmanda (`realism.py`) değerlendirilecek.
-
 ## Çoklu Sembol Karşılaştırma (G6)
 
 - **Aynı panel üzerinde Line Series ile ikincil sembol eklenmesi.** `ChartPanel` sınıfına ikinci bir `ISeriesApi<'Line'>` referansı eklenerek ve ana grafiğe bağlanılarak çoklu sembol özelliği sağlandı. İkinci sembolün verisi, `MultiChartLayout` tarafından tarihsel olarak çekilip olay (`CustomEvent`) üzerinden ana `ChartPanel`'e gönderilir, böylece veri yükleme mantığı ile gösterim mantığı arasındaki izolasyon korunur. Yüzdesel (percent) modunda asıl sembolün baz fiyatından normalize edilerek mükemmel karşılaştırma (compare) deneyimi elde edilir.
+
+## İleri Seviye İndikatörler (B2)
+
+- **Gelişmiş Hareketli Ortalamalar:** `quant_engine.strategy.indicators` modülü genişletilerek saf Pandas/NumPy üzerinden WMA, DEMA, TEMA, ZLEMA, HMA, ALMA, KAMA ve T3 eklendi. Harici kütüphane bağımlılığı olmaksızın deterministic ve güvenli bir helper yüzeyi oluşturuldu; ilk bar `NaN` davranışları ve `ValueError` fırlatma mekanizmaları testlerle garanti altına alındı.
