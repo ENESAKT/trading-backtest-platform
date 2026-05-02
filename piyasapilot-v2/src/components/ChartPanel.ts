@@ -243,6 +243,11 @@ export class ChartPanel {
   private resizeObserver!: ResizeObserver;
   private drawingManager!: DrawingManager;
 
+  // G6: Multi-symbol comparison
+  private compareSeries: ISeriesApi<'Line'> | null = null;
+  private compareCandles: OHLCV[] = [];
+  private comparePercentBaseClose: number | null = null;
+
   constructor(container: HTMLElement) {
     this.container = container;
     this.loadIndicatorPrefs();
@@ -344,6 +349,12 @@ export class ChartPanel {
         <button class="ctrl-btn pnl-toggle-btn active" id="pnl-overlay-btn" title="Trade bağlantıları ve PnL çizgileri">PnL</button>
         <button class="ctrl-btn pnl-toggle-btn active" id="risk-line-btn" title="Stop ve hedef çizgileri">Risk</button>
         <button class="ctrl-btn pnl-toggle-btn active" id="bist-limit-btn" title="BIST tavan/taban referansı">T/T</button>
+      </div>
+      <div class="ctrl-group">
+        <span class="ctrl-label">Karşılaştır</span>
+        <input type="text" class="search-input compare-input" id="compare-input" placeholder="Sembol" style="width: 70px; padding: 2px 4px; height: 18px;" autocomplete="off">
+        <button class="ctrl-btn" id="compare-add-btn" title="Ekle/Değiştir">Ekle</button>
+        <button class="ctrl-btn" id="compare-clear-btn" title="Temizle">x</button>
       </div>
       <div class="ctrl-group ml-auto">
         <button class="ctrl-btn" id="fullscreen-btn" title="${TR.FULLSCREEN} (F)">⛶</button>
@@ -454,6 +465,20 @@ export class ChartPanel {
       // Fullscreen
       if (btn.id === 'fullscreen-btn') {
         this.toggleFullscreen();
+      }
+
+      // Compare
+      if (btn.id === 'compare-add-btn') {
+        const input = controls.querySelector<HTMLInputElement>('#compare-input');
+        if (input && input.value.trim()) {
+          this.container.dispatchEvent(new CustomEvent('compareRequest', { detail: input.value.trim().toUpperCase(), bubbles: true }));
+        }
+      }
+
+      if (btn.id === 'compare-clear-btn') {
+        const input = controls.querySelector<HTMLInputElement>('#compare-input');
+        if (input) input.value = '';
+        this.clearCompare();
       }
     });
   }
@@ -665,6 +690,7 @@ export class ChartPanel {
     this.container.dataset['percentBaseClose'] = '';
     this.container.dataset['percentLastChange'] = '';
     this.container.dataset['chartStatus'] = this.dataStatus;
+    this.clearCompare();
   }
 
   private setStatusOverlay(status: ChartDataStatus, message?: string): void {
@@ -1273,6 +1299,9 @@ export class ChartPanel {
     this.renderIndicators(this.candles);
     this.updateReferenceLines();
     this.renderPnlOverlays(this.markerSignals);
+    if (this.compareSeries && this.compareCandles.length > 0) {
+      this.renderCompareSeries();
+    }
     if (savedVisibleRange) this.restoreVisibleRange(savedVisibleRange);
     this.updateUnitBadge();
   }
@@ -1695,11 +1724,70 @@ export class ChartPanel {
   destroy(): void {
     this.drawingManager?.destroy();
     this.resizeObserver.disconnect();
+    if (this.compareSeries) {
+      this.mainChart.removeSeries(this.compareSeries);
+    }
     this.mainChart.remove();
     this.volChart.remove();
     this.rsiChart.remove();
     this.macdChart.remove();
     this.atrChart.remove();
     this.stochChart.remove();
+  }
+
+  // ─── Compare Symbol Logic ───────────────────────────────────────────────
+
+  setCompareData(symbol: string, candles: OHLCV[]): void {
+    if (this.compareSeries) {
+      this.mainChart.removeSeries(this.compareSeries);
+      this.compareSeries = null;
+    }
+    this.compareCandles = candles;
+    this.container.dataset['compareSymbol'] = symbol;
+
+    this.compareSeries = this.mainChart.addLineSeries({
+      color: '#bc8cff', // Purple for comparison
+      lineWidth: 2,
+      priceLineVisible: true,
+      lastValueVisible: true,
+      crosshairMarkerVisible: true,
+      title: symbol,
+    });
+
+    this.renderCompareSeries();
+
+    this.applyScaleMode();
+    this.updateUnitBadge();
+  }
+
+  private renderCompareSeries(): void {
+    if (!this.compareSeries || this.compareCandles.length === 0) return;
+
+    // Determine compare base
+    this.comparePercentBaseClose = null;
+    if (this.scaleMode === 'percent' && this.percentBaseTime != null) {
+      const baseCandle = this.compareCandles.find(c => c.time >= this.percentBaseTime!) || this.compareCandles[0];
+      if (baseCandle) this.comparePercentBaseClose = baseCandle.close;
+    }
+
+    const compareLineData = this.compareCandles.map(c => {
+      let val = c.close;
+      if (this.scaleMode === 'percent' && this.comparePercentBaseClose) {
+        val = this.percentChange(val, this.comparePercentBaseClose);
+      }
+      return { time: c.time as Time, value: val };
+    });
+    this.compareSeries.setData(compareLineData);
+  }
+
+  clearCompare(): void {
+    if (this.compareSeries) {
+      this.mainChart.removeSeries(this.compareSeries);
+      this.compareSeries = null;
+    }
+    this.compareCandles = [];
+    this.container.removeAttribute('data-compare-symbol');
+    this.applyScaleMode();
+    this.updateUnitBadge();
   }
 }

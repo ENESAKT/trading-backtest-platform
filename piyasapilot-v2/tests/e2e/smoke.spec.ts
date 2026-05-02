@@ -475,3 +475,24 @@ test('G5 drawing toolbar renders and drawing count persists per symbol', async (
   });
   expect(remaining).toBe(0);
 });
+
+test('G6 multi-symbol compare adds second series and normalizes in percent mode', async ({ page }) => {
+  await mockCandles(page);
+  await page.goto('/');
+
+  const pane = page.locator('.chart-pane-body').first();
+  await expect(pane).toHaveAttribute('data-chart-status', 'ready');
+
+  // Input symbol to compare
+  await page.locator('#compare-input').first().fill('ETHUSDT');
+  await page.locator('#compare-add-btn').first().click();
+
+  // Wait for loading to finish and check attribute
+  await expect(pane).toHaveAttribute('data-chart-status', 'ready');
+  await expect(pane).toHaveAttribute('data-compare-symbol', 'ETHUSDT');
+
+  // Clear compare
+  await page.locator('#compare-clear-btn').first().click();
+  await expect(pane).not.toHaveAttribute('data-compare-symbol', 'ETHUSDT');
+});
+

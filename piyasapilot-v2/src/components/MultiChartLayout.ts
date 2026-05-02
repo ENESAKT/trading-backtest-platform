@@ -264,6 +264,13 @@ export class MultiChartLayout {
     // Sembol seçici
     this.bindPaneHeader(pane, headerEl);
 
+    // G6: Compare logic
+    containerEl.addEventListener('compareRequest', (e: Event) => {
+      const customEvent = e as CustomEvent<string>;
+      const compareSymbolStr = customEvent.detail;
+      void this.loadCompareData(pane, compareSymbolStr);
+    });
+
     // Veri yükle
     void this.loadPaneData(pane, 'initial');
 
@@ -434,6 +441,27 @@ export class MultiChartLayout {
       }
     } finally {
       pane.loading = false;
+    }
+  }
+
+  private async loadCompareData(pane: ChartPaneState, symbolStr: string): Promise<void> {
+    const symbolInfo = ALL_SYMBOLS.find(s => s.symbol === symbolStr || s.symbol.replace('.IS', '') === symbolStr);
+    if (!symbolInfo) {
+      alert(TR.NO_DATA + ': ' + symbolStr);
+      pane.chartPanel.clearCompare();
+      return;
+    }
+
+    try {
+      pane.chartPanel.setStatus('loading', 'Karşılaştırma yükleniyor...');
+      const candles = await loadHistorical(symbolInfo.symbol, pane.timeframe, { assetType: symbolInfo.assetType });
+      pane.chartPanel.setCompareData(symbolInfo.symbol, candles);
+    } catch (e) {
+      alert('Hata: ' + (e as Error).message);
+      pane.chartPanel.clearCompare();
+    } finally {
+      // Re-trigger setStatus idle to hide the status if main chart is ready
+      pane.chartPanel.setData(pane.candles, { reason: 'append', preserveTimeRange: true });
     }
   }
 

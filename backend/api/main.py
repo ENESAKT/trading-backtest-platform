@@ -73,6 +73,8 @@ from quant_engine.data.live_feed import (
 )
 from quant_engine.strategy.persistence import StrategyRecord, StrategyStore
 from quant_engine.workspace.json_store import WorkspaceJsonStore
+from backend.mali_analiz.cache import FinancialAnalysisCache
+from backend.mali_analiz.service import FinancialAnalysisService
 
 ROOT = Path(__file__).resolve().parents[2]
 _PAPER_DB_PATH = "data/cache/ohlcv.sqlite3"
@@ -251,6 +253,7 @@ def create_app(
     paper_executor: PaperExecutor | None = None,
     backtest_archive: BacktestArchive | None = None,
     strategy_store: StrategyStore | None = None,
+    mali_analiz_service: FinancialAnalysisService | None = None,
 ) -> FastAPI:
     """FastAPI app factory.
 
@@ -280,6 +283,10 @@ def create_app(
     paper_executor = paper_executor or PaperExecutor(db=paper_db)
     backtest_archive = backtest_archive or BacktestArchive(ROOT / _BACKTEST_ARCHIVE_PATH)
     strategy_store = strategy_store or StrategyStore(ROOT / _STRATEGY_STORE_PATH)
+    
+    if mali_analiz_service is None:
+        ma_cache = FinancialAnalysisCache(ROOT / "data" / "cache" / "mali_analiz.sqlite3")
+        mali_analiz_service = FinancialAnalysisService(cache=ma_cache)
 
     if supervisor is None:
         if os.environ.get("PIYASAPILOT_DISABLE_WORKERS") == "1":
@@ -1021,6 +1028,21 @@ def create_app(
 
         # Hem provider hem cache boş ve gerçek provider hatası var.
         return JSONResponse(provider_payload, status_code=502)
+
+    # ── Mali Analiz API (Sprint 12) ──────────────────────────────────────────
+    @app.get("/api/mali-analiz/{symbol}")
+    def get_mali_analiz(symbol: str, force_refresh: bool = False) -> dict[str, Any]:
+        """Sembol için mali analiz raporunu döndürür."""
+        try:
+            # FinancialAnalysisService zaten model_dump / JSON serializable FinancialAnalysisResponse döner.
+            # (FinancialAnalysisResponse bir Pydantic modelidir)
+            response = mali_analiz_service.get_analysis(symbol, force_refresh=force_refresh)
+            return response.model_dump()
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+        except Exception as exc:
+            _logger.exception("Mali analiz beklenmedik hata: %s", exc)
+            raise HTTPException(status_code=500, detail="Mali analiz servis hatası")
 
     # ── Statik dosyalar (SPA / index.html) ───────────────────────────────
     # Mount en sona; daha spesifik /api/* route'larını gölgelemesin diye.
