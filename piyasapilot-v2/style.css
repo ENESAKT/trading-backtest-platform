@@ -127,16 +127,60 @@ h3 { font-family: var(--font-sans); font-size: 14px; font-weight: 600; color: va
 .upd-yellow { color: var(--yellow); }
 .upd-red { color: var(--red); }
 
-/* ─── Sidebar ──────────────────────────────────────────────────────────────── */
+/* ─── Sidebar ────────────────────────────────────────────────────────────────────── */
 .sidebar-header {
   padding: 10px 12px 6px;
   border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
 .sidebar-title {
   font-family: var(--font-sans);
   font-size: 13px;
   font-weight: 700;
   color: var(--blue);
+}
+.sidebar-toggle-btn {
+  background: transparent;
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+.sidebar-toggle-btn:hover {
+  background: var(--border2);
+  color: var(--text-bold);
+  border-color: var(--blue);
+}
+
+/* Sidebar collapsed state */
+#sidebar.collapsed {
+  flex: 0 0 36px !important;
+  min-width: 36px;
+  overflow: hidden;
+}
+#sidebar.collapsed .sidebar-search,
+#sidebar.collapsed .symbol-list {
+  display: none;
+}
+#sidebar.collapsed .sidebar-header {
+  justify-content: center;
+  padding: 10px 6px 6px;
+}
+#sidebar.collapsed .sidebar-title {
+  display: none;
+}
+#sidebar.collapsed .sidebar-toggle-btn {
+  margin: 0;
 }
 
 .sidebar-search { padding: 8px 8px 4px; }
@@ -191,9 +235,10 @@ h3 { font-family: var(--font-sans); font-size: 14px; font-weight: 600; color: va
 .sym-price  { font-size: 11px; color: var(--text-bold); }
 .sym-change { font-size: 10px; font-weight: 700; }
 
-/* ─── Colors: pos/neg ──────────────────────────────────────────────────────── */
-.pos { color: var(--green); }
-.neg { color: var(--red);   }
+/* ─── Colors: pos/neg/neutral ────────────────────────────────────────────────────── */
+.pos     { color: var(--green); }
+.neg     { color: var(--red);   }
+.neutral { color: var(--yellow); }
 
 /* ─── Tab panels ───────────────────────────────────────────────────────────── */
 .tab-panel {
@@ -306,6 +351,102 @@ h3 { font-family: var(--font-sans); font-size: 14px; font-weight: 600; color: va
 .chart-state-overlay.state-error strong { color: var(--red); }
 .chart-state-overlay.state-empty strong { color: var(--yellow); }
 .chart-state-overlay.state-loading strong { color: var(--blue); }
+
+/* ─── H2: Indicator toolbar dropdown ───────────────────────────────────────── */
+.indicator-toolbar-group { position: relative; }
+.indicator-dropdown { position: relative; display: inline-block; }
+.indicator-dropdown-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.ind-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 8px;
+  background: var(--blue);
+  color: #fff;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1;
+}
+.indicator-dropdown-menu {
+  display: none;
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 300;
+  min-width: 220px;
+  max-height: 320px;
+  overflow-y: auto;
+  background: rgba(19, 23, 34, 0.95);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--border2);
+  border-radius: 8px;
+  box-shadow: 0 12px 36px rgba(0,0,0,0.5);
+  padding: 4px;
+}
+.indicator-dropdown-menu.show { display: block; }
+.ind-dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background 0.15s;
+  font-size: 12px;
+}
+.ind-dropdown-item:hover { background: var(--panel2); }
+.ind-dropdown-item.active { background: rgba(59, 130, 246, 0.1); }
+.ind-dropdown-icon {
+  width: 16px;
+  text-align: center;
+  font-size: 11px;
+  color: var(--text-dim);
+}
+.ind-dropdown-item.active .ind-dropdown-icon { color: var(--blue); }
+.ind-dropdown-label { flex: 1; color: var(--text-bold); font-weight: 500; }
+.ind-dropdown-cat { font-size: 9px; color: var(--text-dim); text-transform: capitalize; }
+
+/* Favori pin butonları */
+.ind-fav-pin {
+  font-size: 10px !important;
+  padding: 2px 8px !important;
+  border-radius: 12px !important;
+  background: rgba(245, 158, 11, 0.08) !important;
+  border: 1px solid rgba(245, 158, 11, 0.25) !important;
+  color: var(--yellow) !important;
+}
+.ind-fav-pin.active {
+  background: rgba(59, 130, 246, 0.12) !important;
+  border-color: var(--blue) !important;
+  color: var(--blue) !important;
+}
+.ind-fav-pin:hover { transform: scale(1.05); }
+
+/* Aktif gösterge chip'leri */
+.ind-active-chips {
+  display: inline-flex;
+  gap: 3px;
+  margin-left: 4px;
+}
+.ind-chip {
+  display: inline-block;
+  padding: 2px 6px;
+  font-size: 9px;
+  font-weight: 600;
+  color: var(--blue);
+  background: rgba(59, 130, 246, 0.08);
+  border: 1px solid rgba(59, 130, 246, 0.2);
+  border-radius: 4px;
+  cursor: default;
+}
 
 /* ─── Indicator center ─────────────────────────────────────────────────────── */
 .indicator-center {
@@ -433,6 +574,45 @@ h3 { font-family: var(--font-sans); font-size: 14px; font-weight: 600; color: va
   z-index: 9999 !important;
   width: 100vw !important;
   height: 100vh !important;
+}
+
+/* H3: Fullscreen kompakt floating toolbar */
+.chart-controls.fullscreen-compact {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 200;
+  opacity: 0;
+  transform: translateY(-100%);
+  transition: opacity 0.25s ease, transform 0.25s ease;
+  background: rgba(11, 14, 20, 0.92);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-bottom: 1px solid var(--border2);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+  pointer-events: none;
+}
+.chart-controls.fullscreen-compact:hover,
+.chart-controls.fullscreen-compact.shown {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+
+/* Fullscreen'de toolbar hover alanını genişlet (üst kenar tetikleyici) */
+.fullscreen-hover-trigger {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 12px;
+  z-index: 199;
+}
+
+/* Fullscreen'de event controls satırını da gizle */
+.chart-event-controls.fullscreen-hidden {
+  display: none !important;
 }
 
 /* ─── Drawing tools (G5) ───────────────────────────────────────────────────── */

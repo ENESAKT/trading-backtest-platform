@@ -346,12 +346,25 @@ export class ChartPanel {
         <button class="ctrl-btn type-btn" data-type="line">${TR.LINE}</button>
         <button class="ctrl-btn type-btn" data-type="bar">${TR.BAR}</button>
       </div>
-      <div class="ctrl-group">
+      <div class="ctrl-group indicator-toolbar-group">
         <span class="ctrl-label">${TR.INDICATORS}</span>
         <button class="ctrl-btn indicator-center-btn" id="indicator-center-btn" title="İndikatör merkezi">Merkez</button>
-        ${INDICATOR_DEFS.map(def => `
-          <button class="ctrl-btn ind-btn${this.activeIndicators.has(def.key) ? ' active' : ''}" data-ind="${def.key}">${def.key === 'stoch' ? 'STOCH' : def.key.toUpperCase()}</button>
-        `).join('')}
+        <div class="indicator-dropdown" id="indicator-dropdown">
+          <button class="ctrl-btn indicator-dropdown-trigger" id="indicator-dropdown-trigger">
+            Göstergeler <span class="ind-badge" id="ind-active-badge">${this.activeIndicators.size}</span> ▾
+          </button>
+          <div class="indicator-dropdown-menu" id="indicator-dropdown-menu">
+            ${INDICATOR_DEFS.map(def => `
+              <div class="ind-dropdown-item${this.activeIndicators.has(def.key) ? ' active' : ''}" data-ind="${def.key}">
+                <span class="ind-dropdown-icon">${this.activeIndicators.has(def.key) ? '✓' : '○'}</span>
+                <span class="ind-dropdown-label">${def.label}</span>
+                <span class="ind-dropdown-cat">${def.category}</span>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+        ${this.favoritePinsHTML()}
+        ${this.activeChipsHTML()}
       </div>
       <div class="ctrl-group">
         <span class="ctrl-label">Ölçek</span>
@@ -456,8 +469,8 @@ export class ChartPanel {
         this.setChartType(btn.dataset['type'] as ChartType);
       }
 
-      // Indicator toggle
-      if (btn.classList.contains('ind-btn')) {
+      // Indicator toggle (eski ind-btn ve yeni ind-fav-pin)
+      if (btn.classList.contains('ind-btn') || btn.classList.contains('ind-fav-pin')) {
         const ind = btn.dataset['ind']!;
         if (this.activeIndicators.has(ind)) {
           this.activeIndicators.delete(ind);
@@ -467,6 +480,28 @@ export class ChartPanel {
           btn.classList.add('active');
         }
         this.saveIndicatorPrefs();
+        this.updateIndicatorButtons();
+        this.renderIndicatorCenter();
+        this.updateIndicatorVisibility();
+      }
+
+      // H2: Dropdown trigger toggle
+      if (btn.id === 'indicator-dropdown-trigger') {
+        const menu = this.container.querySelector('#indicator-dropdown-menu');
+        menu?.classList.toggle('show');
+      }
+
+      // H2: Dropdown item tıklama (gösterge aç/kapat)
+      const dropdownItem = (target as HTMLElement).closest<HTMLElement>('.ind-dropdown-item');
+      if (dropdownItem) {
+        const ind = dropdownItem.dataset['ind']!;
+        if (this.activeIndicators.has(ind)) {
+          this.activeIndicators.delete(ind);
+        } else {
+          this.activeIndicators.add(ind);
+        }
+        this.saveIndicatorPrefs();
+        this.updateIndicatorButtons();
         this.renderIndicatorCenter();
         this.updateIndicatorVisibility();
       }
@@ -614,6 +649,10 @@ export class ChartPanel {
       }
       if (!target.closest('#export-dropdown')) {
         this.container.querySelector('#export-menu')?.classList.remove('show');
+      }
+      // H2: Indicator dropdown
+      if (!target.closest('#indicator-dropdown')) {
+        this.container.querySelector('#indicator-dropdown-menu')?.classList.remove('show');
       }
     });
 
@@ -931,6 +970,8 @@ export class ChartPanel {
     const lowerMargins = { top: 0.1, bottom: 0.1 };
     const scaleUpdates: Array<() => void> = [
       () => this.mainChart.priceScale('right').applyOptions({ autoScale: true, scaleMargins: mainMargins }),
+      // H4: Sol ekseni de resetle (karşılaştırma sembolü için)
+      () => this.mainChart.priceScale('left').applyOptions({ autoScale: true, scaleMargins: mainMargins }),
       () => this.candleSeries.priceScale().applyOptions({ autoScale: true, scaleMargins: mainMargins }),
       () => this.lineSeries.priceScale().applyOptions({ autoScale: true, scaleMargins: mainMargins }),
       () => this.barSeries.priceScale().applyOptions({ autoScale: true, scaleMargins: mainMargins }),
@@ -1751,10 +1792,57 @@ export class ChartPanel {
   }
 
   private updateIndicatorButtons(): void {
+    // Dropdown item'ları güncelle
+    this.container.querySelectorAll<HTMLElement>('.ind-dropdown-item').forEach(item => {
+      const ind = item.dataset['ind'];
+      const isActive = !!ind && this.activeIndicators.has(ind);
+      item.classList.toggle('active', isActive);
+      const icon = item.querySelector('.ind-dropdown-icon');
+      if (icon) icon.textContent = isActive ? '✓' : '○';
+    });
+    // Eski ind-btn'ler için geriye uyumluluk
     this.container.querySelectorAll<HTMLElement>('.ind-btn').forEach(btn => {
       const ind = btn.dataset['ind'];
       btn.classList.toggle('active', !!ind && this.activeIndicators.has(ind));
     });
+    // Badge güncelle
+    const badge = this.container.querySelector('#ind-active-badge');
+    if (badge) badge.textContent = String(this.activeIndicators.size);
+    // Favori pin'leri ve aktif chip'leri güncelle
+    this.refreshIndicatorToolbarPins();
+  }
+
+  /** H2: Favori göstergeleri toolbar'a pill olarak pinle */
+  private favoritePinsHTML(): string {
+    const favDefs = INDICATOR_DEFS.filter(d => this.favoriteIndicators.has(d.key));
+    if (favDefs.length === 0) return '';
+    return favDefs.map(def => `
+      <button class="ctrl-btn ind-fav-pin${this.activeIndicators.has(def.key) ? ' active' : ''}" data-ind="${def.key}" title="${def.label} (Favori)">
+        ★ ${def.key === 'stoch' ? 'STOCH' : def.key.toUpperCase()}
+      </button>
+    `).join('');
+  }
+
+  /** H2: Aktif göstergeleri toolbar'da kompakt chip olarak göster */
+  private activeChipsHTML(): string {
+    const activeDefs = INDICATOR_DEFS.filter(d => this.activeIndicators.has(d.key));
+    if (activeDefs.length === 0) return '';
+    return `<div class="ind-active-chips">${activeDefs.map(def => `
+      <span class="ind-chip" data-ind="${def.key}" title="${def.description}">${def.key === 'stoch' ? 'STOCH' : def.key.toUpperCase()}</span>
+    `).join('')}</div>`;
+  }
+
+  /** H2: Toolbar'daki favori ve aktif chip alanlarını yeniden render et */
+  private refreshIndicatorToolbarPins(): void {
+    const group = this.container.querySelector('.indicator-toolbar-group');
+    if (!group) return;
+    // Mevcut pin ve chip'leri kaldır
+    group.querySelectorAll('.ind-fav-pin, .ind-active-chips').forEach(el => el.remove());
+    // Yeniden ekle
+    const dropdown = group.querySelector('.indicator-dropdown');
+    if (dropdown) {
+      dropdown.insertAdjacentHTML('afterend', this.favoritePinsHTML() + this.activeChipsHTML());
+    }
   }
 
   // ─── Chart type switching ───────────────────────────────────────────────
@@ -2002,13 +2090,51 @@ export class ChartPanel {
   }
 
   private onFullscreenChange(): void {
+    const controls = this.container.querySelector('.chart-controls') as HTMLElement | null;
+    const eventRow = this.container.querySelector('.chart-event-controls') as HTMLElement | null;
+
     if (document.fullscreenElement === this.container) {
       this.isFullscreen = true;
+      // H3: Toolbar'ı kompakt floating moduna al
+      controls?.classList.add('fullscreen-compact');
+      eventRow?.classList.add('fullscreen-hidden');
+      this.addFullscreenHoverTrigger();
     } else {
       this.isFullscreen = false;
       this.container.classList.remove('css-fullscreen');
+      // H3: Toolbar'ı normal moda döndür
+      controls?.classList.remove('fullscreen-compact', 'shown');
+      eventRow?.classList.remove('fullscreen-hidden');
+      this.removeFullscreenHoverTrigger();
     }
     this.resizeCharts();
+  }
+
+  /** H3: Üst kenarda fare tetikleyicisi — toolbar'ı göster */
+  private hoverTriggerEl: HTMLElement | null = null;
+
+  private addFullscreenHoverTrigger(): void {
+    this.removeFullscreenHoverTrigger();
+    const trigger = document.createElement('div');
+    trigger.className = 'fullscreen-hover-trigger';
+    trigger.addEventListener('mouseenter', () => {
+      this.container.querySelector('.chart-controls')?.classList.add('shown');
+    });
+    this.container.appendChild(trigger);
+    this.hoverTriggerEl = trigger;
+
+    // Toolbar'dan ayrılınca gizle
+    const controls = this.container.querySelector('.chart-controls');
+    controls?.addEventListener('mouseleave', () => {
+      controls.classList.remove('shown');
+    });
+  }
+
+  private removeFullscreenHoverTrigger(): void {
+    if (this.hoverTriggerEl) {
+      this.hoverTriggerEl.remove();
+      this.hoverTriggerEl = null;
+    }
   }
 
   private bindKeyboard(): void {
@@ -2039,8 +2165,14 @@ export class ChartPanel {
     const w = this.isFullscreen ? window.innerWidth  : this.container.offsetWidth;
     const h = this.isFullscreen ? window.innerHeight : this.container.offsetHeight;
 
-    const controlsH = (this.container.querySelector('.chart-controls') as HTMLElement)?.offsetHeight ?? 40;
-    const available = h - controlsH;
+    // H3: Fullscreen'de toolbar gizli (floating), yüksekliğini düşme
+    const controlsH = this.isFullscreen
+      ? 0
+      : (this.container.querySelector('.chart-controls') as HTMLElement)?.offsetHeight ?? 40;
+    const eventRowH = this.isFullscreen
+      ? 0
+      : (this.container.querySelector('.chart-event-controls') as HTMLElement)?.offsetHeight ?? 0;
+    const available = h - controlsH - eventRowH;
 
     const mainH  = Math.floor(available * 0.50);
     const volH   = Math.floor(available * 0.09);
@@ -2116,7 +2248,13 @@ export class ChartPanel {
       });
     }
 
-    this.mainChart.priceScale('left').applyOptions({ visible: true });
+    // H4: Sol ekseni bağımsız autoScale ile yapılandır — iki grafik birbirini ezmesin
+    this.mainChart.priceScale('left').applyOptions({
+      visible: true,
+      autoScale: true,
+      scaleMargins: { top: 0.08, bottom: 0.14 },
+      borderColor: C.border,
+    });
     const compareOptions = this.container.querySelector<HTMLElement>('#compare-options');
     if (compareOptions) compareOptions.style.display = 'flex';
 

@@ -6,7 +6,15 @@ import {
 } from '../constants/symbols.js';
 
 const LS_LAST_SYMBOL = 'piyasapilot_last_symbol';
+const LS_SIDEBAR_COLLAPSED = 'piyasapilot_sidebar_collapsed';
 const LAZY_BATCH_SIZE = 15; // Her lazy-load batch'inde gösterilecek sembol sayısı
+
+/** Yüzde değişim için CSS sınıfı: > 0 yeşil, < 0 kırmızı, === 0 sarı */
+function changeColorClass(changePct: number): string {
+  if (changePct > 0) return 'pos';
+  if (changePct < 0) return 'neg';
+  return 'neutral';
+}
 
 type SymbolSelectListener = (info: SymbolInfo) => void;
 
@@ -35,12 +43,16 @@ export class Sidebar {
   private activeSymbol = '';
   private priceTickers = new Map<string, { price: number; changePct: number }>();
   private collapsedGroups = new Set<string>();
+  private isCollapsed = false;
+  private toggleBtn!: HTMLElement;
 
   constructor(container: HTMLElement) {
     this.container = container;
+    this.isCollapsed = localStorage.getItem(LS_SIDEBAR_COLLAPSED) === 'true';
     this.render();
     this.bindSearch();
     this.restoreLastSymbol();
+    this.applyCollapsedState();
   }
 
   // ─── Public API ──────────────────────────────────────────────────────────
@@ -68,6 +80,7 @@ export class Sidebar {
     this.container.innerHTML = `
       <div class="sidebar-header">
         <span class="sidebar-title">${TR.APP_NAME}</span>
+        <button class="sidebar-toggle-btn" id="sidebar-toggle-btn" title="Paneli aç/kapat">«</button>
       </div>
       <div class="sidebar-search">
         <input type="text" placeholder="${TR.SEARCH_PLACEHOLDER}" class="search-input" />
@@ -77,8 +90,25 @@ export class Sidebar {
 
     this.searchInput = this.container.querySelector('.search-input')!;
     this.listEl = this.container.querySelector('.symbol-list')!;
+    this.toggleBtn = this.container.querySelector('#sidebar-toggle-btn')!;
+    this.toggleBtn.addEventListener('click', () => this.toggleCollapse());
 
     this.renderGroups(GROUPS);
+  }
+
+  /** Sidebar'ı aç/kapat (toggle) */
+  toggleCollapse(): void {
+    this.isCollapsed = !this.isCollapsed;
+    localStorage.setItem(LS_SIDEBAR_COLLAPSED, String(this.isCollapsed));
+    this.applyCollapsedState();
+  }
+
+  /** Collapse state'ini DOM'a yansıt */
+  private applyCollapsedState(): void {
+    this.container.classList.toggle('collapsed', this.isCollapsed);
+    if (this.toggleBtn) {
+      this.toggleBtn.textContent = this.isCollapsed ? '»' : '«';
+    }
   }
 
   private renderGroups(groups: GroupDef[]): void {
@@ -156,7 +186,7 @@ export class Sidebar {
       </div>
       <div class="sym-meta">
         <span class="sym-price">${price != null ? formatNumber(price, 2) : '—'}</span>
-        <span class="sym-change ${changePct >= 0 ? 'pos' : 'neg'}">${formatPct(changePct)}</span>
+        <span class="sym-change ${changeColorClass(changePct)}">${formatPct(changePct)}</span>
       </div>
     `;
     el.addEventListener('click', () => this.selectSymbol(s));
@@ -244,7 +274,7 @@ export class Sidebar {
     if (priceEl)  priceEl.textContent  = formatNumber(price, 2);
     if (changeEl) {
       changeEl.textContent = formatPct(changePct);
-      changeEl.className = `sym-change ${changePct >= 0 ? 'pos' : 'neg'}`;
+      changeEl.className = `sym-change ${changeColorClass(changePct)}`;
     }
   }
 }

@@ -231,3 +231,9 @@
 
 ### Frontend (UI/UX - Lightweight Charts)
 - İki farklı fiyat skalasına sahip varlık grafiği (örn: BIMAS ve AKBNK) üst üste eklendiğinde, aynı Y eksenini (sağ eksen) paylaştıkları için grafiklerin birbirini ezmesi/sıkıştırması durumu oluşur. Bunu önlemek için `addLineSeries` konfigürasyonunda `priceScaleId: 'left'` parametresi verilerek ikinci grafiğin kendine has ve sol tarafta izole bir eksende (Left Y-Axis) çizilmesi sağlanmalıdır. Ayrıca ana `createChart` options nesnesinde `leftPriceScale: { visible: false }` vb. stil ayarları baştan tanımlanarak dark-theme bütünlüğü korunmalıdır.
+
+### Frontend (PiyasaPilot v2 UI İyileştirmeleri)
+- **Koşullu Renklendirme:** Yüzde değişimlerinde 0.00% değerinin yeşil yerine "neutral" (sarı/gri) renkte gösterilmesi için `pos/neg/neutral` olmak üzere üç durumlu bir CSS sınıf yönetimi (`changeColorClass`) benimsendi.
+- **Kompakt Gösterge Yönetimi:** Toolbar alanını ferahlatmak için göstergeler bir dropdown menü içine alındı. Sık kullanılanlar (favoriler) ve aktif olanlar ise toolbar üzerinde kompakt `chip` ve `pin` bileşenleri olarak sabitlendi. Event dinleyicilerinde geriye uyumluluk (eski buton sınıfları) korundu.
+- **Tam Ekran (Fullscreen) CSS Davranışı:** `requestFullscreen` API'si kullanıldığında, `ChartPanel` toolbar'ının tüm ekranı kaplamasını önlemek için "hover ile açılan floating toolbar" mekanizması eklendi. `.fullscreen-compact` sınıfı ile opacity ve transform geçişleri sağlanarak UX iyileştirildi.
+- **Dual Y-Axis Ölçekleme:** Lightweight Charts üzerinde çoklu sembol karşılaştırması (compareSeries) yaparken, ikinci serinin ana seriyi ezmemesi için `priceScaleId: 'left'` atanmalı ve sol eksen `autoScale: true` ile `scaleMargins` verilerek yapılandırılmalıdır. `resetPriceScales` gibi temizleme fonksiyonlarında sol eksenin de hesaba katılması şarttır.
