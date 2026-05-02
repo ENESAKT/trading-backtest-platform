@@ -67,12 +67,13 @@ Bunu sağlarken ana kuralımız: **Hiçbir `app.ts`, `ChartPanel.ts` veya `MaliA
 
 | Faz | Odak Alanı | Uygulanacak Spesifik CSS/UI Kararları | Durum |
 |-----|------------|-----------------------------------------|-------|
-| **F1** | **Global Renk & Tipografi** | `:root` değişkenlerinin güncellenmesi. `Inter` fontunun eklenmesi. `tabular-nums`'ın aktif edilmesi. İnce ve gizli scrollbar yapısına geçilmesi. | Bekliyor |
-| **F2** | **Grafik Toolbar (Top Bar) Temizliği** | `.chart-controls` içindeki butonların border'larının silinmesi, sadece hover'da belirginleşmesi. Aktif öğelere hafif glow (`box-shadow`) eklenmesi. Gap değerlerinin `2px`'ten `6px`'e çıkartılması. | Bekliyor |
-| **F3** | **Panel & Kart Hiyerarşisi** | `.panel-section`, `.wallet-card`, `.strategy-card` gibi alanların border'larının inceltilmesi. Köşe yuvarlamalarının (border-radius) `8px`'e çekilmesi. Hover durumlarında kartların hafif yukarı kalkması (`transform: translateY(-1px)`) veya aydınlanması. | Bekliyor |
-| **F4** | **Form ve Input Estetiği** | `.form-row input`, `select` ve `textarea`'ların iç padding'lerinin büyütülmesi (örn: `8px 12px`). Focus anında sert border yerine zarif bir mavi focus ring (`box-shadow: 0 0 0 2px var(--border-focus)`) verilmesi. | Bekliyor |
-| **F5** | **Cam Efektleri (Glassmorphism)** | `.chart-info-overlay`, `.indicator-center` ve açılır menülere `backdrop-filter: blur(12px)` ve `background: rgba(19, 23, 34, 0.8)` uygulanması. | Bekliyor |
-| **F6** | **Tablo ve Liste İyileştirmeleri** | İşlem geçmişi ve sembol listelerindeki satır aralıklarının (line-height ve padding) açılması. Kâr/Zarar hücrelerine `tabular-nums` ve pozitif/negatif renk atamalarının vurgulanması. | Bekliyor |
+| **F1** | **Global Renk & Tipografi** | `:root` değişkenlerinin güncellenmesi. `Inter` fontunun eklenmesi. `tabular-nums`'ın aktif edilmesi. İnce ve gizli scrollbar yapısına geçilmesi. | Tamamlandı |
+| **F2** | **Grafik Toolbar (Top Bar) Temizliği** | `.chart-controls` içindeki butonların border'larının silinmesi, sadece hover'da belirginleşmesi. Aktif öğelere hafif glow (`box-shadow`) eklenmesi. Gap değerlerinin `2px`'ten `6px`'e çıkartılması. | Tamamlandı |
+| **F3** | **Panel & Kart Hiyerarşisi** | `.panel-section`, `.wallet-card`, `.strategy-card` gibi alanların border'larının inceltilmesi. Köşe yuvarlamalarının (border-radius) `8px`'e çekilmesi. Hover durumlarında kartların hafif yukarı kalkması (`transform: translateY(-1px)`) veya aydınlanması. | Tamamlandı |
+| **F4** | **Form ve Input Estetiği** | `.form-row input`, `select` ve `textarea`'ların iç padding'lerinin büyütülmesi (örn: `8px 12px`). Focus anında sert border yerine zarif bir mavi focus ring (`box-shadow: 0 0 0 2px var(--border-focus)`) verilmesi. | Tamamlandı |
+| **F5** | **Cam Efektleri (Glassmorphism)** | `.chart-info-overlay`, `.indicator-center` ve açılır menülere `backdrop-filter: blur(12px)` ve `background: rgba(19, 23, 34, 0.8)` uygulanması. | Tamamlandı |
+| **F6** | **Tablo ve Liste İyileştirmeleri** | İşlem geçmişi ve sembol listelerindeki satır aralıklarının (line-height ve padding) açılması. Kâr/Zarar hücrelerine `tabular-nums` ve pozitif/negatif renk atamalarının vurgulanması. | Tamamlandı |
+| **F7** | **Çoklu Ölçek (Multi-Scale) ve Karşılaştırma Modülü** | Karşılaştırma olarak eklenen sembollerin grafiği ezercesine sağ Y eksenini kullanması iptal edilecek. Ana grafik sağ eksende, karşılaştırma grafiği sol (Left Y-Axis) eksende izole gösterilecek. Karşılaştırma renklerinin anlık değişimi için ufak bir renk seçici aracı eklenecek. | Tamamlandı |
 
 ---
 

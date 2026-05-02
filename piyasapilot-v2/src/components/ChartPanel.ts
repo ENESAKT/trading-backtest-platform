@@ -44,6 +44,7 @@ const CHART_OPTIONS = {
   crosshair:  { mode: CrosshairMode.Normal },
   timeScale:  { borderColor: C.border, timeVisible: true, secondsVisible: false },
   rightPriceScale: { borderColor: C.border },
+  leftPriceScale: { borderColor: C.border, visible: false },
   handleScroll: { mouseWheel: true, pressedMouseMove: true },
   handleScale:  { axisPressedMouseMove: true, mouseWheel: true, pinch: true },
 };
@@ -374,6 +375,7 @@ export class ChartPanel {
         <input type="text" class="search-input compare-input" id="compare-input" placeholder="Sembol" style="width: 70px; padding: 2px 4px; height: 18px;" autocomplete="off">
         <button class="ctrl-btn" id="compare-add-btn" title="Ekle/Değiştir">Ekle</button>
         <button class="ctrl-btn" id="compare-clear-btn" title="Temizle">x</button>
+        <input type="color" id="compare-color-picker" value="#bc8cff" title="Karşılaştırma Rengi" style="width: 20px; height: 18px; padding: 0; border: none; cursor: pointer; background: transparent; border-radius: 4px;">
       </div>
       <div class="ctrl-group ml-auto">
         <!-- G8: Template Dropdown -->
@@ -568,6 +570,16 @@ export class ChartPanel {
         this.clearCompare();
       }
     });
+
+    const compareColorPicker = controls.querySelector<HTMLInputElement>('#compare-color-picker');
+    if (compareColorPicker) {
+      compareColorPicker.addEventListener('input', (e) => {
+        if (this.compareSeries) {
+          const color = (e.target as HTMLInputElement).value;
+          this.compareSeries.applyOptions({ color });
+        }
+      });
+    }
 
     // Close menus on click outside
     document.addEventListener('click', (e) => {
@@ -2046,13 +2058,17 @@ export class ChartPanel {
     this.compareCandles = candles;
     this.container.dataset['compareSymbol'] = symbol;
 
+    const colorPicker = this.container.querySelector<HTMLInputElement>('#compare-color-picker');
+    const seriesColor = colorPicker ? colorPicker.value : '#bc8cff';
+
     this.compareSeries = this.mainChart.addLineSeries({
-      color: '#bc8cff', // Purple for comparison
+      color: seriesColor,
       lineWidth: 2,
       priceLineVisible: true,
       lastValueVisible: true,
       crosshairMarkerVisible: true,
       title: symbol,
+      priceScaleId: 'left',
     });
 
     this.renderCompareSeries();

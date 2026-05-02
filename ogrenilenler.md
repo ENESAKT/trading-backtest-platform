@@ -228,3 +228,6 @@
 - **Backend modüllerinde API yüzeyinin (export edilen fonksiyon isimleri) testlerle tutarlı olması şarttır.** Bir modül refactor edilirken (örneğin `evaluate_rule` yerine `evaluate_strategy_rules` getirilmesi veya `run_portfolio_lab` yerine `portfolio_metrics`), entegrasyon testlerindeki mock ve import'ların da aynı hassasiyetle güncellenmesi gerekir, aksi halde pipeline testlerinde `ImportError` yaşanır.
 
 - **Frontend / Tasarım:** Arayüzün DOM yapısı korunarak, sadece CSS değişkenleri ve padding/margin/font-size değerleriyle premium dark mode hissiyatı veren bir UI revizyonu yapılması planlandı (`planlama-tasarim.md`).
+
+### Frontend (UI/UX - Lightweight Charts)
+- İki farklı fiyat skalasına sahip varlık grafiği (örn: BIMAS ve AKBNK) üst üste eklendiğinde, aynı Y eksenini (sağ eksen) paylaştıkları için grafiklerin birbirini ezmesi/sıkıştırması durumu oluşur. Bunu önlemek için `addLineSeries` konfigürasyonunda `priceScaleId: 'left'` parametresi verilerek ikinci grafiğin kendine has ve sol tarafta izole bir eksende (Left Y-Axis) çizilmesi sağlanmalıdır. Ayrıca ana `createChart` options nesnesinde `leftPriceScale: { visible: false }` vb. stil ayarları baştan tanımlanarak dark-theme bütünlüğü korunmalıdır.
