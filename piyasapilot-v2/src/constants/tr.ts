@@ -162,6 +162,25 @@ export const TR = {
   WAITING_DATA: 'Veri bekleniyor...',
   API_ERROR: 'API hatası',
 
+  // ── G7: Multi-chart Sync ──────────────────────────────────────────────────
+  SYNC_LOCKS: 'Senkronizasyon',
+  SYNC_SYMBOL: 'Sembol',
+  SYNC_TIMEFRAME: 'Zaman Dilimi',
+  SYNC_RANGE: 'Zaman Aralığı',
+  SYNC_CROSSHAIR: 'İmleç',
+  SYNC_SCALE: 'Ölçek',
+
+  // ── G8: Chart Templates ───────────────────────────────────────────────────
+  TEMPLATES: 'Şablonlar',
+  SAVE_TEMPLATE: 'Şablonu Kaydet',
+  LOAD_TEMPLATE: 'Şablonu Yükle',
+  DEFAULT_TEMPLATE: 'Varsayılan Yap',
+  RESET_TEMPLATE: 'Sıfırla',
+  EXPORT_CHART: 'Dışa Aktar',
+  EXPORT_CSV: 'CSV (OHLCV)',
+  EXPORT_PNG: 'PNG (Resim)',
+  TEMPLATE_NAME: 'Şablon Adı',
+
   // ── General ──────────────────────────────────────────────────────────────────
   YES: 'Evet',
   NO: 'Hayır',

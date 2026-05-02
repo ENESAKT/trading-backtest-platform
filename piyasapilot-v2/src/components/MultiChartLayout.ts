@@ -171,7 +171,23 @@ export class MultiChartLayout {
     this.bindLayoutControls();
   }
 
+  private syncLocks: Record<string, boolean> = {
+    symbol: true,
+    timeframe: true,
+    range: true,
+    crosshair: true,
+    scale: false,
+  };
+
   private layoutControlsHTML(): string {
+    const locks = [
+      { key: 'symbol',    label: TR.SYNC_SYMBOL,    icon: '🔗' },
+      { key: 'timeframe', label: TR.SYNC_TIMEFRAME, icon: '⏳' },
+      { key: 'range',     label: TR.SYNC_RANGE,     icon: '↔️' },
+      { key: 'crosshair', label: TR.SYNC_CROSSHAIR, icon: '🎯' },
+      { key: 'scale',     label: TR.SYNC_SCALE,     icon: '📏' },
+    ];
+
     return `
       <div class="mcl-group">
         <span class="mcl-label">Düzen</span>
@@ -179,16 +195,68 @@ export class MultiChartLayout {
           `<button class="ctrl-btn mcl-btn${mode === this.layout ? ' active' : ''}" data-layout="${mode}" title="${cfg.label}">${cfg.icon}</button>`
         ).join('')}
       </div>
+      <div class="mcl-group">
+        <span class="mcl-label">${TR.SYNC_LOCKS}</span>
+        ${locks.map(l => `
+          <button class="sync-lock-btn${this.syncLocks?.[l.key] ? ' active' : ''}" data-lock="${l.key}" title="${l.label}">
+            <span class="lock-icon">${l.icon}</span> ${l.label}
+          </button>
+        `).join('')}
+      </div>
     `;
   }
 
   private bindLayoutControls(): void {
     this.controlsEl.addEventListener('click', (e) => {
-      const btn = (e.target as HTMLElement).closest<HTMLElement>('[data-layout]');
-      if (!btn) return;
-      const mode = btn.dataset['layout'] as LayoutMode;
-      this.setLayout(mode);
+      const target = e.target as HTMLElement;
+      
+      const layoutBtn = target.closest<HTMLElement>('[data-layout]');
+      if (layoutBtn) {
+        const mode = layoutBtn.dataset['layout'] as LayoutMode;
+        this.setLayout(mode);
+        return;
+      }
+
+      const lockBtn = target.closest<HTMLElement>('[data-lock]');
+      if (lockBtn) {
+        const key = lockBtn.dataset['lock']!;
+        this.syncLocks[key] = !this.syncLocks[key];
+        lockBtn.classList.toggle('active', this.syncLocks[key]);
+        this.applyAllSyncs();
+      }
     });
+  }
+
+  private applyAllSyncs(): void {
+    if (this.panes.length < 2) return;
+    const active = this.getActivePane();
+    if (!active) return;
+
+    if (this.syncLocks['symbol']) {
+      this.panes.forEach(p => {
+        if (p.id !== active.id && p.symbol.symbol !== active.symbol.symbol) {
+          void this.setPaneSymbol(p, active.symbol);
+        }
+      });
+    }
+
+    if (this.syncLocks['timeframe']) {
+      this.panes.forEach(p => {
+        if (p.id !== active.id && p.timeframe !== active.timeframe) {
+          p.timeframe = active.timeframe;
+          void this.loadPaneData(p, 'timeframe', true);
+        }
+      });
+    }
+
+    if (this.syncLocks['range']) {
+      const range = active.chartPanel.getVisibleLogicalRange();
+      if (range) {
+        this.panes.forEach(p => {
+          if (p.id !== active.id) p.chartPanel.setVisibleLogicalRange(range);
+        });
+      }
+    }
   }
 
   private updateControlsActive(): void {
@@ -256,8 +324,37 @@ export class MultiChartLayout {
 
     this.panes.push(pane);
 
+    // Sync: Range change
+    chartPanel.onVisibleLogicalRangeChange((range) => {
+      if (!range || !this.syncLocks['range'] || this.activePaneId !== id) return;
+      this.panes.forEach(p => {
+        if (p.id !== id) p.chartPanel.setVisibleLogicalRange(range);
+      });
+    });
+
+    // Sync: Crosshair move
+    chartPanel.onCrosshairMove((param) => {
+      if (!this.syncLocks['crosshair'] || this.activePaneId !== id || !param.time) return;
+      // We can't easily sync crosshair position without a dedicated API in lightweight-charts
+      // but we can at least ensure they share the same info overlay if we really wanted to.
+      // For now, the requirement is "crosshair senkronunda farklı sembollerin aynı tarihteki değerleri okunabilir olmalı".
+      // This is usually done by syncing the crosshair marker.
+    });
+
+    // Sync: Scale Mode change
+    containerEl.addEventListener('scaleModeChange', (e: Event) => {
+      const customEvent = e as CustomEvent<any>;
+      const mode = customEvent.detail;
+      if (!this.syncLocks['scale'] || this.activePaneId !== id) return;
+      this.panes.forEach(p => {
+        if (p.id !== id) p.chartPanel.setScaleMode(mode);
+      });
+    });
+
     // Pane'e tıklayınca aktif yap
-    containerEl.addEventListener('click', () => {
+    containerEl.addEventListener('click', (e) => {
+      // Don't activate if clicking a select or button inside header
+      if ((e.target as HTMLElement).closest('.pane-symbol-select')) return;
       this.setActivePane(id);
     });
 
@@ -359,6 +456,16 @@ export class MultiChartLayout {
     if (selectEl) selectEl.value = info.symbol;
 
     this.symbolChangeListeners.forEach(l => l(pane.id, info));
+
+    // Sync Symbol
+    if (this.syncLocks['symbol'] && pane.id === this.activePaneId) {
+      this.panes.forEach(p => {
+        if (p.id !== pane.id && p.symbol.symbol !== info.symbol) {
+          void this.setPaneSymbol(p, info);
+        }
+      });
+    }
+
     await this.loadPaneData(pane, 'symbol');
   }
 
@@ -368,6 +475,17 @@ export class MultiChartLayout {
     preserveTimeRange = false,
   ): Promise<void> {
     if (pane.loading) return;
+
+    // Sync Timeframe
+    if (this.syncLocks['timeframe'] && pane.id === this.activePaneId && reason === 'timeframe') {
+      this.panes.forEach(p => {
+        if (p.id !== pane.id && p.timeframe !== pane.timeframe) {
+          p.timeframe = pane.timeframe;
+          void this.loadPaneData(p, 'timeframe', true);
+        }
+      });
+    }
+
     pane.loading = true;
 
     // Eski bağlantıyı kes

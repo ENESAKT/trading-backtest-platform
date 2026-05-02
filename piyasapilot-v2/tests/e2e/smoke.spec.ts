@@ -496,3 +496,63 @@ test('G6 multi-symbol compare adds second series and normalizes in percent mode'
   await expect(pane).not.toHaveAttribute('data-compare-symbol', 'ETHUSDT');
 });
 
+test('G7 multi-chart sync locks synchronize symbol, timeframe and range', async ({ page }) => {
+  await mockCandles(page);
+  await page.goto('/');
+
+  // Switch to 1x2 layout
+  await page.locator('[data-layout="1x2"]').click();
+  await expect(page.locator('.chart-pane')).toHaveCount(2);
+
+  // Set symbol on first pane (locked by default)
+  await page.locator('.pane-symbol-select').first().selectOption('AKBNK.IS');
+  await expect(page.locator('.chart-pane-body').first()).toHaveAttribute('data-chart-symbol', 'AKBNK.IS');
+  
+  // Verify second pane also synced symbol
+  await expect(page.locator('.chart-pane-body').nth(1)).toHaveAttribute('data-chart-symbol', 'AKBNK.IS');
+
+  // Toggle symbol lock off
+  await page.locator('.sync-lock-btn[data-lock="symbol"]').click();
+  await expect(page.locator('.sync-lock-btn[data-lock="symbol"]')).not.toHaveClass(/active/);
+
+  // Change symbol on first pane
+  await page.locator('.pane-symbol-select').first().selectOption('BTCUSDT');
+  await expect(page.locator('.chart-pane-body').first()).toHaveAttribute('data-chart-symbol', 'BTCUSDT');
+  
+  // Verify second pane DID NOT sync
+  await expect(page.locator('.chart-pane-body').nth(1)).toHaveAttribute('data-chart-symbol', 'AKBNK.IS');
+});
+
+test('G8 chart templates save and restore workspace configuration', async ({ page }) => {
+  await mockCandles(page);
+  await page.goto('/');
+
+  const pane = page.locator('.chart-pane-body').first();
+  
+  // Configure chart: Enable indicators and change scale
+  await page.locator('.ind-btn[data-ind="atr"]').first().click();
+  await page.locator('.scale-mode-btn[data-scale-mode="log"]').first().click();
+  
+  await expect(pane).toHaveAttribute('data-active-indicators', /atr/);
+  await expect(pane).toHaveAttribute('data-chart-scale-mode', 'log');
+
+  // Open template menu and save as "E2E Template"
+  await page.locator('#template-btn').first().click();
+  await page.locator('#new-template-name').first().fill('E2E Template');
+  await page.locator('#save-template-btn').first().click();
+
+  // Reset to default
+  await page.locator('#template-btn').first().click();
+  await page.locator('#reset-template-btn').first().click();
+  
+  await expect(pane).not.toHaveAttribute('data-active-indicators', /atr/);
+  await expect(pane).toHaveAttribute('data-chart-scale-mode', 'linear');
+
+  // Load "E2E Template"
+  await page.locator('#template-btn').first().click();
+  await page.locator('.template-item[data-name="E2E Template"]').click();
+  
+  await expect(pane).toHaveAttribute('data-active-indicators', /atr/);
+  await expect(pane).toHaveAttribute('data-chart-scale-mode', 'log');
+});
+

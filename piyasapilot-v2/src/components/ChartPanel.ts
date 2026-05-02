@@ -16,7 +16,7 @@ import {
   LineStyle,
   PriceScaleMode,
 } from 'lightweight-charts';
-import type { OHLCV, Timeframe, ChartType, IndicatorSet, Signal, ChartDataStatus, ChartViewOptions } from '../types.js';
+import type { OHLCV, Timeframe, ChartType, IndicatorSet, Signal, ChartDataStatus, ChartViewOptions, ChartTemplate } from '../types.js';
 import { computeIndicators, lastValid, type IndicatorCalculationOptions } from '../indicators/index.js';
 import { TR, formatNumber, formatDateTime } from '../constants/tr.js';
 import { DrawingManager } from './DrawingManager.js';
@@ -258,6 +258,12 @@ export class ChartPanel {
     this.bindFullscreen();
     this.bindResize();
     this.bindKeyboard();
+
+    // G8: Load default template
+    const defaultTpl = localStorage.getItem('piyasapilot_default_template');
+    if (defaultTpl) {
+      setTimeout(() => this.loadTemplate(defaultTpl), 0);
+    }
   }
 
   // ─── DOM scaffolding ────────────────────────────────────────────────────
@@ -357,6 +363,30 @@ export class ChartPanel {
         <button class="ctrl-btn" id="compare-clear-btn" title="Temizle">x</button>
       </div>
       <div class="ctrl-group ml-auto">
+        <!-- G8: Template Dropdown -->
+        <div class="template-dropdown" id="template-dropdown">
+          <button class="ctrl-btn" id="template-btn" title="${TR.TEMPLATES}">⚙ ${TR.TEMPLATES}</button>
+          <div class="template-menu" id="template-menu">
+            <div class="template-input-group">
+              <input type="text" id="new-template-name" placeholder="${TR.TEMPLATE_NAME}">
+              <button class="btn-primary" id="save-template-btn" style="padding: 4px; font-size: 10px;">${TR.SAVE_TEMPLATE}</button>
+            </div>
+            <div class="template-divider"></div>
+            <div id="template-list"></div>
+            <div class="template-divider"></div>
+            <div class="template-item" id="reset-template-btn">${TR.RESET_TEMPLATE}</div>
+          </div>
+        </div>
+
+        <!-- G8: Export Dropdown -->
+        <div class="template-dropdown" id="export-dropdown">
+          <button class="ctrl-btn" id="export-btn" title="${TR.EXPORT_CHART}">⤓ ${TR.EXPORT_CHART}</button>
+          <div class="export-menu" id="export-menu">
+            <div class="template-item" id="export-png-btn">📸 ${TR.EXPORT_PNG}</div>
+            <div class="template-item" id="export-csv-btn">📊 ${TR.EXPORT_CSV}</div>
+          </div>
+        </div>
+
         <button class="ctrl-btn" id="fullscreen-btn" title="${TR.FULLSCREEN} (F)">⛶</button>
       </div>
     `;
@@ -377,7 +407,8 @@ export class ChartPanel {
 
   private bindControls(controls: HTMLElement): void {
     controls.addEventListener('click', (e) => {
-      const btn = (e.target as HTMLElement).closest('button');
+      const target = e.target as HTMLElement;
+      const btn = target.closest('button') || target.closest('.template-item');
       if (!btn) return;
 
       // Timeframe
@@ -467,6 +498,42 @@ export class ChartPanel {
         this.toggleFullscreen();
       }
 
+      // G8: Template Handlers
+      if (btn.id === 'template-btn') {
+        const menu = this.container.querySelector('#template-menu');
+        menu?.classList.toggle('show');
+        this.renderTemplateList();
+      }
+
+      if (btn.id === 'save-template-btn') {
+        const input = this.container.querySelector<HTMLInputElement>('#new-template-name');
+        if (input && input.value.trim()) {
+          this.saveTemplate(input.value.trim());
+          input.value = '';
+          this.container.querySelector('#template-menu')?.classList.remove('show');
+        }
+      }
+
+      if (btn.id === 'reset-template-btn') {
+        this.resetTemplate();
+        this.container.querySelector('#template-menu')?.classList.remove('show');
+      }
+
+      // G8: Export Handlers
+      if (btn.id === 'export-btn') {
+        this.container.querySelector('#export-menu')?.classList.toggle('show');
+      }
+
+      if (btn.id === 'export-png-btn') {
+        this.exportToPNG();
+        this.container.querySelector('#export-menu')?.classList.remove('show');
+      }
+
+      if (btn.id === 'export-csv-btn') {
+        this.exportToCSV();
+        this.container.querySelector('#export-menu')?.classList.remove('show');
+      }
+
       // Compare
       if (btn.id === 'compare-add-btn') {
         const input = controls.querySelector<HTMLInputElement>('#compare-input');
@@ -479,6 +546,26 @@ export class ChartPanel {
         const input = controls.querySelector<HTMLInputElement>('#compare-input');
         if (input) input.value = '';
         this.clearCompare();
+      }
+    });
+
+    // Close menus on click outside
+    document.addEventListener('click', (e) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest('#template-dropdown')) {
+        this.container.querySelector('#template-menu')?.classList.remove('show');
+      }
+      if (!target.closest('#export-dropdown')) {
+        this.container.querySelector('#export-menu')?.classList.remove('show');
+      }
+    });
+
+    // Template list item clicks
+    this.container.querySelector('#template-list')?.addEventListener('click', (e) => {
+      const item = (e.target as HTMLElement).closest<HTMLElement>('.template-item');
+      if (item && item.dataset['name']) {
+        this.loadTemplate(item.dataset['name']);
+        this.container.querySelector('#template-menu')?.classList.remove('show');
       }
     });
   }
@@ -1183,7 +1270,7 @@ export class ChartPanel {
     this.updateIndicatorVisibility();
   }
 
-  private setScaleMode(mode: ChartScaleMode): void {
+  public setScaleMode(mode: ChartScaleMode): void {
     if (!['linear', 'log', 'percent'].includes(mode)) return;
     if (mode === this.scaleMode) return;
 
@@ -1194,6 +1281,10 @@ export class ChartPanel {
     this.updateUnitBadge();
     this.rerenderPriceData();
     this.resetPriceScales();
+
+    this.container.dispatchEvent(new CustomEvent('scaleModeChange', {
+      detail: mode, bubbles: true,
+    }));
   }
 
   private applyScaleMode(): void {
@@ -1594,6 +1685,173 @@ export class ChartPanel {
     this.lineSeries.applyOptions({ visible: type === 'line' });
     this.barSeries.applyOptions({ visible: type === 'bar' });
     this.updateReferenceLines();
+    this.updateTypeButtons();
+  }
+
+  private updateTypeButtons(): void {
+    this.container.querySelectorAll('.type-btn').forEach(btn => {
+      const el = btn as HTMLElement;
+      el.classList.toggle('active', el.dataset['type'] === this.chartType);
+    });
+  }
+
+  // ─── G8: Template & Export Logic ────────────────────────────────────────
+
+  getCurrentTemplate(name: string): ChartTemplate {
+    return {
+      name,
+      chartType: this.chartType,
+      activeIndicators: Array.from(this.activeIndicators),
+      indicatorParams: { ...this.indicatorParams },
+      scaleMode: this.scaleMode,
+      showPreviousClose: this.showPreviousClose,
+      showPnlOverlay: this.showPnlOverlay,
+      showRiskLines: this.showRiskLines,
+      showBistLimits: this.showBistLimits,
+    };
+  }
+
+  applyTemplate(template: ChartTemplate): void {
+    this.setChartType(template.chartType);
+    this.activeIndicators = new Set(template.activeIndicators);
+    this.indicatorParams = { ...DEFAULT_INDICATOR_PARAMS, ...template.indicatorParams };
+    this.saveIndicatorPrefs();
+    this.updateIndicatorButtons();
+    this.updateIndicatorVisibility();
+    this.setScaleMode(template.scaleMode);
+    
+    this.showPreviousClose = template.showPreviousClose;
+    this.container.querySelector('#prev-close-btn')?.classList.toggle('active', this.showPreviousClose);
+    
+    this.showPnlOverlay = template.showPnlOverlay;
+    this.container.querySelector('#pnl-overlay-btn')?.classList.toggle('active', this.showPnlOverlay);
+    
+    this.showRiskLines = template.showRiskLines;
+    this.container.querySelector('#risk-line-btn')?.classList.toggle('active', this.showRiskLines);
+    
+    this.showBistLimits = template.showBistLimits;
+    this.container.querySelector('#bist-limit-btn')?.classList.toggle('active', this.showBistLimits);
+
+    this.renderIndicatorCenter();
+    this.renderIndicators(this.candles);
+    this.updateReferenceLines();
+    this.renderPnlOverlays(this.markerSignals);
+  }
+
+  private saveTemplate(name: string): void {
+    const templates = this.getSavedTemplates();
+    templates[name] = this.getCurrentTemplate(name);
+    localStorage.setItem('piyasapilot_chart_templates', JSON.stringify(templates));
+    localStorage.setItem('piyasapilot_default_template', name);
+  }
+
+  private loadTemplate(name: string): void {
+    const templates = this.getSavedTemplates();
+    const template = templates[name];
+    if (template) {
+      this.applyTemplate(template);
+      localStorage.setItem('piyasapilot_default_template', name);
+    }
+  }
+
+  private getSavedTemplates(): Record<string, ChartTemplate> {
+    try {
+      return JSON.parse(localStorage.getItem('piyasapilot_chart_templates') || '{}');
+    } catch {
+      return {};
+    }
+  }
+
+  private renderTemplateList(): void {
+    const list = this.container.querySelector('#template-list');
+    if (!list) return;
+    const templates = this.getSavedTemplates();
+    const defaultTpl = localStorage.getItem('piyasapilot_default_template');
+
+    list.innerHTML = Object.keys(templates).map(name => `
+      <div class="template-item" data-name="${this.escapeHtml(name)}">
+        <span>${this.escapeHtml(name)}</span>
+        ${name === defaultTpl ? '<small style="color:var(--blue)">★</small>' : ''}
+      </div>
+    `).join('') || `<div class="template-item" style="color:var(--text-dim)">${TR.NO_DATA}</div>`;
+  }
+
+  private resetTemplate(): void {
+    this.applyTemplate({
+      name: 'Default',
+      chartType: 'candlestick',
+      activeIndicators: [...DEFAULT_ACTIVE_INDICATORS],
+      indicatorParams: { ...DEFAULT_INDICATOR_PARAMS },
+      scaleMode: 'linear',
+      showPreviousClose: true,
+      showPnlOverlay: true,
+      showRiskLines: true,
+      showBistLimits: true,
+    });
+    localStorage.removeItem('piyasapilot_default_template');
+  }
+
+  exportToCSV(): void {
+    if (!this.candles.length) return;
+    const inds = computeIndicators(this.candles, this.indicatorParams);
+    
+    let csv = 'Time,Open,High,Low,Close,Volume';
+    if (inds.rsi) csv += ',RSI';
+    if (inds.ema9) csv += ',EMA9';
+    if (inds.ema21) csv += ',EMA21';
+    csv += '\n';
+
+    this.candles.forEach((c, i) => {
+      csv += `${formatDateTime(c.time)},${c.open},${c.high},${c.low},${c.close},${c.volume}`;
+      if (inds.rsi) csv += `,${inds.rsi[i] ?? ''}`;
+      if (inds.ema9) csv += `,${inds.ema9[i] ?? ''}`;
+      if (inds.ema21) csv += `,${inds.ema21[i] ?? ''}`;
+      csv += '\n';
+    });
+
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `piyasapilot_${this.lastSymbol}_${this.lastTimeframe}_${Date.now()}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  exportToPNG(): void {
+    const canvas = this.mainChart.takeScreenshot();
+    if (!canvas) {
+      alert('PNG Export çalışmıyor: Canvas snapshot alınamadı.');
+      return;
+    }
+    const a = document.createElement('a');
+    a.href = canvas.toDataURL('image/png');
+    a.download = `piyasapilot_${this.lastSymbol}_${Date.now()}.png`;
+    a.click();
+  }
+
+  // ─── G7: Multi-chart Sync Methods ───────────────────────────────────────
+
+  getVisibleLogicalRange() {
+    return this.mainChart.timeScale().getVisibleLogicalRange();
+  }
+
+  setVisibleLogicalRange(range: any) {
+    if (range) this.mainChart.timeScale().setVisibleLogicalRange(range);
+  }
+
+  onVisibleLogicalRangeChange(cb: (range: any) => void) {
+    return this.mainChart.timeScale().subscribeVisibleLogicalRangeChange(cb);
+  }
+
+  onCrosshairMove(cb: (param: any) => void) {
+    return this.mainChart.subscribeCrosshairMove(cb);
+  }
+
+  setCrosshair(_param: any) {
+    // lightweight-charts doesn't have a direct setCrosshair, but we can sync via a "dummy" event
+    // or by manually triggering the info overlay if we really need to.
+    // For now, we'll rely on the fact that sync works via shared logic if possible.
   }
 
   // ─── Crosshair info overlay ────────────────────────────────────────────

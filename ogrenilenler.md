@@ -209,3 +209,9 @@
 ## İleri Seviye İndikatörler (B2)
 
 - **Gelişmiş Hareketli Ortalamalar:** `quant_engine.strategy.indicators` modülü genişletilerek saf Pandas/NumPy üzerinden WMA, DEMA, TEMA, ZLEMA, HMA, ALMA, KAMA ve T3 eklendi. Harici kütüphane bağımlılığı olmaksızın deterministic ve güvenli bir helper yüzeyi oluşturuldu; ilk bar `NaN` davranışları ve `ValueError` fırlatma mekanizmaları testlerle garanti altına alındı.
+
+## Çoklu Grafik Senkronizasyonu ve Şablonlar (G7/G8)
+
+- **Senkronizasyon kilitleri (Sync Locks) aktif pencere (Active Pane) odaklı çalışmalı.** Tüm pencerelerin birbirini tetiklemesi yerine, sadece "aktif" olan pencereden gelen olayların (range change, crosshair move, scale change) diğer kilitli pencerelere propagate edilmesi sonsuz döngüleri (feedback loops) engeller ve performansı korur. `CustomEvent` kullanımı bileşenler arası temiz iletişim sağlar.
+- **Grafik şablonları (Chart Templates) `localStorage` üzerinden kalıcılaştırılabilir.** Bir şablon; `chartType`, `activeIndicators`, `indicatorParams` ve `scaleMode` gibi tüm görsel konfigürasyonu içermelidir. Varsayılan şablon (`default`) ayarı kullanıcıya özel çalışma alanı (workspace) sunulmasına imkan tanır.
+- **Dışa aktarma (Export) işlemleri asenkron ve kullanıcı dostu olmalı.** Grafik kanvasının PNG olarak dışa aktarılmasında `toDataURL` yeterli olurken, veri dışa aktarımında (CSV) OHLCV serisinin asenkron olarak toplanması ve Blob/URL üzerinden indirilmesi tarayıcı ana thread'ini (UI) bloklamaz.

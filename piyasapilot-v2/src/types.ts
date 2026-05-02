@@ -308,3 +308,22 @@ export interface AnomalyConfig {
   zThreshold: number;     // z-score threshold for flagging
   iqrMultiplier: number;  // IQR multiplier (default 3)
 }
+
+// ─── G8: Chart Template ───────────────────────────────────────────────────────
+
+export interface ChartTemplate {
+  name: string;
+  chartType: ChartType;
+  activeIndicators: string[];
+  indicatorParams: Record<string, any>;
+  scaleMode: 'linear' | 'log' | 'percent';
+  showPreviousClose: boolean;
+  showPnlOverlay: boolean;
+  showRiskLines: boolean;
+  showBistLimits: boolean;
+  theme?: {
+    bg: string;
+    gridColor: string;
+    textColor: string;
+  };
+}

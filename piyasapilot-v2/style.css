@@ -798,6 +798,134 @@ h3 { font-family: var(--font-sans); font-size: 13px; font-weight: 600; color: va
   margin-bottom: 4px;
   flex-wrap: wrap;
 }
+
+/* ─── G7: Multi-chart Sync Styles ──────────────────────────────────────────── */
+.multi-chart-controls {
+  padding: 6px 12px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.mcl-group { display: flex; align-items: center; gap: 4px; }
+.mcl-label { font-size: 10px; color: var(--text-dim); margin-right: 4px; font-weight: 600; }
+.mcl-btn { padding: 3px 8px; }
+
+.sync-lock-btn {
+  font-size: 10px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text-dim);
+  padding: 3px 7px;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.sync-lock-btn:hover { border-color: var(--border2); color: var(--text-bold); }
+.sync-lock-btn.active {
+  background: rgba(88, 166, 255, 0.1);
+  border-color: var(--blue);
+  color: var(--blue);
+}
+.sync-lock-btn .lock-icon { font-size: 9px; opacity: 0.5; }
+.sync-lock-btn.active .lock-icon { opacity: 1; }
+
+.chart-pane {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+  border: 2px solid transparent;
+  transition: border-color 0.2s;
+}
+.chart-pane.active-pane { border-color: var(--blue); }
+.chart-pane-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 10px;
+  background: var(--panel2);
+  border-bottom: 1px solid var(--border);
+  font-size: 11px;
+}
+.chart-pane-body { flex: 1; min-height: 0; position: relative; }
+
+.pane-symbol-select {
+  background: transparent;
+  border: none;
+  color: var(--text-bold);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 2px 0;
+}
+.pane-symbol-name { font-size: 10px; color: var(--text-dim); flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pane-badge { font-size: 9px; padding: 1px 4px; border-radius: 2px; }
+
+/* ─── G8: Chart Templates & Export ─────────────────────────────────────────── */
+.template-dropdown {
+  position: relative;
+  display: inline-block;
+}
+.template-menu {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  z-index: 100;
+  width: 180px;
+  background: var(--panel);
+  border: 1px solid var(--border2);
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+  padding: 6px 0;
+  display: none;
+}
+.template-menu.show { display: block; }
+.template-item {
+  padding: 6px 12px;
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 11px;
+}
+.template-item:hover { background: var(--bg); color: var(--blue); }
+.template-divider { height: 1px; background: var(--border); margin: 4px 0; }
+
+.export-menu {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  z-index: 100;
+  width: 150px;
+  background: var(--panel);
+  border: 1px solid var(--border2);
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+  padding: 6px 0;
+  display: none;
+}
+.export-menu.show { display: block; }
+
+.template-input-group {
+  padding: 8px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.template-input-group input {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text-bold);
+  padding: 4px 8px;
+  font-size: 11px;
+}
 .signal-badge {
   font-size: 9px;
   font-weight: 700;
