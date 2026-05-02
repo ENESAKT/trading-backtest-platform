@@ -372,6 +372,7 @@ export class MultiChartLayout {
       status: 'loading',
       reason,
       symbol,
+      currency: pane.symbol.currency,
       timeframe,
       message: TR.LOADING,
     });
@@ -394,6 +395,7 @@ export class MultiChartLayout {
         status: 'ready',
         reason,
         symbol,
+        currency: pane.symbol.currency,
         timeframe,
         preserveTimeRange,
       });
@@ -422,6 +424,7 @@ export class MultiChartLayout {
         status,
         reason,
         symbol,
+        currency: pane.symbol.currency,
         timeframe,
         message: status === 'empty' ? TR.NO_DATA : message,
       });
@@ -454,6 +457,7 @@ export class MultiChartLayout {
           pane.chartPanel.setData(pane.candles, {
             reason: 'append',
             symbol: pane.symbol.symbol,
+            currency: pane.symbol.currency,
             timeframe: pane.timeframe,
             preserveTimeRange: true,
           });

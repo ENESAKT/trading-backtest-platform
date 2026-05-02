@@ -679,6 +679,7 @@ export class StrategyPanel {
     this.runInFlight = true;
     try {
       const result = await this.fetchBacktest();
+      result.signals = this.enrichSignalsWithTrades(result.signals || [], result.trades || [], result.strategy_spec?.risk);
       this.lastResult = result;
       this.renderReport();
       this.renderSignals(result.signals);
@@ -767,6 +768,104 @@ export class StrategyPanel {
     };
   }
 
+  private enrichSignalsWithTrades(
+    signals: Signal[],
+    trades: BacktestTrade[],
+    risk?: StrategySpec['risk'],
+  ): Signal[] {
+    const enriched = signals.map(signal => ({ ...signal }));
+    const riskSettings = risk ?? this.currentRiskSettings();
+
+    for (const trade of trades) {
+      const side = trade.side === 'SHORT' || trade.entry_type === 'SHORT' ? 'SHORT' : 'LONG';
+      const entryType = side === 'SHORT' ? 'SHORT' : 'BUY';
+      const exitType = side === 'SHORT' ? 'COVER' : 'SELL';
+      const entry = this.findTradeSignal(enriched, trade.entry_time, entryType);
+      const exit = this.findTradeSignal(enriched, trade.exit_time, exitType);
+
+      if (entry) {
+        Object.assign(entry, {
+          trade_role: 'entry',
+          trade_side: side,
+          entry_time: trade.entry_time,
+          exit_time: trade.exit_time,
+          entry_price: trade.entry_price,
+          exit_price: trade.exit_price,
+          net_pnl: trade.net_pnl,
+          return_pct: trade.return_pct,
+          open_position: false,
+        } satisfies Partial<Signal>);
+        this.applyRiskLevels(entry, riskSettings, side, trade.entry_price);
+      }
+
+      if (exit) {
+        Object.assign(exit, {
+          trade_role: 'exit',
+          trade_side: side,
+          entry_time: trade.entry_time,
+          exit_time: trade.exit_time,
+          entry_price: trade.entry_price,
+          exit_price: trade.exit_price,
+          net_pnl: trade.net_pnl,
+          return_pct: trade.return_pct,
+          pnl: trade.net_pnl,
+          open_position: false,
+        } satisfies Partial<Signal>);
+      }
+    }
+
+    for (const signal of enriched) {
+      if (signal.open_position && (signal.type === 'BUY' || signal.type === 'SHORT')) {
+        const side = signal.type === 'SHORT' ? 'SHORT' : 'LONG';
+        signal.trade_role = 'entry';
+        signal.trade_side = side;
+        signal.entry_time = signal.timestamp;
+        signal.entry_price = signal.price;
+        this.applyRiskLevels(signal, riskSettings, side, signal.price);
+      }
+    }
+
+    return enriched;
+  }
+
+  private findTradeSignal(signals: Signal[], timestamp: number, type: Signal['type']): Signal | undefined {
+    return signals.find(signal => signal.timestamp === timestamp && signal.type === type)
+      ?? signals.find(signal => Math.abs(signal.timestamp - timestamp) <= 1 && signal.type === type);
+  }
+
+  private currentRiskSettings(): StrategySpec['risk'] {
+    return {
+      stop_loss_pct: this.num('#risk-stop', 0),
+      take_profit_pct: this.num('#risk-take', 0),
+      trailing_stop_pct: this.num('#risk-trail', 0),
+    };
+  }
+
+  private applyRiskLevels(
+    signal: Signal,
+    risk: StrategySpec['risk'] | undefined,
+    side: 'LONG' | 'SHORT',
+    entryPrice: number,
+  ): void {
+    const stopPct = risk?.stop_loss_pct ?? 0;
+    const takePct = risk?.take_profit_pct ?? 0;
+    if (entryPrice <= 0) return;
+
+    if (stopPct > 0) {
+      signal.stop_price = side === 'SHORT'
+        ? entryPrice * (1 + stopPct / 100)
+        : entryPrice * (1 - stopPct / 100);
+    }
+    if (takePct > 0) {
+      signal.take_profit_price = side === 'SHORT'
+        ? entryPrice * (1 - takePct / 100)
+        : entryPrice * (1 + takePct / 100);
+    }
+    if (stopPct > 0 && takePct > 0) {
+      signal.risk_reward = takePct / stopPct;
+    }
+  }
+
   private async saveStrategy(): Promise<void> {
     const spec = this.mode === 'spec' ? this.buildSpec() : null;
     const name = spec?.name || this.activeStrategy;
@@ -835,6 +934,7 @@ export class StrategyPanel {
       return;
     }
     const report = await resp.json() as BacktestResult;
+    report.signals = this.enrichSignalsWithTrades(report.signals || [], report.trades || [], report.strategy_spec?.risk);
     this.lastResult = report;
     if (report.strategy_spec) {
       this.mode = 'spec';

@@ -186,3 +186,7 @@
 - **Prometheus metrics'te stdlib exposition format (dış bağımlılık yok) yeterli.** `prometheus_client` paketi yüklemeden `/metrics` endpoint'i plain text Prometheus format döner. Basit counter'lar ve gauge'lar sadece uygulama değişkenleri üzerinden çalışır.
 - **Worker çöküş uyarılarında cooldown mekanizması şart.** Aynı worker sürekli çöküp restart ederse dakikada 100+ Telegram mesajı gider. 5 dakika cooldown ile aynı worker için tekrar uyarı gönderilmez.
 - **`STRICT_ENV_VALIDATION=1` sadece production deploy'da kullanılmalı.** Geliştirme ortamında opsiyonel değişkenlerin (Telegram token, SMTP) eksikliği normal; strict mod burada gereksiz yere servisi kırar.
+
+## Grafik ve Çizim Altyapısı (G5)
+
+- **Çizimlerin `localStorage` kalıcılığı bağlama göre izole edilmeli.** Tek bir global array yerine `symbol + timeframe` birleşik anahtarı (örn: `BTCUSDT__1d`) ile saklamak, kullanıcı sembol değiştirdiğinde yanlış grafikte alakasız çizimlerin görünmesini engeller ve bellek yönetimini kolaylaştırır. Data attribute'lar (`data-drawing-count`) üzerinden test yazımı bu bağımsızlığı doğrulamak için idealdir.

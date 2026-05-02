@@ -106,9 +106,12 @@ Her sprint öncesi `python -m pytest tests/ -q` tüm testler geçmeli.
 
 | Faz | Sprint | Durum |
 |-----|--------|-------|
-| Faz 1A | E1–E4 | Başlanacak |
+| Faz 1A | E1–E11 | ✅ Tamamlandı — Eğitimler paneli, 57 makale, arama/kategori, grafik ve preset köprüleri |
 | Faz 1B | Mali analiz eğitim OCR'ı | Ön koşul |
-| Faz 2 | G2 | Bekliyor |
+| Faz 2 | G2 | ✅ Tamamlandı — ölçek menüsü, log/yüzde mod, yüzde baz ve iki pane testi |
+| Faz 2 | G3 | ✅ Çekirdek tamamlandı — indikatör merkezi, Stochastic paneli, parametre kalıcılığı |
+| Faz 2 | G4 | ✅ Tamamlandı — PnL çizgileri, trade bağlantıları, risk ve tavan/taban overlay |
+| Faz 2 | G5 | Sırada |
 | Faz 3 | B1 | Bekliyor |
 
 ---

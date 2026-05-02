@@ -10,6 +10,7 @@ export type ConnectionStatus = 'live' | 'delayed' | 'offline';
 export interface ChartViewOptions {
   reason?: ChartDataRenderReason;
   symbol?: string;
+  currency?: string;
   timeframe?: Timeframe;
   preserveTimeRange?: boolean;
   status?: ChartDataStatus;
@@ -82,6 +83,17 @@ export interface Signal {
   pnl?: number | null;
   equity?: number | null;
   open_position?: boolean;
+  trade_role?: 'entry' | 'exit';
+  trade_side?: 'LONG' | 'SHORT';
+  entry_time?: number;
+  exit_time?: number;
+  entry_price?: number;
+  exit_price?: number;
+  net_pnl?: number;
+  return_pct?: number;
+  stop_price?: number;
+  take_profit_price?: number;
+  risk_reward?: number;
 }
 
 // Backend ``POST /api/backtest/run`` payload — Sprint 3.4'te frontend

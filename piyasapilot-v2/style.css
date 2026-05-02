@@ -245,6 +245,13 @@ h3 { font-family: var(--font-sans); font-size: 13px; font-weight: 600; color: va
 }
 .ctrl-btn:hover  { border-color: var(--border2); color: var(--text-bold); }
 .ctrl-btn.active { background: var(--border); color: var(--blue); border-color: var(--blue); }
+.unit-badge {
+  min-width: 34px;
+  color: var(--text-dim);
+  font-size: 9px;
+  text-align: center;
+}
+.scale-base-btn.active { color: var(--yellow); border-color: var(--yellow); }
 .scale-reset-btn { min-width: 28px; }
 .prev-close-btn { min-width: 30px; }
 
@@ -310,6 +317,118 @@ h3 { font-family: var(--font-sans); font-size: 13px; font-weight: 600; color: va
 .chart-state-overlay.state-empty strong { color: var(--yellow); }
 .chart-state-overlay.state-loading strong { color: var(--blue); }
 
+/* ─── Indicator center ─────────────────────────────────────────────────────── */
+.indicator-center {
+  position: absolute;
+  top: 44px;
+  right: 12px;
+  z-index: 60;
+  width: min(420px, calc(100% - 24px));
+  max-height: min(620px, calc(100% - 64px));
+  overflow: auto;
+  padding: 10px;
+  background: rgba(13,17,23,0.97);
+  border: 1px solid var(--border2);
+  border-radius: 6px;
+  box-shadow: 0 18px 45px rgba(0,0,0,0.35);
+}
+.indicator-center-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+.indicator-center-head b { display: block; color: var(--text-bold); font-size: 13px; }
+.indicator-center-head span { color: var(--text-dim); font-size: 10px; }
+.indicator-search {
+  width: 100%;
+  margin-bottom: 8px;
+  padding: 7px 9px;
+  background: var(--bg);
+  color: var(--text-bold);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+.indicator-category-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+.indicator-group-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+.indicator-active-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  padding-bottom: 8px;
+  margin-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+}
+.indicator-active-list span {
+  padding: 3px 6px;
+  color: var(--blue);
+  background: rgba(88,166,255,0.08);
+  border: 1px solid rgba(88,166,255,0.22);
+  border-radius: 4px;
+  font-size: 10px;
+}
+.indicator-def-list { display: grid; gap: 7px; }
+.indicator-def {
+  padding: 8px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+.indicator-def.active { border-color: var(--blue); }
+.indicator-def-main {
+  display: grid;
+  grid-template-columns: 26px 1fr auto;
+  align-items: center;
+  gap: 8px;
+}
+.indicator-def-main b { display: block; color: var(--text-bold); font-size: 12px; }
+.indicator-def-main span,
+.indicator-def-main small { display: block; color: var(--text-dim); font-size: 10px; }
+.indicator-fav {
+  width: 24px;
+  height: 24px;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+}
+.indicator-fav.active { color: var(--yellow); border-color: var(--yellow); }
+.indicator-param-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(90px, 1fr));
+  gap: 6px;
+  margin-top: 8px;
+}
+.indicator-param-grid label {
+  display: grid;
+  gap: 3px;
+  color: var(--text-dim);
+  font-size: 10px;
+}
+.indicator-param-grid input {
+  width: 100%;
+  min-width: 0;
+  padding: 5px 6px;
+  background: var(--bg);
+  color: var(--text-bold);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-family: var(--font-mono);
+}
+
 /* Fullscreen fallback */
 .css-fullscreen {
   position: fixed !important;
@@ -317,6 +436,26 @@ h3 { font-family: var(--font-sans); font-size: 13px; font-weight: 600; color: va
   z-index: 9999 !important;
   width: 100vw !important;
   height: 100vh !important;
+}
+
+/* ─── Drawing tools (G5) ───────────────────────────────────────────────────── */
+.drawing-canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 20;
+  pointer-events: none;
+}
+.drawing-tool-btn.active {
+  color: var(--yellow) !important;
+  border-color: var(--yellow) !important;
+  background: rgba(210, 153, 34, 0.12) !important;
+}
+.drawing-clear-btn:hover {
+  border-color: var(--red);
+  color: var(--red);
 }
 
 /* ─── Panel sections ───────────────────────────────────────────────────────── */

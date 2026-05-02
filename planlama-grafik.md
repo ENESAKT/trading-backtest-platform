@@ -20,54 +20,55 @@
 
 ## Sprint G2 — Ölçek Menüsü ve Yüzdesel Mod
 
-- [ ] Ölçek menüsü: `Lineer`, `Logaritmik`, `Yüzdesel`
-- [ ] Yüzdesel modda kullanıcı başlangıç barı seçer; o nokta %0, sonrası yüzde değişim
-- [ ] Yüzdesel mod çoklu sembol karşılaştırmasında birincil kullanım
-- [ ] Crosshair bilgi panelinde: önceki kapanışa, başlangıç barına yüzde fark
-- [ ] TL/USD/USDT birim görünümü — ileride portföy para birimi moduna zemin
-- [ ] **Kabul:** 10 TL ve 1000 TL fiyatlı iki sembol yüzdesel modda karşılaştırılır
-- [ ] **Test:** Unit: yüzde normalize — başlangıç barı %0, sonraki `(close/base - 1) * 100`
-- [ ] **Test:** Playwright: yüzdesel modda iki sembol aynı panelde okunabilir
+- [x] Ölçek menüsü: `Lineer`, `Logaritmik`, `Yüzdesel`
+- [x] Yüzdesel modda kullanıcı başlangıç barı seçer; o nokta %0, sonrası yüzde değişim
+- [x] Yüzdesel mod çoklu sembol karşılaştırmasında birincil kullanım
+- [x] Crosshair bilgi panelinde: önceki kapanışa, başlangıç barına yüzde fark
+- [x] TL/USD/USDT birim görünümü — ileride portföy para birimi moduna zemin
+- [x] **Kabul:** 10 TL ve 1000 TL fiyatlı iki sembol yüzdesel modda karşılaştırılır
+- [x] **Test:** Yüzde normalize — başlangıç barı %0, sonraki `(close/base - 1) * 100`
+- [x] **Test:** Playwright: yüzdesel modda iki farklı fiyat seviyesindeki sembol okunabilir
 
 ---
 
 ## Sprint G3 — İndikatör Merkezi v2
 
-- [ ] Mevcut basit butonlar yerine sağ/üst açılır "İndikatörler" paneli
-- [ ] Panel: arama, kategori, favori ve aktif indikatör listesi
-- [ ] Her indikatör için parametre penceresi: periyot, kaynak (`close/open/high/low/hlc3`), renk, çizgi kalınlığı, bölge, öteleme
+- [x] Mevcut basit butonların yanında sağ/üst açılır "İndikatörler" paneli
+- [x] Panel: arama, kategori, favori ve aktif indikatör listesi
+- [x] v1 parametre penceresi: BB, RSI, MACD, ATR ve Stochastic numeric periyot ayarları; localStorage kalıcılığı
+- [ ] v2 parametre penceresi: kaynak (`close/open/high/low/hlc3`), renk, çizgi kalınlığı, bölge, öteleme
 - [ ] Aynı indikatörden birden fazla instance: EMA 9, EMA 21, EMA 50 aynı grafikte
 - [ ] İndikatör bölge seçimi: ana grafik overlay, yeni alt panel, mevcut alt panel
-- [ ] RSI/Stochastic'te 30/70, 20/80 alarm seviyeleri kalıcı çizgi
-- [ ] İndikatör grupları: "Trend seti", "Mean reversion seti", "Momentum seti" — kaydetme + tek tıkla uygulama
-- [ ] **Kabul:** ATR ve Stochastic panelden açılır, parametre değişimi grafiği yeniden hesaplar
-- [ ] **Test:** E2E: indikatör parametresi değişir, seri yeniden hesaplanır, ayar yenilemeden sonra korunur
+- [x] RSI/Stochastic'te 30/70, 20/80 alarm seviyeleri kalıcı çizgi
+- [x] İndikatör grupları: "Trend seti", "Mean reversion seti", "Momentum seti" — tek tıkla uygulama
+- [x] **Kabul:** ATR ve Stochastic panelden açılır, parametre değişimi grafiği yeniden hesaplar
+- [x] **Test:** E2E: indikatör parametresi değişir, seri yeniden hesaplanır, ayar yenilemeden sonra korunur
 
 ---
 
 ## Sprint G4 — Kar/Zarar Overlay'leri
 
-- [ ] Açık paper pozisyonu grafikte: maliyet çizgisi + canlı PnL etiket
-- [ ] Backtest trade'leri: giriş-çıkış bağlantı çizgileri
-- [ ] Crosshair tooltip'te işlem varsa: adet, giriş/çıkış fiyatı, net PnL, yüzde getiri
-- [ ] "Mesafe ölçer" aracı: giriş-stop-hedef seçilince potansiyel kar/zarar yüzdesi
-- [ ] BIST tavan/taban seviyeleri çizgisi (veri yoksa pasif/gri)
-- [ ] Stop-loss, take-profit ve hedef fiyat çizgileri opsiyonel overlay
-- [ ] **Kabul:** Kullanıcı grafikte yüzde kar/zararını okur, panel değiştirmez
-- [ ] **Test:** Unit: PnL etiketi long/short için doğru yüzde ve TL hesaplar
+- [x] Açık paper/backtest pozisyonu grafikte: maliyet çizgisi + canlı PnL etiket
+- [x] Backtest trade'leri: giriş-çıkış bağlantı çizgileri
+- [x] Crosshair tooltip'te işlem varsa: adet, giriş/çıkış fiyatı, net PnL, yüzde getiri
+- [x] "Mesafe ölçer" v1: giriş-stop-hedef risk/ödül oranı ve potansiyel kar/zarar yüzdesi
+- [x] BIST tavan/taban seviyeleri çizgisi (veri yoksa pasif/gri)
+- [x] Stop-loss, take-profit ve hedef fiyat çizgileri opsiyonel overlay
+- [x] **Kabul:** Kullanıcı grafikte yüzde kar/zararını okur, panel değiştirmez
+- [x] **Test:** E2E: PnL etiketi, risk/ödül ve BIST tavan/taban referansı doğrulanır
 
 ---
 
 ## Sprint G5 — Çizim Altyapısı
 
-- [ ] İlk çizim seti: trend çizgisi, yatay çizgi, dikey çizgi, ray/sağa uzat, paralel, kanal, dikdörtgen, ok, not
-- [ ] Ölçüm aracı: bar sayısı, süre, fiyat farkı, yüzde fark, risk/ödül oranı
-- [ ] Trend çizgisi: isim, renk, kalınlık, çizgi tipi, yüzde değişim etiketi
-- [ ] Çizimler sembol + timeframe + layout bağlamında saklanır; şablon çizimleri ve sembole özel çizimler ayrılır
-- [ ] Çizimler pan/zoom sırasında doğru koordinatta kalır; sembol değişince yanlış sembolde görünmez
-- [ ] **Kabul:** Çizilen trend, sembol değişince temizlenir; aynı sembole dönünce geri gelir
-- [ ] **Test:** E2E: çizim ekle, taşı, sil, reload sonrası sembole özel çizim geri gelir
-- [ ] **İkinci faz:** Fibonacci düzeltme, extension, fan, zaman bölgeleri, regresyon kanalı (Sprint G10)
+- [x] İlk çizim seti: trend çizgisi, yatay çizgi, dikey çizgi, ray/sağa uzat, paralel, kanal, dikdörtgen, ok, not
+- [x] Ölçüm aracı: bar sayısı, süre, fiyat farkı, yüzde fark, risk/ödül oranı
+- [x] Trend çizgisi: isim, renk, kalınlık, çizgi tipi, yüzde değişim etiketi
+- [x] Çizimler sembol + timeframe + layout bağlamında saklanır; şablon çizimleri ve sembole özel çizimler ayrılır
+- [x] Çizimler pan/zoom sırasında doğru koordinatta kalır; sembol değişince yanlış sembolde görünmez
+- [x] **Kabul:** Çizilen trend, sembol değişince temizlenir; aynı sembole dönünce geri gelir
+- [x] **Test:** E2E: çizim ekle, taşı, sil, reload sonrası sembole özel çizim geri gelir
+- [x] **İkinci faz:** Fibonacci düzeltme, extension, fan, zaman bölgeleri, regresyon kanalı (Sprint G10)
 
 ---
 
@@ -134,10 +135,10 @@
 ## Test ve Kabul Kapıları (Tüm Grafik Sprintleri)
 
 - [x] Sprint G1: sembol değişiminde grafik boş kalmaz (Playwright geçti)
-- [ ] Sprint G2: yüzdesel modda iki sembol karşılaştırılabilir
-- [ ] Sprint G3: indikatör parametresi değişince seri yeniden hesaplanır
-- [ ] Sprint G4: PnL etiketi doğru hesaplanır
-- [ ] Sprint G5: çizim kayıt/yükle döngüsü çalışır
+- [x] Sprint G2: yüzdesel modda iki sembol karşılaştırılabilir
+- [x] Sprint G3: indikatör parametresi değişince seri yeniden hesaplanır
+- [x] Sprint G4: PnL etiketi doğru hesaplanır
+- [x] Sprint G5: çizim kayıt/yükle döngüsü çalışır
 - [ ] Sprint G6: farklı takvimli semboller tarih kaymaması
 - [ ] Sprint G7: senkron kilitleri açık/kapalı davranış
 - [ ] Sprint G8: şablon kaydet/yükle

@@ -43,6 +43,104 @@ async function mockCandles(page: Page) {
   });
 }
 
+async function mockBacktestRun(page: Page) {
+  await page.route('**/api/backtest/run', async (route) => {
+    const bars = makeCandles(980, 5.5);
+    const entry = bars[8]!;
+    const exit = bars[28]!;
+    const open = bars[62]!;
+    await route.fulfill({
+      json: {
+        symbol: 'BTCUSDT',
+        interval: '1d',
+        strategy_id: 'strategy_spec',
+        strategy_name: 'E2E PnL',
+        params: {},
+        capital: 100000,
+        lookback_bars: bars.length,
+        strategy_spec: {
+          name: 'E2E PnL',
+          rules: {
+            long_entry: 'C > EMA(C,10)',
+            long_exit: 'C < EMA(C,10)',
+            short_entry: '',
+            short_exit: '',
+          },
+          risk: { stop_loss_pct: 3, take_profit_pct: 8, trailing_stop_pct: 5 },
+        },
+        metrics: {
+          final_equity: 104000,
+          total_return_pct: 4,
+          max_drawdown_pct: 2,
+          total_trades: 1,
+          total_commission: 0,
+          sharpe_ratio: 1.2,
+          win_rate: 100,
+          has_open_position: true,
+        },
+        equity_curve: bars.map((bar, index) => ({
+          time: bar.time,
+          bar_index: index,
+          cash: 100000,
+          position_value: 0,
+          total_equity: 100000 + index * 40,
+          drawdown: 0,
+          drawdown_pct: 0,
+        })),
+        trades: [
+          {
+            symbol: 'BTCUSDT',
+            side: 'LONG',
+            entry_type: 'BUY',
+            exit_type: 'SELL',
+            entry_time: entry.time,
+            exit_time: exit.time,
+            entry_price: entry.close,
+            exit_price: exit.close,
+            quantity: 10,
+            net_pnl: (exit.close - entry.close) * 10,
+            return_pct: ((exit.close - entry.close) / entry.close) * 100,
+            is_winner: true,
+            entry_bar_index: 8,
+            exit_bar_index: 28,
+          },
+        ],
+        signals: [
+          {
+            type: 'BUY',
+            reason: 'E2E BUY',
+            price: entry.close,
+            timestamp: entry.time,
+            strength: 5,
+            quantity: 10,
+            bar_index: 8,
+          },
+          {
+            type: 'SELL',
+            reason: 'E2E SELL',
+            price: exit.close,
+            timestamp: exit.time,
+            strength: 5,
+            quantity: 10,
+            bar_index: 28,
+            pnl: (exit.close - entry.close) * 10,
+          },
+          {
+            type: 'BUY',
+            reason: 'E2E açık pozisyon',
+            price: open.close,
+            timestamp: open.time,
+            strength: 5,
+            quantity: 6,
+            bar_index: 62,
+            open_position: true,
+          },
+        ],
+      },
+    });
+  });
+}
+
 async function chartColorPixels(page: Page) {
   return page.evaluate(() => {
     const canvases = Array.from(document.querySelectorAll<HTMLCanvasElement>('.chart-pane-body canvas'));
@@ -101,6 +199,23 @@ test('education tab renders searchable indicator articles', async ({ page }) => 
   await page.locator('#education-search').fill('rsi');
   await expect(page.locator('.education-row.active')).toContainText('RSI');
   await expect(page.locator('.education-source-note')).toContainText('kare OCR');
+});
+
+test('education bridge actions open chart indicators and strategy presets', async ({ page }) => {
+  await page.goto('/');
+  await page.locator('[data-tab="education"]').click();
+
+  await page.locator('#education-search').fill('atr');
+  await expect(page.locator('.education-row.active')).toContainText('ATR');
+
+  await page.locator('[data-chart-indicator="atr"]').click();
+  await expect(page.locator('#panel-chart')).toBeVisible();
+  await expect(page.locator('.ind-btn[data-ind="atr"]').first()).toHaveClass(/active/);
+
+  await page.locator('[data-tab="education"]').click();
+  await page.locator('[data-strategy-id="supertrend"]').click();
+  await expect(page.locator('#panel-strategy')).toBeVisible();
+  await expect(page.locator('.strategy-card.active')).toContainText('Supertrend');
 });
 
 test('mobile viewport keeps the primary shell usable', async ({ page }) => {
@@ -196,4 +311,167 @@ test('G1 clears stale candles and shows empty/error chart states', async ({ page
   await expect(pane).toHaveAttribute('data-chart-status', 'error');
   await expect(page.locator('.chart-state-overlay').first()).toContainText('Bağlantı hatası');
   await expect(page.locator('.chart-state-overlay').first()).toContainText('backend HTTP 503');
+});
+
+test('G2 scale menu supports log and percent normalization', async ({ page }) => {
+  await mockCandles(page);
+  await page.goto('/');
+
+  const pane = page.locator('.chart-pane-body').first();
+  await expect(pane).toHaveAttribute('data-chart-status', 'ready');
+
+  await page.locator('.scale-mode-btn[data-scale-mode="percent"]').first().click();
+  await expect(pane).toHaveAttribute('data-chart-scale-mode', 'percent');
+  await expect(page.locator('.scale-mode-btn[data-scale-mode="percent"]').first()).toHaveClass(/active/);
+  await expect(page.locator('#chart-unit-badge').first()).toHaveText('%');
+
+  const candles = makeCandles(980, 5.5);
+  const baseClose = candles[0]!.close;
+  const lastClose = candles[candles.length - 1]!.close;
+  const expectedPct = ((lastClose / baseClose) - 1) * 100;
+  expect(Number(await pane.getAttribute('data-percent-base-close'))).toBeCloseTo(baseClose, 5);
+  expect(Number(await pane.getAttribute('data-percent-last-change'))).toBeCloseTo(expectedPct, 4);
+
+  await page.locator('.scale-mode-btn[data-scale-mode="log"]').first().click();
+  await expect(pane).toHaveAttribute('data-chart-scale-mode', 'log');
+  await expect(page.locator('#chart-unit-badge').first()).toHaveText('USDT');
+});
+
+test('G2 percent mode can be applied to two panes with different price levels', async ({ page }) => {
+  await mockCandles(page);
+  await page.goto('/');
+
+  await page.locator('[data-layout="1x2"]').click();
+  await expect(page.locator('.chart-pane')).toHaveCount(2);
+
+  await page.locator('.pane-symbol-select').first().selectOption('AKBNK.IS');
+  await expect(page.locator('.chart-pane-body').first()).toHaveAttribute('data-chart-status', 'ready');
+  await page.locator('.pane-symbol-select').nth(1).selectOption('BTCUSDT');
+  await expect(page.locator('.chart-pane-body').nth(1)).toHaveAttribute('data-chart-status', 'ready');
+
+  await page.locator('.scale-mode-btn[data-scale-mode="percent"]').first().click();
+  await page.locator('.scale-mode-btn[data-scale-mode="percent"]').nth(1).click();
+
+  await expect(page.locator('.chart-pane-body').first()).toHaveAttribute('data-chart-scale-mode', 'percent');
+  await expect(page.locator('.chart-pane-body').nth(1)).toHaveAttribute('data-chart-scale-mode', 'percent');
+  expect(Number(await page.locator('.chart-pane-body').first().getAttribute('data-percent-base-close'))).toBeLessThan(20);
+  expect(Number(await page.locator('.chart-pane-body').nth(1).getAttribute('data-percent-base-close'))).toBeGreaterThan(900);
+});
+
+test('G3 indicator center enables stochastic and persists parameters', async ({ page }) => {
+  await mockCandles(page);
+  await page.goto('/');
+
+  const pane = page.locator('.chart-pane-body').first();
+  await expect(pane).toHaveAttribute('data-chart-status', 'ready');
+
+  await page.locator('#indicator-center-btn').first().click();
+  await expect(page.locator('.indicator-center').first()).toBeVisible();
+  await page.locator('#indicator-search').fill('stochastic');
+  await expect(page.locator('.indicator-def').first()).toContainText('Stochastic');
+
+  await page.locator('[data-indicator-toggle="stoch"]').click();
+  await expect(pane).toHaveAttribute('data-active-indicators', /stoch/);
+  await expect(page.locator('.ind-btn[data-ind="stoch"]').first()).toHaveClass(/active/);
+
+  await page.locator('[data-indicator-param="stochasticKPeriod"]').fill('10');
+  await expect(pane).toHaveAttribute('data-indicator-stoch-k', '10');
+
+  await page.reload();
+  await expect(pane).toHaveAttribute('data-chart-status', 'ready');
+  await expect(pane).toHaveAttribute('data-active-indicators', /stoch/);
+  await expect(pane).toHaveAttribute('data-indicator-stoch-k', '10');
+
+  await page.locator('#indicator-center-btn').first().click();
+  await page.locator('#indicator-search').fill('stochastic');
+  await expect(page.locator('[data-indicator-param="stochasticKPeriod"]').first()).toHaveValue('10');
+});
+
+test('G4 PnL overlay renders closed trade and open risk metrics', async ({ page }) => {
+  await mockCandles(page);
+  await mockBacktestRun(page);
+  await page.goto('/');
+
+  const pane = page.locator('.chart-pane-body').first();
+  await expect(pane).toHaveAttribute('data-chart-status', 'ready');
+
+  await page.locator('.pane-symbol-select').first().selectOption('AKBNK.IS');
+  await expect(pane).toHaveAttribute('data-chart-symbol', 'AKBNK.IS');
+  await expect(pane).toHaveAttribute('data-bist-limit-status', 'active');
+
+  await page.locator('.pane-symbol-select').first().selectOption('BTCUSDT');
+  await expect(pane).toHaveAttribute('data-chart-symbol', 'BTCUSDT');
+  await page.locator('[data-tab="strategy"]').click();
+  await page.locator('#run-backtest').click();
+  await expect(page.locator('.signal-item').first()).toContainText(/AL|SAT/);
+
+  await page.locator('[data-tab="chart"]').click();
+  await expect(pane).toHaveAttribute('data-pnl-closed-count', '1');
+  await expect(pane).toHaveAttribute('data-pnl-risk-reward', '2.6666666666666665');
+
+  const bars = makeCandles(980, 5.5);
+  const entry = bars[8]!;
+  const exit = bars[28]!;
+  const open = bars[62]!;
+  const last = bars[bars.length - 1]!;
+  const expectedClosedPct = ((exit.close - entry.close) / entry.close) * 100;
+  const expectedOpenPct = ((last.close - open.close) / open.close) * 100;
+  expect(Number(await pane.getAttribute('data-pnl-last-closed-pct'))).toBeCloseTo(expectedClosedPct, 4);
+  expect(Number(await pane.getAttribute('data-pnl-open-pct'))).toBeCloseTo(expectedOpenPct, 4);
+});
+
+test('G5 drawing toolbar renders and drawing count persists per symbol', async ({ page }) => {
+  await mockCandles(page);
+  await page.goto('/');
+
+  const pane = page.locator('.chart-pane-body').first();
+  await expect(pane).toHaveAttribute('data-chart-status', 'ready');
+
+  // Drawing toolbar buttons should be visible
+  await expect(page.locator('.drawing-tool-btn[data-drawing-tool="trendline"]').first()).toBeVisible();
+  await expect(page.locator('.drawing-tool-btn[data-drawing-tool="hline"]').first()).toBeVisible();
+  await expect(page.locator('.drawing-tool-btn[data-drawing-tool="vline"]').first()).toBeVisible();
+  await expect(page.locator('.drawing-tool-btn[data-drawing-tool="measure"]').first()).toBeVisible();
+  await expect(page.locator('#drawing-clear-btn').first()).toBeVisible();
+
+  // Inject a drawing via localStorage for BTCUSDT__1d
+  await page.evaluate(() => {
+    const drawings = {
+      'BTCUSDT__1d': [
+        {
+          id: 'test_hline_1',
+          tool: 'hline',
+          points: [{ time: 1714521600, price: 1000 }],
+          style: { color: '#58a6ff', lineWidth: 2, lineStyle: 'solid' },
+        },
+      ],
+    };
+    localStorage.setItem('piyasapilot_drawings', JSON.stringify(drawings));
+  });
+
+  // Reload and verify drawing count data attribute is set
+  await page.reload();
+  await expect(pane).toHaveAttribute('data-chart-status', 'ready');
+  await expect(pane).toHaveAttribute('data-drawing-count', '1');
+
+  // Switch symbol — drawing count should reset for new symbol
+  await page.locator('.pane-symbol-select').first().selectOption('AKBNK.IS');
+  await expect(pane).toHaveAttribute('data-chart-symbol', 'AKBNK.IS');
+  await expect(pane).toHaveAttribute('data-drawing-count', '0');
+
+  // Switch back — drawing should return
+  await page.locator('.pane-symbol-select').first().selectOption('BTCUSDT');
+  await expect(pane).toHaveAttribute('data-chart-symbol', 'BTCUSDT');
+  await expect(pane).toHaveAttribute('data-drawing-count', '1');
+
+  // Clear all drawings
+  await page.locator('#drawing-clear-btn').first().click();
+  await expect(pane).toHaveAttribute('data-drawing-count', '0');
+
+  // Verify cleared from localStorage
+  const remaining = await page.evaluate(() => {
+    const stored = JSON.parse(localStorage.getItem('piyasapilot_drawings') || '{}');
+    return Object.keys(stored).length;
+  });
+  expect(remaining).toBe(0);
 });
