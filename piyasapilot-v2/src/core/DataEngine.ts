@@ -5,7 +5,7 @@ import type {
 import { PollingManager } from './PollingManager.js';
 import { QuoteStream, type QuoteMessage } from './QuoteStream.js';
 import { loadHistorical } from './HistoricalLoader.js';
-import { DEFAULT_SYMBOL } from '../constants/symbols.js';
+import { DEFAULT_SYMBOL, resolveSymbol } from '../constants/symbols.js';
 
 // ─── Simple EventEmitter ──────────────────────────────────────────────────────
 
@@ -38,6 +38,7 @@ export class DataEngine extends EventEmitter {
   private quoteStream: QuoteStream | null = null;
   private quoteUnsubscribe: (() => void) | null = null;
   private pollManager = new PollingManager();
+  private pollUnsubscribe: (() => void) | null = null;
 
   private activeSymbol: SymbolInfo = DEFAULT_SYMBOL;
   private activeTimeframe: Timeframe = '1d';
@@ -139,9 +140,14 @@ export class DataEngine extends EventEmitter {
   // ─── REST polling path (BIST / FX / Commodity / US) ──────────────────────
 
   private connectPolling(symbol: string, tf: Timeframe, assetType: typeof this.activeSymbol.assetType): void {
+    if (this.pollUnsubscribe) {
+      this.pollUnsubscribe();
+      this.pollUnsubscribe = null;
+    }
+    
     this.pollManager.start(symbol, tf, assetType);
 
-    this.pollManager.onData((candles, status) => {
+    this.pollUnsubscribe = this.pollManager.onData((candles, status) => {
       this.lastUpdate = Date.now();
       this.status = status;
 
@@ -170,6 +176,10 @@ export class DataEngine extends EventEmitter {
     if (this.quoteStream) {
       this.quoteStream.disconnect();
       this.quoteStream = null;
+    }
+    if (this.pollUnsubscribe) {
+      this.pollUnsubscribe();
+      this.pollUnsubscribe = null;
     }
     this.pollManager.stop();
   }
@@ -228,6 +238,10 @@ export class DataEngine extends EventEmitter {
       result.set(symbol, entry.data);
     }
     return result;
+  }
+
+  getSymbolInfo(symbol: string): SymbolInfo | undefined {
+    return resolveSymbol(symbol);
   }
 }
 

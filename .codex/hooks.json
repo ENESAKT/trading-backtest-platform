@@ -1,0 +1,25 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "'/Users/enes/AgentWorkspace/Backtest/.codex/hooks/check-services.sh'"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "'/Users/enes/AgentWorkspace/Backtest/.codex/hooks/auto-recap.sh'"
+          }
+        ]
+      }
+    ]
+  }
+}

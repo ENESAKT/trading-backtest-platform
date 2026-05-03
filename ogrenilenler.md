@@ -186,3 +186,62 @@
 - **Prometheus metrics'te stdlib exposition format (dış bağımlılık yok) yeterli.** `prometheus_client` paketi yüklemeden `/metrics` endpoint'i plain text Prometheus format döner. Basit counter'lar ve gauge'lar sadece uygulama değişkenleri üzerinden çalışır.
 - **Worker çöküş uyarılarında cooldown mekanizması şart.** Aynı worker sürekli çöküp restart ederse dakikada 100+ Telegram mesajı gider. 5 dakika cooldown ile aynı worker için tekrar uyarı gönderilmez.
 - **`STRICT_ENV_VALIDATION=1` sadece production deploy'da kullanılmalı.** Geliştirme ortamında opsiyonel değişkenlerin (Telegram token, SMTP) eksikliği normal; strict mod burada gereksiz yere servisi kırar.
+
+## Grafik ve Çizim Altyapısı (G5)
+
+- **Çizimlerin `localStorage` kalıcılığı bağlama göre izole edilmeli.** Tek bir global array yerine `symbol + timeframe` birleşik anahtarı (örn: `BTCUSDT__1d`) ile saklamak, kullanıcı sembol değiştirdiğinde yanlış grafikte alakasız çizimlerin görünmesini engeller ve bellek yönetimini kolaylaştırır. Data attribute'lar (`data-drawing-count`) üzerinden test yazımı bu bağımsızlığı doğrulamak için idealdir.
+
+## Backtest ve Simülasyon
+
+- **Monte Carlo Max Drawdown Hesabı:** Simülasyonlarda (özellikle bootstrap ve permutation yöntemlerinde) final getirisinin yanı sıra yörünge içi (intra-trajectory) maksimum düşüş (drawdown) hesabı kritik önem taşır. Her simülasyon eğrisindeki en yüksek tepeden (peak equity) anlık düşüşün yüzdesi izlenip, risk seviyesi P05/P95 dağılımlarıyla daha net raporlanabilir.
+
+## Mali Analiz (Sprint 12)
+
+- **FastAPI Dependency Injection ve Service Katmanı:** Mali analiz gibi dış kaynak bağımlı modüllerde, `create_app` factory'si içinde servis ve cache bileşenlerinin başlatılması test edilebilirliği artırır. Provider hatalarının 500 dönmesi yerine servis katmanında yakalanıp `warnings` listesiyle dönülmesi, frontend tarafında kullanıcı deneyimini bozmadan hata bilgisinin gösterilmesini sağlar.
+
+## Backtest Gerçekçiliği (B4)
+
+- **Slippage ve komisyon hesaplamaları helper katmanında ayrıştırıldı.** Ana backtest motoruna (`engine.py`) karmaşıklık eklemeden, `fixed_bps_slippage` ve `fixed_tick_slippage` gibi fonksiyonlarla order fiyatları simüle edilebilir. BIST hisselerinde açığa satış (short) için uptick kuralı veya likidite sınırı uyarıları bu bağımsız katmanda (`realism.py`) değerlendirilecek.
+## Çoklu Sembol Karşılaştırma (G6)
+
+- **Aynı panel üzerinde Line Series ile ikincil sembol eklenmesi.** `ChartPanel` sınıfına ikinci bir `ISeriesApi<'Line'>` referansı eklenerek ve ana grafiğe bağlanılarak çoklu sembol özelliği sağlandı. İkinci sembolün verisi, `MultiChartLayout` tarafından tarihsel olarak çekilip olay (`CustomEvent`) üzerinden ana `ChartPanel`'e gönderilir, böylece veri yükleme mantığı ile gösterim mantığı arasındaki izolasyon korunur. Yüzdesel (percent) modunda asıl sembolün baz fiyatından normalize edilerek mükemmel karşılaştırma (compare) deneyimi elde edilir.
+
+## İleri Seviye İndikatörler (B2)
+
+- **Gelişmiş Hareketli Ortalamalar:** `quant_engine.strategy.indicators` modülü genişletilerek saf Pandas/NumPy üzerinden WMA, DEMA, TEMA, ZLEMA, HMA, ALMA, KAMA ve T3 eklendi. Harici kütüphane bağımlılığı olmaksızın deterministic ve güvenli bir helper yüzeyi oluşturuldu; ilk bar `NaN` davranışları ve `ValueError` fırlatma mekanizmaları testlerle garanti altına alındı.
+
+## Çoklu Grafik Senkronizasyonu ve Şablonlar (G7/G8)
+
+- **Senkronizasyon kilitleri (Sync Locks) aktif pencere (Active Pane) odaklı çalışmalı.** Tüm pencerelerin birbirini tetiklemesi yerine, sadece "aktif" olan pencereden gelen olayların (range change, crosshair move, scale change) diğer kilitli pencerelere propagate edilmesi sonsuz döngüleri (feedback loops) engeller ve performansı korur. `CustomEvent` kullanımı bileşenler arası temiz iletişim sağlar.
+- **Grafik şablonları (Chart Templates) `localStorage` üzerinden kalıcılaştırılabilir.** Bir şablon; `chartType`, `activeIndicators`, `indicatorParams` ve `scaleMode` gibi tüm görsel konfigürasyonu içermelidir. Varsayılan şablon (`default`) ayarı kullanıcıya özel çalışma alanı (workspace) sunulmasına imkan tanır.
+- **Dışa aktarma (Export) işlemleri asenkron ve kullanıcı dostu olmalı.** Grafik kanvasının PNG olarak dışa aktarılmasında `toDataURL` yeterli olurken, veri dışa aktarımında (CSV) OHLCV serisinin asenkron olarak toplanması ve Blob/URL üzerinden indirilmesi tarayıcı ana thread'ini (UI) bloklamaz.
+
+## Olay Marker ve İleri Çizim Araçları (G9/G10)
+
+- **Olay marker'ları (Event Markers) zaman ekseninde etkileşimli ikonlar olarak sunulmalı.** Grafik kütüphanesinin (lightweight-charts) kendi marker'ları sadece fiyat mumlarına bağlıyken, zaman eksenine (X-axis) serbest yerleşimli marker'lar için DOM overlay kullanmak daha esnektir. Scroll ve zoom sırasında marker'ların doğru koordinatta kalması için `timeScale().subscribeVisibleLogicalRangeChange` olayını dinlemek ve `timeToCoordinate` ile pozisyon güncellemek gerekir.
+- **İleri çizim araçları (Fibonacci, Regresyon) canvas üzerinde matematiksel modelleme gerektirir.** Fibonacci seviyeleri sadece fiyat aralığının (range) belirli oranlarla (0, 0.236, 0.382, 0.618, 1.0) bölünmesinden ibarettir. Lineer regresyon kanalı ise seçilen mum aralığındaki fiyatların en küçük kareler yöntemiyle (Ordinary Least Squares) hesaplanmasını, ardından bu hattın standart sapma (std dev) kadar üst/alt bandının çizilmesini kapsar. Bu hesaplamalar için `DrawingManager`'a mum verilerinin (`candles`) referans olarak geçilmesi zorunludur.
+- **Typecheck hataları kritik eksiklikleri ortaya çıkarabilir.** `app.ts` gibi merkezi dosyalarda yapılan çağrıların (`dataEngine.getSymbolInfo`) backend veya core katmanında karşılığının olmaması derleme zamanında yakalanmalıdır. Singleton objelere eksik metodların eklenmesi tip güvenliğini (Type Safety) sağlar.
+
+## E2E Testleri ve Entegrasyon (B1-B13 Zinciri)
+
+- **Testlerdeki HTML Locator bağımlılıklarına dikkat edilmeli.** E2E testlerinde var olmayan `id` veya `data-tab` özelliklerinin kontrol edilmesi hatalara neden olur. Element kaldırıldığında testin güncellenmesi zorunludur (örneğin `start-tab-select`'in UI'dan kaldırılması).
+- **Backend modüllerinde API yüzeyinin (export edilen fonksiyon isimleri) testlerle tutarlı olması şarttır.** Bir modül refactor edilirken (örneğin `evaluate_rule` yerine `evaluate_strategy_rules` getirilmesi veya `run_portfolio_lab` yerine `portfolio_metrics`), entegrasyon testlerindeki mock ve import'ların da aynı hassasiyetle güncellenmesi gerekir, aksi halde pipeline testlerinde `ImportError` yaşanır.
+
+- **Frontend / Tasarım:** Arayüzün DOM yapısı korunarak, sadece CSS değişkenleri ve padding/margin/font-size değerleriyle premium dark mode hissiyatı veren bir UI revizyonu yapılması planlandı (`planlama-tasarim.md`).
+
+### Frontend (UI/UX - Lightweight Charts)
+- İki farklı fiyat skalasına sahip varlık grafiği (örn: BIMAS ve AKBNK) üst üste eklendiğinde, aynı Y eksenini (sağ eksen) paylaştıkları için grafiklerin birbirini ezmesi/sıkıştırması durumu oluşur. Bunu önlemek için `addLineSeries` konfigürasyonunda `priceScaleId: 'left'` parametresi verilerek ikinci grafiğin kendine has ve sol tarafta izole bir eksende (Left Y-Axis) çizilmesi sağlanmalıdır. Ayrıca ana `createChart` options nesnesinde `leftPriceScale: { visible: false }` vb. stil ayarları baştan tanımlanarak dark-theme bütünlüğü korunmalıdır.
+
+### Frontend (PiyasaPilot v2 UI İyileştirmeleri)
+- **Koşullu Renklendirme:** Yüzde değişimlerinde 0.00% değerinin yeşil yerine "neutral" (sarı/gri) renkte gösterilmesi için `pos/neg/neutral` olmak üzere üç durumlu bir CSS sınıf yönetimi (`changeColorClass`) benimsendi.
+- **Kompakt Gösterge Yönetimi:** Toolbar alanını ferahlatmak için göstergeler bir dropdown menü içine alındı. Sık kullanılanlar (favoriler) ve aktif olanlar ise toolbar üzerinde kompakt `chip` ve `pin` bileşenleri olarak sabitlendi. Event dinleyicilerinde geriye uyumluluk (eski buton sınıfları) korundu.
+- **Tam Ekran (Fullscreen) CSS Davranışı:** `requestFullscreen` API'si kullanıldığında, `ChartPanel` toolbar'ının tüm ekranı kaplamasını önlemek için "hover ile açılan floating toolbar" mekanizması eklendi. `.fullscreen-compact` sınıfı ile opacity ve transform geçişleri sağlanarak UX iyileştirildi.
+- **Dual Y-Axis Ölçekleme:** Lightweight Charts üzerinde çoklu sembol karşılaştırması (compareSeries) yaparken, ikinci serinin ana seriyi ezmemesi için `priceScaleId: 'left'` atanmalı ve sol eksen `autoScale: true` ile `scaleMargins` verilerek yapılandırılmalıdır. `resetPriceScales` gibi temizleme fonksiyonlarında sol eksenin de hesaba katılması şarttır.
+
+### Frontend (Toolbar Optimizasyonu ve UX Geliştirmeleri)
+- **Kompleks Araç Çubuklarının Optimize Edilmesi:** TradingView gibi yoğun finansal panellerde ekran daralmasını (özellikle çoklu grid layout modunda) önlemek için tüm kontrol elemanları (Timeframe, Çizim, Göstergeler vb.) CSS `flex-wrap: nowrap` ve `hover` temelli dropdown menülere (mega menu mantığına benzer `tool-inline` yapıları) geçirilmiştir.
+- **Kullanıcı Tetiklemeli Sabitleme (Pin) Özelliği:** Araç çubuklarındaki genişleyen (accordion veya dropdown) yapıların kullanım ergonomisini artırmak adına `.pinned` class'ı vasıtasıyla hover event'inden bağımsız, tıklama temelli kalıcı menü açık tutma mekanizması tasarlanıp entegre edilmiştir.
+
+### Frontend (Çizim ve Lejant Geliştirmeleri)
+- **Lightweight Charts Hit Testing ve Çizim Yönetimi:** Canvas üzerinden `pointer-events: none` olarak render edilen custom çizimlerin (Fibonacci, Regression, Measure vb.) native `click` eventleri alamaması sorunu, `container`'a bağlanan global `mousedown` eventleri ve `hitTestDrawing` (Point-to-Segment mesafe ölçümü) mantığı ile aşıldı. Tek tıklamayla (single-click) seçim (Selection) ve klavye (Delete) tuşuyla silme mekanizması entegre edildi.
+- **Dinamik Araç Çubuğu (Toolbar) Lejantları:** Karşılaştırma aracı (Compare) kullanıldığında, eklenen sembolün ekranda kolayca takip edilebilmesi için `.compare-cluster` içindeki `tool-trigger` etiketi dinamik olarak güncellenip renklendirilerek bir nevi interaktif lejant haline getirildi.

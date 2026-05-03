@@ -10,6 +10,7 @@ export type ConnectionStatus = 'live' | 'delayed' | 'offline';
 export interface ChartViewOptions {
   reason?: ChartDataRenderReason;
   symbol?: string;
+  currency?: string;
   timeframe?: Timeframe;
   preserveTimeRange?: boolean;
   status?: ChartDataStatus;
@@ -67,6 +68,11 @@ export interface IndicatorSet {
   atr?: number[];
   vwap?: number[];
   stochastic?: StochasticResult;
+  kairi?: number[];
+  most?: number[];
+  mostEma?: number[];
+  bbWidth?: number[];
+  gmma?: { [key: string]: Array<{ time: number; value: number }> };
 }
 
 // ─── Strategy & Signals ───────────────────────────────────────────────────────
@@ -82,6 +88,17 @@ export interface Signal {
   pnl?: number | null;
   equity?: number | null;
   open_position?: boolean;
+  trade_role?: 'entry' | 'exit';
+  trade_side?: 'LONG' | 'SHORT';
+  entry_time?: number;
+  exit_time?: number;
+  entry_price?: number;
+  exit_price?: number;
+  net_pnl?: number;
+  return_pct?: number;
+  stop_price?: number;
+  take_profit_price?: number;
+  risk_reward?: number;
 }
 
 // Backend ``POST /api/backtest/run`` payload — Sprint 3.4'te frontend
@@ -137,6 +154,12 @@ export interface BacktestTrade {
   exit_bar_index?: number;
 }
 
+export interface QualityWarning {
+  code: string;
+  severity: "high" | "medium" | "low";
+  message: string;
+}
+
 export interface StrategySpec {
   name?: string;
   note?: string;
@@ -150,6 +173,7 @@ export interface StrategySpec {
     stop_loss_pct?: number;
     take_profit_pct?: number;
     trailing_stop_pct?: number;
+    time_stop_bars?: number;
   };
 }
 
@@ -183,7 +207,8 @@ export interface BacktestResult {
   };
   summary_text?: string;
   assumptions?: Record<string, unknown>;
-  warnings?: string[];
+  warnings?: QualityWarning[];
+  quality_score?: number;
   metrics: BacktestMetrics;
   equity_curve: EquityPoint[];
   trades: BacktestTrade[];
@@ -198,13 +223,28 @@ export interface StrategyBlueprint {
   schema: Array<{
     key: string;
     label: string;
-    type: 'int' | 'float';
-    default: number;
+    type: string;
+    default: unknown;
     min?: number;
     max?: number;
     step?: number;
     help?: string;
   }>;
+}
+
+export interface StrategyPreset {
+  id: string;
+  label: string;
+  category: string;
+  expected_market: string;
+  suggested_timeframes: string[];
+  min_bars: number;
+  suggested_stop_pct: number;
+  suggested_take_profit_pct: number;
+  repaint_risk: string;
+  liquidity_need: string;
+  description: string;
+  strategy_spec?: StrategySpec;
 }
 
 // ─── Portfolio ────────────────────────────────────────────────────────────────
@@ -295,4 +335,93 @@ export interface AnomalyConfig {
   maxReturn: number;      // max allowed single-bar return (0.05 = 5%)
   zThreshold: number;     // z-score threshold for flagging
   iqrMultiplier: number;  // IQR multiplier (default 3)
+}
+
+// ─── G8: Chart Template ───────────────────────────────────────────────────────
+
+export interface ChartTemplate {
+  name: string;
+  chartType: ChartType;
+  activeIndicators: string[];
+  indicatorParams: Record<string, any>;
+  scaleMode: 'linear' | 'log' | 'percent';
+  showPreviousClose: boolean;
+  showPnlOverlay: boolean;
+  showRiskLines: boolean;
+  showBistLimits: boolean;
+  theme?: {
+    bg: string;
+    gridColor: string;
+    textColor: string;
+  };
+}
+
+// ─── G9: Chart Event Marker ───────────────────────────────────────────────────
+
+export type ChartEventType = 'haber' | 'kap' | 'bilanco' | 'temettu' | 'sermaye';
+
+export interface ChartEvent {
+  id: string;
+  type: ChartEventType;
+  time: number;           // unix timestamp seconds
+  title: string;
+  summary: string;
+  source: string;
+  symbol: string;
+}
+
+// ─── G10: Advanced Drawing Tool Types ─────────────────────────────────────────
+
+export type AdvancedDrawingTool = 'fibonacci' | 'fibonacci_ext' | 'regression' | 'renko';
+
+// ─── Mali Analiz (Financial Analysis) ─────────────────────────────────────────
+
+export interface FinancialRatio {
+  name: string;
+  value: number | null;
+  format?: 'pct' | 'num' | 'currency';
+}
+
+export interface FinancialStatementRow {
+  label: string;
+  values: (number | null)[]; // One value per period
+}
+
+export interface FinancialStatement {
+  title: string;
+  rows: FinancialStatementRow[];
+}
+
+export interface SourceStatus {
+  source: string;
+  status: string;
+  fetched_at: string | null;
+  cache_hit: boolean;
+  stale: boolean;
+  error: string | null;
+}
+
+export interface MaliAnalizResponse {
+  symbol: string;
+  company_name: string | null;
+  periods: string[]; // e.g. ["2023 Q1", "2023 Q2", "2023 Q3", "2023 Q4"]
+  source_status: SourceStatus;
+  financial_statements: FinancialStatement[]; // balance sheet, income statement
+  ratios: FinancialRatio[];
+  warnings: string[];
+}
+
+export interface FinancialUniverseItem {
+  symbol: string;
+  ticker: string;
+  name: string;
+}
+
+export interface FinancialUniverseResponse {
+  scope: string;
+  symbols: FinancialUniverseItem[];
+  source_status: {
+    source: string;
+    status: string;
+  };
 }

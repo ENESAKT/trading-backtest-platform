@@ -88,8 +88,13 @@ export class MultiChartLayout {
       this.removeLastPane();
     }
 
-    this.updateGrid();
     this.updateControlsActive();
+    this.updateGrid();
+    
+    // Resize delay'ini kısa tutarak canvas'ların doğru çizilmesini sağla
+    setTimeout(() => {
+      this.panes.forEach(p => p.chartPanel.resizeCharts());
+    }, 50);
   }
 
   getLayout(): LayoutMode {
@@ -171,7 +176,21 @@ export class MultiChartLayout {
     this.bindLayoutControls();
   }
 
+  private syncLocks: Record<string, boolean> = {
+    symbol: true,
+    timeframe: true,
+    range: true,
+    scale: false,
+  };
+
   private layoutControlsHTML(): string {
+    const locks = [
+      { key: 'symbol',    label: TR.SYNC_SYMBOL,    icon: '🔗' },
+      { key: 'timeframe', label: TR.SYNC_TIMEFRAME, icon: '⏳' },
+      { key: 'range',     label: TR.SYNC_RANGE,     icon: '↔️' },
+      { key: 'scale',     label: TR.SYNC_SCALE,     icon: '📏' },
+    ];
+
     return `
       <div class="mcl-group">
         <span class="mcl-label">Düzen</span>
@@ -179,16 +198,68 @@ export class MultiChartLayout {
           `<button class="ctrl-btn mcl-btn${mode === this.layout ? ' active' : ''}" data-layout="${mode}" title="${cfg.label}">${cfg.icon}</button>`
         ).join('')}
       </div>
+      <div class="mcl-group">
+        <span class="mcl-label">${TR.SYNC_LOCKS}</span>
+        ${locks.map(l => `
+          <button class="sync-lock-btn${this.syncLocks?.[l.key] ? ' active' : ''}" data-lock="${l.key}" title="${l.label}">
+            <span class="lock-icon">${l.icon}</span> ${l.label}
+          </button>
+        `).join('')}
+      </div>
     `;
   }
 
   private bindLayoutControls(): void {
     this.controlsEl.addEventListener('click', (e) => {
-      const btn = (e.target as HTMLElement).closest<HTMLElement>('[data-layout]');
-      if (!btn) return;
-      const mode = btn.dataset['layout'] as LayoutMode;
-      this.setLayout(mode);
+      const target = e.target as HTMLElement;
+      
+      const layoutBtn = target.closest<HTMLElement>('[data-layout]');
+      if (layoutBtn) {
+        const mode = layoutBtn.dataset['layout'] as LayoutMode;
+        this.setLayout(mode);
+        return;
+      }
+
+      const lockBtn = target.closest<HTMLElement>('[data-lock]');
+      if (lockBtn) {
+        const key = lockBtn.dataset['lock']!;
+        this.syncLocks[key] = !this.syncLocks[key];
+        lockBtn.classList.toggle('active', this.syncLocks[key]);
+        this.applyAllSyncs();
+      }
     });
+  }
+
+  private applyAllSyncs(): void {
+    if (this.panes.length < 2) return;
+    const active = this.getActivePane();
+    if (!active) return;
+
+    if (this.syncLocks['symbol']) {
+      this.panes.forEach(p => {
+        if (p.id !== active.id && p.symbol.symbol !== active.symbol.symbol) {
+          void this.setPaneSymbol(p, active.symbol);
+        }
+      });
+    }
+
+    if (this.syncLocks['timeframe']) {
+      this.panes.forEach(p => {
+        if (p.id !== active.id && p.timeframe !== active.timeframe) {
+          p.timeframe = active.timeframe;
+          void this.loadPaneData(p, 'timeframe', true);
+        }
+      });
+    }
+
+    if (this.syncLocks['range']) {
+      const range = active.chartPanel.getVisibleLogicalRange();
+      if (range) {
+        this.panes.forEach(p => {
+          if (p.id !== active.id) p.chartPanel.setVisibleLogicalRange(range);
+        });
+      }
+    }
   }
 
   private updateControlsActive(): void {
@@ -217,6 +288,10 @@ export class MultiChartLayout {
     for (const pane of this.panes) {
       this.gridEl.appendChild(pane.containerEl);
     }
+    // Resize'ı tetikle
+    setTimeout(() => {
+      this.panes.forEach(p => p.chartPanel.resizeCharts());
+    }, 50);
   }
 
   // ─── Pane yönetimi ────────────────────────────────────────────────────
@@ -256,13 +331,42 @@ export class MultiChartLayout {
 
     this.panes.push(pane);
 
+    // Sync: Range change
+    chartPanel.onVisibleLogicalRangeChange((range) => {
+      if (!range || !this.syncLocks['range'] || this.activePaneId !== id) return;
+      this.panes.forEach(p => {
+        if (p.id !== id) p.chartPanel.setVisibleLogicalRange(range);
+      });
+    });
+
+    // Crosshair move sync removed due to lightweight-charts limitations.
+
+    // Sync: Scale Mode change
+    containerEl.addEventListener('scaleModeChange', (e: Event) => {
+      const customEvent = e as CustomEvent<any>;
+      const mode = customEvent.detail;
+      if (!this.syncLocks['scale'] || this.activePaneId !== id) return;
+      this.panes.forEach(p => {
+        if (p.id !== id) p.chartPanel.setScaleMode(mode);
+      });
+    });
+
     // Pane'e tıklayınca aktif yap
-    containerEl.addEventListener('click', () => {
+    containerEl.addEventListener('click', (e) => {
+      // Don't activate if clicking a select or button inside header
+      if ((e.target as HTMLElement).closest('.pane-symbol-select')) return;
       this.setActivePane(id);
     });
 
     // Sembol seçici
     this.bindPaneHeader(pane, headerEl);
+
+    // G6: Compare logic
+    containerEl.addEventListener('compareRequest', (e: Event) => {
+      const customEvent = e as CustomEvent<string>;
+      const compareSymbolStr = customEvent.detail;
+      void this.loadCompareData(pane, compareSymbolStr);
+    });
 
     // Veri yükle
     void this.loadPaneData(pane, 'initial');
@@ -352,6 +456,16 @@ export class MultiChartLayout {
     if (selectEl) selectEl.value = info.symbol;
 
     this.symbolChangeListeners.forEach(l => l(pane.id, info));
+
+    // Sync Symbol
+    if (this.syncLocks['symbol'] && pane.id === this.activePaneId) {
+      this.panes.forEach(p => {
+        if (p.id !== pane.id && p.symbol.symbol !== info.symbol) {
+          void this.setPaneSymbol(p, info);
+        }
+      });
+    }
+
     await this.loadPaneData(pane, 'symbol');
   }
 
@@ -361,6 +475,17 @@ export class MultiChartLayout {
     preserveTimeRange = false,
   ): Promise<void> {
     if (pane.loading) return;
+
+    // Sync Timeframe
+    if (this.syncLocks['timeframe'] && pane.id === this.activePaneId && reason === 'timeframe') {
+      this.panes.forEach(p => {
+        if (p.id !== pane.id && p.timeframe !== pane.timeframe) {
+          p.timeframe = pane.timeframe;
+          void this.loadPaneData(p, 'timeframe', true);
+        }
+      });
+    }
+
     pane.loading = true;
 
     // Eski bağlantıyı kes
@@ -372,6 +497,7 @@ export class MultiChartLayout {
       status: 'loading',
       reason,
       symbol,
+      currency: pane.symbol.currency,
       timeframe,
       message: TR.LOADING,
     });
@@ -394,9 +520,13 @@ export class MultiChartLayout {
         status: 'ready',
         reason,
         symbol,
+        currency: pane.symbol.currency,
         timeframe,
         preserveTimeRange,
       });
+
+      // G9: Load sample events for the symbol
+      pane.chartPanel.loadSampleEvents(symbol);
 
       if (badgeEl) {
         badgeEl.textContent = TR.DELAYED;
@@ -422,6 +552,7 @@ export class MultiChartLayout {
         status,
         reason,
         symbol,
+        currency: pane.symbol.currency,
         timeframe,
         message: status === 'empty' ? TR.NO_DATA : message,
       });
@@ -431,6 +562,23 @@ export class MultiChartLayout {
       }
     } finally {
       pane.loading = false;
+    }
+  }
+
+  private async loadCompareData(pane: ChartPaneState, symbolStr: string): Promise<void> {
+    const symbolInfo = ALL_SYMBOLS.find(s => s.symbol === symbolStr || s.symbol.replace('.IS', '') === symbolStr);
+    if (!symbolInfo) {
+      alert(TR.NO_DATA + ': ' + symbolStr);
+      pane.chartPanel.clearCompare();
+      return;
+    }
+
+    try {
+      const candles = await loadHistorical(symbolInfo.symbol, pane.timeframe, { assetType: symbolInfo.assetType });
+      pane.chartPanel.setCompareData(symbolInfo.symbol, candles);
+    } catch (e) {
+      alert('Hata: ' + (e as Error).message);
+      pane.chartPanel.clearCompare();
     }
   }
 
@@ -454,6 +602,7 @@ export class MultiChartLayout {
           pane.chartPanel.setData(pane.candles, {
             reason: 'append',
             symbol: pane.symbol.symbol,
+            currency: pane.symbol.currency,
             timeframe: pane.timeframe,
             preserveTimeRange: true,
           });

@@ -89,10 +89,13 @@ Her derin okuma kaydi su alanlarla yazilir:
 - [x] Commit 5b: VİOP/Vadeli egitimlerinin OCR ciktilarindan secilen ozellikler.
 - [x] Commit 5c: Yatirimci Psikolojisi OCR ciktisindan secilen davranissal risk ozellikleri.
 - [x] Commit 6: Planlama dosyalari yeniden yapilandirildi (planlama.md bolundü, yeni dosyalar olusturuldu).
-- [ ] Commit 7+: Uygulama gelistirmeleri — Egitimler sekmesi altyapisi.
-- [ ] Commit 8+: Blog makaleleri — Indikatorler kategori (20 makale).
-- [ ] Commit 9+: Blog makaleleri — Formasyonlar kategori.
-- [ ] Commit 10+: Mali Analiz sekmesi backend + frontend.
+- [x] Commit 7+: Uygulama gelistirmeleri — Egitimler sekmesi altyapisi.
+- [x] Commit 8+: Blog makaleleri — Indikatorler kategori (20 makale).
+- [x] Commit 9+: Blog makaleleri — Formasyonlar kategori.
+- [x] Commit 10+: Blog makaleleri — Sistem & Backtest kategori.
+- [x] Commit 11+: Blog makaleleri — VIOP & Vadeli kategori.
+- [x] Commit 12+: Blog makaleleri — Psikoloji & Disiplin kategori.
+- [ ] Commit 13+: Mali Analiz sekmesi backend + frontend.
 
 ## 7. Tamamlanan Kurs Okuma Kayitlari
 

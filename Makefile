@@ -1,4 +1,4 @@
-.PHONY: up down restart logs status build dev test lint e2e mcp-check stress-smoke stress-live docker-restart-check provider-check provider-check-strict provider-mock-check metrics-check retrain verify monitor daily-report wal-check
+.PHONY: up down restart logs status build dev test lint e2e mcp-check stress-smoke stress-live docker-restart-check provider-check provider-check-strict provider-mock-check metrics-check retrain verify monitor daily-report wal-check data-inventory data-size-report health-check
 
 # ─── Docker Compose ────────────────────────────────────────────────────────
 
@@ -83,6 +83,52 @@ retrain:
 	source .venv/bin/activate && python scripts/retrain_lightgbm.py --symbol BTCUSDT --interval 15m --output models/lightgbm/BTCUSDT_15m.txt
 
 verify: test lint e2e mcp-check provider-check provider-mock-check
+
+# ─── Data Platform ───────────────────────────────────────────────────────────
+
+data-inventory:
+	python scripts/data_platform/inventory_sync.py
+
+data-size-report:
+	@echo "Size report (To be implemented or check ClickHouse system.parts)"
+
+health-check:
+	python scripts/data_platform/health_check.py
+
+prod-health:
+	python scripts/data_platform/health_check.py --prod
+
+derive-timeframes:
+	python3 -m backend.data.ingest.derive_timeframes
+
+retention-cleanup:
+	python3 -m backend.data.ingest.retention
+
+backfill-bist100:
+	python3 -m backend.data.ingest.backfill --market BIST --target 100
+
+backfill-viop:
+	python3 -m backend.data.ingest.backfill --market VIOP
+
+# ─── Deployment & Cleanup ─────────────────────────────────────────────────
+
+repo-cleanup-report:
+	python scripts/deployment/repo_cleanup_report.py
+
+borfin-integration-check:
+	python scripts/deployment/borfin_check.py
+
+production-package-check:
+	python scripts/deployment/production_package_check.py
+
+docker-context-size:
+	du -sh . --exclude=.git --exclude=.venv --exclude=artifacts
+
+deployment-check:
+	python scripts/deployment/deployment_check.py
+
+backup-now:
+	@echo "Manual backup not fully implemented yet."
 
 # ─── Utility ───────────────────────────────────────────────────────────────
 

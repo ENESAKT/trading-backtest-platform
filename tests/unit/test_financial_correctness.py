@@ -435,7 +435,7 @@ class TestOpenPositionEquity:
 
         assert result.has_open_position is True
         assert any(
-            "Açık pozisyon" in w
+            "Açık pozisyon" in (w.message if hasattr(w, "message") else (w["message"] if isinstance(w, dict) else str(w)))
             for w in result.warnings
         )
 
@@ -461,7 +461,7 @@ class TestPendingSignalLastBar:
         )
 
         assert any(
-            "Son barda sinyal" in w
+            "Son barda sinyal" in (w.message if hasattr(w, "message") else (w["message"] if isinstance(w, dict) else str(w)))
             for w in result.warnings
         )
 

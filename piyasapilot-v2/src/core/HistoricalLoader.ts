@@ -8,6 +8,7 @@ import { filterAnomalies } from './AnomalyFilter.js';
 
 const ENDPOINT = '/api/v2/candles';
 const DEFAULT_LIMIT = 500;
+const DAILY_HISTORY_LIMIT = 3000;
 const DEFAULT_TIMEOUT_MS = 10_000;
 
 interface BackendBar {
@@ -38,7 +39,7 @@ export async function loadHistorical(
   timeframe: Timeframe,
   opts: LoadOptions = {},
 ): Promise<OHLCV[]> {
-  const limit = opts.limit ?? DEFAULT_LIMIT;
+  const limit = opts.limit ?? (timeframe === '1d' ? DAILY_HISTORY_LIMIT : DEFAULT_LIMIT);
   const timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   const url =
     `${ENDPOINT}` +

@@ -6,7 +6,16 @@ import {
 } from '../constants/symbols.js';
 
 const LS_LAST_SYMBOL = 'piyasapilot_last_symbol';
+const LS_SIDEBAR_COLLAPSED = 'piyasapilot_sidebar_collapsed';
+const LS_FAVORITES = 'piyasapilot_favorites';
 const LAZY_BATCH_SIZE = 15; // Her lazy-load batch'inde gösterilecek sembol sayısı
+
+/** Yüzde değişim için CSS sınıfı: > 0 yeşil, < 0 kırmızı, === 0 sarı */
+function changeColorClass(changePct: number): string {
+  if (changePct > 0) return 'pos';
+  if (changePct < 0) return 'neg';
+  return 'neutral';
+}
 
 type SymbolSelectListener = (info: SymbolInfo) => void;
 
@@ -34,13 +43,45 @@ export class Sidebar {
   private listEl!: HTMLElement;
   private activeSymbol = '';
   private priceTickers = new Map<string, { price: number; changePct: number }>();
-  private collapsedGroups = new Set<string>();
+  private collapsedGroups = new Set<string>(GROUPS.map(g => g.label));
+  private isCollapsed = false;
+  private toggleBtn!: HTMLElement;
+  private favorites = new Set<string>();
 
   constructor(container: HTMLElement) {
     this.container = container;
+    this.isCollapsed = localStorage.getItem(LS_SIDEBAR_COLLAPSED) === 'true';
+    this.loadFavorites();
     this.render();
     this.bindSearch();
     this.restoreLastSymbol();
+    this.applyCollapsedState();
+  }
+
+  private loadFavorites(): void {
+    try {
+      const stored = JSON.parse(localStorage.getItem(LS_FAVORITES) || '[]');
+      if (Array.isArray(stored)) {
+        this.favorites = new Set(stored);
+      }
+    } catch {
+      this.favorites = new Set();
+    }
+  }
+
+  private saveFavorites(): void {
+    localStorage.setItem(LS_FAVORITES, JSON.stringify(Array.from(this.favorites)));
+  }
+
+  private toggleFavorite(symbol: string, e: Event): void {
+    e.stopPropagation();
+    if (this.favorites.has(symbol)) {
+      this.favorites.delete(symbol);
+    } else {
+      this.favorites.add(symbol);
+    }
+    this.saveFavorites();
+    this.renderGroups(GROUPS); // Re-render groups to show/hide in Favorites group
   }
 
   // ─── Public API ──────────────────────────────────────────────────────────
@@ -68,6 +109,7 @@ export class Sidebar {
     this.container.innerHTML = `
       <div class="sidebar-header">
         <span class="sidebar-title">${TR.APP_NAME}</span>
+        <button class="sidebar-toggle-btn" id="sidebar-toggle-btn" title="Paneli aç/kapat">«</button>
       </div>
       <div class="sidebar-search">
         <input type="text" placeholder="${TR.SEARCH_PLACEHOLDER}" class="search-input" />
@@ -77,12 +119,42 @@ export class Sidebar {
 
     this.searchInput = this.container.querySelector('.search-input')!;
     this.listEl = this.container.querySelector('.symbol-list')!;
+    this.toggleBtn = this.container.querySelector('#sidebar-toggle-btn')!;
+    this.toggleBtn.addEventListener('click', () => this.toggleCollapse());
 
     this.renderGroups(GROUPS);
   }
 
+  /** Sidebar'ı aç/kapat (toggle) */
+  toggleCollapse(): void {
+    this.isCollapsed = !this.isCollapsed;
+    localStorage.setItem(LS_SIDEBAR_COLLAPSED, String(this.isCollapsed));
+    this.applyCollapsedState();
+  }
+
+  /** Collapse state'ini DOM'a yansıt */
+  private applyCollapsedState(): void {
+    this.container.classList.toggle('collapsed', this.isCollapsed);
+    if (this.toggleBtn) {
+      this.toggleBtn.textContent = this.isCollapsed ? '»' : '«';
+    }
+  }
+
   private renderGroups(groups: GroupDef[]): void {
     this.listEl.innerHTML = '';
+
+    // Favoriler Grubunu oluştur
+    if (this.favorites.size > 0) {
+      const favSymbols: SymbolInfo[] = [];
+      this.favorites.forEach(sym => {
+        const info = ALL_SYMBOLS.find(s => s.symbol === sym);
+        if (info) favSymbols.push(info);
+      });
+      if (favSymbols.length > 0) {
+        this.renderGroup({ label: 'Favoriler', flag: '⭐', symbols: favSymbols });
+      }
+    }
+
     groups.forEach(g => this.renderGroup(g));
   }
 
@@ -145,20 +217,26 @@ export class Sidebar {
     const ticker = this.priceTickers.get(s.symbol);
     const changePct = ticker?.changePct ?? 0;
     const price = ticker?.price ?? null;
+    const isFav = this.favorites.has(s.symbol);
 
     const el = document.createElement('div');
     el.className = `sym-item${this.activeSymbol === s.symbol ? ' active' : ''}`;
     el.dataset['symbol'] = s.symbol;
     el.innerHTML = `
+      <button class="sym-fav${isFav ? ' active' : ''}" type="button" title="${isFav ? 'Favorilerden çıkar' : 'Favorilere ekle'}" aria-label="${isFav ? 'Favorilerden çıkar' : 'Favorilere ekle'}">${isFav ? '★' : '☆'}</button>
       <div class="sym-main">
         <span class="sym-ticker">${s.symbol.replace('.IS', '').replace('=X', '').replace('=F', '')}</span>
         <span class="sym-name">${s.name}</span>
       </div>
       <div class="sym-meta">
         <span class="sym-price">${price != null ? formatNumber(price, 2) : '—'}</span>
-        <span class="sym-change ${changePct >= 0 ? 'pos' : 'neg'}">${formatPct(changePct)}</span>
+        <span class="sym-change ${changeColorClass(changePct)}">${formatPct(changePct)}</span>
       </div>
     `;
+    
+    const favBtn = el.querySelector('.sym-fav') as HTMLElement;
+    favBtn.addEventListener('click', (e) => this.toggleFavorite(s.symbol, e));
+
     el.addEventListener('click', () => this.selectSymbol(s));
     return el;
   }
@@ -192,12 +270,23 @@ export class Sidebar {
       const info = ALL_SYMBOLS.find(s => s.symbol === last);
       if (info) {
         setTimeout(() => this.selectSymbol(info), 0);
+        return;
       }
-    } else {
-      // Default: BTCUSDT
-      const def = CRYPTO_SYMBOLS[0]!;
-      setTimeout(() => this.selectSymbol(def), 0);
     }
+    
+    // Fallback: Favorilerdeki ilk sembol
+    if (this.favorites.size > 0) {
+      const firstFav = Array.from(this.favorites)[0]!;
+      const info = ALL_SYMBOLS.find(s => s.symbol === firstFav);
+      if (info) {
+        setTimeout(() => this.selectSymbol(info), 0);
+        return;
+      }
+    }
+
+    // Default: BTCUSDT
+    const def = CRYPTO_SYMBOLS[0]!;
+    setTimeout(() => this.selectSymbol(def), 0);
   }
 
   // ─── Search ──────────────────────────────────────────────────────────────
@@ -244,7 +333,7 @@ export class Sidebar {
     if (priceEl)  priceEl.textContent  = formatNumber(price, 2);
     if (changeEl) {
       changeEl.textContent = formatPct(changePct);
-      changeEl.className = `sym-change ${changePct >= 0 ? 'pos' : 'neg'}`;
+      changeEl.className = `sym-change ${changeColorClass(changePct)}`;
     }
   }
 }

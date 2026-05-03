@@ -29,7 +29,8 @@ import pandas as pd
 
 from backend.backtest import blueprints as _blueprints  # noqa: F401  (registry trigger)
 from backend.data.cache import OHLCVCache
-from quant_engine.backtest.engine import BacktestConfig, BacktestEngine
+from backend.data.historical_store import HistoricalStore
+from quant_engine.backtest.engine import BacktestConfig, BacktestEngine, QualityWarning
 from quant_engine.strategy.registry import get_registry
 from quant_engine.strategy.spec import FormulaError, StrategySpecSignal, validate_strategy_spec
 
@@ -382,7 +383,15 @@ def _report_payload(
             "has_open_position": bool(result.has_open_position),
         },
         "assumptions": assumptions,
-        "warnings": list(result.warnings),
+        "quality_score": getattr(result, "quality_score", 100),
+        "warnings": [
+            {
+                "code": getattr(w, "code", "UNKNOWN"),
+                "severity": getattr(w, "severity", "low"),
+                "message": getattr(w, "message", str(w))
+            }
+            for w in result.warnings
+        ],
         "equity_curve": _equity_curve_payload(result.equity_curve),
         "trades": _trades_payload(result.trades),
         "signals": _signals_payload(result.fills, result.trades, result.equity_curve),
@@ -401,6 +410,10 @@ def run_backtest(
     end_date: str | None = None,
     commission_rate: float = 0.001,
     slippage_bps: int = 5,
+    slippage_model: str = "fixed_bps",
+    slippage_tick: float = 0.01,
+    volume_limit_pct: float = 0.05,
+    volume_window: int = 5,
     max_position_pct: float = 0.20,
     allow_short: bool = False,
     source_mode: str = DEFAULT_SOURCE_MODE,
@@ -408,6 +421,7 @@ def run_backtest(
     csv_text: str | None = None,
     csv_bars: list[dict[str, Any]] | None = None,
     data_service: Any | None = None,
+    historical_store: HistoricalStore | None = None,
 ) -> dict[str, Any]:
     """Backtest çalıştır — JSON-uyumlu sonuç dict'i döndür.
 
@@ -465,6 +479,24 @@ def run_backtest(
             end_ts=end_ts,
             limit=None if start_ts or end_ts else int(lookback_bars),
         )
+        if len(raw_bars) < MIN_BARS and historical_store is not None:
+            historical = historical_store.read_bars(
+                canonical,
+                interval=interval,
+                limit=None if start_date or end_date else int(lookback_bars),
+                start=start_date,
+                end=end_date,
+            )
+            if historical.bars:
+                cache.upsert_bars(canonical, interval, historical.bars)
+                raw_bars = historical.bars
+                provider_meta = {
+                    "source": "local_parquet",
+                    "provider_name": "HistoricalStore",
+                    "is_real": True,
+                    "status": "ok",
+                    "storage_symbol": historical.storage_symbol,
+                }
         if (
             source_mode == "cache_then_provider"
             and len(raw_bars) < MIN_BARS
@@ -490,12 +522,26 @@ def run_backtest(
                     limit=None if start_ts or end_ts else int(lookback_bars),
                 )
         if not provider_meta:
-            provider_meta = {
-                "source": "cache",
-                "provider_name": "OHLCVCache",
-                "is_real": False,
-                "status": "ok" if raw_bars else "empty",
-            }
+            if (
+                interval == "1d"
+                and historical_store is not None
+                and historical_store.has_symbol(canonical)
+                and raw_bars
+            ):
+                provider_meta = {
+                    "source": "local_parquet_cache",
+                    "provider_name": "HistoricalStore/OHLCVCache",
+                    "is_real": True,
+                    "status": "ok",
+                    "storage_symbol": historical_store.storage_symbol(canonical),
+                }
+            else:
+                provider_meta = {
+                    "source": "cache",
+                    "provider_name": "OHLCVCache",
+                    "is_real": False,
+                    "status": "ok" if raw_bars else "empty",
+                }
         if raw_bars:
             data_warnings.extend(_validate_ohlcv_bars(raw_bars, source="Cache"))
 
@@ -522,6 +568,10 @@ def run_backtest(
             initial_capital=float(capital),
             commission_rate=float(commission_rate),
             slippage_bps=int(slippage_bps),
+            slippage_model=str(slippage_model),
+            slippage_tick=float(slippage_tick),
+            volume_limit_pct=float(volume_limit_pct),
+            volume_window=int(volume_window),
             max_position_pct=float(max_position_pct),
             allow_short=bool(allow_short),
         )
@@ -542,7 +592,11 @@ def run_backtest(
         result = engine.run_intents(df, spec_signal, symbol=canonical)
         if allow_short and normalized_spec["rules"].get("short_entry"):
             result.warnings.append(
-                "Short işlemler simülasyondur; gerçek emir uygunluğu ayrıca kontrol edilmelidir."
+                QualityWarning(
+                    code="BIST_SHORT_SIMULATION",
+                    severity="medium",
+                    message="Short işlemler simülasyondur; gerçek emir uygunluğu ayrıca kontrol edilmelidir."
+                )
             )
         strategy_key = strategy_id or "strategy_spec"
         out_params: dict[str, Any] = {}
@@ -569,7 +623,15 @@ def run_backtest(
         strategy_key = strategy_id
         out_params = dict(strategy.params)
 
-    result.warnings = [*data_warnings, *result.warnings]
+    
+    normalized_data_warnings = []
+    for w in data_warnings:
+        if isinstance(w, str):
+            normalized_data_warnings.append(QualityWarning(code="DATA_ISSUE", severity="medium", message=w))
+        else:
+            normalized_data_warnings.append(w)
+            
+    result.warnings = [*normalized_data_warnings, *result.warnings]
     payload = _report_payload(
         result=result,
         df=df,

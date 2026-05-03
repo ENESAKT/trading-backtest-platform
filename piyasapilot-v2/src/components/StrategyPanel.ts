@@ -5,6 +5,7 @@ import type {
   OHLCV,
   Signal,
   StrategyBlueprint,
+  StrategyPreset,
   StrategySpec,
   SymbolInfo,
   Timeframe,
@@ -30,7 +31,7 @@ const MIN_BARS_FOR_RUN = 50;
 type SignalsListener = (signals: Signal[]) => void;
 type FocusListener = (timestamp: number) => void;
 type SymbolSelectListener = (info: SymbolInfo) => void;
-type StrategyMode = 'blueprint' | 'spec';
+type StrategyMode = 'blueprint' | 'spec' | 'preset';
 type ReportTab = 'summary' | 'trades' | 'performance' | 'system' | 'warnings';
 
 interface SavedStrategy {
@@ -154,6 +155,7 @@ export class StrategyPanel {
   private mode: StrategyMode = 'spec';
   private reportTab: ReportTab = 'summary';
   private blueprints: StrategyBlueprint[] = DEFAULT_STRATEGIES;
+  private presets: StrategyPreset[] = [];
   private activeStrategy = 'sma_crossover';
   private candles: OHLCV[] = [];
   private activeSymbol = DEFAULT_SYMBOL.symbol;
@@ -243,9 +245,20 @@ export class StrategyPanel {
     try {
       const resp = await fetch(BACKTEST_STRATEGIES_ENDPOINT);
       if (!resp.ok) return;
-      const body = await resp.json() as { strategies?: StrategyBlueprint[] };
+      const body = await resp.json() as {
+        strategies?: StrategyBlueprint[];
+        presets?: StrategyPreset[];
+      };
+      let changed = false;
       if (body.strategies?.length) {
         this.blueprints = body.strategies;
+        changed = true;
+      }
+      if (body.presets?.length) {
+        this.presets = body.presets;
+        changed = true;
+      }
+      if (changed) {
         this.renderStrategyCards();
       }
     } catch {
@@ -283,7 +296,8 @@ export class StrategyPanel {
         <div class="strategy-topline">
           <div class="segmented">
             <button class="seg-btn" data-mode="spec">Kural Lab</button>
-            <button class="seg-btn" data-mode="blueprint">Hazır Strateji</button>
+            <button class="seg-btn" data-mode="preset">Katalog (Hazır)</button>
+            <button class="seg-btn" data-mode="blueprint">Eski Blueprintler</button>
           </div>
           <div class="topline-actions">
             <button class="btn-secondary" id="save-strategy">Kaydet</button>
@@ -303,7 +317,14 @@ export class StrategyPanel {
           <label>Bitiş<input id="bt-end" type="date"></label>
           <label>Sermaye<input id="bt-capital" type="number" min="1000" step="1000" value="100000"></label>
           <label>Komisyon %<input id="bt-commission" type="number" min="0" max="10" step="0.01" value="0.10"></label>
+          <label>Slippage Modeli<select id="bt-slippage-model">
+            <option value="fixed_bps">Fixed BPS</option>
+            <option value="fixed_tick">Fixed Tick</option>
+          </select></label>
           <label>Slippage bps<input id="bt-slippage" type="number" min="0" max="500" step="1" value="5"></label>
+          <label>Slippage Tick<input id="bt-slippage-tick" type="number" min="0" step="0.01" value="0.01"></label>
+          <label>Likidite %<input id="bt-volume-limit-pct" type="number" min="0" max="100" step="1" value="5"></label>
+          <label>Likidite Penceresi<input id="bt-volume-window" type="number" min="1" max="100" step="1" value="5"></label>
           <label>Pozisyon %<input id="bt-maxpos" type="number" min="1" max="100" step="1" value="20"></label>
           <label>Kaynak<select id="bt-source">
             <option value="cache_only">Cache</option>
@@ -318,6 +339,7 @@ export class StrategyPanel {
         </div>
 
         <div id="blueprint-editor" class="strategy-editor"></div>
+        <div id="preset-cards" class="strategy-editor"></div>
         <div id="spec-editor" class="strategy-editor"></div>
 
         <div class="lab-secondary">
@@ -410,19 +432,35 @@ export class StrategyPanel {
   }
 
   private renderStrategyCards(): void {
-    const el = this.container.querySelector('#blueprint-editor');
-    if (!el) return;
-    el.innerHTML = `
-      <div class="strategy-cards" id="strategy-cards">
-        ${this.blueprints.map(s => `
-          <button class="strategy-card${s.id === this.activeStrategy ? ' active' : ''}" data-strategy="${s.id}">
-            <span class="sc-name">${this.escape(s.label)}</span>
-            <span class="sc-desc">${this.escape(s.description)}</span>
-          </button>
-        `).join('')}
-      </div>
-    `;
-    el.toggleAttribute('hidden', this.mode !== 'blueprint');
+    const elBlueprint = this.container.querySelector('#blueprint-editor');
+    if (elBlueprint) {
+      elBlueprint.innerHTML = `
+        <div class="strategy-cards" id="strategy-cards">
+          ${this.blueprints.map(s => `
+            <button class="strategy-card${s.id === this.activeStrategy && this.mode === 'blueprint' ? ' active' : ''}" data-strategy="${s.id}">
+              <span class="sc-name">${this.escape(s.label)}</span>
+              <span class="sc-desc">${this.escape(s.description)}</span>
+            </button>
+          `).join('')}
+        </div>
+      `;
+      elBlueprint.toggleAttribute('hidden', this.mode !== 'blueprint');
+    }
+
+    const elPreset = this.container.querySelector('#preset-cards');
+    if (elPreset) {
+      elPreset.innerHTML = `
+        <div class="strategy-cards" id="strategy-cards-presets">
+          ${this.presets.map(s => `
+            <button class="strategy-card${s.id === this.activeStrategy && this.mode === 'preset' ? ' active' : ''}" data-strategy="${s.id}">
+              <span class="sc-name">${this.escape(s.label)} <small style="opacity:0.6;font-weight:normal;">(${this.escape(s.category)})</small></span>
+              <span class="sc-desc">${this.escape(s.description)}</span>
+            </button>
+          `).join('')}
+        </div>
+      `;
+      elPreset.toggleAttribute('hidden', this.mode !== 'preset');
+    }
   }
 
   private renderSpecEditor(spec?: Partial<StrategySpec>): void {
@@ -470,8 +508,13 @@ export class StrategyPanel {
             <label>Op<select id="builder-op">
               <option value="CROSS_UP">yukarı keser</option>
               <option value="CROSS_DOWN">aşağı keser</option>
-              <option value=">">&gt;</option>
-              <option value="<">&lt;</option>
+              <option value=">">></option>
+              <option value="<"><</option>
+              <option value="ABOVE">üstünde seyreder</option>
+              <option value="BELOW">altında seyreder</option>
+              <option value="RISING">sürekli yükselen (Periyot: Sağ değer)</option>
+              <option value="FALLING">sürekli düşen (Periyot: Sağ değer)</option>
+              <option value="VOLUME_ABOVE_AVG">Hacim ort. üstü (Periyot: Sağ değer)</option>
             </select></label>
             <label>Bağ<select id="builder-join">
               <option value="OR">OR</option>
@@ -490,6 +533,7 @@ export class StrategyPanel {
           <label>Stop %<input id="risk-stop" type="number" min="0" step="0.1" value="${risk.stop_loss_pct ?? 3}"></label>
           <label>Kar Al %<input id="risk-take" type="number" min="0" step="0.1" value="${risk.take_profit_pct ?? 8}"></label>
           <label>Trailing %<input id="risk-trail" type="number" min="0" step="0.1" value="${risk.trailing_stop_pct ?? 5}"></label>
+          <label>Süre Stop (Bar)<input id="risk-time" type="number" min="0" step="1" value="${risk.time_stop_bars ?? 0}" title="0 = Devre dışı"></label>
         </div>
       </div>
     `;
@@ -640,6 +684,8 @@ export class StrategyPanel {
     });
     this.container.querySelector<HTMLElement>('#blueprint-editor')
       ?.toggleAttribute('hidden', this.mode !== 'blueprint');
+    this.container.querySelector<HTMLElement>('#preset-cards')
+      ?.toggleAttribute('hidden', this.mode !== 'preset');
     this.container.querySelector<HTMLElement>('#spec-editor')
       ?.toggleAttribute('hidden', this.mode !== 'spec');
     this.container.querySelectorAll<HTMLElement>('.report-tab').forEach(btn => {
@@ -679,6 +725,7 @@ export class StrategyPanel {
     this.runInFlight = true;
     try {
       const result = await this.fetchBacktest();
+      result.signals = this.enrichSignalsWithTrades(result.signals || [], result.trades || [], result.strategy_spec?.risk);
       this.lastResult = result;
       this.renderReport();
       this.renderSignals(result.signals);
@@ -729,7 +776,11 @@ export class StrategyPanel {
       start_date: this.value<HTMLInputElement>('#bt-start') || null,
       end_date: this.value<HTMLInputElement>('#bt-end') || null,
       commission_rate: this.num('#bt-commission', 0.1) / 100,
+      slippage_model: this.value<HTMLSelectElement>('#bt-slippage-model') || 'fixed_bps',
       slippage_bps: this.num('#bt-slippage', 5),
+      slippage_tick: this.num('#bt-slippage-tick', 0.01),
+      volume_limit_pct: this.num('#bt-volume-limit-pct', 5) / 100,
+      volume_window: this.num('#bt-volume-window', 5),
       max_position_pct: this.num('#bt-maxpos', 20) / 100,
       allow_short: Boolean(this.container.querySelector<HTMLInputElement>('#bt-allow-short')?.checked),
       source_mode: sourceMode,
@@ -742,6 +793,10 @@ export class StrategyPanel {
     if (this.mode === 'spec') {
       payload['strategy_id'] = 'strategy_spec';
       payload['strategy_spec'] = this.buildSpec();
+    } else if (this.mode === 'preset') {
+      const preset = this.presets.find(p => p.id === this.activeStrategy);
+      payload['strategy_id'] = 'strategy_spec';
+      payload['strategy_spec'] = preset?.strategy_spec ?? this.buildSpec();
     } else {
       payload['strategy_id'] = this.activeStrategy;
       payload['params'] = {};
@@ -763,13 +818,118 @@ export class StrategyPanel {
         stop_loss_pct: this.num('#risk-stop', 0),
         take_profit_pct: this.num('#risk-take', 0),
         trailing_stop_pct: this.num('#risk-trail', 0),
+        time_stop_bars: this.num('#risk-time', 0),
       },
     };
   }
 
+  private enrichSignalsWithTrades(
+    signals: Signal[],
+    trades: BacktestTrade[],
+    risk?: StrategySpec['risk'],
+  ): Signal[] {
+    const enriched = signals.map(signal => ({ ...signal }));
+    const riskSettings = risk ?? this.currentRiskSettings();
+
+    for (const trade of trades) {
+      const side = trade.side === 'SHORT' || trade.entry_type === 'SHORT' ? 'SHORT' : 'LONG';
+      const entryType = side === 'SHORT' ? 'SHORT' : 'BUY';
+      const exitType = side === 'SHORT' ? 'COVER' : 'SELL';
+      const entry = this.findTradeSignal(enriched, trade.entry_time, entryType);
+      const exit = this.findTradeSignal(enriched, trade.exit_time, exitType);
+
+      if (entry) {
+        Object.assign(entry, {
+          trade_role: 'entry',
+          trade_side: side,
+          entry_time: trade.entry_time,
+          exit_time: trade.exit_time,
+          entry_price: trade.entry_price,
+          exit_price: trade.exit_price,
+          net_pnl: trade.net_pnl,
+          return_pct: trade.return_pct,
+          open_position: false,
+        } satisfies Partial<Signal>);
+        this.applyRiskLevels(entry, riskSettings, side, trade.entry_price);
+      }
+
+      if (exit) {
+        Object.assign(exit, {
+          trade_role: 'exit',
+          trade_side: side,
+          entry_time: trade.entry_time,
+          exit_time: trade.exit_time,
+          entry_price: trade.entry_price,
+          exit_price: trade.exit_price,
+          net_pnl: trade.net_pnl,
+          return_pct: trade.return_pct,
+          pnl: trade.net_pnl,
+          open_position: false,
+        } satisfies Partial<Signal>);
+      }
+    }
+
+    for (const signal of enriched) {
+      if (signal.open_position && (signal.type === 'BUY' || signal.type === 'SHORT')) {
+        const side = signal.type === 'SHORT' ? 'SHORT' : 'LONG';
+        signal.trade_role = 'entry';
+        signal.trade_side = side;
+        signal.entry_time = signal.timestamp;
+        signal.entry_price = signal.price;
+        this.applyRiskLevels(signal, riskSettings, side, signal.price);
+      }
+    }
+
+    return enriched;
+  }
+
+  private findTradeSignal(signals: Signal[], timestamp: number, type: Signal['type']): Signal | undefined {
+    return signals.find(signal => signal.timestamp === timestamp && signal.type === type)
+      ?? signals.find(signal => Math.abs(signal.timestamp - timestamp) <= 1 && signal.type === type);
+  }
+
+  private currentRiskSettings(): StrategySpec['risk'] {
+    return {
+      stop_loss_pct: this.num('#risk-stop', 0),
+      take_profit_pct: this.num('#risk-take', 0),
+      trailing_stop_pct: this.num('#risk-trail', 0),
+      time_stop_bars: this.num('#risk-time', 0),
+    };
+  }
+
+  private applyRiskLevels(
+    signal: Signal,
+    risk: StrategySpec['risk'] | undefined,
+    side: 'LONG' | 'SHORT',
+    entryPrice: number,
+  ): void {
+    const stopPct = risk?.stop_loss_pct ?? 0;
+    const takePct = risk?.take_profit_pct ?? 0;
+    if (entryPrice <= 0) return;
+
+    if (stopPct > 0) {
+      signal.stop_price = side === 'SHORT'
+        ? entryPrice * (1 + stopPct / 100)
+        : entryPrice * (1 - stopPct / 100);
+    }
+    if (takePct > 0) {
+      signal.take_profit_price = side === 'SHORT'
+        ? entryPrice * (1 - takePct / 100)
+        : entryPrice * (1 + takePct / 100);
+    }
+    if (stopPct > 0 && takePct > 0) {
+      signal.risk_reward = takePct / stopPct;
+    }
+  }
+
   private async saveStrategy(): Promise<void> {
-    const spec = this.mode === 'spec' ? this.buildSpec() : null;
+    const payload = this.buildPayload();
+    const strategySpec = payload['strategy_spec'] as StrategySpec | undefined;
+    const isSpecBased = this.mode === 'spec' || this.mode === 'preset';
+    
+    const spec = isSpecBased ? (strategySpec || this.buildSpec()) : null;
     const name = spec?.name || this.activeStrategy;
+    
     const resp = await fetch(STRATEGY_STORE_ENDPOINT, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
@@ -778,10 +938,10 @@ export class StrategyPanel {
         symbol: this.activeSymbol,
         interval: this.value<HTMLSelectElement>('#bt-interval') || this.activeInterval,
         market: '',
-        strategy_id: this.mode === 'spec' ? 'strategy_spec' : this.activeStrategy,
+        strategy_id: isSpecBased ? 'strategy_spec' : this.activeStrategy,
         strategy_spec: spec,
         params: {},
-        settings: this.buildPayload(),
+        settings: payload,
         source_mode: this.value<HTMLSelectElement>('#bt-source') || 'cache_only',
         notes: spec?.note || '',
       }),
@@ -835,6 +995,7 @@ export class StrategyPanel {
       return;
     }
     const report = await resp.json() as BacktestResult;
+    report.signals = this.enrichSignalsWithTrades(report.signals || [], report.trades || [], report.strategy_spec?.risk);
     this.lastResult = report;
     if (report.strategy_spec) {
       this.mode = 'spec';
@@ -865,10 +1026,18 @@ export class StrategyPanel {
     const op = this.value<HTMLSelectElement>('#builder-op') || 'CROSS_UP';
     const join = this.value<HTMLSelectElement>('#builder-join') || 'OR';
     const volume = this.container.querySelector<HTMLInputElement>('#builder-volume')?.checked;
-    let expr = op === 'CROSS_UP' || op === 'CROSS_DOWN'
-      ? `${op}(${left}, ${right})`
-      : `${left} ${op} ${right}`;
-    if (volume) expr = `${expr} AND V > SMA(V,20)`;
+
+    let expr = '';
+    if (op === 'CROSS_UP' || op === 'CROSS_DOWN' || op === 'ABOVE' || op === 'BELOW') {
+      expr = `${op}(${left}, ${right})`;
+    } else if (op === 'RISING' || op === 'FALLING' || op === 'VOLUME_ABOVE_AVG') {
+      const rightVal = this.num('#builder-right-value', 3);
+      expr = `${op}(${left}, ${rightVal})`;
+    } else {
+      expr = `${left} ${op} ${right}`;
+    }
+
+    if (volume) expr = `${expr} AND VOLUME_ABOVE_AVG(V, 20)`;
     const textarea = this.container.querySelector<HTMLTextAreaElement>(`#rule-${target}`);
     if (!textarea) return;
     textarea.value = textarea.value.trim()
@@ -963,7 +1132,7 @@ export class StrategyPanel {
       String(row.metrics.profit_factor),
       String(row.metrics.win_rate),
       String(row.metrics.total_trades),
-      (row.warnings || []).join(' | '),
+      (row.warnings || []).map(w => typeof w === 'string' ? w : (w as any).message).join(' | '),
     ]);
     const csv = [header, ...rows]
       .map(cols => cols.map(col => this.csvCell(col)).join(','))
@@ -1068,7 +1237,7 @@ export class StrategyPanel {
               <td><button class="btn-sm" data-apply-optimizer="${idx}">Uygula</button></td>
             </tr>
             ${row.warnings.length ? `
-              <tr class="table-note"><td colspan="5">${this.escape(row.warnings.join(' · '))}</td></tr>
+              <tr class="table-note"><td colspan="5">${this.escape(row.warnings.map(w => typeof w === 'string' ? w : (w as any).message).join(' · '))}</td></tr>
             ` : ''}
           `).join('')}
         </tbody>
@@ -1177,6 +1346,7 @@ export class StrategyPanel {
       ['Strateji', r.strategy_name ?? r.strategy_id],
       ['Sembol', r.symbol],
       ['Periyot', r.interval],
+      ['Veri Kalitesi', r.quality_score ? `${formatNumber(r.quality_score, 0)} / 100` : '-'],
       ['Kaynak', `${r.data_source?.source ?? '-'} / ${r.data_source?.status ?? '-'}`],
       ['Kapsama', `${formatNumber(r.data_source?.data_coverage_pct ?? 0, 1)}%`],
       ['Varsayım', `${r.assumptions?.['signal_timing'] ?? ''} → ${r.assumptions?.['execution_timing'] ?? ''}`],
@@ -1194,7 +1364,13 @@ export class StrategyPanel {
     const warnings = r.warnings ?? [];
     if (warnings.length === 0) return `<div class="empty-state">Uyarı yok</div>`;
     return `<div class="warning-list">${
-      warnings.map(w => `<div class="warning-item">${this.escape(w)}</div>`).join('')
+      warnings.map(w => {
+        if (typeof w === 'string') {
+          return `<div class="warning-item">${this.escape(w)}</div>`;
+        }
+        const qw = w as any;
+        return `<div class="warning-item warning-${qw.severity}"><b>[${this.escape(qw.code)}]</b> ${this.escape(qw.message)}</div>`;
+      }).join('')
     }</div>`;
   }
 

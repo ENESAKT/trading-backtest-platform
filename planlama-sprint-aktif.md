@@ -2,13 +2,64 @@
 
 > Sprint 0–12 tamamlandı (bkz. `planlama-sprint-gecmis.md`).
 > Bu dosya aktif geliştirme sırasını ve önceliklerini gösterir.
-> Tarih: 2026-05-01
+> Tarih: 2026-05-02
 
 ---
 
 ## Geliştirme Prensibi
 
 **Sadece ekle, bozma.** Mevcut çalışan gateway (8000), workers, BacktestEngine, paper trading ve frontend (5173) korunur. Yeni sekmeler için `app.ts`, nav ve stil katmanına kontrollü dokunmak gerekir; amaç mevcut akışı bozmadan genişletmektir.
+
+---
+
+## Faz 0 — Veri Platformu, Repo Temizliği ve Canlıya Çıkış
+
+Bu faz yeni ana altyapı fazıdır. Detaylar:
+
+- `planlama-veri-platformu.md`
+- `planlama-temizlik-canliya-cikis.md`
+- `planlama-agent-skill-mentor.md`
+
+### 0A. Veri Platformu
+
+| Adım | İş | Etki |
+|------|----|------|
+| VDP-0 | Plan ve güvenlik kilitleri: sahte veri yasağı, retention kararı, docs bağlantısı | Sıfır |
+| VDP-1 | ClickHouse + MySQL + Redis dev compose | Orta |
+| VDP-2 | ClickHouse ve MySQL şemaları | Orta |
+| VDP-3 | Repository katmanı: ClickHouse + legacy fallback | Yüksek |
+| VDP-4 | Data inventory ve README veri raporu | Orta |
+| VDP-5 | BIST 100 + VIOP backfill | Yüksek |
+| VDP-6 | Timeframe graph ve rollup | Yüksek |
+| VDP-7 | Retention cleanup | Yüksek |
+| VDP-8 | Production veri servisleri | Yüksek |
+
+**Kabul:** Her sembol/timeframe için satır, tarih aralığı, boyut, eksik oran ve raw/derived durumu raporlanır.
+
+### 0B. Repo Temizliği ve Canlıya Çıkış
+
+| Adım | İş | Etki |
+|------|----|------|
+| RCP-0 | Plan bağlantısı | Sıfır |
+| RCP-1 | Repo tarama scriptleri ve rapor | Düşük |
+| RCP-2 | Borfin entegrasyon denetimi | Orta |
+| RCP-3 | `.dockerignore` ve production package kontrolü | Orta |
+| RCP-4 | Production compose + nginx + volume | Yüksek |
+| RCP-5 | Deployment runbook + rollback + backup | Orta |
+
+**Kabul:** `artifacts/`, local DB, `.venv`, `node_modules`, Borfin frame/OCR/video çıktıları production image ve build context içine girmez.
+
+### 0C. Skill ve Mentor Katmanı
+
+| Adım | İş | Etki |
+|------|----|------|
+| ASM-0 | Plan bağlantısı | Sıfır |
+| ASM-1 | Denetim skill iskeletleri | Düşük |
+| ASM-2 | Kontrol script iskeletleri | Orta |
+| ASM-3 | Mentor/data/release agent iskeletleri | Düşük |
+| ASM-4 | Agent/skill rehberlerinin güncellenmesi | Düşük |
+
+**Kabul:** Veri platformu, retention, repo temizliği, Borfin entegrasyonu ve deployment için tekrar çalıştırılabilir denetim skill/script sistemi olur.
 
 ---
 
@@ -106,10 +157,25 @@ Her sprint öncesi `python -m pytest tests/ -q` tüm testler geçmeli.
 
 | Faz | Sprint | Durum |
 |-----|--------|-------|
-| Faz 1A | E1–E4 | Başlanacak |
+| Faz 0A | VDP-0...VDP-8 | ✅ Tamamlandı — Veri platformu implement edildi |
+| Faz 0B | RCP-0...RCP-5 | ✅ Tamamlandı — Repo temizliği ve canlıya çıkış hazırlandı |
+| Faz 0C | ASM-0...ASM-4 | ✅ Tamamlandı — Skill ve mentor yapısı kuruldu |
+| Faz 1A | E1–E11 | ✅ Tamamlandı — Eğitimler paneli, 57 makale, arama/kategori, grafik ve preset köprüleri |
 | Faz 1B | Mali analiz eğitim OCR'ı | Ön koşul |
-| Faz 2 | G2 | Bekliyor |
-| Faz 3 | B1 | Bekliyor |
+| Faz 2 | G2 | ✅ Tamamlandı — ölçek menüsü, log/yüzde mod, yüzde baz ve iki pane testi |
+| Faz 2 | G3 | ✅ Çekirdek tamamlandı — indikatör merkezi, Stochastic paneli, parametre kalıcılığı |
+| Faz 2 | G4 | ✅ Tamamlandı — PnL çizgileri, trade bağlantıları, risk ve tavan/taban overlay |
+| Faz 2 | G5 | ✅ Çekirdek Tamamlandı — Çizim altyapısı ilk seti çekirdek olarak eklendi, regresyon kanalı eklenecek |
+| Faz 2 | G6 | ✅ Tamamlandı — Çoklu sembol karşılaştırma |
+| Faz 2 | G7 | ✅ Tamamlandı — Multi-chart senkron kilitleri |
+| Faz 2 | G8 | ✅ Tamamlandı — Şablonlar, kayıt, export |
+| Faz 2 | G9 | ✅ Tamamlandı — Haber/KAP/bilanço event marker |
+| Faz 2 | G10 | ✅ Tamamlandı — İleri çizim araçları, fibonacci, regresyon |
+| Faz 3 | B1 | ✅ Tamamlandı — Katalog frontend/backend'e eklendi |
+| Faz 3 | B2 | ✅ Çekirdek Tamamlandı — İndikatör kataloğu eklendi. Gözden geçirilecek. |
+| Faz 3 | B3 | ✅ Tamamlandı — Görsel kurucu bloklar + DSL genişletme |
+| Faz 3 | B4 | ✅ Tamamlandı — Backtest gerçekçilik: slippage, komisyon, likidite |
+| Faz 3 | B5 | ✅ Tamamlandı — Backtest kalite skoru ve tuzak uyarıları |
 
 ---
 

@@ -1,0 +1,17 @@
+[mcp_servers.borsa]
+args = [
+    "scripts/mcp_uvx.sh",
+    "--from",
+    "git+https://github.com/saidsurucu/borsa-mcp",
+    "borsa-mcp",
+]
+command = "bash"
+
+[mcp_servers.tradingview]
+args = [
+    "scripts/mcp_uvx.sh",
+    "--from",
+    "git+https://github.com/atilaahmettaner/tradingview-mcp.git",
+    "tradingview-mcp",
+]
+command = "bash"

@@ -15,9 +15,13 @@ interface EducationPanelHandlers {
 
 const SOURCE_LABELS: Record<string, string> = {
   fuat_akman_indikator: 'Fuat Akman - İndikatörler',
+  fuat_sistem_trading: 'Fuat Akman - Sistem Trading',
   kivanc_hareketli_ortalamalar: 'Kıvanç Özbilgiç - Hareketli Ortalamalar',
   kivanc_algo_trade: 'Kıvanç Özbilgiç - Algo Trade',
   yasar_teknik_analiz: 'Yaşar Erdinç - Teknik Analiz',
+  yasar_vob: 'Yaşar Erdinç - VOB',
+  bolgun_vadeli_trade: 'Evren Bolgün - Vadeli Trade',
+  yatirimci_psikolojisi: 'Yaşar Erdinç - Yatırımcı Psikolojisi',
 };
 
 const CONFIDENCE_LABELS: Record<string, string> = {

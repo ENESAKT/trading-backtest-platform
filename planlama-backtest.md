@@ -44,24 +44,24 @@ Bu yüzden aşağıdaki B sprintleri "mevcut yapılmış işleri tekrar et" değ
 
 ## Sprint B1 — Strateji Kataloğu ve Eğitimden Gelen Presetler
 
-- [ ] `quant_engine/strategy/catalog.py`: strateji taksonomisi — `momentum`, `trend_following`, `mean_reversion`, `breakout`, `moving_average`, `hybrid`, `ml`
-- [ ] Her strateji için metadata: beklenen piyasa koşulu, önerilen timeframe, min bar sayısı, önerilen stop/TP, repaint riski, likidite ihtiyacı
-- [ ] Hazır presetler: Momentum-MO cross, RSI-HO cross, RSI çift HO, RSI-MOST, SMA/EMA cross, fiyat-HO cross, T3 renk değişimi, Kairi mean reversion, BB SS3 dönüş
-- [ ] Presetler `StrategySpec` DSL'e çevrilir; Python tek doğruluk kaynağı
-- [ ] Frontend Strateji Lab'da "Eğitim presetleri" segmenti; kullanıcı preset seçip parametreleri değiştirir
-- [ ] **Kabul:** En az 10 preset backtest edilebilir ve grafikte marker üretir
+- [x] `quant_engine/strategy/catalog.py`: strateji taksonomisi — `momentum`, `trend_following`, `mean_reversion`, `breakout`, `moving_average`, `hybrid`, `ml`
+- [x] Her strateji için metadata: beklenen piyasa koşulu, önerilen timeframe, min bar sayısı, önerilen stop/TP, repaint riski, likidite ihtiyacı
+- [x] Hazır presetler: Momentum-MO cross, RSI-HO cross, RSI çift HO, RSI-MOST, SMA/EMA cross, fiyat-HO cross, T3 renk değişimi, Kairi mean reversion, BB SS3 dönüş
+- [x] Presetler `StrategySpec` DSL'e çevrilir; Python tek doğruluk kaynağı
+- [x] Frontend Strateji Lab'da "Eğitim presetleri" segmenti; kullanıcı preset seçip parametreleri değiştirir
+- [x] **Kabul:** En az 10 preset backtest edilebilir ve grafikte marker üretir
 
 ---
 
 ## Sprint B2 — İndikatör Merkezi v2 + HO Kütüphanesi
 
-- [ ] `quant_engine/strategy/indicators.py` genişletme:
-  WMA, TMA, DEMA, TEMA, ZLEMA, TSF, WWMA, VIDYA, T3, KAMA, FRAMA, HMA, ALMA, MAMA/FAMA, MavilimW, GANN HiLo, RMTA, JMA araştırma listesi
-- [ ] Her yeni indikatör için TS karşılığı veya backend hesaplanmış seri endpoint seçilir; parite testi yazılır
-- [ ] Kairi, MOST, BB Width, Guppy Multiple Moving Average ve oscillator smoothing blokları
-- [ ] İndikatör parametreleri: period, kaynak data, MA türü, renk, overlay/alt panel, bar kapanışı bekle
-- [ ] Repaint riski yüksek indikatörler için metadata ve UI uyarısı
-- [ ] **Kabul:** EMA/SMA dışı en az 8 HO türü grafikte çizilebilir, DSL'de kullanılabilir, backtestte çalışır
+- [x] `quant_engine/strategy/indicators.py` genişletme:
+  WMA, TMA, DEMA, TEMA eklendi. ZLEMA, TSF, WWMA, VIDYA, T3, KAMA, FRAMA, HMA, ALMA, MAMA/FAMA, MavilimW, GANN HiLo, RMTA, JMA araştırma listesi
+- [x] Her yeni indikatör için TS karşılığı veya backend hesaplanmış seri endpoint seçilir; parite testi yazılır
+- [x] Kairi, MOST, BB Width, Guppy Multiple Moving Average ve oscillator smoothing blokları
+- [x] İndikatör parametreleri: period, kaynak data, MA türü, renk, overlay/alt panel, bar kapanışı bekle
+- [x] Repaint riski yüksek indikatörler için metadata ve UI uyarısı
+- [x] **Kabul:** EMA/SMA dışı en az 8 HO türü grafikte çizilebilir, DSL'de kullanılabilir, backtestte çalışır
 
 ---
 

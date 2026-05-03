@@ -52,6 +52,7 @@ from backend.backtest import (
 )
 from backend.config import getenv, llm_configured, mask_sensitive, telegram_configured
 from backend.data.cache import OHLCVCache
+from backend.data.historical_store import HistoricalStore
 from backend.data.spike_filter import filter_bars
 from backend.data.symbols import (
     BIST_STOCKS,
@@ -60,6 +61,9 @@ from backend.data.symbols import (
     YAHOO_INDEX_FX_COMMODITY,
 )
 from backend.env_validator import validate_env
+from backend.mali_analiz.cache import FinancialAnalysisCache
+from backend.mali_analiz.service import FinancialAnalysisService
+from backend.mali_analiz.symbols import SYMBOL_METADATA, normalize_symbol
 from backend.middleware.api_key_auth import APIKeyMiddleware
 from backend.paper import PaperDB, PaperExecutor
 from backend.signals import SignalGenerator
@@ -72,6 +76,7 @@ from quant_engine.data.live_feed import (
     PaperTradingRecorder,
 )
 from quant_engine.strategy.persistence import StrategyRecord, StrategyStore
+from quant_engine.strategy.catalog import list_strategy_presets
 from quant_engine.workspace.json_store import WorkspaceJsonStore
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -251,6 +256,8 @@ def create_app(
     paper_executor: PaperExecutor | None = None,
     backtest_archive: BacktestArchive | None = None,
     strategy_store: StrategyStore | None = None,
+    mali_analiz_service: FinancialAnalysisService | None = None,
+    historical_store: HistoricalStore | None = None,
 ) -> FastAPI:
     """FastAPI app factory.
 
@@ -280,6 +287,11 @@ def create_app(
     paper_executor = paper_executor or PaperExecutor(db=paper_db)
     backtest_archive = backtest_archive or BacktestArchive(ROOT / _BACKTEST_ARCHIVE_PATH)
     strategy_store = strategy_store or StrategyStore(ROOT / _STRATEGY_STORE_PATH)
+    historical_store = historical_store or HistoricalStore()
+
+    if mali_analiz_service is None:
+        ma_cache = FinancialAnalysisCache(ROOT / "data" / "cache" / "mali_analiz.sqlite3")
+        mali_analiz_service = FinancialAnalysisService(cache=ma_cache)
 
     if supervisor is None:
         if os.environ.get("PIYASAPILOT_DISABLE_WORKERS") == "1":
@@ -500,7 +512,10 @@ def create_app(
     @app.get("/api/backtest/strategies")
     def backtest_strategies() -> dict[str, Any]:
         """Mevcut strateji blueprint'lerini listele (frontend form üretir)."""
-        return {"strategies": list_blueprints()}
+        return {
+            "strategies": list_blueprints(),
+            "presets": list_strategy_presets(include_spec=True)
+        }
 
     @app.post("/api/backtest/run")
     def backtest_run(req: BacktestRequest) -> dict[str, Any]:
@@ -518,12 +533,17 @@ def create_app(
                 end_date=req.end_date,
                 commission_rate=req.commission_rate,
                 slippage_bps=req.slippage_bps,
+                slippage_model=req.slippage_model,
+                slippage_tick=req.slippage_tick,
+                volume_limit_pct=req.volume_limit_pct,
+                volume_window=req.volume_window,
                 max_position_pct=req.max_position_pct,
                 allow_short=req.allow_short,
                 source_mode=req.source_mode,
                 strategy_spec=req.strategy_spec,
                 csv_text=req.csv_text,
                 csv_bars=req.csv_bars,
+                historical_store=historical_store,
             )
             run_id = backtest_archive.save(result)
             result["run_id"] = run_id
@@ -954,6 +974,29 @@ def create_app(
           4. Provider hata verirse cache'te biriken eski veriyi yine de döndür
              (graceful degradation), metadata'da ``status='stale'``.
         """
+        if interval == "1d":
+            try:
+                safe_limit = max(20, min(int(limit), 5000))
+            except (TypeError, ValueError):
+                safe_limit = 500
+            local_payload = historical_store.payload(
+                symbol=symbol,
+                interval=interval,
+                limit=safe_limit,
+            )
+            if local_payload is not None:
+                canonical_symbol = local_payload["symbol"]
+                cleaned, report = filter_bars(local_payload["bars"])
+                cache.upsert_bars(canonical_symbol, interval, cleaned)
+                local_payload["bars"] = cleaned
+                local_payload["metadata"]["spike_filter"] = {
+                    "total": report.total_bars,
+                    "winsorized": report.winsorized,
+                    "untouched_high_volume": report.untouched_high_volume,
+                }
+                local_payload["metadata"]["cache"] = "local_parquet_then_write"
+                return JSONResponse(local_payload)
+
         # Validation backend tarafında zaten yapılıyor; burada sadece çağrı.
         provider_payload = data_service.fetch_candles(
             symbol=symbol, interval=interval, limit=limit
@@ -1022,6 +1065,96 @@ def create_app(
         # Hem provider hem cache boş ve gerçek provider hatası var.
         return JSONResponse(provider_payload, status_code=502)
 
+    # ── Mali Analiz API (Sprint 12) ──────────────────────────────────────────
+    @app.get("/api/mali-analiz/universe")
+    def get_mali_analiz_universe(scope: str = "bist30") -> dict[str, Any]:
+        """Mali analiz için metadata-only sembol evrenini döndürür."""
+        symbols = [
+            {
+                "symbol": symbol,
+                "ticker": f"{symbol}.IS",
+                "name": name,
+            }
+            for symbol, name in sorted(SYMBOL_METADATA.items())
+        ]
+        return {
+            "scope": scope,
+            "symbols": symbols,
+            "source_status": {
+                "source": "static_metadata",
+                "status": "metadata_only",
+            },
+        }
+
+    @app.get("/api/mali-analiz/{symbol}")
+    def get_mali_analiz(symbol: str, force_refresh: bool = False) -> dict[str, Any]:
+        """Sembol için mali analiz raporunu döndürür."""
+        try:
+            # FinancialAnalysisService JSON-serializable FinancialAnalysisResponse döner.
+            # (FinancialAnalysisResponse bir Pydantic modelidir)
+            response = mali_analiz_service.get_analysis(symbol, force_refresh=force_refresh)
+            return response.model_dump()
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+        except Exception as exc:
+            _logger.exception("Mali analiz beklenmedik hata: %s", exc)
+            raise HTTPException(status_code=500, detail="Mali analiz servis hatası")
+
+    @app.get("/api/mali-analiz/{symbol}/reports")
+    def get_mali_analiz_reports(symbol: str) -> dict[str, Any]:
+        """KAP finansal rapor kontratı; provider bağlanana kadar boş döner."""
+        try:
+            normalized = normalize_symbol(symbol)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+        return {
+            "symbol": normalized,
+            "reports": [],
+            "message": "KAP finansal rapor kaynağı henüz bağlı değil.",
+            "source_status": {
+                "source": "kap",
+                "status": "not_configured",
+            },
+        }
+
+    @app.get("/api/mali-analiz/{symbol}/events")
+    def get_mali_analiz_events(symbol: str) -> dict[str, Any]:
+        """KAP olay/veri kontratı; provider bağlanana kadar boş döner."""
+        try:
+            normalized = normalize_symbol(symbol)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+        return {
+            "symbol": normalized,
+            "events": [],
+            "message": "KAP olay/veri kaynağı henüz bağlı değil.",
+            "source_status": {
+                "source": "kap",
+                "status": "not_configured",
+            },
+        }
+
+    @app.get("/api/mali-analiz/{symbol}/metric-history")
+    def get_mali_analiz_metric_history(
+        symbol: str,
+        metric: str = "net_income",
+    ) -> dict[str, Any]:
+        """Metrik geçmişi kontratı; finansal seri bağlanana kadar boş döner."""
+        try:
+            normalized = normalize_symbol(symbol)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+        return {
+            "symbol": normalized,
+            "metric": metric,
+            "points": [],
+            "message": "Metrik geçmişi için finansal veri henüz bağlı değil.",
+            "source_status": {
+                "source": "financial_metric_series",
+                "status": "not_configured",
+            },
+        }
+
     # ── Statik dosyalar (SPA / index.html) ───────────────────────────────
     # Mount en sona; daha spesifik /api/* route'larını gölgelemesin diye.
     if (ROOT / "index.html").exists():
@@ -1053,6 +1186,10 @@ class BacktestRequest(BaseModel):
     end_date: str | None = Field(None, description="Backtest bitiş tarihi")
     commission_rate: float = Field(0.001, ge=0, le=0.10, description="Komisyon oranı")
     slippage_bps: int = Field(5, ge=0, le=500, description="Slippage baz puan")
+    slippage_model: str = Field("fixed_bps", description="Slippage modeli (fixed_bps, fixed_tick)")
+    slippage_tick: float = Field(0.01, description="Tick bazlı slippage için tick değeri")
+    volume_limit_pct: float = Field(0.05, description="Likidite limiti (son X bar ortalamasının yüzdesi)")
+    volume_window: int = Field(5, description="Ortalama hacim hesaplama için pencere boyutu")
     max_position_pct: float = Field(0.20, gt=0, le=1.0, description="Maksimum pozisyon oranı")
     allow_short: bool = Field(False, description="Short simülasyonuna izin ver")
     source_mode: str = Field(
@@ -1100,6 +1237,10 @@ class OptimizeRequest(BaseModel):
     end_date: str | None = None
     commission_rate: float = Field(0.001, ge=0, le=0.10)
     slippage_bps: int = Field(5, ge=0, le=500)
+    slippage_model: str = Field("fixed_bps")
+    slippage_tick: float = Field(0.01)
+    volume_limit_pct: float = Field(0.05)
+    volume_window: int = Field(5)
     max_position_pct: float = Field(0.20, gt=0, le=1.0)
     allow_short: bool = False
     source_mode: str = "cache_only"
@@ -1118,6 +1259,10 @@ class ScanRequest(BaseModel):
     end_date: str | None = None
     commission_rate: float = Field(0.001, ge=0, le=0.10)
     slippage_bps: int = Field(5, ge=0, le=500)
+    slippage_model: str = Field("fixed_bps")
+    slippage_tick: float = Field(0.01)
+    volume_limit_pct: float = Field(0.05)
+    volume_window: int = Field(5)
     max_position_pct: float = Field(0.20, gt=0, le=1.0)
     allow_short: bool = False
     source_mode: str = "cache_only"

@@ -162,11 +162,66 @@ export const TR = {
   WAITING_DATA: 'Veri bekleniyor...',
   API_ERROR: 'API hatası',
 
+  // ── G7: Multi-chart Sync ──────────────────────────────────────────────────
+  SYNC_LOCKS: 'Senkronizasyon',
+  SYNC_SYMBOL: 'Sembol',
+  SYNC_TIMEFRAME: 'Zaman Dilimi',
+  SYNC_RANGE: 'Zaman Aralığı',
+  SYNC_CROSSHAIR: 'İmleç',
+  SYNC_SCALE: 'Ölçek',
+
+  // ── G8: Chart Templates ───────────────────────────────────────────────────
+  TEMPLATES: 'Şablonlar',
+  SAVE_TEMPLATE: 'Şablonu Kaydet',
+  LOAD_TEMPLATE: 'Şablonu Yükle',
+  DEFAULT_TEMPLATE: 'Varsayılan Yap',
+  RESET_TEMPLATE: 'Sıfırla',
+  EXPORT_CHART: 'Dışa Aktar',
+  EXPORT_CSV: 'CSV (OHLCV)',
+  EXPORT_PNG: 'PNG (Resim)',
+  TEMPLATE_NAME: 'Şablon Adı',
+
+  // ── G9: Event Markers ─────────────────────────────────────────────────────
+  EVENTS: 'Olaylar',
+  EVENT_ALL: 'Tümü',
+  EVENT_HABER: 'Haber',
+  EVENT_KAP: 'KAP',
+  EVENT_BILANCO: 'Bilanço',
+  EVENT_TEMETTU: 'Temettü',
+  EVENT_SERMAYE: 'Sermaye',
+  EVENT_SOURCE: 'Kaynak',
+  EVENT_DATE: 'Tarih',
+  EVENT_SAMPLE: 'Örnek olay verisi',
+  EVENT_NO_SOURCE: 'Kaynak bağlı değil',
+  EVENT_OPEN_FINANCIAL: 'Mali Analizi Aç',
+
+  // ── G10: Advanced Drawing Tools ───────────────────────────────────────────
+  DRAWING_FIBONACCI: 'Fibonacci Düzeltme',
+  DRAWING_FIBONACCI_EXT: 'Fibonacci Uzantı',
+  DRAWING_REGRESSION: 'Regresyon Kanalı',
+  DRAWING_RENKO: 'Renko (Yakında)',
+  DRAWING_ADVANCED: 'İleri Araçlar',
+
   // ── General ──────────────────────────────────────────────────────────────────
   YES: 'Evet',
   NO: 'Hayır',
   CANCEL: 'İptal',
-  CONFIRM: 'Onayla',
+  // ── Mali Analiz (Financial Analysis) ──────────────────────────────────────
+  FINANCIALS: 'Mali Analiz',
+  FIN_SUMMARY: 'Özet',
+  FIN_RATIOS: 'Finansal Oranlar',
+  FIN_STATEMENTS: 'Mali Tablolar',
+  FIN_SEARCH_PLACEHOLDER: 'Sembol ara (örn: THYAO)',
+  FIN_SOURCE_CONNECTED: 'Bağlı',
+  FIN_SOURCE_MOCK: 'Mock Veri',
+  FIN_SOURCE_ERROR: 'Bağlantı Hatası',
+  FIN_SOURCE_EMPTY: 'Veri Yok',
+  FIN_PERIODS: 'Dönemler',
+  FIN_BALANCE_SHEET: 'Bilanço',
+  FIN_INCOME_STATEMENT: 'Gelir Tablosu',
+  FIN_NO_DATA: 'Veri bulunamadı veya kaynak bağlı değil.',
+  FIN_OPEN_CHART: 'Grafikte Aç',
+  FIN_ADD_BACKTEST: 'Backtest\'e Ekle',
 } as const;
 
 export type TRKey = keyof typeof TR;

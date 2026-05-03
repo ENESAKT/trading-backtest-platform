@@ -54,6 +54,12 @@ class BacktestConfig:
     max_position_pct: float = 0.20
     warm_up_bars: int = 0
     allow_short: bool = False
+    
+    # Realism eklentileri
+    slippage_model: str = "fixed_bps"  # "fixed_bps", "fixed_tick"
+    slippage_tick: float = 0.01  # tick bazlı model için
+    volume_limit_pct: float = 0.05  # likidite: son hacmin max % kaçı
+    volume_window: int = 5
 
 
 @dataclass
@@ -66,6 +72,15 @@ class BacktestAssumptions:
     cost_model: str = "fixed_bps"
     position_sizing: str = "max_position_pct"
     pending_at_end: str = "discard"
+
+
+@dataclass
+class QualityWarning:
+    """Kalite kontrol uyarısı."""
+
+    code: str  # "LOW_TRADE_COUNT", "HIGH_DRAWDOWN", "OVERFIT_RISK",vb.
+    severity: str  # "high", "medium", "low" (frontend renkleri için)
+    message: str
 
 
 @dataclass
@@ -85,12 +100,20 @@ class BacktestResult:
     max_drawdown_pct: float = 0.0
     total_trades: int = 0
     total_commission: float = 0.0
+    total_slippage: float = 0.0
     sharpe_ratio: float = 0.0
     win_rate: float = 0.0
+    quality_score: int = 100
     assumptions: BacktestAssumptions = field(
         default_factory=BacktestAssumptions
     )
-    warnings: list[str] = field(default_factory=list)
+    warnings: list[QualityWarning] = field(default_factory=list)
+    
+    # Eski list[str] formatına geriye dönük uyumluluk veya loglama için 
+    # uyarı metinlerini direkt veren property
+    @property
+    def warning_messages(self) -> list[str]:
+        return [w.message for w in self.warnings]
     has_open_position: bool = False
 
 
@@ -116,7 +139,13 @@ class BacktestEngine:
     def _calculate_slippage(
         self, price: float, side: OrderSide
     ) -> float:
-        """Slippage hesapla (baz puan)."""
+        """Slippage hesapla (model bazlı)."""
+        if self.config.slippage_model == "fixed_tick":
+            if side == OrderSide.BUY:
+                return price + self.config.slippage_tick
+            return max(price - self.config.slippage_tick, 0.0001)
+
+        # Varsayılan: fixed_bps
         slippage_pct = self.config.slippage_bps / 10_000
         if side == OrderSide.BUY:
             return price * (1 + slippage_pct)
@@ -133,6 +162,7 @@ class BacktestEngine:
         portfolio: Portfolio,
         price: float,
         prices: dict[str, float],
+        max_qty_by_volume: int = -1,
     ) -> int:
         """
         Pozisyon büyüklüğü hesapla.
@@ -155,6 +185,10 @@ class BacktestEngine:
         if price <= 0:
             return 0
         quantity = int(available / price)
+        
+        if max_qty_by_volume >= 0 and quantity > max_qty_by_volume:
+            quantity = max_qty_by_volume
+            
         return max(0, quantity)
 
     def run(
@@ -184,6 +218,9 @@ class BacktestEngine:
         data = data.sort_values("date").reset_index(
             drop=True
         )
+        
+        if "volume" in data.columns and self.config.volume_limit_pct > 0:
+            data["avg_vol"] = data["volume"].rolling(self.config.volume_window).mean()
 
         portfolio = Portfolio(
             initial_capital=self.config.initial_capital
@@ -206,6 +243,12 @@ class BacktestEngine:
             bar = data.iloc[i]
             current_price = float(bar["close"])
             current_open = float(bar["open"])
+            current_volume = float(bar.get("avg_vol", 0.0))
+            
+            max_qty_by_vol = -1
+            if current_volume > 0 and self.config.volume_limit_pct > 0:
+                max_qty_by_vol = int(current_volume * self.config.volume_limit_pct)
+                
             prices = {symbol: current_price}
             bar_date = pd.Timestamp(bar["date"])
 
@@ -230,8 +273,17 @@ class BacktestEngine:
                     signal_bar_index=pending_signal_bar,
                     signal_date=signal_date,
                     execution_date=bar_date,
+                    max_qty_by_vol=max_qty_by_vol,
                 )
                 if fill:
+                    if max_qty_by_vol >= 0 and fill.fill_quantity >= max_qty_by_vol:
+                        result.warnings.append(
+                            QualityWarning(
+                                code="LIQUIDITY_LIMIT",
+                                severity="low",
+                                message=f"[{bar_date:%Y-%m-%d}] Likidite kısıtı uygulandı. (Max Qty: {max_qty_by_vol})"
+                            )
+                        )
                     portfolio.process_fill(fill)
                     result.orders.append(fill.order)
                     result.fills.append(fill)
@@ -298,9 +350,11 @@ class BacktestEngine:
             else:
                 if signal != 0:
                     result.warnings.append(
-                        f"Son barda sinyal ({signal}) "
-                        f"üretildi ama execute edilemedi "
-                        f"(sonraki bar yok)."
+                        QualityWarning(
+                            code="ORPHAN_SIGNAL",
+                            severity="low",
+                            message=f"Son barda sinyal ({signal}) üretildi ama execute edilemedi (sonraki bar yok)."
+                        )
                     )
 
             # --- EQUITY TRACKING ---
@@ -321,8 +375,11 @@ class BacktestEngine:
             # Negatif cash kontrolü
             if portfolio.cash < -0.01:
                 result.warnings.append(
-                    f"Bar {i}: Negatif nakit! "
-                    f"cash={portfolio.cash:.2f}"
+                    QualityWarning(
+                        code="NEGATIVE_CASH",
+                        severity="high",
+                        message=f"Bar {i}: Negatif nakit! cash={portfolio.cash:.2f}"
+                    )
                 )
 
             # Drawdown hesapla
@@ -370,17 +427,23 @@ class BacktestEngine:
             else 0.0
         )
         result.total_commission = portfolio.total_commission
+        result.total_slippage = sum(f.slippage_cost for f in result.fills)
 
         # Açık pozisyon kontrolü
         position = portfolio.get_or_create_position(symbol)
         if position.is_open:
             result.has_open_position = True
             result.warnings.append(
-                f"Açık pozisyon kaldı: "
-                f"{position.quantity}x {symbol} @ "
-                f"avg_entry={position.avg_entry_price:.2f}"
-                f" — final equity'de piyasa değeriyle "
-                f"değerlendi."
+                QualityWarning(
+                    code="OPEN_POSITION",
+                    severity="low",
+                    message=(
+                        f"Açık pozisyon kaldı: "
+                        f"{position.quantity}x {symbol} @ "
+                        f"avg_entry={position.avg_entry_price:.2f}"
+                        f" — final equity'de piyasa değeriyle değerlendi."
+                    )
+                )
             )
 
         # Sharpe Ratio (günlük)
@@ -405,6 +468,8 @@ class BacktestEngine:
             result.win_rate = (
                 winners / len(result.trades)
             )
+
+        self._finalize_quality(result, len(data))
 
         logger.success(
             f"✅ Backtest tamamlandı: "
@@ -437,6 +502,9 @@ class BacktestEngine:
             return BacktestResult()
 
         data = data.sort_values("date").reset_index(drop=True)
+        
+        if "volume" in data.columns and self.config.volume_limit_pct > 0:
+            data["avg_vol"] = data["volume"].rolling(self.config.volume_window).mean()
 
         portfolio = Portfolio(initial_capital=self.config.initial_capital)
         result = BacktestResult()
@@ -458,6 +526,12 @@ class BacktestEngine:
             bar = data.iloc[i]
             current_price = float(bar["close"])
             current_open = float(bar["open"])
+            current_volume = float(bar.get("avg_vol", 0.0))
+            
+            max_qty_by_vol = -1
+            if current_volume > 0 and self.config.volume_limit_pct > 0:
+                max_qty_by_vol = int(current_volume * self.config.volume_limit_pct)
+                
             prices = {symbol: current_price}
             bar_date = pd.Timestamp(bar["date"])
 
@@ -476,8 +550,17 @@ class BacktestEngine:
                     signal_date=signal_date,
                     execution_date=bar_date,
                     reason=pending_reason,
+                    max_qty_by_vol=max_qty_by_vol,
                 )
                 if fill:
+                    if max_qty_by_vol >= 0 and fill.fill_quantity >= max_qty_by_vol:
+                        result.warnings.append(
+                            QualityWarning(
+                                code="LIQUIDITY_LIMIT",
+                                severity="low",
+                                message=f"[{bar_date:%Y-%m-%d}] Likidite kısıtı uygulandı. (Max Qty: {max_qty_by_vol})"
+                            )
+                        )
                     portfolio.process_fill(fill)
                     result.orders.append(fill.order)
                     result.fills.append(fill)
@@ -539,8 +622,11 @@ class BacktestEngine:
 
             if intent == "CONFLICT":
                 result.warnings.append(
-                    f"Bar {i}: Long ve short giriş sinyali aynı anda geldi; "
-                    "işlem reddedildi."
+                    QualityWarning(
+                        code="CONFLICTING_SIGNALS",
+                        severity="medium",
+                        message=f"Bar {i}: Long ve short giriş sinyali aynı anda geldi; işlem reddedildi."
+                    )
                 )
                 intent = "HOLD"
 
@@ -550,8 +636,11 @@ class BacktestEngine:
                 pending_reason = str(getattr(intent_func, "last_reason", ""))
             elif intent != "HOLD":
                 result.warnings.append(
-                    f"Son barda sinyal ({intent}) üretildi ama execute edilemedi "
-                    "(sonraki bar yok)."
+                    QualityWarning(
+                        code="ORPHAN_SIGNAL",
+                        severity="low",
+                        message=f"Son barda sinyal ({intent}) üretildi ama execute edilemedi (sonraki bar yok)."
+                    )
                 )
 
             equity = portfolio.total_equity(prices)
@@ -565,7 +654,11 @@ class BacktestEngine:
 
             if portfolio.cash < -0.01:
                 result.warnings.append(
-                    f"Bar {i}: Negatif nakit! cash={portfolio.cash:.2f}"
+                    QualityWarning(
+                        code="NEGATIVE_CASH",
+                        severity="high",
+                        message=f"Bar {i}: Negatif nakit! cash={portfolio.cash:.2f}"
+                    )
                 )
 
             peak_equity = max(peak_equity, equity)
@@ -594,15 +687,22 @@ class BacktestEngine:
             else 0.0
         )
         result.total_commission = portfolio.total_commission
+        result.total_slippage = sum(f.slippage_cost for f in result.fills)
 
         position = portfolio.get_or_create_position(symbol)
         if position.is_open:
             result.has_open_position = True
             side = "short" if position.quantity < 0 else "long"
             result.warnings.append(
-                f"Açık {side} pozisyon kaldı: {position.quantity}x {symbol} @ "
-                f"avg_entry={position.avg_entry_price:.2f} — final equity'de "
-                "piyasa değeriyle değerlendi."
+                QualityWarning(
+                    code="OPEN_POSITION",
+                    severity="low",
+                    message=(
+                        f"Açık {side} pozisyon kaldı: {position.quantity}x {symbol} @ "
+                        f"avg_entry={position.avg_entry_price:.2f} — final equity'de "
+                        "piyasa değeriyle değerlendi."
+                    )
+                )
             )
 
         if len(result.equity_curve) > 1:
@@ -617,9 +717,14 @@ class BacktestEngine:
 
         if self.config.allow_short and symbol.endswith(".IS"):
             result.warnings.append(
-                "BIST short işlemleri yalnızca simülasyon etiketiyle raporlanır; "
-                "gerçek piyasa uygunluğu garanti edilmez."
+                QualityWarning(
+                    code="BIST_SHORT_SIMULATION",
+                    severity="medium",
+                    message="BIST short işlemleri yalnızca simülasyon etiketiyle raporlanır; gerçek piyasa uygunluğu garanti edilmez."
+                )
             )
+
+        self._finalize_quality(result, len(data))
 
         logger.success(
             f"✅ Intent backtest tamamlandı: ₺{result.final_equity:,.0f} "
@@ -659,6 +764,7 @@ class BacktestEngine:
         signal_date: pd.Timestamp,
         execution_date: pd.Timestamp,
         reason: str = "",
+        max_qty_by_vol: int = -1,
     ) -> Fill | None:
         """Trade intent'i market fill'e çevir."""
         position = portfolio.get_or_create_position(symbol)
@@ -668,11 +774,15 @@ class BacktestEngine:
             if position.quantity < 0:
                 side = OrderSide.BUY
                 quantity = abs(position.quantity)
+                # Kapanışlarda hacim kısıtına takılmayalım (opsiyonel ama genelde exitler force edilir),
+                # fakat eğer istersen kapatırken de limitli yapabiliriz. Şimdilik exit'leri sınırlandırmıyoruz.
                 actual_intent = "COVER"
             elif not position.is_open:
                 side = OrderSide.BUY
                 fill_price = self._calculate_slippage(open_price, side)
-                quantity = self._calculate_position_size(portfolio, fill_price, prices)
+                quantity = self._calculate_position_size(
+                    portfolio, fill_price, prices, max_qty_by_volume=max_qty_by_vol
+                )
                 if quantity <= 0:
                     return None
             else:
@@ -693,7 +803,9 @@ class BacktestEngine:
             elif not position.is_open:
                 side = OrderSide.SELL
                 fill_price = self._calculate_slippage(open_price, side)
-                quantity = self._calculate_position_size(portfolio, fill_price, prices)
+                quantity = self._calculate_position_size(
+                    portfolio, fill_price, prices, max_qty_by_volume=max_qty_by_vol
+                )
                 if quantity <= 0:
                     return None
             else:
@@ -756,6 +868,7 @@ class BacktestEngine:
         signal_bar_index: int,
         signal_date: pd.Timestamp,
         execution_date: pd.Timestamp,
+        max_qty_by_vol: int = -1,
     ) -> Fill | None:
         """Sinyali execute et."""
         position = portfolio.get_or_create_position(symbol)
@@ -767,7 +880,7 @@ class BacktestEngine:
                 open_price, side
             )
             quantity = self._calculate_position_size(
-                portfolio, fill_price, prices
+                portfolio, fill_price, prices, max_qty_by_volume=max_qty_by_vol
             )
             if quantity <= 0:
                 return None
@@ -832,6 +945,126 @@ class BacktestEngine:
         )
 
         return fill
+
+
+    def _finalize_quality(self, result: BacktestResult, bar_count: int) -> None:
+        """Sonuçları analiz edip kalite skorunu ve uyarıları hesaplar."""
+        score = 100
+
+        # Bar sayısı kontrolü
+        if bar_count < 250:
+            score -= 30
+            result.warnings.append(
+                QualityWarning(
+                    code="LOW_DATA_POINTS",
+                    severity="high",
+                    message=f"Çok az veri {bar_count} bar ile test edildi (Önerilen > 250)."
+                )
+            )
+
+        # İşlem maliyeti varsayımları
+        if self.config.commission_rate == 0 and self.config.slippage_bps == 0:
+            score -= 40
+            result.warnings.append(
+                QualityWarning(
+                    code="ZERO_COST_ASSUMPTION",
+                    severity="high",
+                    message="Sıfır işlem maliyeti ve slippage ile test edildi (Gerçek dışı)."
+                )
+            )
+        elif result.total_trades > 0:
+            gross_profit = sum(max(0, t.exit_price - t.entry_price) * t.quantity for t in result.trades if t.exit_price > t.entry_price)
+            costs = result.total_commission + result.total_slippage
+            if gross_profit > 0 and (costs / gross_profit) > 0.5:
+                score -= 20
+                result.warnings.append(
+                    QualityWarning(
+                        code="HIGH_FRICTION",
+                        severity="medium",
+                        message=f"Brüt karın yarısından fazlası (%{(costs/gross_profit)*100:.1f}) komisyon/slippage'a gidiyor."
+                    )
+                )
+
+        # İşlem Sayısı kontrolü
+        if result.total_trades < 10:
+            score -= 50
+            result.warnings.append(
+                QualityWarning(
+                    code="VERY_LOW_TRADE_COUNT",
+                    severity="high",
+                    message=f"İşlem sayısı çok düşük ({result.total_trades}). Sonuçlar şans eseri olabilir."
+                )
+            )
+        elif result.total_trades < 30:
+            score -= 20
+            result.warnings.append(
+                QualityWarning(
+                    code="LOW_TRADE_COUNT",
+                    severity="medium",
+                    message=f"İşlem sayısı sınırda ({result.total_trades}). İstatistiksel olarak zayıf."
+                )
+            )
+        elif result.total_trades > bar_count * 0.1:
+             score -= 10
+             result.warnings.append(
+                QualityWarning(
+                    code="OVERTRADING_RISK",
+                    severity="medium",
+                    message="Sinyal frekansı çok yüksek (Overtrading)."
+                )
+            )
+
+        # Drawdown kontrolü
+        if result.max_drawdown_pct > 60:
+            score -= 50
+            result.warnings.append(
+                QualityWarning(
+                    code="EXTREME_DRAWDOWN",
+                    severity="high",
+                    message=f"Aşırı yüksek Max Drawdown (%{result.max_drawdown_pct:.1f}). Hesap batma riski."
+                )
+            )
+        elif result.max_drawdown_pct > 40:
+            score -= 30
+            result.warnings.append(
+                QualityWarning(
+                    code="HIGH_DRAWDOWN",
+                    severity="high",
+                    message=f"Yüksek drawdown (%{result.max_drawdown_pct:.1f}). Beklentinin üzerinde risk."
+                )
+            )
+        elif result.max_drawdown_pct > 30:
+            score -= 15
+            result.warnings.append(
+                QualityWarning(
+                    code="MODERATE_DRAWDOWN",
+                    severity="medium",
+                    message=f"Orta karar drawdown (%{result.max_drawdown_pct:.1f})."
+                )
+            )
+
+        # Win rate kontrolü
+        if result.total_trades >= 10:
+            if result.win_rate > 0.85:
+                score -= 20
+                result.warnings.append(
+                    QualityWarning(
+                        code="OVERFIT_SUSPICION",
+                        severity="medium",
+                        message=f"Çok yüksek win rate (%{result.win_rate*100:.1f}). Overfitting veya lookahead bias şüphesi."
+                    )
+                )
+            elif result.win_rate < 0.25:
+                score -= 20
+                result.warnings.append(
+                    QualityWarning(
+                        code="LOW_WIN_RATE",
+                        severity="medium",
+                        message=f"Düşük win rate (%{result.win_rate*100:.1f}). Zarar kesmek için çok fazla stop tetiklenmiş olabilir."
+                    )
+                )
+
+        result.quality_score = max(0, min(100, int(score)))
 
 
 def buy_and_hold_signal(

@@ -8,6 +8,7 @@ import { StrategyPanel } from './components/StrategyPanel.js';
 import { Screener } from './components/Screener.js';
 import { SignalFeed } from './components/SignalFeed.js';
 import { EgitimlerPanel } from './components/EgitimlerPanel.js';
+import { MaliAnalizPanel } from './components/MaliAnalizPanel.js';
 import { TR, formatAgo } from './constants/tr.js';
 
 // ─── App shell elements ───────────────────────────────────────────────────────
@@ -18,11 +19,9 @@ const statusBadge  = document.getElementById('status-badge')!;
 const lastUpdateEl = document.getElementById('last-update')!;
 const symbolTitle  = document.getElementById('symbol-title')!;
 const tabBtns      = document.querySelectorAll<HTMLElement>('[data-tab]');
-const topbarRight  = document.querySelector<HTMLElement>('.topbar-right')!;
-const LS_START_TAB = 'piyasapilot_start_tab';
 const LS_LAST_TAB  = 'piyasapilot_last_tab';
-type AppTab = 'chart' | 'portfolio' | 'strategy' | 'screener' | 'signals' | 'education';
-const TABS: AppTab[] = ['chart', 'portfolio', 'strategy', 'screener', 'signals', 'education'];
+type AppTab = 'chart' | 'portfolio' | 'strategy' | 'screener' | 'signals' | 'education' | 'financials';
+const TABS: AppTab[] = ['chart', 'portfolio', 'strategy', 'screener', 'signals', 'financials', 'education'];
 
 function isAppTab(value: string | null): value is AppTab {
   return !!value && TABS.includes(value as AppTab);
@@ -45,22 +44,23 @@ const strategyEl  = createPanel('panel-strategy');
 const screenerEl  = createPanel('panel-screener');
 const signalsEl   = createPanel('panel-signals');
 const educationEl = createPanel('panel-education');
+const financialsEl= createPanel('panel-financials');
 
-const startTabSelect = document.createElement('select');
-startTabSelect.id = 'start-tab-select';
-startTabSelect.className = 'start-tab-select';
-startTabSelect.title = 'Açılış ekranı';
-startTabSelect.innerHTML = `
-  <option value="chart">Açılış: Grafik</option>
-  <option value="portfolio">Açılış: Portföy</option>
-  <option value="strategy">Açılış: Strateji</option>
-  <option value="screener">Açılış: Tarayıcı</option>
-  <option value="signals">Açılış: Sinyaller</option>
-  <option value="education">Açılış: Eğitimler</option>
-`;
-topbarRight.prepend(startTabSelect);
-
-// ─── Component instances ──────────────────────────────────────────────────────
+// Inject Financials tab button if not exists
+let financialsBtn = document.querySelector('[data-tab="financials"]');
+if (!financialsBtn) {
+  const tabsContainer = document.querySelector('.topbar-tabs');
+  if (tabsContainer) {
+    const btn = document.createElement('button');
+    btn.dataset.tab = 'financials';
+    btn.className = 'tab-btn';
+    btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg><span>${TR.FINANCIALS}</span><span class="shortcut">7</span>`;
+    const educationBtn = tabsContainer.querySelector('[data-tab="education"]');
+    tabsContainer.insertBefore(btn, educationBtn);
+    // Re-bind click event to new button
+    btn.addEventListener('click', () => showTab('financials'));
+  }
+}
 
 const portfolioEngine = new PortfolioEngine();
 const sidebar         = new Sidebar(sidebarEl);
@@ -75,9 +75,16 @@ const educationPanel  = new EgitimlerPanel(educationEl, {
   onOpenStrategy: (strategyId) => {
     showTab('strategy');
     strategyPanel.openBlueprint(strategyId);
-  },
+  }
 });
 void educationPanel;
+let maliAnalizPanel: MaliAnalizPanel | null = null;
+function getMaliAnalizPanel(): MaliAnalizPanel {
+  if (!maliAnalizPanel) {
+    maliAnalizPanel = new MaliAnalizPanel(financialsEl);
+  }
+  return maliAnalizPanel;
+}
 // Screener is self-contained; reference kept to prevent GC
 const _screener = new Screener(screenerEl, () => dataEngine.getAllCached());
 void _screener;
@@ -97,13 +104,15 @@ async function openSymbol(info: SymbolInfo): Promise<void> {
 
 function showTab(tab: string, persist = true): void {
   if (!isAppTab(tab)) tab = 'chart';
-  tabBtns.forEach(btn => btn.classList.toggle('active', btn.dataset['tab'] === tab));
+  document.querySelectorAll<HTMLElement>('[data-tab]').forEach(btn => btn.classList.toggle('active', btn.dataset['tab'] === tab));
   chartEl.style.display     = tab === 'chart'     ? 'flex' : 'none';
   portfolioEl.style.display = tab === 'portfolio' ? 'flex' : 'none';
   strategyEl.style.display  = tab === 'strategy'  ? 'flex' : 'none';
   screenerEl.style.display  = tab === 'screener'  ? 'flex' : 'none';
   signalsEl.style.display   = tab === 'signals'   ? 'flex' : 'none';
   educationEl.style.display = tab === 'education' ? 'flex' : 'none';
+  financialsEl.style.display= tab === 'financials'? 'flex' : 'none';
+  if (tab === 'financials') getMaliAnalizPanel(); // Trigger load if switching to financials
   if (persist) localStorage.setItem(LS_LAST_TAB, tab);
 
   // Trigger backtest when strategy tab becomes visible
@@ -120,24 +129,11 @@ tabBtns.forEach(btn => {
   btn.addEventListener('click', () => showTab(btn.dataset['tab']!));
 });
 
-startTabSelect.addEventListener('change', () => {
-  const tab = startTabSelect.value;
-  if (!isAppTab(tab)) return;
-  localStorage.setItem(LS_START_TAB, tab);
-  showTab(tab);
-});
-
-const savedStartTab = localStorage.getItem(LS_START_TAB);
 const savedLastTab = localStorage.getItem(LS_LAST_TAB);
-const initialTab: AppTab = isAppTab(savedStartTab)
-  ? savedStartTab
-  : isAppTab(savedLastTab)
-    ? savedLastTab
-    : 'chart';
-startTabSelect.value = initialTab;
+const initialTab: AppTab = isAppTab(savedLastTab) ? savedLastTab : 'chart';
 showTab(initialTab, false);
 
-// ─── Keyboard shortcuts (1–6 = tabs, F = fullscreen, G = cycle layout) ──────
+// ─── Keyboard shortcuts (1–7 = tabs, F = fullscreen, G = cycle layout) ──────
 
 document.addEventListener('keydown', (e) => {
   if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement) return;
@@ -148,6 +144,7 @@ document.addEventListener('keydown', (e) => {
     case '4': showTab('screener');  break;
     case '5': showTab('signals');   break;
     case '6': showTab('education'); break;
+    case '7': showTab('financials'); break;
     case 'g':
     case 'G': {
       // Layout döngüsü: 1x1 → 1x2 → 2x2 → 1x1
@@ -159,6 +156,46 @@ document.addEventListener('keydown', (e) => {
       break;
     }
     // 'F' and timeframe shortcuts are handled within ChartPanel
+  }
+});
+
+// ─── Global Custom Events ─────────────────────────────────────────────────────
+
+window.addEventListener('openSymbolOnChart', async (e: Event) => {
+  const customE = e as CustomEvent<{symbol: string}>;
+  if (customE.detail && customE.detail.symbol) {
+    showTab('chart');
+    const info = dataEngine.getSymbolInfo(customE.detail.symbol) || {
+      symbol: customE.detail.symbol,
+      name: customE.detail.symbol,
+      assetType: 'equity',
+      group: 'BIST',
+      currency: 'TRY'
+    };
+    await openSymbol(info);
+  }
+});
+
+window.addEventListener('addSymbolToBacktest', async (e: Event) => {
+  const customE = e as CustomEvent<{symbol: string}>;
+  if (customE.detail && customE.detail.symbol) {
+    showTab('strategy');
+    const info = dataEngine.getSymbolInfo(customE.detail.symbol) || {
+      symbol: customE.detail.symbol,
+      name: customE.detail.symbol,
+      assetType: 'equity',
+      group: 'BIST',
+      currency: 'TRY'
+    };
+    await openSymbol(info);
+  }
+});
+
+window.addEventListener('openFinancialAnalysis', async (e: Event) => {
+  const customE = e as CustomEvent<{symbol: string, date?: string}>;
+  if (customE.detail && customE.detail.symbol) {
+    showTab('financials');
+    void getMaliAnalizPanel().loadData(customE.detail.symbol);
   }
 });
 

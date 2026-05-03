@@ -148,6 +148,23 @@ make up
 └── Makefile                 # Kısayollar
 ```
 
+## 🛠️ CLI Araçları ve Denetim (Agent Skills)
+
+PiyasaPilot repomuz AI ekosistemi tarafından kullanılmak veya kullanıcı tarafından elle tetiklenmek üzere çesitli Python scriptleri içerir:
+
+```bash
+# Veri platformu kontrolleri
+python src/scripts/check_data_inventory.py
+python src/scripts/check_timeframe_graph.py
+python src/scripts/check_retention.py
+
+# Deployment ve Temizlik kontrolleri
+python src/scripts/scan_repo_weight.py
+python src/scripts/check_borfin_integration.py
+python src/scripts/check_production_package.py
+python src/scripts/check_deployment_readiness.py
+```
+
 ## 🧪 Testler
 
 ```bash
