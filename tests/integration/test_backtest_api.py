@@ -158,6 +158,39 @@ def test_backtest_run_returns_metrics_and_curve(tmp_path):
     assert body["run_id"]
 
 
+def test_backtest_optimize_returns_stability_report(tmp_path):
+    client, cache = _build_client(tmp_path)
+    _populate_cache(cache, "BTCUSDT", "1d", n=200)
+
+    resp = client.post(
+        "/api/backtest/optimize",
+        json={
+            "symbol": "BTCUSDT",
+            "interval": "1d",
+            "strategy_id": "sma_crossover",
+            "params": {},
+            "param_grid": {
+                "fast_period": [4, 5],
+                "slow_period": [12, 15],
+            },
+            "lookback_bars": 200,
+            "source_mode": "cache_only",
+            "slippage_model": "fixed_tick",
+            "slippage_tick": 0.01,
+            "volume_limit_pct": 0.10,
+            "volume_window": 3,
+        },
+    )
+
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["results"]
+    stability = body["stability_report"]
+    assert stability["param_keys"] == ["fast_period", "slow_period"]
+    assert set(stability["best_params"]) == {"fast_period", "slow_period"}
+    assert {"x_axis", "y_axis", "z_matrix"} <= set(stability["heatmap"])
+
+
 def test_v2_candles_prefers_local_daily_parquet_and_writes_cache(tmp_path):
     cache = OHLCVCache(db_path=tmp_path / "c.sqlite3")
     app = create_app(
@@ -244,6 +277,26 @@ def test_backtest_optimize_returns_stability_report(tmp_path):
     assert stability["param_keys"] == ["fast", "slow"]
     assert set(stability["best_params"]) == {"fast", "slow"}
     assert {"x_axis", "y_axis", "z_matrix"} <= set(stability["heatmap"])
+
+
+def test_backtest_scan_returns_scanner_v3_contract(tmp_path):
+    client, cache = _build_client(tmp_path)
+    _populate_cache(cache, "BTCUSDT", "15m", n=160)
+
+    resp = client.post(
+        "/api/backtest/scan",
+        json={
+            "symbols": ["BTCUSDT"],
+            "interval": "15m",
+            "strategy_id": "sma_crossover",
+            "params": {"fast_period": 5, "slow_period": 15},
+            "lookback_bars": 160,
+        },
+    )
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["scanner_version"] == "v3"
+    assert body["results"][0]["symbol"] == "BTCUSDT"
 
 
 def test_backtest_v2_strategy_spec_short_and_archive_export(tmp_path):

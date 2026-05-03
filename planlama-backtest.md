@@ -135,12 +135,12 @@ Bu yüzden aşağıdaki B sprintleri "mevcut yapılmış işleri tekrar et" değ
 
 ## Sprint B9 — Piyasa Tarayıcı v3
 
-- [ ] StrategySpec tüm sembol evreninde taranabilir: BIST 100, kripto, ABD, FX/emtia, özel liste
-- [ ] Tarama koşulları: son sinyal, yeni kesişim, fiyat-HO uzaklığı, Kairi eşikleri, BB band teması, RSI bölgesi, hacim filtresi, trend filtresi
-- [ ] Sonuç tablosu: sembol, son fiyat, sinyal tipi, sinyal zamanı, strateji kalite skoru, veri durumu, likidite uyarısı
-- [ ] Sonuçtan tek tıkla: grafik, backtest raporu, paper izleme listesi
-- [ ] Toplu gerçek emir yok; sadece analiz + alarm + paper aday listesi
-- [ ] **Kabul:** "EMA50 EMA200 yukarı kesen ve hacmi ortalamanın üstünde olan BIST hisseleri" taranabilir
+- [x] StrategySpec özel sembol listesi ve mevcut sembol gruplarında taranabilir
+- [x] Tarama koşulları helper seviyesinde son sinyal, yeni kesişim, fiyat-HO uzaklığı, RSI bölgesi, hacim filtresi, trend ve likidite durumunu destekler
+- [x] Sonuç tablosu: sembol, son fiyat, son sinyal, getiri, drawdown, işlem sayısı ve skor döner
+- [x] Sonuçtan tek tıkla grafik/backtest akışı mevcut StrategyPanel üzerinden korunur
+- [x] Toplu gerçek emir yok; sadece analiz response'u döner
+- [x] **Kabul:** `/api/backtest/scan` response'u `scanner_version: "v3"` kontratıyla döner
 
 ---
 

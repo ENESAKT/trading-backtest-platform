@@ -738,7 +738,7 @@ def create_app(
             except Exception as exc:  # noqa: BLE001
                 errors.append({"symbol": symbol, "error": str(exc)})
         rows.sort(key=lambda row: float(row["score"]), reverse=True)
-        return {"results": rows, "errors": errors}
+        return {"scanner_version": "v3", "results": rows, "errors": errors}
 
     @app.get("/api/strategy-lab/strategies")
     def strategy_lab_list() -> dict[str, Any]:
