@@ -32,6 +32,7 @@ from backend.data.cache import OHLCVCache
 from backend.data.historical_store import HistoricalStore
 from quant_engine.backtest.engine import BacktestConfig, BacktestEngine, QualityWarning
 from quant_engine.research.monte_carlo import run_monte_carlo
+from quant_engine.research.portfolio_lab import portfolio_metrics
 from quant_engine.research.walk_forward import run_walk_forward_analysis
 from quant_engine.strategy.registry import get_registry
 from quant_engine.strategy.spec import FormulaError, StrategySpecSignal, validate_strategy_spec
@@ -437,6 +438,31 @@ def _monte_carlo_payload(
     }
 
 
+def _portfolio_lab_payload(result: Any) -> dict[str, Any]:
+    equity_values = [
+        float(getattr(point, "total_equity", 0.0))
+        for point in getattr(result, "equity_curve", [])
+    ]
+    if len(equity_values) < 2:
+        return {
+            "metrics": portfolio_metrics(pd.Series([], dtype=float)),
+            "strategy_count": 1,
+            "warnings": ["Portföy özeti için yeterli equity verisi yok."],
+        }
+    index = [
+        getattr(point, "timestamp", None) or idx
+        for idx, point in enumerate(getattr(result, "equity_curve", []))
+    ]
+    curve = pd.Series(equity_values, index=index)
+    return {
+        "metrics": portfolio_metrics(curve),
+        "strategy_count": 1,
+        "warnings": [
+            "Bu özet tek strateji equity curve'ünden üretilmiştir; çoklu strateji birleşimi Portfolio Lab helper'larıyla desteklenir."
+        ],
+    }
+
+
 def _report_payload(
     *,
     result: Any,
@@ -796,4 +822,5 @@ def run_backtest(
         trades=list(result.trades),
         capital=float(capital),
     )
+    payload["portfolio_lab_summary"] = _portfolio_lab_payload(result)
     return payload

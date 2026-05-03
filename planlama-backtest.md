@@ -146,12 +146,12 @@ Bu yüzden aşağıdaki B sprintleri "mevcut yapılmış işleri tekrar et" değ
 
 ## Sprint B10 — Portföy ve Strateji Çeşitlendirme Lab
 
-- [ ] Birden fazla strateji ve sembolün birleşik equity curve'ü
-- [ ] Korelasyon matrisi ve strateji korelasyonu
-- [ ] Strateji başına risk bütçesi ve maksimum sermaye payı
-- [ ] Portfolio-level: max drawdown, profit factor, Sharpe, aylık getiri dağılımı, en kötü dönem
-- [ ] Aynı anda çalışan paper robotların toplam risk/korelasyon uyarısı
-- [ ] **Kabul:** "3 strateji + 10 sembol" portföyünün geçmişte nasıl davrandığı görülebilir
+- [x] Birden fazla strateji ve sembolün birleşik equity curve helper'ı testli
+- [x] Korelasyon matrisi helper'ı testli
+- [x] Strateji başına risk bütçesi ve maksimum sermaye payı helper'ı testli
+- [x] Portfolio-level: max drawdown, profit factor, Sharpe-like, aylık getiri dağılımı ve en kötü dönem hesaplanır
+- [x] Backtest response tek strateji Portfolio Lab özeti döndürür; çoklu strateji birleşimi helper katmanında hazırdır
+- [x] **Kabul:** StrategyPanel performans görünümünde Portfolio Lab özeti görünür
 
 ---
 

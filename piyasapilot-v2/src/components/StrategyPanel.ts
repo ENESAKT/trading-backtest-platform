@@ -1366,6 +1366,7 @@ export class StrategyPanel {
       </div>
       ${this.walkForwardHTML(r)}
       ${this.monteCarloHTML(r)}
+      ${this.portfolioLabHTML(r)}
     `;
   }
 
@@ -1402,6 +1403,26 @@ export class StrategyPanel {
           ${this.metric('%95 DD', formatPct(-report.p95_max_drawdown_pct), 'neg')}
         </div>
         ${report.warnings?.length ? `<div class="warning-list">${report.warnings.map(w => `<div class="warning-item">${this.escape(w)}</div>`).join('')}</div>` : ''}
+      </div>
+    `;
+  }
+
+  private portfolioLabHTML(r: BacktestResult): string {
+    const summary = r.portfolio_lab_summary;
+    if (!summary) return '';
+    const m = summary.metrics;
+    return `
+      <div class="report-subsection">
+        <h4>Portföy Lab Özeti</h4>
+        <div class="metrics-grid">
+          ${this.metric('Strateji', String(summary.strategy_count))}
+          ${this.metric('Portföy Getiri', formatPct(m.total_return_pct), m.total_return_pct >= 0 ? 'pos' : 'neg')}
+          ${this.metric('Portföy DD', formatPct(-m.max_drawdown_pct), 'neg')}
+          ${this.metric('PF', formatNumber(m.profit_factor, 2))}
+          ${this.metric('Sharpe-like', formatNumber(m.sharpe_like, 2))}
+          ${this.metric('En Kötü Dönem', formatPct(m.worst_period_pct), 'neg')}
+        </div>
+        ${summary.warnings?.length ? `<div class="warning-list">${summary.warnings.map(w => `<div class="warning-item">${this.escape(w)}</div>`).join('')}</div>` : ''}
       </div>
     `;
   }

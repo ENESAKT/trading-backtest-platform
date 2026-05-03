@@ -148,6 +148,9 @@ def test_backtest_run_returns_metrics_and_curve(tmp_path):
         "warnings",
     } <= set(monte_carlo)
     assert "simulations" not in monte_carlo
+    portfolio = body["portfolio_lab_summary"]
+    assert portfolio["strategy_count"] == 1
+    assert "total_return_pct" in portfolio["metrics"]
 
     if body["trades"]:
         trade = body["trades"][0]

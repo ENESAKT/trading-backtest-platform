@@ -194,6 +194,19 @@ export interface MonteCarloReport {
   warnings: string[];
 }
 
+export interface PortfolioLabSummary {
+  metrics: {
+    total_return_pct: number;
+    max_drawdown_pct: number;
+    profit_factor: number;
+    sharpe_like: number;
+    worst_period_pct: number;
+    monthly_returns: Record<string, number>;
+  };
+  strategy_count: number;
+  warnings: string[];
+}
+
 export interface StrategySpec {
   name?: string;
   note?: string;
@@ -245,6 +258,7 @@ export interface BacktestResult {
   quality_score?: number;
   walk_forward_report?: WalkForwardReport;
   monte_carlo_report?: MonteCarloReport;
+  portfolio_lab_summary?: PortfolioLabSummary;
   metrics: BacktestMetrics;
   equity_curve: EquityPoint[];
   trades: BacktestTrade[];
