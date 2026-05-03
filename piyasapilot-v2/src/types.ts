@@ -410,3 +410,18 @@ export interface MaliAnalizResponse {
   ratios: FinancialRatio[];
   warnings: string[];
 }
+
+export interface FinancialUniverseItem {
+  symbol: string;
+  ticker: string;
+  name: string;
+}
+
+export interface FinancialUniverseResponse {
+  scope: string;
+  symbols: FinancialUniverseItem[];
+  source_status: {
+    source: string;
+    status: string;
+  };
+}
