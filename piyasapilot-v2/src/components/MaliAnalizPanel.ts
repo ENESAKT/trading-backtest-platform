@@ -6,8 +6,10 @@ export class MaliAnalizPanel {
   private currentSymbol: string = 'THYAO.IS';
   private data: MaliAnalizResponse | null = null;
   private isLoading: boolean = false;
+  private errorMessage: string | null = null;
 
   private headerEl!: HTMLElement;
+  private titleEl!: HTMLElement;
   private contentEl!: HTMLElement;
   private searchInput!: HTMLInputElement;
 
@@ -24,6 +26,13 @@ export class MaliAnalizPanel {
     // Header
     this.headerEl = document.createElement('div');
     this.headerEl.className = 'mali-analiz-header';
+
+    this.titleEl = document.createElement('div');
+    this.titleEl.className = 'mali-title-block';
+    this.titleEl.innerHTML = `
+      <div class="mali-title-main">Mali Analiz</div>
+      <div class="mali-title-sub">THYAO</div>
+    `;
     
     this.searchInput = document.createElement('input');
     this.searchInput.type = 'text';
@@ -70,6 +79,7 @@ export class MaliAnalizPanel {
     actionsDiv.appendChild(openChartBtn);
     actionsDiv.appendChild(addBacktestBtn);
 
+    this.headerEl.appendChild(this.titleEl);
     this.headerEl.appendChild(searchGroup);
     this.headerEl.appendChild(actionsDiv);
 
@@ -94,6 +104,7 @@ export class MaliAnalizPanel {
     this.currentSymbol = symbol;
     this.searchInput.value = symbol;
     this.isLoading = true;
+    this.errorMessage = null;
     this.renderContent();
 
     try {
@@ -101,9 +112,13 @@ export class MaliAnalizPanel {
       if (!response.ok) {
         throw new Error('API Hatası');
       }
-      this.data = await response.json();
+      const data = await response.json() as MaliAnalizResponse;
+      this.data = data;
+      this.currentSymbol = data.symbol;
+      this.searchInput.value = data.symbol;
     } catch (err) {
       console.warn('Mali Analiz fetch hatası:', err);
+      this.errorMessage = 'Mali analiz servisine ulaşılamadı.';
       this.data = {
         symbol: symbol,
         company_name: null,
@@ -115,28 +130,35 @@ export class MaliAnalizPanel {
       };
     } finally {
       this.isLoading = false;
+      this.renderHeaderTitle();
       this.renderContent();
     }
   }
 
   private renderContent(): void {
     this.contentEl.innerHTML = '';
+    this.renderHeaderTitle();
 
     if (this.isLoading) {
       this.contentEl.innerHTML = `<div class="mali-loading"><div class="spinner"></div> ${TR.LOADING}</div>`;
       return;
     }
 
-    if (!this.data || this.data.source_status.status === 'empty' || (this.data.source_status.status === 'error' && this.data.financial_statements.length === 0)) {
-      const msg = this.data?.warnings?.[0] || TR.FIN_NO_DATA;
+    if (this.errorMessage) {
       this.contentEl.innerHTML = `
         <div class="mali-empty-state">
-          <div class="empty-icon">📊</div>
-          <p>${msg}</p>
+          <h2>Veri alınamadı</h2>
+          <p>${this.escapeHtml(this.errorMessage)}</p>
         </div>
       `;
       return;
     }
+
+    if (!this.data) return;
+
+    const hasStatements = this.data.financial_statements.length > 0;
+    const hasRatios = this.data.ratios.length > 0;
+    const hasFinancialData = hasStatements || hasRatios;
 
     // Render Summary Card
     const summaryCard = document.createElement('div');
@@ -147,6 +169,8 @@ export class MaliAnalizPanel {
       mock: TR.FIN_SOURCE_MOCK,
       error: TR.FIN_SOURCE_ERROR,
       empty: TR.FIN_SOURCE_EMPTY,
+      metadata_only: 'Metadata hazır',
+      not_configured: 'Kaynak bağlı değil',
     };
     const sourceStatusStr = this.data.source_status.status;
     const sourceText = statusLabels[sourceStatusStr] || sourceStatusStr;
@@ -154,30 +178,43 @@ export class MaliAnalizPanel {
     let summaryHtml = `
       <div class="summary-header">
         <div class="summary-title-row">
-          <h2>${this.data.company_name || this.data.symbol}</h2>
-          <span class="mali-symbol-badge">${this.data.symbol}</span>
+          <h2>${this.escapeHtml(this.data.company_name || 'Finansal veri henüz bağlı değil')}</h2>
+          <span class="mali-symbol-badge">${this.escapeHtml(this.data.symbol)}</span>
           <span class="badge status-${sourceStatusStr}">${sourceText}</span>
         </div>
       </div>
-      <div class="summary-grid">
+      <div class="mali-source-grid">
+        <div><span>Sembol</span><strong>${this.escapeHtml(this.data.symbol)}</strong></div>
+        ${this.data.company_name ? `<div><span>Şirket</span><strong>${this.escapeHtml(this.data.company_name)}</strong></div>` : ''}
+        <div><span>Kaynak</span><strong>${this.escapeHtml(this.data.source_status.source)}</strong></div>
+        <div><span>Durum</span><strong>${this.escapeHtml(sourceText)}</strong></div>
+      </div>
     `;
 
-    // Take top ratios for summary
-    const sumRatios = this.data.ratios.slice(0, 6);
-    for (const r of sumRatios) {
+    if (!hasFinancialData) {
       summaryHtml += `
-        <div class="ratio-box">
-          <div class="ratio-label">${r.name}</div>
-          <div class="ratio-value">${this.formatValue(r.value, r.format)}</div>
+        <div class="mali-empty-state mali-empty-state-inline">
+          <h2>Finansal veri henüz bağlı değil</h2>
+          <p>Bu şirket için KAP/finansal tablo kaynağı bağlandığında oranlar, dönemler ve tablolar burada görünecek.</p>
         </div>
       `;
+    } else if (hasRatios) {
+      summaryHtml += `<div class="summary-grid">`;
+      for (const r of this.data.ratios.slice(0, 6)) {
+        summaryHtml += `
+          <div class="ratio-box">
+            <div class="ratio-label">${this.escapeHtml(r.name)}</div>
+            <div class="ratio-value">${this.formatValue(r.value, r.format)}</div>
+          </div>
+        `;
+      }
+      summaryHtml += `</div>`;
     }
-    summaryHtml += `</div>`;
     
     if (this.data.warnings && this.data.warnings.length > 0) {
-      summaryHtml += `<div class="mali-warnings">
-        ${this.data.warnings.map(w => `<span class="warning-item">⚠️ ${w}</span>`).join('')}
-      </div>`;
+      summaryHtml += `<ul class="mali-warning-list">
+        ${this.data.warnings.map(w => `<li>${this.escapeHtml(w)}</li>`).join('')}
+      </ul>`;
     }
     
     summaryCard.innerHTML = summaryHtml;
@@ -193,11 +230,11 @@ export class MaliAnalizPanel {
     const rightCol = document.createElement('div');
     rightCol.className = 'mali-right-col';
 
-    // Financial Statements
     for (const stmt of this.data.financial_statements) {
+      if (!stmt.rows.length) continue;
       const stmtCard = document.createElement('div');
       stmtCard.className = 'mali-card stmt-card';
-      stmtCard.innerHTML = `<h3>${stmt.title}</h3>`;
+      stmtCard.innerHTML = `<h3>${this.escapeHtml(stmt.title)}</h3>`;
       
       const tableWrapper = document.createElement('div');
       tableWrapper.className = 'mali-table-wrapper';
@@ -213,7 +250,7 @@ export class MaliAnalizPanel {
       
       let tbody = `<tbody>`;
       for (const row of stmt.rows) {
-        tbody += `<tr><td>${row.label}</td>`;
+        tbody += `<tr><td>${this.escapeHtml(row.label)}</td>`;
         for (const val of row.values) {
           tbody += `<td class="val-num">${this.formatCompactNumber(val)}</td>`;
         }
@@ -237,7 +274,7 @@ export class MaliAnalizPanel {
       table.className = 'mali-table';
       let tHtml = `<thead><tr><th>Oran</th><th>Değer</th></tr></thead><tbody>`;
       for (const r of this.data.ratios) {
-        tHtml += `<tr><td>${r.name}</td><td class="val-num">${this.formatValue(r.value, r.format)}</td></tr>`;
+        tHtml += `<tr><td>${this.escapeHtml(r.name)}</td><td class="val-num">${this.formatValue(r.value, r.format)}</td></tr>`;
       }
       tHtml += `</tbody>`;
       table.innerHTML = tHtml;
@@ -248,6 +285,26 @@ export class MaliAnalizPanel {
     mainRow.appendChild(leftCol);
     mainRow.appendChild(rightCol);
     this.contentEl.appendChild(mainRow);
+  }
+
+  private renderHeaderTitle(): void {
+    if (!this.titleEl) return;
+    const symbol = this.data?.symbol || this.currentSymbol;
+    const companyName = this.data?.company_name;
+    this.titleEl.innerHTML = `
+      <div class="mali-title-main">${this.escapeHtml(companyName || 'Mali Analiz')}</div>
+      <div class="mali-title-sub">${this.escapeHtml(symbol)}</div>
+    `;
+  }
+
+  private escapeHtml(value: string): string {
+    return value.replace(/[&<>"']/g, (char) => ({
+      '&': '&amp;',
+      '<': '&lt;',
+      '>': '&gt;',
+      '"': '&quot;',
+      "'": '&#039;',
+    }[char] || char));
   }
 
   private formatValue(val: number | null, format?: 'pct' | 'num' | 'currency'): string {

@@ -2258,19 +2258,44 @@ h3 { font-family: var(--font-sans); font-size: 14px; font-weight: 600; color: va
 }
 
 .mali-analiz-header {
-  display: flex;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) minmax(220px, 320px) auto;
   align-items: center;
   padding: 12px 20px;
-  background: var(--bg-secondary);
+  background: var(--panel);
   border-bottom: 1px solid var(--border);
   gap: 16px;
+  min-height: 64px;
+}
+
+.mali-title-block {
+  min-width: 0;
+}
+
+.mali-title-main {
+  font-family: var(--font-sans);
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-bold);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mali-title-sub {
+  margin-top: 3px;
+  font-size: 11px;
+  color: var(--text-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .mali-search-group {
   display: flex;
   gap: 8px;
   align-items: center;
+  min-width: 0;
 }
 
 .mali-search-input {
@@ -2279,7 +2304,8 @@ h3 { font-family: var(--font-sans); font-size: 14px; font-weight: 600; color: va
   color: var(--text-bold);
   padding: 6px 12px;
   border-radius: 4px;
-  width: 220px;
+  width: 100%;
+  min-width: 0;
   font-size: 13px;
   outline: none;
 }
@@ -2288,6 +2314,8 @@ h3 { font-family: var(--font-sans); font-size: 14px; font-weight: 600; color: va
 .mali-header-actions {
   display: flex;
   gap: 8px;
+  justify-content: flex-end;
+  flex-wrap: wrap;
 }
 
 .mali-analiz-content {
@@ -2304,9 +2332,30 @@ h3 { font-family: var(--font-sans); font-size: 14px; font-weight: 600; color: va
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 60px;
-  color: var(--text-muted);
+  padding: 48px 20px;
+  color: var(--text);
   gap: 12px;
+  text-align: center;
+}
+
+.mali-empty-state h2 {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: 18px;
+  color: var(--text-bold);
+}
+
+.mali-empty-state p {
+  max-width: 620px;
+  line-height: 1.55;
+  color: var(--text);
+}
+
+.mali-empty-state-inline {
+  align-items: flex-start;
+  justify-content: flex-start;
+  text-align: left;
+  padding: 18px 0 0;
 }
 
 .spinner {
@@ -2320,7 +2369,7 @@ h3 { font-family: var(--font-sans); font-size: 14px; font-weight: 600; color: va
 @keyframes spin { to { transform: rotate(360deg); } }
 
 .mali-card {
-  background: var(--bg-secondary);
+  background: var(--panel);
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 16px;
@@ -2336,11 +2385,18 @@ h3 { font-family: var(--font-sans); font-size: 14px; font-weight: 600; color: va
   display: flex;
   align-items: center;
   gap: 12px;
+  flex-wrap: wrap;
+  min-width: 0;
 }
-.summary-title-row h2 { margin: 0; font-size: 1.4em; color: var(--text-bold); }
+.summary-title-row h2 {
+  margin: 0;
+  font-size: 18px;
+  color: var(--text-bold);
+  overflow-wrap: anywhere;
+}
 .mali-symbol-badge {
-  background: var(--blue-dim);
-  color: var(--blue-light);
+  background: rgba(59, 130, 246, 0.16);
+  color: var(--blue);
   padding: 2px 8px;
   border-radius: 4px;
   font-weight: bold;
@@ -2361,6 +2417,35 @@ h3 { font-family: var(--font-sans); font-size: 14px; font-weight: 600; color: va
 }
 .ratio-label { font-size: 0.8em; color: var(--text-muted); margin-bottom: 4px; }
 .ratio-value { font-size: 1.1em; font-weight: bold; color: var(--text-bold); }
+
+.mali-source-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+}
+
+.mali-source-grid div {
+  min-width: 0;
+  padding: 10px 12px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.mali-source-grid span {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--text-dim);
+  font-size: 11px;
+}
+
+.mali-source-grid strong {
+  display: block;
+  color: var(--text-bold);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
 .mali-main-row {
   display: flex;
@@ -2402,11 +2487,11 @@ h3 { font-family: var(--font-sans); font-size: 14px; font-weight: 600; color: va
   text-align: left;
   position: sticky;
   left: 0;
-  background: var(--bg-secondary);
+  background: var(--panel);
   z-index: 2;
   min-width: 140px;
 }
-.mali-table tr:hover td { background: var(--bg-hover); }
+.mali-table tr:hover td { background: var(--panel2); }
 
 .val-num { font-family: var(--font-mono); font-weight: 500; }
 
@@ -2414,19 +2499,29 @@ h3 { font-family: var(--font-sans); font-size: 14px; font-weight: 600; color: va
 .badge.status-mock { background: var(--orange-dim); color: var(--orange-light); }
 .badge.status-error { background: var(--red-dim); color: var(--red-light); }
 .badge.status-empty { background: var(--border); color: var(--text-muted); }
-
-.mali-warnings {
-  margin-top: 12px;
-  padding: 8px;
-  background: rgba(255, 165, 0, 0.05);
-  border-radius: 6px;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
+.badge.status-metadata_only,
+.badge.status-not_configured {
+  background: rgba(245, 158, 11, 0.12);
+  color: var(--yellow);
 }
-.warning-item { font-size: 0.85em; color: var(--orange-light); }
+
+.mali-warning-list {
+  margin-top: 12px;
+  padding: 10px 12px 10px 28px;
+  background: rgba(245, 158, 11, 0.08);
+  border: 1px solid rgba(245, 158, 11, 0.18);
+  border-radius: 6px;
+  color: var(--yellow);
+  line-height: 1.45;
+}
+.mali-warning-list li { margin: 2px 0; }
 
 @media (max-width: 1024px) {
+  .mali-analiz-header {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+  .mali-header-actions { justify-content: flex-start; }
   .mali-main-row { flex-direction: column; }
   .mali-left-col, .mali-right-col { width: 100%; flex: none; }
 }
