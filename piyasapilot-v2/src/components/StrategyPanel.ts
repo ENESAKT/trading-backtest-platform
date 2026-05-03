@@ -1338,6 +1338,7 @@ export class StrategyPanel {
         ${this.metric('Açık Poz.', m.has_open_position ? 'Var' : 'Yok')}
       </div>
       ${this.walkForwardHTML(r)}
+      ${this.monteCarloHTML(r)}
     `;
   }
 
@@ -1353,6 +1354,25 @@ export class StrategyPanel {
           ${this.metric('WFE', formatNumber(report.walk_forward_efficiency, 2), report.passed ? 'pos' : 'neg')}
           ${this.metric('Pencere', String(report.windows.length))}
           ${this.metric('Durum', status, report.passed ? 'pos' : 'neg')}
+        </div>
+        ${report.warnings?.length ? `<div class="warning-list">${report.warnings.map(w => `<div class="warning-item">${this.escape(w)}</div>`).join('')}</div>` : ''}
+      </div>
+    `;
+  }
+
+  private monteCarloHTML(r: BacktestResult): string {
+    const report = r.monte_carlo_report;
+    if (!report) return '';
+    return `
+      <div class="report-subsection">
+        <h4>Monte Carlo Risk</h4>
+        <div class="metrics-grid">
+          ${this.metric('Medyan Bitiş', formatCurrency(report.median_final_equity), report.median_final_equity >= r.capital ? 'pos' : 'neg')}
+          ${this.metric('%5 Senaryo', formatCurrency(report.p05_final_equity), report.p05_final_equity >= r.capital ? 'pos' : 'neg')}
+          ${this.metric('%95 Senaryo', formatCurrency(report.p95_final_equity), report.p95_final_equity >= r.capital ? 'pos' : 'neg')}
+          ${this.metric('Zarar Olasılığı', formatPct(report.probability_of_loss * 100), report.probability_of_loss > 0.25 ? 'neg' : 'pos')}
+          ${this.metric('Medyan DD', formatPct(-report.median_max_drawdown_pct), 'neg')}
+          ${this.metric('%95 DD', formatPct(-report.p95_max_drawdown_pct), 'neg')}
         </div>
         ${report.warnings?.length ? `<div class="warning-list">${report.warnings.map(w => `<div class="warning-item">${this.escape(w)}</div>`).join('')}</div>` : ''}
       </div>

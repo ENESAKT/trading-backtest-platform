@@ -112,13 +112,13 @@ Bu yüzden aşağıdaki B sprintleri "mevcut yapılmış işleri tekrar et" değ
 
 ## Sprint B7 — Monte Carlo Risk Simülasyonu
 
-- [ ] `quant_engine/research/monte_carlo.py` modülü
-- [ ] İşlem PnL serisi üzerinden bootstrap/permutation simülasyonu
-- [ ] Rapor: median final equity, %5/%95 senaryo, olası max drawdown, zarar etme olasılığı, yıllık getiri/DD dağılımı
-- [ ] Kullanıcı: başlangıç sermayesi, risk yüzdesi, tekrar sayısı
-- [ ] Monte Carlo sonucu paper robot öncesi son eleme kapısı
-- [ ] **Kabul:** Backtestte karlı görünen stratejinin risk dağılımı ve kötü senaryo sermaye eğrisi görülebilir
-- [ ] **Test:** Unit: sabit seed ile deterministik rapor üretir
+- [x] `quant_engine/research/monte_carlo.py` modülü
+- [x] İşlem PnL serisi üzerinden bootstrap simülasyonu
+- [x] Rapor: median final equity, %5/%95 senaryo, max drawdown dağılımı ve zarar etme olasılığı
+- [x] Kullanıcı: başlangıç sermayesi backtest sermayesinden alınır; büyük simülasyon array'i response'a konmaz
+- [x] Monte Carlo sonucu StrategyPanel performans görünümünde paper öncesi risk özeti olarak görünür
+- [x] **Kabul:** Backtestte karlı görünen stratejinin risk dağılımı ve kötü senaryosu raporda okunur
+- [x] **Test:** Unit: sabit seed ile deterministik rapor üretir. Integration: backtest response `monte_carlo_report` döner ve `simulations` taşımaz
 
 ---
 

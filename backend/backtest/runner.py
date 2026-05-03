@@ -31,6 +31,7 @@ from backend.backtest import blueprints as _blueprints  # noqa: F401  (registry 
 from backend.data.cache import OHLCVCache
 from backend.data.historical_store import HistoricalStore
 from quant_engine.backtest.engine import BacktestConfig, BacktestEngine, QualityWarning
+from quant_engine.research.monte_carlo import run_monte_carlo
 from quant_engine.research.walk_forward import run_walk_forward_analysis
 from quant_engine.strategy.registry import get_registry
 from quant_engine.strategy.spec import FormulaError, StrategySpecSignal, validate_strategy_spec
@@ -407,6 +408,35 @@ def _walk_forward_payload(
     return payload
 
 
+def _monte_carlo_payload(
+    *,
+    trades: list[Any],
+    capital: float,
+) -> dict[str, Any]:
+    pnl_series = [float(getattr(trade, "net_pnl", 0.0)) for trade in trades]
+    report = run_monte_carlo(
+        pnl_series,
+        initial_capital=float(capital),
+        n_simulations=1000,
+        method="bootstrap",
+        seed=42,
+    )
+    warnings = list(report.warnings)
+    if len(pnl_series) < 10:
+        warnings.append(
+            "Monte Carlo sonucu düşük işlem sayısı nedeniyle dikkatli yorumlanmalı."
+        )
+    return {
+        "median_final_equity": report.median_final_equity,
+        "p05_final_equity": report.p05_final_equity,
+        "p95_final_equity": report.p95_final_equity,
+        "probability_of_loss": report.probability_of_loss,
+        "median_max_drawdown_pct": report.median_max_drawdown_pct,
+        "p95_max_drawdown_pct": report.p95_max_drawdown_pct,
+        "warnings": warnings,
+    }
+
+
 def _report_payload(
     *,
     result: Any,
@@ -761,5 +791,9 @@ def run_backtest(
         df=df,
         run_slice=run_slice_for_wfa,
         params=out_params,
+    )
+    payload["monte_carlo_report"] = _monte_carlo_payload(
+        trades=list(result.trades),
+        capital=float(capital),
     )
     return payload

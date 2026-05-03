@@ -137,6 +137,17 @@ def test_backtest_run_returns_metrics_and_curve(tmp_path):
     assert {"windows", "total_oos_return_pct", "walk_forward_efficiency", "passed", "warnings"} <= set(wfa)
     assert isinstance(wfa["windows"], list)
     assert wfa["warnings"]
+    monte_carlo = body["monte_carlo_report"]
+    assert {
+        "median_final_equity",
+        "p05_final_equity",
+        "p95_final_equity",
+        "probability_of_loss",
+        "median_max_drawdown_pct",
+        "p95_max_drawdown_pct",
+        "warnings",
+    } <= set(monte_carlo)
+    assert "simulations" not in monte_carlo
 
     if body["trades"]:
         trade = body["trades"][0]
