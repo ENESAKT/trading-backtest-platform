@@ -167,6 +167,7 @@ export interface StrategySpec {
     stop_loss_pct?: number;
     take_profit_pct?: number;
     trailing_stop_pct?: number;
+    time_stop_bars?: number;
   };
 }
 

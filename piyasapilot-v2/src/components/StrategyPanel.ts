@@ -501,8 +501,13 @@ export class StrategyPanel {
             <label>Op<select id="builder-op">
               <option value="CROSS_UP">yukarı keser</option>
               <option value="CROSS_DOWN">aşağı keser</option>
-              <option value=">">&gt;</option>
-              <option value="<">&lt;</option>
+              <option value=">">></option>
+              <option value="<"><</option>
+              <option value="ABOVE">üstünde seyreder</option>
+              <option value="BELOW">altında seyreder</option>
+              <option value="RISING">sürekli yükselen (Periyot: Sağ değer)</option>
+              <option value="FALLING">sürekli düşen (Periyot: Sağ değer)</option>
+              <option value="VOLUME_ABOVE_AVG">Hacim ort. üstü (Periyot: Sağ değer)</option>
             </select></label>
             <label>Bağ<select id="builder-join">
               <option value="OR">OR</option>
@@ -521,6 +526,7 @@ export class StrategyPanel {
           <label>Stop %<input id="risk-stop" type="number" min="0" step="0.1" value="${risk.stop_loss_pct ?? 3}"></label>
           <label>Kar Al %<input id="risk-take" type="number" min="0" step="0.1" value="${risk.take_profit_pct ?? 8}"></label>
           <label>Trailing %<input id="risk-trail" type="number" min="0" step="0.1" value="${risk.trailing_stop_pct ?? 5}"></label>
+          <label>Süre Stop (Bar)<input id="risk-time" type="number" min="0" step="1" value="${risk.time_stop_bars ?? 0}" title="0 = Devre dışı"></label>
         </div>
       </div>
     `;
@@ -801,6 +807,7 @@ export class StrategyPanel {
         stop_loss_pct: this.num('#risk-stop', 0),
         take_profit_pct: this.num('#risk-take', 0),
         trailing_stop_pct: this.num('#risk-trail', 0),
+        time_stop_bars: this.num('#risk-time', 0),
       },
     };
   }
@@ -875,6 +882,7 @@ export class StrategyPanel {
       stop_loss_pct: this.num('#risk-stop', 0),
       take_profit_pct: this.num('#risk-take', 0),
       trailing_stop_pct: this.num('#risk-trail', 0),
+      time_stop_bars: this.num('#risk-time', 0),
     };
   }
 
@@ -1007,10 +1015,18 @@ export class StrategyPanel {
     const op = this.value<HTMLSelectElement>('#builder-op') || 'CROSS_UP';
     const join = this.value<HTMLSelectElement>('#builder-join') || 'OR';
     const volume = this.container.querySelector<HTMLInputElement>('#builder-volume')?.checked;
-    let expr = op === 'CROSS_UP' || op === 'CROSS_DOWN'
-      ? `${op}(${left}, ${right})`
-      : `${left} ${op} ${right}`;
-    if (volume) expr = `${expr} AND V > SMA(V,20)`;
+
+    let expr = '';
+    if (op === 'CROSS_UP' || op === 'CROSS_DOWN' || op === 'ABOVE' || op === 'BELOW') {
+      expr = `${op}(${left}, ${right})`;
+    } else if (op === 'RISING' || op === 'FALLING' || op === 'VOLUME_ABOVE_AVG') {
+      const rightVal = this.num('#builder-right-value', 3);
+      expr = `${op}(${left}, ${rightVal})`;
+    } else {
+      expr = `${left} ${op} ${right}`;
+    }
+
+    if (volume) expr = `${expr} AND VOLUME_ABOVE_AVG(V, 20)`;
     const textarea = this.container.querySelector<HTMLTextAreaElement>(`#rule-${target}`);
     if (!textarea) return;
     textarea.value = textarea.value.trim()

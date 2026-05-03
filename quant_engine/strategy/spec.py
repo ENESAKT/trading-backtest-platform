@@ -15,6 +15,9 @@ import numpy as np
 import pandas as pd
 
 from quant_engine.strategy.indicators import atr, bollinger_bands, ema, macd, rsi, sma
+from quant_engine.strategy.rules import (
+    above, below, distance_pct, slope, rising, falling, volume_above_avg
+)
 
 RuleName = Literal["long_entry", "long_exit", "short_entry", "short_exit"]
 Intent = Literal["BUY", "SELL", "SHORT", "COVER", "HOLD", "CONFLICT"]
@@ -88,6 +91,13 @@ FUNCTIONS = {
     "CROSS_UP",
     "CROSS_DOWN",
     "BARS_SINCE",
+    "ABOVE",
+    "BELOW",
+    "DISTANCE_PCT",
+    "SLOPE",
+    "RISING",
+    "FALLING",
+    "VOLUME_ABOVE_AVG",
 }
 LOGICAL = {"AND", "OR"}
 COMPARE = {">", "<", ">=", "<=", "=="}
@@ -106,7 +116,7 @@ def normalize_strategy_spec(spec: dict[str, Any] | None) -> dict[str, Any]:
 
     risk = spec.get("risk") if isinstance(spec.get("risk"), dict) else {}
     normalized_risk = dict(risk)
-    for key in ("stop_loss_pct", "take_profit_pct", "trailing_stop_pct"):
+    for key in ("stop_loss_pct", "take_profit_pct", "trailing_stop_pct", "time_stop_bars"):
         if key in spec and key not in normalized_risk:
             normalized_risk[key] = spec[key]
 
@@ -182,13 +192,20 @@ class StrategySpecSignal:
         self.stop_loss_pct = _pct(risk.get("stop_loss_pct"))
         self.take_profit_pct = _pct(risk.get("take_profit_pct"))
         self.trailing_stop_pct = _pct(risk.get("trailing_stop_pct"))
+        self.time_stop_bars = int(risk.get("time_stop_bars") or 0)
         self._best_price: float | None = None
+        self._bars_held: int = 0
         self.last_reason = ""
 
     def __call__(self, data: pd.DataFrame, bar_index: int, portfolio: Any) -> Intent:
         symbol = str(data.iloc[bar_index].get("symbol", "UNKNOWN"))
         close = float(data.iloc[bar_index]["close"])
         position = portfolio.get_or_create_position(symbol)
+
+        if position.quantity != 0:
+            self._bars_held += 1
+        else:
+            self._bars_held = 0
 
         risk_intent = self._risk_intent(position.quantity, position.avg_entry_price, close)
         if risk_intent != "HOLD":
@@ -228,6 +245,9 @@ class StrategySpecSignal:
         if quantity == 0 or entry <= 0:
             self._best_price = None
             return "HOLD"
+
+        if self.time_stop_bars > 0 and self._bars_held >= self.time_stop_bars:
+            return "SELL" if quantity > 0 else "COVER"
 
         if quantity > 0:
             self._best_price = max(close, self._best_price or close)
@@ -404,6 +424,13 @@ def _validate_arity(name: str, n: int, column: int) -> None:
         "CROSS_UP": 2,
         "CROSS_DOWN": 2,
         "BARS_SINCE": 1,
+        "ABOVE": 2,
+        "BELOW": 2,
+        "DISTANCE_PCT": 2,
+        "SLOPE": 2,
+        "RISING": 2,
+        "FALLING": 2,
+        "VOLUME_ABOVE_AVG": 2,
     }
     expected = arity[name]
     if n != expected:
@@ -536,6 +563,22 @@ def _eval_call(
             else:
                 count.append(np.nan if last_seen is None else i - last_seen)
         return pd.Series(count, index=env["C"].index)
+    if name == "ABOVE":
+        return above(_ensure_series(args[0], length), _ensure_series(args[1], length))
+    if name == "BELOW":
+        return below(_ensure_series(args[0], length), _ensure_series(args[1], length))
+    if name == "DISTANCE_PCT":
+        return distance_pct(_ensure_series(args[0], length), _ensure_series(args[1], length))
+    if name == "SLOPE":
+        return slope(_ensure_series(args[0], length), _period(args[1]))
+    if name == "RISING":
+        return rising(_ensure_series(args[0], length), _period(args[1]))
+    if name == "FALLING":
+        return falling(_ensure_series(args[0], length), _period(args[1]))
+    if name == "VOLUME_ABOVE_AVG":
+        v = _ensure_series(args[0], length)
+        # Using volume variable which might be V or something else mapped to V
+        return volume_above_avg(v, _period(args[1]))
     raise FormulaError(f"Bilinmeyen fonksiyon: {name}", 1)
 
 
