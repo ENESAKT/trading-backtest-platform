@@ -3,6 +3,7 @@
 from typing import Any
 
 from backend.mali_analiz.models import FinancialAnalysisResponse, SourceStatus
+from backend.mali_analiz.symbols import normalize_symbol
 
 
 def _safe_float(val: Any) -> float | None:
@@ -99,47 +100,40 @@ def _normalize_dict_to_lists(
 
 
 def normalize_provider_response(raw_data: dict, default_symbol: str) -> FinancialAnalysisResponse:
-    warnings = []
-
-    symbol = raw_data.get("symbol", default_symbol).strip().upper()
-    if symbol != default_symbol:
-        warnings.append(f"Sembol normalize edildi: {default_symbol} -> {symbol}")
-        symbol = default_symbol
+    warnings: list[str] = []
+    normalized_default = normalize_symbol(default_symbol)
+    symbol = normalize_symbol(str(raw_data.get("symbol") or normalized_default))
 
     company_name = raw_data.get("company_name") or raw_data.get("name")
-    if not company_name:
-        warnings.append("Şirket adı yok")
 
     periods = raw_data.get("periods", [])
     if not isinstance(periods, list):
         periods = [str(periods)]
-    if len(periods) < 4:
+    periods = [str(period) for period in periods if period is not None]
+    if periods and len(periods) < 4:
         warnings.append("Dönem sayısı 4'ten az")
-
-    num_periods = len(periods) if periods else 1
-    if not periods:
-        periods = ["Güncel"]
 
     bs_raw = raw_data.get("balance_sheet") or raw_data.get("bilanco") or {}
     inc_raw = raw_data.get("income_statement") or raw_data.get("gelir_tablosu") or {}
-
+    cash_flow_raw = raw_data.get("cash_flow") or raw_data.get("nakit_akim") or {}
+    num_periods = len(periods) if periods else 1
     bs = _normalize_dict_to_lists(bs_raw, num_periods, periods)
     inc = _normalize_dict_to_lists(inc_raw, num_periods, periods)
+    cash_flow = _normalize_dict_to_lists(cash_flow_raw, num_periods, periods)
 
-    if not bs and not inc:
-        warnings.append("Provider boş veri döndürdü")
-
-    ratios = calculate_ratios(bs, inc, warnings)
-
-    # Zaten oranlar geldiyse onları da ekle
     existing_ratios = raw_data.get("ratios")
-    if isinstance(existing_ratios, dict):
+    ratios: list[dict[str, Any]] = []
+    if not bs and not inc:
+        warnings.append("Finansal tablo verisi henüz bağlı değil.")
+    else:
+        ratios = calculate_ratios(bs, inc, warnings)
+
+    if isinstance(existing_ratios, dict) and existing_ratios:
         for k, v in existing_ratios.items():
             ratios.append({"name": k, "value": _safe_float(v), "format": "num"})
-    elif isinstance(existing_ratios, list):
+    elif isinstance(existing_ratios, list) and existing_ratios:
         ratios.extend(existing_ratios)
 
-    # Build financial statements array for UI
     financial_statements = []
     if bs:
         rows = [{"label": k, "values": v} for k, v in bs.items()]
@@ -147,13 +141,16 @@ def normalize_provider_response(raw_data: dict, default_symbol: str) -> Financia
     if inc:
         rows = [{"label": k, "values": v} for k, v in inc.items()]
         financial_statements.append({"title": "Gelir Tablosu", "rows": rows})
+    if cash_flow:
+        rows = [{"label": k, "values": v} for k, v in cash_flow.items()]
+        financial_statements.append({"title": "Nakit Akım", "rows": rows})
 
-    status_str = "ok"
+    status_str = "metadata_only"
     source_str = "normalized"
     raw_status = raw_data.get("source_status")
 
     if isinstance(raw_status, dict):
-        status_str = raw_status.get("status", "ok")
+        status_str = raw_status.get("status", status_str)
         source_str = raw_status.get("source", "normalized")
     elif isinstance(raw_status, str):
         status_str = raw_status
@@ -161,17 +158,27 @@ def normalize_provider_response(raw_data: dict, default_symbol: str) -> Financia
     else:
         source_str = raw_data.get("source", "normalized")
 
-    if not bs and not inc:
-        status_str = "empty"
-    elif not bs or not inc:
+    if bs or inc or cash_flow:
+        status_str = "ok" if bs and inc else "partial"
+    elif status_str in {"ok", "empty", "mock"}:
+        status_str = "metadata_only"
+    if (bs or inc) and (not bs or not inc):
         status_str = "partial"
 
-    source_status = SourceStatus(source=source_str, status=status_str)
+    source_status = SourceStatus(
+        source=source_str,
+        status=status_str,
+        fetched_at=raw_status.get("fetched_at") if isinstance(raw_status, dict) else None,
+        cache_hit=bool(raw_status.get("cache_hit", False)) if isinstance(raw_status, dict) else False,
+        stale=bool(raw_status.get("stale", False)) if isinstance(raw_status, dict) else False,
+        error=raw_status.get("error") if isinstance(raw_status, dict) else None,
+    )
 
-    # Gelen existing warnings
     raw_warnings = raw_data.get("warnings", [])
     if isinstance(raw_warnings, list):
-        warnings.extend(raw_warnings)
+        for warning in raw_warnings:
+            if warning and warning not in warnings and warning != "Şirket adı yok":
+                warnings.append(str(warning))
 
     return FinancialAnalysisResponse(
         symbol=symbol,
@@ -179,7 +186,7 @@ def normalize_provider_response(raw_data: dict, default_symbol: str) -> Financia
         periods=periods,
         balance_sheet=bs,
         income_statement=inc,
-        cash_flow={},
+        cash_flow=cash_flow,
         financial_statements=financial_statements,
         ratios=ratios,
         source_status=source_status,

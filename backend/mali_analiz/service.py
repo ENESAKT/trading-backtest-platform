@@ -8,13 +8,11 @@ from typing import Any, Callable, Protocol
 
 from backend.mali_analiz.cache import DEFAULT_TTL, FinancialAnalysisCache
 from backend.mali_analiz.models import FinancialAnalysisResponse, SourceStatus
+from backend.mali_analiz.symbols import SYMBOL_METADATA, normalize_symbol
 
 
 def _normalize_symbol(symbol: str) -> str:
-    normalized = symbol.strip().upper()
-    if not normalized:
-        raise ValueError("symbol boş olamaz")
-    return normalized
+    return normalize_symbol(symbol)
 
 
 def _utc_now() -> datetime:
@@ -45,15 +43,24 @@ class MockFinancialAnalysisProvider:
         normalized = _normalize_symbol(symbol)
         payload = FinancialAnalysisResponse(
             symbol=normalized,
-            company_name=None,
+            company_name=SYMBOL_METADATA.get(normalized),
             periods=[],
             balance_sheet={},
             income_statement={},
             cash_flow={},
+            financial_statements=[],
             ratios=[],
-            warnings=["Mali analiz için mock provider kullanıldı."],
+            source_status=SourceStatus(
+                source=self.source,
+                status="metadata_only",
+            ),
+            warnings=["Finansal tablo verisi henüz bağlı değil."],
         )
-        return FinancialProviderResult(payload=payload, source=self.source, status="mock")
+        return FinancialProviderResult(
+            payload=payload,
+            source=self.source,
+            status="metadata_only",
+        )
 
 
 class FinancialAnalysisService:

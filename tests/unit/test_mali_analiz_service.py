@@ -6,7 +6,12 @@ from datetime import datetime, timedelta, timezone
 
 from backend.mali_analiz.cache import FinancialAnalysisCache
 from backend.mali_analiz.models import FinancialAnalysisResponse
-from backend.mali_analiz.service import FinancialAnalysisService, FinancialProviderResult
+from backend.mali_analiz.service import (
+    FinancialAnalysisService,
+    FinancialProviderResult,
+    MockFinancialAnalysisProvider,
+    _normalize_symbol,
+)
 
 
 def _dt(hour: int) -> datetime:
@@ -182,3 +187,33 @@ def test_response_model_is_json_serializable(tmp_path):
         "source_status",
         "warnings",
     }
+
+
+def test_normalize_symbol_trims_uppercases_and_removes_bist_suffix():
+    assert _normalize_symbol(" thyao.is ") == "THYAO"
+
+
+def test_normalize_symbol_rejects_empty_symbol():
+    try:
+        _normalize_symbol(" .is ")
+    except ValueError as exc:
+        assert "symbol boş olamaz" in str(exc)
+    else:
+        raise AssertionError("empty symbol should raise ValueError")
+
+
+def test_mock_provider_returns_metadata_only_without_fake_financials():
+    provider = MockFinancialAnalysisProvider()
+
+    result = provider.fetch(" THYAO.IS ")
+    payload = result.payload
+
+    assert isinstance(payload, FinancialAnalysisResponse)
+    assert payload.symbol == "THYAO"
+    assert payload.company_name
+    assert payload.periods == []
+    assert payload.financial_statements == []
+    assert payload.ratios == []
+    assert result.status == "metadata_only"
+    assert "Şirket adı yok" not in payload.warnings
+    assert "Finansal tablo verisi henüz bağlı değil." in payload.warnings
