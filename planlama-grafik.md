@@ -127,6 +127,7 @@
 - [ ] Ters grafik ve relatif grafik (deneysel mod)
 - [x] **Kapsam dışı:** 3D mum, Gann, Tirone, otomatik fibo (analiz değeri tartışmalı)
 - [x] **Test:** Her yeni grafik tipi strateji/backtest hesaplarını bozmaz; orijinal OHLCV kullanılır (Çizimler ve indikatör ayırması ChartPanel içinde uygulandı)
+- [x] **QA:** Fibonacci düzeltme/extension ve regresyon araçları ChartPanel toolbar'da erişilebilir; event marker click `openFinancialAnalysis` olayına bağlı; multi-chart compare sync helper'ı mevcut
 
 ---
 

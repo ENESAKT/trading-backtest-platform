@@ -270,6 +270,8 @@ Her makale için:
 
 - [ ] E2E: Eğitimler sekmesi açılır, kategori listesi görünür
 - [ ] E2E: "Bollinger" aranır, makale listelenir ve açılır
+- [x] QA: "Grafikte Aç" köprüsü app.ts üzerinden ChartPanel aktif indikatör akışına bağlı
+- [x] QA: "Backtest Preset'i Aç" köprüsü app.ts üzerinden StrategyPanel blueprint akışına bağlı
 - [ ] E2E: "Grafiğe Ekle" tıklanır, BB grafiğe eklenir
 - [ ] E2E: "Backtest Preset'ini Dene" tıklanır, StrategyPanel açılır
 - [ ] E2E: Klavye `6` ile sekmeye geçilir
