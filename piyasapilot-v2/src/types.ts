@@ -184,6 +184,16 @@ export interface WalkForwardReport {
   warnings: string[];
 }
 
+export interface MonteCarloReport {
+  median_final_equity: number;
+  p05_final_equity: number;
+  p95_final_equity: number;
+  probability_of_loss: number;
+  median_max_drawdown_pct: number;
+  p95_max_drawdown_pct: number;
+  warnings: string[];
+}
+
 export interface StrategySpec {
   name?: string;
   note?: string;
@@ -234,6 +244,7 @@ export interface BacktestResult {
   warnings?: QualityWarning[];
   quality_score?: number;
   walk_forward_report?: WalkForwardReport;
+  monte_carlo_report?: MonteCarloReport;
   metrics: BacktestMetrics;
   equity_curve: EquityPoint[];
   trades: BacktestTrade[];
