@@ -1531,6 +1531,21 @@ export class ChartPanel {
     });
   }
 
+  focusTime(timestamp: number): void {
+    if (this.candles.length === 0) return;
+    const idx = this.candles.findIndex(c => c.time >= timestamp);
+    const center = idx >= 0 ? idx : this.candles.length - 1;
+    const fromIdx = Math.max(0, center - 20);
+    const toIdx = Math.min(this.candles.length - 1, center + 20);
+    const range = {
+      from: this.candles[fromIdx]!.time as UTCTimestamp,
+      to: this.candles[toIdx]!.time as UTCTimestamp,
+    };
+    [this.mainChart, this.volChart, this.rsiChart, this.macdChart, this.atrChart].forEach(chart => {
+      chart.timeScale().setVisibleRange(range);
+    });
+  }
+
   updateLastCandle(candle: OHLCV): void {
     if (this.candles.length === 0) {
       this.setData([candle], { reason: 'append', preserveTimeRange: true });

@@ -208,6 +208,18 @@ test('education bridge actions open chart indicators and strategy presets', asyn
   await expect(page.locator('.strategy-card.active')).toContainText('Supertrend');
 });
 
+test('education tab renders searchable indicator articles', async ({ page }) => {
+  await page.goto('/');
+  await page.locator('[data-tab="education"]').click();
+
+  await expect(page.locator('#panel-education')).toBeVisible();
+  await expect(page.locator('.education-article-header h2')).toContainText(/ADX|ATR|Bollinger|Ichimoku|MACD|OBV|Parabolic|RSI|Stochastic|Hareketli/);
+
+  await page.locator('#education-search').fill('rsi');
+  await expect(page.locator('.education-row.active')).toContainText('RSI');
+  await expect(page.locator('.education-source-note')).toContainText('kare OCR');
+});
+
 test('mobile viewport keeps the primary shell usable', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/');

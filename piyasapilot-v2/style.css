@@ -444,6 +444,19 @@ h3 { font-family: var(--font-sans); font-size: 14px; font-weight: 600; color: va
   color: var(--text);
   margin-top: 2px;
 }
+.ci-signal {
+  margin-top: 5px;
+  padding-top: 5px;
+  border-top: 1px solid var(--border2);
+  color: var(--text-bold);
+  font-size: 10px;
+}
+.ci-signal span,
+.ci-signal small {
+  display: block;
+  color: var(--text);
+  margin-top: 2px;
+}
 .ci-row { display: flex; justify-content: space-between; gap: 12px; line-height: 1.6; }
 .ci-row span { color: var(--text-dim); font-size: 10px; }
 .ci-row b { font-size: 10px; }

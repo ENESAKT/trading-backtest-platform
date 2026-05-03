@@ -34,6 +34,10 @@ export default defineConfig({
         target: apiTarget,
         changeOrigin: true,
       },
+      '/api/backtest': {
+        target: 'http://127.0.0.1:8000',
+        changeOrigin: true,
+      },
       // /ws/quotes: backend'in worker'larından fan-out edilen canlı bar feed.
       '/ws': {
         target: wsTarget,
