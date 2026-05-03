@@ -62,6 +62,15 @@ interface OptimizationRow {
   warnings: string[];
 }
 
+interface OptimizationStabilityReport {
+  param_keys: string[];
+  best_params: Record<string, unknown>;
+  stable_score: number;
+  metric_value: number;
+  global_max: number;
+  warnings: string[];
+}
+
 interface ScanRow {
   symbol: string;
   last_price?: number;
@@ -172,6 +181,7 @@ export class StrategyPanel {
   private savedStrategies: SavedStrategy[] = [];
   private reportSummaries: ReportSummary[] = [];
   private optimizationRows: OptimizationRow[] = [];
+  private optimizationStability: OptimizationStabilityReport | null = null;
   private scanRows: ScanRow[] = [];
 
   constructor(container: HTMLElement) {
@@ -1076,8 +1086,12 @@ export class StrategyPanel {
       if (out) out.innerHTML = `<div class="empty-state error">${this.escape(await this.errorText(resp))}</div>`;
       return;
     }
-    const body = await resp.json() as { results?: OptimizationRow[] };
+    const body = await resp.json() as {
+      results?: OptimizationRow[];
+      stability_report?: OptimizationStabilityReport;
+    };
     this.optimizationRows = body.results ?? [];
+    this.optimizationStability = body.stability_report ?? null;
     this.renderOptimizerResults();
   }
 
@@ -1224,7 +1238,20 @@ export class StrategyPanel {
       el.innerHTML = `<div class="empty-state">Sonuç yok</div>`;
       return;
     }
+    const stability = this.optimizationStability;
     el.innerHTML = `
+      ${stability ? `
+        <div class="optimizer-stability">
+          <div>
+            <b>Stabil Bölge</b>
+            <span>${this.escape(JSON.stringify(stability.best_params || {}))}</span>
+          </div>
+          <div>
+            <b>Stabilite</b>
+            <span>${formatNumber(stability.stable_score ?? 0, 2)} / Max ${formatNumber(stability.global_max ?? 0, 2)}</span>
+          </div>
+        </div>
+      ` : ''}
       <table class="data-table mini-table">
         <thead><tr><th>Parametre</th><th>Getiri</th><th>DD</th><th>Skor</th><th></th></tr></thead>
         <tbody>

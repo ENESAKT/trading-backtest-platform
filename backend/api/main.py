@@ -75,6 +75,7 @@ from quant_engine.data.live_feed import (
     LiveDataService,
     PaperTradingRecorder,
 )
+from quant_engine.research.optimization_v2 import find_stable_region, generate_heatmap_data
 from quant_engine.strategy.persistence import StrategyRecord, StrategyStore
 from quant_engine.strategy.catalog import list_strategy_presets
 from quant_engine.workspace.json_store import WorkspaceJsonStore
@@ -620,6 +621,10 @@ def create_app(
                     end_date=req.end_date,
                     commission_rate=req.commission_rate,
                     slippage_bps=req.slippage_bps,
+                    slippage_model=req.slippage_model,
+                    slippage_tick=req.slippage_tick,
+                    volume_limit_pct=req.volume_limit_pct,
+                    volume_window=req.volume_window,
                     max_position_pct=req.max_position_pct,
                     allow_short=req.allow_short,
                     source_mode=req.source_mode,
@@ -645,12 +650,50 @@ def create_app(
                 errors.append({"params": combo, "error": str(exc)})
 
         rows.sort(key=lambda row: float(row["score"]), reverse=True)
+        stability_report: dict[str, Any] = {}
+        heatmap: dict[str, Any] = {"x_axis": [], "y_axis": [], "z_matrix": []}
+        if len(keys) >= 2 and rows:
+            p1_key, p2_key = keys[0], keys[1]
+            grid_results = [
+                {
+                    "params": row["params"],
+                    "score": float(row["score"]),
+                    "total_return_pct": float(row["metrics"]["total_return_pct"]),
+                }
+                for row in rows
+            ]
+            heatmap = generate_heatmap_data(grid_results, p1_key, p2_key, metric="score")
+            stable = find_stable_region(grid_results, p1_key, p2_key, metric="score", threshold=0.75)
+            if stable:
+                stability_report = {
+                    "param_keys": [p1_key, p2_key],
+                    "best_params": {
+                        p1_key: stable.get("best_p1"),
+                        p2_key: stable.get("best_p2"),
+                    },
+                    "stable_score": stable.get("stable_score", 0.0),
+                    "metric_value": stable.get("metric_value", 0.0),
+                    "global_max": stable.get("global_max", 0.0),
+                    "heatmap": heatmap,
+                    "warnings": [],
+                }
+            else:
+                stability_report = {
+                    "param_keys": [p1_key, p2_key],
+                    "best_params": {},
+                    "stable_score": 0.0,
+                    "metric_value": 0.0,
+                    "global_max": 0.0,
+                    "heatmap": heatmap,
+                    "warnings": ["Stabil bölge hesaplanamadı."],
+                }
         return {
             "symbol": req.symbol.upper(),
             "interval": req.interval,
             "results": rows,
             "errors": errors,
             "best": rows[0] if rows else None,
+            "stability_report": stability_report,
         }
 
     @app.post("/api/backtest/scan")

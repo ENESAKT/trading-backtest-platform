@@ -1103,6 +1103,33 @@ h3 { font-family: var(--font-sans); font-size: 14px; font-weight: 600; color: va
 .metric-card  { background: var(--bg); border: 1px solid var(--border); border-radius: 5px; padding: 8px 10px; }
 .metric-label { font-size: 9px; color: var(--text-dim); margin-bottom: 2px; }
 .metric-value { font-size: 15px; font-weight: 700; }
+.optimizer-stability {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  margin-bottom: 8px;
+}
+.optimizer-stability div {
+  min-width: 0;
+  padding: 8px 10px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+}
+.optimizer-stability b {
+  display: block;
+  margin-bottom: 3px;
+  color: var(--text-bold);
+  font-size: 10px;
+}
+.optimizer-stability span {
+  display: block;
+  color: var(--text);
+  font-size: 10px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
 /* Signals */
 .signal-item {

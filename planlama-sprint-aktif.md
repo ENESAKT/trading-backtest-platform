@@ -178,6 +178,7 @@ Her sprint öncesi `python -m pytest tests/ -q` tüm testler geçmeli.
 | Faz 3 | B5 | ✅ Tamamlandı — Backtest kalite skoru ve tuzak uyarıları |
 | Faz 3 | B6 | ✅ Tamamlandı — Walk Forward Analysis raporu backend response ve StrategyPanel performans görünümüne bağlandı |
 | Faz 3 | B7 | ✅ Tamamlandı — Monte Carlo risk raporu backtest response ve StrategyPanel performans görünümüne bağlandı |
+| Faz 3 | B8 | ✅ Tamamlandı — Optimizasyon stabil bölge raporu backend optimize response ve StrategyPanel sonucuna bağlandı |
 
 ---
 
