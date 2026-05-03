@@ -2270,6 +2270,98 @@ h3 { font-family: var(--font-sans); font-size: 14px; font-weight: 600; color: va
   overflow: hidden;
 }
 
+.mali-layout {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 260px minmax(0, 1fr);
+  overflow: hidden;
+}
+
+.mali-symbol-list {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  background: var(--panel);
+  border-right: 1px solid var(--border);
+  overflow: hidden;
+}
+
+.mali-symbol-search {
+  width: 100%;
+  height: 32px;
+  flex: 0 0 auto;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-bold);
+  padding: 7px 10px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.mali-symbol-search:focus {
+  border-color: var(--blue);
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.16);
+}
+
+.mali-symbol-list-items {
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.mali-symbol-item {
+  width: 100%;
+  min-height: 44px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  padding: 8px 9px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+}
+
+.mali-symbol-item:hover {
+  background: var(--panel2);
+  color: var(--text-bold);
+}
+
+.mali-symbol-item.active {
+  background: rgba(59, 130, 246, 0.12);
+  border-color: rgba(59, 130, 246, 0.32);
+}
+
+.mali-symbol-code {
+  color: var(--text-bold);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.mali-symbol-name {
+  width: 100%;
+  color: var(--text-dim);
+  font-size: 11px;
+  line-height: 1.35;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mali-symbol-list-note {
+  padding: 10px 8px;
+  color: var(--text-dim);
+  line-height: 1.45;
+}
+
 .mali-analiz-header {
   display: grid;
   grid-template-columns: minmax(180px, 1fr) minmax(220px, 320px) auto;
@@ -2575,6 +2667,18 @@ h3 { font-family: var(--font-sans); font-size: 14px; font-weight: 600; color: va
   .mali-analiz-header {
     grid-template-columns: 1fr;
     align-items: stretch;
+  }
+  .mali-layout {
+    grid-template-columns: 1fr;
+    overflow-y: auto;
+  }
+  .mali-symbol-list {
+    max-height: 220px;
+    border-right: 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .mali-analiz-content {
+    overflow: visible;
   }
   .mali-header-actions { justify-content: flex-start; }
   .mali-main-row { flex-direction: column; }

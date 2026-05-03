@@ -1,5 +1,5 @@
 import { TR, formatNumber, formatPct } from '../constants/tr.js';
-import type { MaliAnalizResponse } from '../types.js';
+import type { FinancialUniverseItem, FinancialUniverseResponse, MaliAnalizResponse } from '../types.js';
 
 type MaliTabId = 'summary' | 'statements' | 'ratios' | 'metric-history' | 'source';
 
@@ -15,11 +15,17 @@ export class MaliAnalizPanel {
   private titleEl!: HTMLElement;
   private contentEl!: HTMLElement;
   private searchInput!: HTMLInputElement;
+  private bodyEl!: HTMLElement;
+  private universeListEl!: HTMLElement;
+  private universeSearchInput!: HTMLInputElement;
+  private universe: FinancialUniverseItem[] = [];
+  private universeQuery: string = '';
 
   constructor(container: HTMLElement) {
     this.container = container;
     this.renderLayout();
     this.bindEvents();
+    this.loadUniverse();
     this.loadData(this.currentSymbol);
   }
 
@@ -86,12 +92,29 @@ export class MaliAnalizPanel {
     this.headerEl.appendChild(searchGroup);
     this.headerEl.appendChild(actionsDiv);
 
-    // Content
+    this.bodyEl = document.createElement('div');
+    this.bodyEl.className = 'mali-layout';
+
+    const sidebarEl = document.createElement('aside');
+    sidebarEl.className = 'mali-symbol-list';
+
+    this.universeSearchInput = document.createElement('input');
+    this.universeSearchInput.type = 'search';
+    this.universeSearchInput.placeholder = 'Şirket ara';
+    this.universeSearchInput.className = 'mali-symbol-search';
+
+    this.universeListEl = document.createElement('div');
+    this.universeListEl.className = 'mali-symbol-list-items';
+    sidebarEl.appendChild(this.universeSearchInput);
+    sidebarEl.appendChild(this.universeListEl);
+
     this.contentEl = document.createElement('div');
     this.contentEl.className = 'mali-analiz-content';
+    this.bodyEl.appendChild(sidebarEl);
+    this.bodyEl.appendChild(this.contentEl);
 
     this.container.appendChild(this.headerEl);
-    this.container.appendChild(this.contentEl);
+    this.container.appendChild(this.bodyEl);
   }
 
   private bindEvents(): void {
@@ -101,6 +124,55 @@ export class MaliAnalizPanel {
         if (val) this.loadData(val);
       }
     });
+
+    this.universeSearchInput.addEventListener('input', () => {
+      this.universeQuery = this.universeSearchInput.value.trim().toLocaleLowerCase('tr-TR');
+      this.renderUniverseList();
+    });
+  }
+
+  private async loadUniverse(): Promise<void> {
+    this.universeListEl.innerHTML = '<div class="mali-symbol-list-note">Liste yükleniyor...</div>';
+    try {
+      const response = await fetch('/api/mali-analiz/universe?scope=bist30');
+      if (!response.ok) throw new Error('Universe API hatası');
+      const body = await response.json() as FinancialUniverseResponse;
+      this.universe = body.symbols || [];
+    } catch (err) {
+      console.warn('Mali Analiz universe fetch hatası:', err);
+      this.universe = [];
+      this.universeListEl.innerHTML = '<div class="mali-symbol-list-note">Şirket listesi alınamadı. Sembol araması kullanılabilir.</div>';
+      return;
+    }
+    this.renderUniverseList();
+  }
+
+  private renderUniverseList(): void {
+    if (!this.universeListEl) return;
+    const current = this.normalizeForCompare(this.currentSymbol);
+    const filtered = this.universe.filter((item) => {
+      if (!this.universeQuery) return true;
+      const haystack = `${item.symbol} ${item.ticker} ${item.name}`.toLocaleLowerCase('tr-TR');
+      return haystack.includes(this.universeQuery);
+    });
+
+    if (!filtered.length) {
+      this.universeListEl.innerHTML = '<div class="mali-symbol-list-note">Eşleşen şirket yok.</div>';
+      return;
+    }
+
+    this.universeListEl.innerHTML = '';
+    for (const item of filtered) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = `mali-symbol-item${item.symbol === current ? ' active' : ''}`;
+      button.innerHTML = `
+        <span class="mali-symbol-code">${this.escapeHtml(item.symbol)}</span>
+        <span class="mali-symbol-name">${this.escapeHtml(item.name)}</span>
+      `;
+      button.addEventListener('click', () => this.loadData(item.ticker || item.symbol));
+      this.universeListEl.appendChild(button);
+    }
   }
 
   public async loadData(symbol: string): Promise<void> {
@@ -119,6 +191,7 @@ export class MaliAnalizPanel {
       this.data = data;
       this.currentSymbol = data.symbol;
       this.searchInput.value = data.symbol;
+      this.renderUniverseList();
     } catch (err) {
       console.warn('Mali Analiz fetch hatası:', err);
       this.errorMessage = 'Mali analiz servisine ulaşılamadı.';
@@ -134,6 +207,7 @@ export class MaliAnalizPanel {
     } finally {
       this.isLoading = false;
       this.renderHeaderTitle();
+      this.renderUniverseList();
       this.renderContent();
     }
   }
@@ -373,6 +447,10 @@ export class MaliAnalizPanel {
       '"': '&quot;',
       "'": '&#039;',
     }[char] || char));
+  }
+
+  private normalizeForCompare(symbol: string): string {
+    return symbol.trim().toUpperCase().replace(/\.IS$/, '');
   }
 
   private formatValue(val: number | null, format?: 'pct' | 'num' | 'currency'): string {
