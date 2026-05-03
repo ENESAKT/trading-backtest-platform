@@ -1,22 +1,15 @@
-# Session Recap — 2026-05-01 12:18:56
+# Session Recap — 2026-05-03 11:12:25
 
 ## Bu Oturumda Yapılanlar
 
 ### Son Commit'ler
 ```
-486f6de Add futures course selections
-7c139ea Add system trading course selections
-6a39e84 Add advanced technical analysis course selections
-374b2a5 Add technical analysis course feature selections
-8e5a8b9 Add indicator course feature selections
-1af3048 Add first Borfin deep read selections
-d586ae7 Add education feature radar to planning
-c2a834c Add education planning workflow
-9135b6a docs: planlama ve oturum özeti güncellendi
+80e2c37 feat(backtest): B3 - add visual builder blocks and spec engine extensions (ABOVE, RISING, time_stop, volume_avg)
+4737d7e fix(frontend): restore education panel UI and app bindings
 ```
 
 ### Sprint Durumu
-- Tamamlanan görev: 10
+- Tamamlanan görev: 18
 - Kalan görev: 0
 0
 

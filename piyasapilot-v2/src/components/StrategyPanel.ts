@@ -317,7 +317,14 @@ export class StrategyPanel {
           <label>Bitiş<input id="bt-end" type="date"></label>
           <label>Sermaye<input id="bt-capital" type="number" min="1000" step="1000" value="100000"></label>
           <label>Komisyon %<input id="bt-commission" type="number" min="0" max="10" step="0.01" value="0.10"></label>
+          <label>Slippage Modeli<select id="bt-slippage-model">
+            <option value="fixed_bps">Fixed BPS</option>
+            <option value="fixed_tick">Fixed Tick</option>
+          </select></label>
           <label>Slippage bps<input id="bt-slippage" type="number" min="0" max="500" step="1" value="5"></label>
+          <label>Slippage Tick<input id="bt-slippage-tick" type="number" min="0" step="0.01" value="0.01"></label>
+          <label>Likidite %<input id="bt-volume-limit-pct" type="number" min="0" max="100" step="1" value="5"></label>
+          <label>Likidite Penceresi<input id="bt-volume-window" type="number" min="1" max="100" step="1" value="5"></label>
           <label>Pozisyon %<input id="bt-maxpos" type="number" min="1" max="100" step="1" value="20"></label>
           <label>Kaynak<select id="bt-source">
             <option value="cache_only">Cache</option>
@@ -769,7 +776,11 @@ export class StrategyPanel {
       start_date: this.value<HTMLInputElement>('#bt-start') || null,
       end_date: this.value<HTMLInputElement>('#bt-end') || null,
       commission_rate: this.num('#bt-commission', 0.1) / 100,
+      slippage_model: this.value<HTMLSelectElement>('#bt-slippage-model') || 'fixed_bps',
       slippage_bps: this.num('#bt-slippage', 5),
+      slippage_tick: this.num('#bt-slippage-tick', 0.01),
+      volume_limit_pct: this.num('#bt-volume-limit-pct', 5) / 100,
+      volume_window: this.num('#bt-volume-window', 5),
       max_position_pct: this.num('#bt-maxpos', 20) / 100,
       allow_short: Boolean(this.container.querySelector<HTMLInputElement>('#bt-allow-short')?.checked),
       source_mode: sourceMode,

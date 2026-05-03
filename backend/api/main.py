@@ -532,6 +532,10 @@ def create_app(
                 end_date=req.end_date,
                 commission_rate=req.commission_rate,
                 slippage_bps=req.slippage_bps,
+                slippage_model=req.slippage_model,
+                slippage_tick=req.slippage_tick,
+                volume_limit_pct=req.volume_limit_pct,
+                volume_window=req.volume_window,
                 max_position_pct=req.max_position_pct,
                 allow_short=req.allow_short,
                 source_mode=req.source_mode,
@@ -1106,6 +1110,10 @@ class BacktestRequest(BaseModel):
     end_date: str | None = Field(None, description="Backtest bitiş tarihi")
     commission_rate: float = Field(0.001, ge=0, le=0.10, description="Komisyon oranı")
     slippage_bps: int = Field(5, ge=0, le=500, description="Slippage baz puan")
+    slippage_model: str = Field("fixed_bps", description="Slippage modeli (fixed_bps, fixed_tick)")
+    slippage_tick: float = Field(0.01, description="Tick bazlı slippage için tick değeri")
+    volume_limit_pct: float = Field(0.05, description="Likidite limiti (son X bar ortalamasının yüzdesi)")
+    volume_window: int = Field(5, description="Ortalama hacim hesaplama için pencere boyutu")
     max_position_pct: float = Field(0.20, gt=0, le=1.0, description="Maksimum pozisyon oranı")
     allow_short: bool = Field(False, description="Short simülasyonuna izin ver")
     source_mode: str = Field(
@@ -1153,6 +1161,10 @@ class OptimizeRequest(BaseModel):
     end_date: str | None = None
     commission_rate: float = Field(0.001, ge=0, le=0.10)
     slippage_bps: int = Field(5, ge=0, le=500)
+    slippage_model: str = Field("fixed_bps")
+    slippage_tick: float = Field(0.01)
+    volume_limit_pct: float = Field(0.05)
+    volume_window: int = Field(5)
     max_position_pct: float = Field(0.20, gt=0, le=1.0)
     allow_short: bool = False
     source_mode: str = "cache_only"
@@ -1171,6 +1183,10 @@ class ScanRequest(BaseModel):
     end_date: str | None = None
     commission_rate: float = Field(0.001, ge=0, le=0.10)
     slippage_bps: int = Field(5, ge=0, le=500)
+    slippage_model: str = Field("fixed_bps")
+    slippage_tick: float = Field(0.01)
+    volume_limit_pct: float = Field(0.05)
+    volume_window: int = Field(5)
     max_position_pct: float = Field(0.20, gt=0, le=1.0)
     allow_short: bool = False
     source_mode: str = "cache_only"

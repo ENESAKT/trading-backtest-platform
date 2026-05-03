@@ -173,7 +173,9 @@ Her sprint öncesi `python -m pytest tests/ -q` tüm testler geçmeli.
 | Faz 2 | G10 | ✅ Tamamlandı — İleri çizim araçları, fibonacci, regresyon |
 | Faz 3 | B1 | ✅ Tamamlandı — Katalog frontend/backend'e eklendi |
 | Faz 3 | B2 | ✅ Çekirdek Tamamlandı — İndikatör kataloğu eklendi. Gözden geçirilecek. |
-| Faz 3 | B3 | Sırada (Aktif) — Görsel kurucu bloklar + DSL genişletme |
+| Faz 3 | B3 | ✅ Tamamlandı — Görsel kurucu bloklar + DSL genişletme |
+| Faz 3 | B4 | ✅ Tamamlandı — Backtest gerçekçilik: slippage, komisyon, likidite |
+| Faz 3 | B5 | Sırada (Aktif) — Backtest kalite skoru ve tuzak uyarıları |
 
 ---
 

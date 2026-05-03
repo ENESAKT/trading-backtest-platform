@@ -54,6 +54,12 @@ class BacktestConfig:
     max_position_pct: float = 0.20
     warm_up_bars: int = 0
     allow_short: bool = False
+    
+    # Realism eklentileri
+    slippage_model: str = "fixed_bps"  # "fixed_bps", "fixed_tick"
+    slippage_tick: float = 0.01  # tick bazlı model için
+    volume_limit_pct: float = 0.05  # likidite: son hacmin max % kaçı
+    volume_window: int = 5
 
 
 @dataclass
@@ -85,6 +91,7 @@ class BacktestResult:
     max_drawdown_pct: float = 0.0
     total_trades: int = 0
     total_commission: float = 0.0
+    total_slippage: float = 0.0
     sharpe_ratio: float = 0.0
     win_rate: float = 0.0
     assumptions: BacktestAssumptions = field(
@@ -116,7 +123,13 @@ class BacktestEngine:
     def _calculate_slippage(
         self, price: float, side: OrderSide
     ) -> float:
-        """Slippage hesapla (baz puan)."""
+        """Slippage hesapla (model bazlı)."""
+        if self.config.slippage_model == "fixed_tick":
+            if side == OrderSide.BUY:
+                return price + self.config.slippage_tick
+            return max(price - self.config.slippage_tick, 0.0001)
+
+        # Varsayılan: fixed_bps
         slippage_pct = self.config.slippage_bps / 10_000
         if side == OrderSide.BUY:
             return price * (1 + slippage_pct)
@@ -133,6 +146,7 @@ class BacktestEngine:
         portfolio: Portfolio,
         price: float,
         prices: dict[str, float],
+        max_qty_by_volume: int = -1,
     ) -> int:
         """
         Pozisyon büyüklüğü hesapla.
@@ -155,6 +169,10 @@ class BacktestEngine:
         if price <= 0:
             return 0
         quantity = int(available / price)
+        
+        if max_qty_by_volume >= 0 and quantity > max_qty_by_volume:
+            quantity = max_qty_by_volume
+            
         return max(0, quantity)
 
     def run(
@@ -184,6 +202,9 @@ class BacktestEngine:
         data = data.sort_values("date").reset_index(
             drop=True
         )
+        
+        if "volume" in data.columns and self.config.volume_limit_pct > 0:
+            data["avg_vol"] = data["volume"].rolling(self.config.volume_window).mean()
 
         portfolio = Portfolio(
             initial_capital=self.config.initial_capital
@@ -206,6 +227,12 @@ class BacktestEngine:
             bar = data.iloc[i]
             current_price = float(bar["close"])
             current_open = float(bar["open"])
+            current_volume = float(bar.get("avg_vol", 0.0))
+            
+            max_qty_by_vol = -1
+            if current_volume > 0 and self.config.volume_limit_pct > 0:
+                max_qty_by_vol = int(current_volume * self.config.volume_limit_pct)
+                
             prices = {symbol: current_price}
             bar_date = pd.Timestamp(bar["date"])
 
@@ -230,8 +257,14 @@ class BacktestEngine:
                     signal_bar_index=pending_signal_bar,
                     signal_date=signal_date,
                     execution_date=bar_date,
+                    max_qty_by_vol=max_qty_by_vol,
                 )
                 if fill:
+                    if max_qty_by_vol >= 0 and fill.fill_quantity >= max_qty_by_vol:
+                        result.warnings.append(
+                            f"[{bar_date:%Y-%m-%d}] Likidite kısıtı uygulandı. "
+                            f"(Max Qty: {max_qty_by_vol})"
+                        )
                     portfolio.process_fill(fill)
                     result.orders.append(fill.order)
                     result.fills.append(fill)
@@ -370,6 +403,7 @@ class BacktestEngine:
             else 0.0
         )
         result.total_commission = portfolio.total_commission
+        result.total_slippage = sum(f.slippage_cost for f in result.fills)
 
         # Açık pozisyon kontrolü
         position = portfolio.get_or_create_position(symbol)
@@ -437,6 +471,9 @@ class BacktestEngine:
             return BacktestResult()
 
         data = data.sort_values("date").reset_index(drop=True)
+        
+        if "volume" in data.columns and self.config.volume_limit_pct > 0:
+            data["avg_vol"] = data["volume"].rolling(self.config.volume_window).mean()
 
         portfolio = Portfolio(initial_capital=self.config.initial_capital)
         result = BacktestResult()
@@ -458,6 +495,12 @@ class BacktestEngine:
             bar = data.iloc[i]
             current_price = float(bar["close"])
             current_open = float(bar["open"])
+            current_volume = float(bar.get("avg_vol", 0.0))
+            
+            max_qty_by_vol = -1
+            if current_volume > 0 and self.config.volume_limit_pct > 0:
+                max_qty_by_vol = int(current_volume * self.config.volume_limit_pct)
+                
             prices = {symbol: current_price}
             bar_date = pd.Timestamp(bar["date"])
 
@@ -476,8 +519,14 @@ class BacktestEngine:
                     signal_date=signal_date,
                     execution_date=bar_date,
                     reason=pending_reason,
+                    max_qty_by_vol=max_qty_by_vol,
                 )
                 if fill:
+                    if max_qty_by_vol >= 0 and fill.fill_quantity >= max_qty_by_vol:
+                        result.warnings.append(
+                            f"[{bar_date:%Y-%m-%d}] Likidite kısıtı uygulandı. "
+                            f"(Max Qty: {max_qty_by_vol})"
+                        )
                     portfolio.process_fill(fill)
                     result.orders.append(fill.order)
                     result.fills.append(fill)
@@ -594,6 +643,7 @@ class BacktestEngine:
             else 0.0
         )
         result.total_commission = portfolio.total_commission
+        result.total_slippage = sum(f.slippage_cost for f in result.fills)
 
         position = portfolio.get_or_create_position(symbol)
         if position.is_open:
@@ -659,6 +709,7 @@ class BacktestEngine:
         signal_date: pd.Timestamp,
         execution_date: pd.Timestamp,
         reason: str = "",
+        max_qty_by_vol: int = -1,
     ) -> Fill | None:
         """Trade intent'i market fill'e çevir."""
         position = portfolio.get_or_create_position(symbol)
@@ -668,11 +719,15 @@ class BacktestEngine:
             if position.quantity < 0:
                 side = OrderSide.BUY
                 quantity = abs(position.quantity)
+                # Kapanışlarda hacim kısıtına takılmayalım (opsiyonel ama genelde exitler force edilir),
+                # fakat eğer istersen kapatırken de limitli yapabiliriz. Şimdilik exit'leri sınırlandırmıyoruz.
                 actual_intent = "COVER"
             elif not position.is_open:
                 side = OrderSide.BUY
                 fill_price = self._calculate_slippage(open_price, side)
-                quantity = self._calculate_position_size(portfolio, fill_price, prices)
+                quantity = self._calculate_position_size(
+                    portfolio, fill_price, prices, max_qty_by_volume=max_qty_by_vol
+                )
                 if quantity <= 0:
                     return None
             else:
@@ -693,7 +748,9 @@ class BacktestEngine:
             elif not position.is_open:
                 side = OrderSide.SELL
                 fill_price = self._calculate_slippage(open_price, side)
-                quantity = self._calculate_position_size(portfolio, fill_price, prices)
+                quantity = self._calculate_position_size(
+                    portfolio, fill_price, prices, max_qty_by_volume=max_qty_by_vol
+                )
                 if quantity <= 0:
                     return None
             else:
@@ -756,6 +813,7 @@ class BacktestEngine:
         signal_bar_index: int,
         signal_date: pd.Timestamp,
         execution_date: pd.Timestamp,
+        max_qty_by_vol: int = -1,
     ) -> Fill | None:
         """Sinyali execute et."""
         position = portfolio.get_or_create_position(symbol)
@@ -767,7 +825,7 @@ class BacktestEngine:
                 open_price, side
             )
             quantity = self._calculate_position_size(
-                portfolio, fill_price, prices
+                portfolio, fill_price, prices, max_qty_by_volume=max_qty_by_vol
             )
             if quantity <= 0:
                 return None
