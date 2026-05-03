@@ -44,7 +44,7 @@ once ilgili plan dosyasindaki checklistleri ve kod durumunu kontrol eder.
 | 2 | `planlama-temizlik-canliya-cikis.md` | 10% | 88% | 100% | 10.0% | Tamamlandi | Repo temizligi, docker ignore ve uretim araclari eklendi |
 | 3 | `planlama-agent-skill-mentor.md` | 7% | 85% | 100% | 7.0% | Tamamlandi | Skill ve mentor checkleri kuruldu |
 | 4 | `planlama-grafik.md` | 10% | 80% | 100% | 10.0% | Tamamlandi | Bütün sprintler G1-G10 tamamlandı (Dogrulama gerekli) |
-| 5 | `planlama-backtest.md` | 12% | 82% | 60% | 7.2% | Cekirdek ve B1-B4 tamam, B5 aktif | B5: kalite skoru ve tuzaklar |
+| 5 | `planlama-backtest.md` | 12% | 82% | 65% | 7.8% | Cekirdek ve B1-B5 tamam, B6 sirada | B6: WFA motoru |
 | 6 | `planlama-egitimler.md` | 5% | 92% | 100% | 5.0% | UI iskeleti ve icerik eklendi | Dogrula: Egitim kopruleri |
 | 7 | `planlama-mali-analiz.md` | 5% | 78% | 5% | 0.3% | Beklemede | Veri platformu ve Borfin/Fastweb on okuma tamamlaninca |
 | 8 | `planlama-tasarim.md` | 2% | 95% | 100% | 2.0% | Tamamlandi | Yeni UI isleri gelirse referans |

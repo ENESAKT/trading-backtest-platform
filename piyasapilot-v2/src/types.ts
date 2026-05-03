@@ -154,6 +154,12 @@ export interface BacktestTrade {
   exit_bar_index?: number;
 }
 
+export interface QualityWarning {
+  code: string;
+  severity: "high" | "medium" | "low";
+  message: string;
+}
+
 export interface StrategySpec {
   name?: string;
   note?: string;
@@ -201,7 +207,8 @@ export interface BacktestResult {
   };
   summary_text?: string;
   assumptions?: Record<string, unknown>;
-  warnings?: string[];
+  warnings?: QualityWarning[];
+  quality_score?: number;
   metrics: BacktestMetrics;
   equity_curve: EquityPoint[];
   trades: BacktestTrade[];

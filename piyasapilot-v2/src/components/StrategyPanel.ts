@@ -1132,7 +1132,7 @@ export class StrategyPanel {
       String(row.metrics.profit_factor),
       String(row.metrics.win_rate),
       String(row.metrics.total_trades),
-      (row.warnings || []).join(' | '),
+      (row.warnings || []).map(w => typeof w === 'string' ? w : (w as any).message).join(' | '),
     ]);
     const csv = [header, ...rows]
       .map(cols => cols.map(col => this.csvCell(col)).join(','))
@@ -1237,7 +1237,7 @@ export class StrategyPanel {
               <td><button class="btn-sm" data-apply-optimizer="${idx}">Uygula</button></td>
             </tr>
             ${row.warnings.length ? `
-              <tr class="table-note"><td colspan="5">${this.escape(row.warnings.join(' · '))}</td></tr>
+              <tr class="table-note"><td colspan="5">${this.escape(row.warnings.map(w => typeof w === 'string' ? w : (w as any).message).join(' · '))}</td></tr>
             ` : ''}
           `).join('')}
         </tbody>
@@ -1346,6 +1346,7 @@ export class StrategyPanel {
       ['Strateji', r.strategy_name ?? r.strategy_id],
       ['Sembol', r.symbol],
       ['Periyot', r.interval],
+      ['Veri Kalitesi', r.quality_score ? `${formatNumber(r.quality_score, 0)} / 100` : '-'],
       ['Kaynak', `${r.data_source?.source ?? '-'} / ${r.data_source?.status ?? '-'}`],
       ['Kapsama', `${formatNumber(r.data_source?.data_coverage_pct ?? 0, 1)}%`],
       ['Varsayım', `${r.assumptions?.['signal_timing'] ?? ''} → ${r.assumptions?.['execution_timing'] ?? ''}`],
@@ -1363,7 +1364,13 @@ export class StrategyPanel {
     const warnings = r.warnings ?? [];
     if (warnings.length === 0) return `<div class="empty-state">Uyarı yok</div>`;
     return `<div class="warning-list">${
-      warnings.map(w => `<div class="warning-item">${this.escape(w)}</div>`).join('')
+      warnings.map(w => {
+        if (typeof w === 'string') {
+          return `<div class="warning-item">${this.escape(w)}</div>`;
+        }
+        const qw = w as any;
+        return `<div class="warning-item warning-${qw.severity}"><b>[${this.escape(qw.code)}]</b> ${this.escape(qw.message)}</div>`;
+      }).join('')
     }</div>`;
   }
 
