@@ -1085,6 +1085,17 @@ h3 { font-family: var(--font-sans); font-size: 14px; font-weight: 600; color: va
   font-size: 10px;
   line-height: 1.5;
 }
+.report-subsection {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+.report-subsection h4 {
+  margin: 0 0 8px;
+  font-family: var(--font-sans);
+  font-size: 12px;
+  color: var(--text-bold);
+}
 
 /* Metrics grid */
 .metrics-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
