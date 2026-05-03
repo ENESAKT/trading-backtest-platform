@@ -306,6 +306,33 @@ def test_backtest_scan_returns_scanner_v3_contract(tmp_path):
     assert body["results"][0]["symbol"] == "BTCUSDT"
 
 
+def test_strategy_pack_export_import_api_rejects_invalid_package(tmp_path):
+    client, _ = _build_client(tmp_path)
+    spec = {
+        "rules": {
+            "long_entry": "C > EMA(C,20)",
+            "long_exit": "C < EMA(C,20)",
+        }
+    }
+
+    exported = client.post(
+        "/api/strategy-lab/pack/export",
+        json={"strategy_spec": spec, "description": "API pack"},
+    )
+    assert exported.status_code == 200, exported.text
+    pack = exported.json()["pack"]
+    assert exported.json()["filename"] == ".piyasapilot-strategy.json"
+
+    imported = client.post("/api/strategy-lab/pack/import", json={"pack": pack})
+    assert imported.status_code == 200, imported.text
+    assert imported.json()["pack"]["strategy_spec"]["rules"]["long_entry"] == "C > EMA(C,20)"
+
+    del pack["version"]
+    rejected = client.post("/api/strategy-lab/pack/import", json={"pack": pack})
+    assert rejected.status_code == 400
+    assert "version" in rejected.json()["detail"]
+
+
 def test_backtest_v2_strategy_spec_short_and_archive_export(tmp_path):
     client, cache = _build_client(tmp_path)
     _populate_cache(cache, "BTCUSDT", "1d", n=180)

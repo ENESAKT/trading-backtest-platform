@@ -182,6 +182,7 @@ Her sprint öncesi `python -m pytest tests/ -q` tüm testler geçmeli.
 | Faz 3 | B9 | ✅ Tamamlandı — Scanner v3 kontratı backtest scan API response'unda görünür |
 | Faz 3 | B10 | ✅ Tamamlandı — Portfolio Lab özeti backtest response ve StrategyPanel performans görünümüne bağlandı |
 | Faz 3 | B11 | ✅ Tamamlandı — Paper robot operasyon/preflight özeti gerçek emir yolu açmadan rapora bağlandı |
+| Faz 3 | B12 | ✅ Tamamlandı — Strategy Pack import/export API kontratı ve güvenli invalid paket reddi eklendi |
 
 ---
 

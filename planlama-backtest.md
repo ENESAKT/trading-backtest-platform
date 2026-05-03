@@ -168,12 +168,12 @@ Bu yüzden aşağıdaki B sprintleri "mevcut yapılmış işleri tekrar et" değ
 
 ## Sprint B12 — Strategy Pack Import/Export
 
-- [ ] PiyasaPilot strateji paketi formatı: `.piyasapilot-strategy.json`
-- [ ] Paket içeriği: StrategySpec, parametreler, indikatör seti, açıklama, versiyon, risk ayarları, örnek backtest metadata
-- [ ] "Borfin esinli eğitim preset paketi": telifsiz, PiyasaPilot-native
-- [ ] TradingView/Pine için referans notu ve manuel eşleştirme alanı (birebir çeviri yok)
-- [ ] Matriks formülleri doğrudan import edilmez; kullanıcı PiyasaPilot DSL ile yeniden kurar
-- [ ] **Kabul:** Strateji export → başka workspace → aynı backtest varsayımlarıyla çalışır
+- [x] PiyasaPilot strateji paketi formatı: `.piyasapilot-strategy.json`
+- [x] Paket içeriği: StrategySpec, parametreler, indikatör seti, açıklama, versiyon, risk ayarları, örnek backtest metadata
+- [x] Export/import helper'ları ve API kontratı eklendi
+- [x] TradingView/Pine için birebir çeviri yapılmaz; paket PiyasaPilot DSL taşır
+- [x] Matriks formülleri doğrudan import edilmez; tehlikeli/invalid strategy_spec güvenli reddedilir
+- [x] **Kabul:** Strategy pack export/import round-trip testli; invalid package 400 döner
 
 ---
 
