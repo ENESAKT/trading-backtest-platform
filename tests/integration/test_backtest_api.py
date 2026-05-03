@@ -155,6 +155,9 @@ def test_backtest_run_returns_metrics_and_curve(tmp_path):
     assert paper["mode"] == "paper_only"
     assert paper["real_order_enabled"] is False
     assert "preflight" in paper
+    lifecycle = body["lifecycle_summary"]
+    assert lifecycle["state"] in {"pretest", "wfa_passed", "monte_carlo_passed"}
+    assert "risk_cards" in lifecycle
 
     if body["trades"]:
         trade = body["trades"][0]

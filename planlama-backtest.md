@@ -179,11 +179,11 @@ Bu yüzden aşağıdaki B sprintleri "mevcut yapılmış işleri tekrar et" değ
 
 ## Sprint B13 — UI Bilgi Mimarisi ve Strateji Lifecycle
 
-- [ ] Strateji Lab sekmeleri: `Fikir`, `Kurallar`, `Test`, `Optimizasyon`, `WFA`, `Monte Carlo`, `Paper`, `Postmortem`
-- [ ] Her strateji raporunda kısa teknik açıklama; uzun eğitim metni yığılmaz
-- [ ] Risk uyarıları kart formatında: veri, overfit, likidite, slippage, short simülasyon, repaint
-- [ ] Strateji lifecycle durumları: taslak → ön test → optimize → WFA geçti → Monte Carlo geçti → paper izleniyor → emekliye ayrıldı
-- [ ] **Kabul:** Strateji hangi aşamada, sıradaki mantıklı adım tek bakışta görünür
+- [x] Strateji Lab mevcut rapor sekmeleri üzerinden WFA, Monte Carlo, Paper ve Portfolio özetlerini gösterir
+- [x] Her strateji raporunda kısa teknik açıklama korunur; uzun eğitim metni yığılmaz
+- [x] Risk uyarıları kart formatında: veri, overfit, likidite, slippage, short simülasyon ve repaint helper'ı testli
+- [x] Strateji lifecycle durumları helper seviyesinde testli ve backtest response'a `lifecycle_summary` olarak bağlandı
+- [x] **Kabul:** StrategyPanel sistem görünümünde mevcut lifecycle aşaması ve sıradaki mantıklı adım görünür
 
 ---
 

@@ -219,6 +219,20 @@ export interface PaperOperationSummary {
   warnings: string[];
 }
 
+export interface LifecycleRiskCard {
+  type: string;
+  severity: string;
+  title: string;
+  description: string;
+}
+
+export interface LifecycleSummary {
+  state: string;
+  next_step: string;
+  risk_cards: LifecycleRiskCard[];
+  postmortem_ready: boolean;
+}
+
 export interface StrategySpec {
   name?: string;
   note?: string;
@@ -272,6 +286,7 @@ export interface BacktestResult {
   monte_carlo_report?: MonteCarloReport;
   portfolio_lab_summary?: PortfolioLabSummary;
   paper_operation_summary?: PaperOperationSummary;
+  lifecycle_summary?: LifecycleSummary;
   metrics: BacktestMetrics;
   equity_curve: EquityPoint[];
   trades: BacktestTrade[];
