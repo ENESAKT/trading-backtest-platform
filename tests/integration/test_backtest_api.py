@@ -216,6 +216,36 @@ def test_backtest_uses_local_daily_parquet_when_cache_is_empty(tmp_path):
     assert body["lookback_bars"] == 150
 
 
+def test_backtest_optimize_returns_stability_report(tmp_path):
+    client, cache = _build_client(tmp_path)
+    _populate_cache(cache, "BTCUSDT", "15m", n=180)
+
+    resp = client.post(
+        "/api/backtest/optimize",
+        json={
+            "symbol": "BTCUSDT",
+            "interval": "15m",
+            "strategy_id": "strategy_spec",
+            "strategy_spec": {
+                "rules": {
+                    "long_entry": "CROSS_UP(EMA(C,{fast}), EMA(C,{slow}))",
+                    "long_exit": "CROSS_DOWN(EMA(C,{fast}), EMA(C,{slow}))",
+                },
+            },
+            "param_grid": {"fast": [5, 8], "slow": [15, 20]},
+            "lookback_bars": 180,
+        },
+    )
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+
+    assert body["results"]
+    stability = body["stability_report"]
+    assert stability["param_keys"] == ["fast", "slow"]
+    assert set(stability["best_params"]) == {"fast", "slow"}
+    assert {"x_axis", "y_axis", "z_matrix"} <= set(stability["heatmap"])
+
+
 def test_backtest_v2_strategy_spec_short_and_archive_export(tmp_path):
     client, cache = _build_client(tmp_path)
     _populate_cache(cache, "BTCUSDT", "1d", n=180)

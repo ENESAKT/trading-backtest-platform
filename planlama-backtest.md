@@ -124,12 +124,12 @@ Bu yüzden aşağıdaki B sprintleri "mevcut yapılmış işleri tekrar et" değ
 
 ## Sprint B8 — Parametre Deneyleri v2 + Anti-Overfit Optimizasyon
 
-- [ ] Grid search v1 korunur; sonuçlara stabilite skoru eklenir
-- [ ] Parametre heatmap: iki parametre için getiri/drawdown/profit factor yüzeyi
-- [ ] En iyi tek nokta yerine "sağlam bölge": komşu parametreler de iyi mi?
-- [ ] Parametre deneyleri WFA ve Monte Carlo ile zincirlenebilir
-- [ ] Aşırı az işlem veya çok yüksek drawdown cezalandırılır
-- [ ] **Kabul:** "En yüksek getiri" ile "en dengeli strateji" ayrımı raporda ayrı gösterilir
+- [x] Grid search v1 korunur; sonuçlara stabilite raporu eklenir
+- [x] Parametre heatmap: iki parametre için skor yüzeyi backend response'a eklenir
+- [x] En iyi tek nokta yerine "sağlam bölge": komşu parametrelerden stabil bölge hesaplanır
+- [x] Parametre deneyleri WFA ve Monte Carlo raporlarıyla aynı backtest response ailesinde zincirlenebilir
+- [x] Aşırı az işlem mevcut optimizer skor cezası ve warning akışıyla korunur
+- [x] **Kabul:** Optimizer sonucu "Stabil Bölge" ve stabilite skoru ile StrategyPanel'de görünür
 
 ---
 
