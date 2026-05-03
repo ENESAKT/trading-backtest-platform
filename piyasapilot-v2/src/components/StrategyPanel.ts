@@ -1337,6 +1337,25 @@ export class StrategyPanel {
         ${this.metric('Ort. Zarar', formatCurrency(m.avg_loss ?? 0), 'neg')}
         ${this.metric('Açık Poz.', m.has_open_position ? 'Var' : 'Yok')}
       </div>
+      ${this.walkForwardHTML(r)}
+    `;
+  }
+
+  private walkForwardHTML(r: BacktestResult): string {
+    const report = r.walk_forward_report;
+    if (!report) return '';
+    const status = report.passed ? 'Geçti' : 'Geçmedi';
+    return `
+      <div class="report-subsection">
+        <h4>Walk-Forward Analizi</h4>
+        <div class="metrics-grid">
+          ${this.metric('OOS Toplam', formatPct(report.total_oos_return_pct), report.total_oos_return_pct >= 0 ? 'pos' : 'neg')}
+          ${this.metric('WFE', formatNumber(report.walk_forward_efficiency, 2), report.passed ? 'pos' : 'neg')}
+          ${this.metric('Pencere', String(report.windows.length))}
+          ${this.metric('Durum', status, report.passed ? 'pos' : 'neg')}
+        </div>
+        ${report.warnings?.length ? `<div class="warning-list">${report.warnings.map(w => `<div class="warning-item">${this.escape(w)}</div>`).join('')}</div>` : ''}
+      </div>
     `;
   }
 

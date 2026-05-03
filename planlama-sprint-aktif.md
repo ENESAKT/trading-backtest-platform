@@ -176,6 +176,7 @@ Her sprint öncesi `python -m pytest tests/ -q` tüm testler geçmeli.
 | Faz 3 | B3 | ✅ Tamamlandı — Görsel kurucu bloklar + DSL genişletme |
 | Faz 3 | B4 | ✅ Tamamlandı — Backtest gerçekçilik: slippage, komisyon, likidite |
 | Faz 3 | B5 | ✅ Tamamlandı — Backtest kalite skoru ve tuzak uyarıları |
+| Faz 3 | B6 | ✅ Tamamlandı — Walk Forward Analysis raporu backend response ve StrategyPanel performans görünümüne bağlandı |
 
 ---
 

@@ -160,6 +160,30 @@ export interface QualityWarning {
   message: string;
 }
 
+export interface WalkForwardWindowReport {
+  window: {
+    index: number;
+    in_sample_start: number;
+    in_sample_end: number;
+    out_of_sample_start: number;
+    out_of_sample_end: number;
+  };
+  selected_params: Record<string, unknown>;
+  in_sample_score: number;
+  out_of_sample_return_pct: number;
+  walk_forward_efficiency: number;
+  passed: boolean;
+  warnings: string[];
+}
+
+export interface WalkForwardReport {
+  windows: WalkForwardWindowReport[];
+  total_oos_return_pct: number;
+  walk_forward_efficiency: number;
+  passed: boolean;
+  warnings: string[];
+}
+
 export interface StrategySpec {
   name?: string;
   note?: string;
@@ -209,6 +233,7 @@ export interface BacktestResult {
   assumptions?: Record<string, unknown>;
   warnings?: QualityWarning[];
   quality_score?: number;
+  walk_forward_report?: WalkForwardReport;
   metrics: BacktestMetrics;
   equity_curve: EquityPoint[];
   trades: BacktestTrade[];

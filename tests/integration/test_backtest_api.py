@@ -133,6 +133,10 @@ def test_backtest_run_returns_metrics_and_curve(tmp_path):
     assert len(body["equity_curve"]) == 200
     point = body["equity_curve"][0]
     assert {"time", "total_equity", "drawdown"} <= set(point.keys())
+    wfa = body["walk_forward_report"]
+    assert {"windows", "total_oos_return_pct", "walk_forward_efficiency", "passed", "warnings"} <= set(wfa)
+    assert isinstance(wfa["windows"], list)
+    assert wfa["warnings"]
 
     if body["trades"]:
         trade = body["trades"][0]

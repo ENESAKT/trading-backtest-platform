@@ -31,6 +31,7 @@ from backend.backtest import blueprints as _blueprints  # noqa: F401  (registry 
 from backend.data.cache import OHLCVCache
 from backend.data.historical_store import HistoricalStore
 from quant_engine.backtest.engine import BacktestConfig, BacktestEngine, QualityWarning
+from quant_engine.research.walk_forward import run_walk_forward_analysis
 from quant_engine.strategy.registry import get_registry
 from quant_engine.strategy.spec import FormulaError, StrategySpecSignal, validate_strategy_spec
 
@@ -317,6 +318,95 @@ def _benchmark_return_pct(df: pd.DataFrame) -> float:
     return (last / first - 1) * 100
 
 
+def _make_engine_config(
+    *,
+    capital: float,
+    commission_rate: float,
+    slippage_bps: int,
+    slippage_model: str,
+    slippage_tick: float,
+    volume_limit_pct: float,
+    volume_window: int,
+    max_position_pct: float,
+    allow_short: bool,
+) -> BacktestConfig:
+    return BacktestConfig(
+        initial_capital=float(capital),
+        commission_rate=float(commission_rate),
+        slippage_bps=int(slippage_bps),
+        slippage_model=str(slippage_model),
+        slippage_tick=float(slippage_tick),
+        volume_limit_pct=float(volume_limit_pct),
+        volume_window=int(volume_window),
+        max_position_pct=float(max_position_pct),
+        allow_short=bool(allow_short),
+    )
+
+
+def _walk_forward_payload(
+    *,
+    df: pd.DataFrame,
+    run_slice: Any,
+    params: dict[str, Any],
+) -> dict[str, Any]:
+    if len(df) < 120:
+        return {
+            "windows": [],
+            "total_oos_return_pct": 0.0,
+            "walk_forward_efficiency": 0.0,
+            "passed": False,
+            "warnings": [
+                "Walk-forward analizi için en az 120 bar önerilir; mevcut veri yetersiz."
+            ],
+        }
+
+    in_sample_bars = max(MIN_BARS, len(df) // 3)
+    out_of_sample_bars = max(20, len(df) // 10)
+    step_bars = out_of_sample_bars
+
+    if in_sample_bars + out_of_sample_bars > len(df):
+        return {
+            "windows": [],
+            "total_oos_return_pct": 0.0,
+            "walk_forward_efficiency": 0.0,
+            "passed": False,
+            "warnings": ["Walk-forward pencereleri için yeterli bar yok."],
+        }
+
+    def score_func(_params: dict[str, Any], in_sample: pd.DataFrame) -> float:
+        return float(run_slice(in_sample).total_return_pct)
+
+    def out_of_sample_return_func(_params: dict[str, Any], out_of_sample: pd.DataFrame) -> float:
+        return float(run_slice(out_of_sample).total_return_pct)
+
+    try:
+        report = run_walk_forward_analysis(
+            df,
+            [dict(params)],
+            score_func,
+            out_of_sample_return_func,
+            in_sample_bars=in_sample_bars,
+            out_of_sample_bars=out_of_sample_bars,
+            step_bars=step_bars,
+            min_window_efficiency=0.0,
+        )
+    except Exception as exc:  # noqa: BLE001
+        return {
+            "windows": [],
+            "total_oos_return_pct": 0.0,
+            "walk_forward_efficiency": 0.0,
+            "passed": False,
+            "warnings": [f"Walk-forward analizi üretilemedi: {exc}"],
+        }
+
+    payload = report.to_dict()
+    payload["warnings"] = [
+        "WFA mevcut parametrelerle doğrulama olarak çalışır; ayrı grid optimizasyonu henüz bağlı değil.",
+        *payload.get("warnings", []),
+    ]
+    return payload
+
+
 def _report_payload(
     *,
     result: Any,
@@ -563,20 +653,20 @@ def run_backtest(
     provider_meta.setdefault("data_coverage_pct", coverage)
     provider_meta.setdefault("bar_count", len(raw_bars))
 
-    engine = BacktestEngine(
-        BacktestConfig(
-            initial_capital=float(capital),
-            commission_rate=float(commission_rate),
-            slippage_bps=int(slippage_bps),
-            slippage_model=str(slippage_model),
-            slippage_tick=float(slippage_tick),
-            volume_limit_pct=float(volume_limit_pct),
-            volume_window=int(volume_window),
-            max_position_pct=float(max_position_pct),
-            allow_short=bool(allow_short),
-        )
+    engine_config = _make_engine_config(
+        capital=float(capital),
+        commission_rate=float(commission_rate),
+        slippage_bps=int(slippage_bps),
+        slippage_model=str(slippage_model),
+        slippage_tick=float(slippage_tick),
+        volume_limit_pct=float(volume_limit_pct),
+        volume_window=int(volume_window),
+        max_position_pct=float(max_position_pct),
+        allow_short=bool(allow_short),
     )
+    engine = BacktestEngine(engine_config)
     normalized_spec: dict[str, Any] | None = None
+    run_slice_for_wfa = None
 
     if strategy_spec:
         try:
@@ -600,6 +690,18 @@ def run_backtest(
             )
         strategy_key = strategy_id or "strategy_spec"
         out_params: dict[str, Any] = {}
+
+        def run_slice_for_wfa(slice_df: pd.DataFrame) -> Any:
+            slice_signal = StrategySpecSignal(
+                normalized_spec or {},
+                slice_df,
+                allow_short=bool(allow_short),
+            )
+            return BacktestEngine(engine_config).run_intents(
+                slice_df,
+                slice_signal,
+                symbol=canonical,
+            )
     else:
         registry = get_registry()
         if strategy_id not in registry:
@@ -622,6 +724,15 @@ def run_backtest(
         strategy_name = getattr(strategy, "description", "") or strategy_id
         strategy_key = strategy_id
         out_params = dict(strategy.params)
+
+        def run_slice_for_wfa(slice_df: pd.DataFrame) -> Any:
+            slice_strategy = get_registry().create(strategy_id, out_params)
+            slice_strategy.prepare(slice_df)
+            return BacktestEngine(engine_config).run(
+                slice_df,
+                slice_strategy.as_signal_func(),
+                symbol=canonical,
+            )
 
     
     normalized_data_warnings = []
@@ -646,4 +757,9 @@ def run_backtest(
         strategy_spec=normalized_spec,
     )
     payload["lookback_bars"] = len(raw_bars)
+    payload["walk_forward_report"] = _walk_forward_payload(
+        df=df,
+        run_slice=run_slice_for_wfa,
+        params=out_params,
+    )
     return payload
