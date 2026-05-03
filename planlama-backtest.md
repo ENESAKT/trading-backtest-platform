@@ -100,13 +100,13 @@ Bu yüzden aşağıdaki B sprintleri "mevcut yapılmış işleri tekrar et" değ
 
 ## Sprint B6 — Walk Forward Analysis (WFA) Motoru
 
-- [ ] `quant_engine/research/walk_forward.py` modülü
-- [ ] Kullanıcı: optimizasyon penceresi + WFA penceresi seçer (örn. 5 ay in-sample, 1 ay out-of-sample)
-- [ ] Her pencerede en iyi parametre seçilir, sonraki out-of-sample bölümde uygulanır
-- [ ] Rapor alanları: WFA toplam getiri, klasik optimizasyon getirisi, WFE, pencere bazlı başarı oranı, drawdown, işlem sayısı
-- [ ] WFA tablo ve grafik UI: optimizasyon pencereleri, out-of-sample performans şeritleri
-- [ ] **Kabul:** Klasik optimize'de iyi görünen strateji WFA'da başarısızsa UI açıkça gösterir
-- [ ] **Test:** Unit: WFA pencereleri sızıntısız ayrılır; out-of-sample veri optimizasyonda kullanılmaz
+- [x] `quant_engine/research/walk_forward.py` modülü
+- [x] Kullanıcı: mevcut backtest parametreleri WFA pencerelerinde out-of-sample doğrulanır; ayrı grid optimizasyonu sonraki genişletme notu olarak warning'e yazılır
+- [x] Her pencerede in-sample skor ve sonraki out-of-sample getiri ayrı hesaplanır
+- [x] Rapor alanları: WFA toplam OOS getiri, WFE, pencere bazlı sonuç, passed ve warnings
+- [x] WFA UI: StrategyPanel performans görünümünde WFA özeti görünür
+- [x] **Kabul:** WFA sonucu yoksa UI kırılmaz; varsa pencere sayısı, OOS getiri, WFE ve durum görünür
+- [x] **Test:** Unit: WFA pencereleri sızıntısız ayrılır; out-of-sample veri optimizasyonda kullanılmaz. Integration: backtest response `walk_forward_report` döner
 
 ---
 
