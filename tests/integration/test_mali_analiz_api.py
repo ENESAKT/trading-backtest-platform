@@ -107,3 +107,60 @@ def test_mali_analiz_endpoint_invalid_symbol(tmp_path):
     resp = client.get("/api/mali-analiz/ ")
     assert resp.status_code == 400
     assert "symbol boş olamaz" in resp.json()["detail"]
+
+
+def test_mali_analiz_universe_returns_static_metadata(tmp_path):
+    client, _, _ = _build_client(tmp_path)
+
+    resp = client.get("/api/mali-analiz/universe")
+    assert resp.status_code == 200
+    body = resp.json()
+
+    assert body["scope"] == "bist30"
+    assert body["source_status"] == {
+        "source": "static_metadata",
+        "status": "metadata_only",
+    }
+    assert any(
+        item["symbol"] == "THYAO"
+        and item["ticker"] == "THYAO.IS"
+        and item["name"]
+        for item in body["symbols"]
+    )
+
+
+def test_mali_analiz_reports_empty_contract_normalizes_symbol(tmp_path):
+    client, _, _ = _build_client(tmp_path)
+
+    resp = client.get("/api/mali-analiz/THYAO.IS/reports")
+    assert resp.status_code == 200
+    body = resp.json()
+
+    assert body["symbol"] == "THYAO"
+    assert body["reports"] == []
+    assert body["message"] == "KAP finansal rapor kaynağı henüz bağlı değil."
+
+
+def test_mali_analiz_events_empty_contract_normalizes_symbol(tmp_path):
+    client, _, _ = _build_client(tmp_path)
+
+    resp = client.get("/api/mali-analiz/THYAO.IS/events")
+    assert resp.status_code == 200
+    body = resp.json()
+
+    assert body["symbol"] == "THYAO"
+    assert body["events"] == []
+    assert body["message"] == "KAP olay/veri kaynağı henüz bağlı değil."
+
+
+def test_mali_analiz_metric_history_empty_contract_normalizes_symbol(tmp_path):
+    client, _, _ = _build_client(tmp_path)
+
+    resp = client.get("/api/mali-analiz/THYAO.IS/metric-history", params={"metric": "roe"})
+    assert resp.status_code == 200
+    body = resp.json()
+
+    assert body["symbol"] == "THYAO"
+    assert body["metric"] == "roe"
+    assert body["points"] == []
+    assert body["message"] == "Metrik geçmişi için finansal veri henüz bağlı değil."

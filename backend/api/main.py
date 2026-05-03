@@ -63,6 +63,7 @@ from backend.data.symbols import (
 from backend.env_validator import validate_env
 from backend.mali_analiz.cache import FinancialAnalysisCache
 from backend.mali_analiz.service import FinancialAnalysisService
+from backend.mali_analiz.symbols import SYMBOL_METADATA, normalize_symbol
 from backend.middleware.api_key_auth import APIKeyMiddleware
 from backend.paper import PaperDB, PaperExecutor
 from backend.signals import SignalGenerator
@@ -1065,6 +1066,26 @@ def create_app(
         return JSONResponse(provider_payload, status_code=502)
 
     # ── Mali Analiz API (Sprint 12) ──────────────────────────────────────────
+    @app.get("/api/mali-analiz/universe")
+    def get_mali_analiz_universe(scope: str = "bist30") -> dict[str, Any]:
+        """Mali analiz için metadata-only sembol evrenini döndürür."""
+        symbols = [
+            {
+                "symbol": symbol,
+                "ticker": f"{symbol}.IS",
+                "name": name,
+            }
+            for symbol, name in sorted(SYMBOL_METADATA.items())
+        ]
+        return {
+            "scope": scope,
+            "symbols": symbols,
+            "source_status": {
+                "source": "static_metadata",
+                "status": "metadata_only",
+            },
+        }
+
     @app.get("/api/mali-analiz/{symbol}")
     def get_mali_analiz(symbol: str, force_refresh: bool = False) -> dict[str, Any]:
         """Sembol için mali analiz raporunu döndürür."""
@@ -1078,6 +1099,61 @@ def create_app(
         except Exception as exc:
             _logger.exception("Mali analiz beklenmedik hata: %s", exc)
             raise HTTPException(status_code=500, detail="Mali analiz servis hatası")
+
+    @app.get("/api/mali-analiz/{symbol}/reports")
+    def get_mali_analiz_reports(symbol: str) -> dict[str, Any]:
+        """KAP finansal rapor kontratı; provider bağlanana kadar boş döner."""
+        try:
+            normalized = normalize_symbol(symbol)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+        return {
+            "symbol": normalized,
+            "reports": [],
+            "message": "KAP finansal rapor kaynağı henüz bağlı değil.",
+            "source_status": {
+                "source": "kap",
+                "status": "not_configured",
+            },
+        }
+
+    @app.get("/api/mali-analiz/{symbol}/events")
+    def get_mali_analiz_events(symbol: str) -> dict[str, Any]:
+        """KAP olay/veri kontratı; provider bağlanana kadar boş döner."""
+        try:
+            normalized = normalize_symbol(symbol)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+        return {
+            "symbol": normalized,
+            "events": [],
+            "message": "KAP olay/veri kaynağı henüz bağlı değil.",
+            "source_status": {
+                "source": "kap",
+                "status": "not_configured",
+            },
+        }
+
+    @app.get("/api/mali-analiz/{symbol}/metric-history")
+    def get_mali_analiz_metric_history(
+        symbol: str,
+        metric: str = "net_income",
+    ) -> dict[str, Any]:
+        """Metrik geçmişi kontratı; finansal seri bağlanana kadar boş döner."""
+        try:
+            normalized = normalize_symbol(symbol)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+        return {
+            "symbol": normalized,
+            "metric": metric,
+            "points": [],
+            "message": "Metrik geçmişi için finansal veri henüz bağlı değil.",
+            "source_status": {
+                "source": "financial_metric_series",
+                "status": "not_configured",
+            },
+        }
 
     # ── Statik dosyalar (SPA / index.html) ───────────────────────────────
     # Mount en sona; daha spesifik /api/* route'larını gölgelemesin diye.
