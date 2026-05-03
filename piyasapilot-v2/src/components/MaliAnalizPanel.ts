@@ -1,12 +1,15 @@
 import { TR, formatNumber, formatPct } from '../constants/tr.js';
 import type { MaliAnalizResponse } from '../types.js';
 
+type MaliTabId = 'summary' | 'statements' | 'ratios' | 'metric-history' | 'source';
+
 export class MaliAnalizPanel {
   private container: HTMLElement;
   private currentSymbol: string = 'THYAO.IS';
   private data: MaliAnalizResponse | null = null;
   private isLoading: boolean = false;
   private errorMessage: string | null = null;
+  private activeTab: MaliTabId = 'summary';
 
   private headerEl!: HTMLElement;
   private titleEl!: HTMLElement;
@@ -159,95 +162,113 @@ export class MaliAnalizPanel {
     const hasStatements = this.data.financial_statements.length > 0;
     const hasRatios = this.data.ratios.length > 0;
     const hasFinancialData = hasStatements || hasRatios;
+    const tabs = this.renderTabs();
+    this.contentEl.appendChild(tabs);
 
-    // Render Summary Card
-    const summaryCard = document.createElement('div');
-    summaryCard.className = 'mali-card summary-card';
-    
-    const statusLabels: Record<string, string> = {
-      connected: TR.FIN_SOURCE_CONNECTED,
-      mock: TR.FIN_SOURCE_MOCK,
-      error: TR.FIN_SOURCE_ERROR,
-      empty: TR.FIN_SOURCE_EMPTY,
-      metadata_only: 'Metadata hazır',
-      not_configured: 'Kaynak bağlı değil',
-    };
-    const sourceStatusStr = this.data.source_status.status;
-    const sourceText = statusLabels[sourceStatusStr] || sourceStatusStr;
+    const section = document.createElement('section');
+    section.className = 'mali-section';
 
-    let summaryHtml = `
+    if (this.activeTab === 'summary') {
+      section.appendChild(this.renderSummarySection(hasFinancialData, hasRatios));
+    } else if (this.activeTab === 'statements') {
+      section.appendChild(hasStatements ? this.renderStatementsSection() : this.renderEmptyState('Finansal tablolar henüz bağlı değil', 'KAP finansal tablo kaynağı bağlandığında bilanço, gelir tablosu ve nakit akımı burada görünecek.'));
+    } else if (this.activeTab === 'ratios') {
+      section.appendChild(hasRatios ? this.renderRatiosSection() : this.renderEmptyState('Oranlar henüz hesaplanmadı', 'Finansal tablo verisi bağlandığında karlılık, likidite ve borçluluk oranları burada yer alacak.'));
+    } else if (this.activeTab === 'metric-history') {
+      section.appendChild(this.renderEmptyState('Metrik geçmişi henüz bağlı değil', 'Net kar, ROE veya marj gibi metriklerin dönemsel serileri finansal veri kaynağı bağlandığında görünecek.'));
+    } else {
+      section.appendChild(this.renderSourceSection());
+    }
+
+    this.contentEl.appendChild(section);
+  }
+
+  private renderTabs(): HTMLElement {
+    const tabs = document.createElement('div');
+    tabs.className = 'mali-tabs';
+    const items: Array<{ id: MaliTabId; label: string }> = [
+      { id: 'summary', label: 'Şirket Özeti' },
+      { id: 'statements', label: 'Finansal Tablolar' },
+      { id: 'ratios', label: 'Oranlar' },
+      { id: 'metric-history', label: 'Metrik Geçmişi' },
+      { id: 'source', label: 'Kaynak Durumu' },
+    ];
+    for (const item of items) {
+      const button = document.createElement('button');
+      button.className = `mali-tab-button${this.activeTab === item.id ? ' active' : ''}`;
+      button.type = 'button';
+      button.textContent = item.label;
+      button.addEventListener('click', () => {
+        this.activeTab = item.id;
+        this.renderContent();
+      });
+      tabs.appendChild(button);
+    }
+    return tabs;
+  }
+
+  private renderSummarySection(hasFinancialData: boolean, hasRatios: boolean): HTMLElement {
+    const card = document.createElement('div');
+    card.className = 'mali-card summary-card';
+    const sourceStatusStr = this.data!.source_status.status;
+    const sourceText = this.statusText(sourceStatusStr);
+
+    let html = `
       <div class="summary-header">
         <div class="summary-title-row">
-          <h2>${this.escapeHtml(this.data.company_name || 'Finansal veri henüz bağlı değil')}</h2>
-          <span class="mali-symbol-badge">${this.escapeHtml(this.data.symbol)}</span>
-          <span class="badge status-${sourceStatusStr}">${sourceText}</span>
+          <h2>${this.escapeHtml(this.data!.company_name || 'Finansal veri henüz bağlı değil')}</h2>
+          <span class="mali-symbol-badge">${this.escapeHtml(this.data!.symbol)}</span>
+          <span class="badge status-${sourceStatusStr}">${this.escapeHtml(sourceText)}</span>
         </div>
       </div>
       <div class="mali-source-grid">
-        <div><span>Sembol</span><strong>${this.escapeHtml(this.data.symbol)}</strong></div>
-        ${this.data.company_name ? `<div><span>Şirket</span><strong>${this.escapeHtml(this.data.company_name)}</strong></div>` : ''}
-        <div><span>Kaynak</span><strong>${this.escapeHtml(this.data.source_status.source)}</strong></div>
+        <div><span>Sembol</span><strong>${this.escapeHtml(this.data!.symbol)}</strong></div>
+        ${this.data!.company_name ? `<div><span>Şirket</span><strong>${this.escapeHtml(this.data!.company_name)}</strong></div>` : ''}
+        <div><span>Kaynak</span><strong>${this.escapeHtml(this.data!.source_status.source)}</strong></div>
         <div><span>Durum</span><strong>${this.escapeHtml(sourceText)}</strong></div>
       </div>
     `;
 
     if (!hasFinancialData) {
-      summaryHtml += `
-        <div class="mali-empty-state mali-empty-state-inline">
-          <h2>Finansal veri henüz bağlı değil</h2>
-          <p>Bu şirket için KAP/finansal tablo kaynağı bağlandığında oranlar, dönemler ve tablolar burada görünecek.</p>
-        </div>
-      `;
+      html += this.emptyStateHtml('Finansal veri henüz bağlı değil', 'Bu şirket için KAP/finansal tablo kaynağı bağlandığında oranlar, dönemler ve tablolar burada görünecek.');
     } else if (hasRatios) {
-      summaryHtml += `<div class="summary-grid">`;
-      for (const r of this.data.ratios.slice(0, 6)) {
-        summaryHtml += `
+      html += `<div class="summary-grid">`;
+      for (const r of this.data!.ratios.slice(0, 6)) {
+        html += `
           <div class="ratio-box">
             <div class="ratio-label">${this.escapeHtml(r.name)}</div>
             <div class="ratio-value">${this.formatValue(r.value, r.format)}</div>
           </div>
         `;
       }
-      summaryHtml += `</div>`;
+      html += `</div>`;
     }
-    
-    if (this.data.warnings && this.data.warnings.length > 0) {
-      summaryHtml += `<ul class="mali-warning-list">
-        ${this.data.warnings.map(w => `<li>${this.escapeHtml(w)}</li>`).join('')}
-      </ul>`;
-    }
-    
-    summaryCard.innerHTML = summaryHtml;
-    this.contentEl.appendChild(summaryCard);
 
-    // Main Layout: Left (Statements) - Right (Ratios)
-    const mainRow = document.createElement('div');
-    mainRow.className = 'mali-main-row';
+    html += this.warningListHtml();
+    card.innerHTML = html;
+    return card;
+  }
 
+  private renderStatementsSection(): HTMLElement {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'mali-main-row';
     const leftCol = document.createElement('div');
     leftCol.className = 'mali-left-col';
 
-    const rightCol = document.createElement('div');
-    rightCol.className = 'mali-right-col';
-
-    for (const stmt of this.data.financial_statements) {
+    for (const stmt of this.data!.financial_statements) {
       if (!stmt.rows.length) continue;
       const stmtCard = document.createElement('div');
       stmtCard.className = 'mali-card stmt-card';
       stmtCard.innerHTML = `<h3>${this.escapeHtml(stmt.title)}</h3>`;
-      
       const tableWrapper = document.createElement('div');
       tableWrapper.className = 'mali-table-wrapper';
-      
       const table = document.createElement('table');
       table.className = 'mali-table stmt-table';
-      
       let thead = `<thead><tr><th>Kalem</th>`;
-      for (const p of this.data.periods) {
-        thead += `<th>${p}</th>`;
+      for (const p of this.data!.periods) {
+        thead += `<th>${this.escapeHtml(p)}</th>`;
       }
       thead += `</tr></thead>`;
-      
       let tbody = `<tbody>`;
       for (const row of stmt.rows) {
         tbody += `<tr><td>${this.escapeHtml(row.label)}</td>`;
@@ -257,34 +278,81 @@ export class MaliAnalizPanel {
         tbody += `</tr>`;
       }
       tbody += `</tbody>`;
-      
       table.innerHTML = thead + tbody;
       tableWrapper.appendChild(table);
       stmtCard.appendChild(tableWrapper);
       leftCol.appendChild(stmtCard);
     }
 
-    // Ratios Table (Right)
-    if (this.data.ratios.length > 0) {
-      const ratiosCard = document.createElement('div');
-      ratiosCard.className = 'mali-card ratios-card';
-      ratiosCard.innerHTML = `<h3>${TR.FIN_RATIOS}</h3>`;
-      
-      const table = document.createElement('table');
-      table.className = 'mali-table';
-      let tHtml = `<thead><tr><th>Oran</th><th>Değer</th></tr></thead><tbody>`;
-      for (const r of this.data.ratios) {
-        tHtml += `<tr><td>${this.escapeHtml(r.name)}</td><td class="val-num">${this.formatValue(r.value, r.format)}</td></tr>`;
-      }
-      tHtml += `</tbody>`;
-      table.innerHTML = tHtml;
-      ratiosCard.appendChild(table);
-      rightCol.appendChild(ratiosCard);
-    }
+    wrapper.appendChild(leftCol);
+    return wrapper;
+  }
 
-    mainRow.appendChild(leftCol);
-    mainRow.appendChild(rightCol);
-    this.contentEl.appendChild(mainRow);
+  private renderRatiosSection(): HTMLElement {
+    const ratiosCard = document.createElement('div');
+    ratiosCard.className = 'mali-card ratios-card';
+    ratiosCard.innerHTML = `<h3>${TR.FIN_RATIOS}</h3>`;
+    const table = document.createElement('table');
+    table.className = 'mali-table';
+    let html = `<thead><tr><th>Oran</th><th>Değer</th></tr></thead><tbody>`;
+    for (const r of this.data!.ratios) {
+      html += `<tr><td>${this.escapeHtml(r.name)}</td><td class="val-num">${this.formatValue(r.value, r.format)}</td></tr>`;
+    }
+    html += `</tbody>`;
+    table.innerHTML = html;
+    ratiosCard.appendChild(table);
+    return ratiosCard;
+  }
+
+  private renderSourceSection(): HTMLElement {
+    const card = document.createElement('div');
+    card.className = 'mali-card';
+    const status = this.data!.source_status;
+    card.innerHTML = `
+      <h3>Kaynak Durumu</h3>
+      <div class="mali-source-grid">
+        <div><span>Source</span><strong>${this.escapeHtml(status.source)}</strong></div>
+        <div><span>Status</span><strong>${this.escapeHtml(status.status)}</strong></div>
+        <div><span>Cache hit</span><strong>${status.cache_hit ? 'Evet' : 'Hayır'}</strong></div>
+        <div><span>Stale</span><strong>${status.stale ? 'Evet' : 'Hayır'}</strong></div>
+        <div><span>Error</span><strong>${this.escapeHtml(status.error || '-')}</strong></div>
+      </div>
+      ${this.warningListHtml()}
+    `;
+    return card;
+  }
+
+  private renderEmptyState(title: string, description: string): HTMLElement {
+    const el = document.createElement('div');
+    el.className = 'mali-card';
+    el.innerHTML = this.emptyStateHtml(title, description);
+    return el;
+  }
+
+  private emptyStateHtml(title: string, description: string): string {
+    return `
+      <div class="mali-empty-state mali-empty-state-inline">
+        <h2>${this.escapeHtml(title)}</h2>
+        <p>${this.escapeHtml(description)}</p>
+      </div>
+    `;
+  }
+
+  private warningListHtml(): string {
+    if (!this.data?.warnings?.length) return '';
+    return `<ul class="mali-warning-list">${this.data.warnings.map(w => `<li>${this.escapeHtml(w)}</li>`).join('')}</ul>`;
+  }
+
+  private statusText(status: string): string {
+    const statusLabels: Record<string, string> = {
+      connected: TR.FIN_SOURCE_CONNECTED,
+      mock: TR.FIN_SOURCE_MOCK,
+      error: TR.FIN_SOURCE_ERROR,
+      empty: TR.FIN_SOURCE_EMPTY,
+      metadata_only: 'Metadata hazır',
+      not_configured: 'Kaynak bağlı değil',
+    };
+    return statusLabels[status] || status;
   }
 
   private renderHeaderTitle(): void {
