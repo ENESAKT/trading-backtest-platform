@@ -4,7 +4,7 @@
 > Bu dosya G2+ sprint planlarını içerir.
 > Kaynak: Matriks Grafik Menüleri PDF (70 sayfa) incelendi.
 > Kural: Matriks kopyalanmaz; PiyasaPilot'un TS/lightweight-charts mimarisiyle uyumlu özgün özellikler.
-> Tarih: 2026-05-01
+> Tarih: 2026-05-03
 
 ---
 

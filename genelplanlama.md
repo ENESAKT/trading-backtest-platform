@@ -1,7 +1,7 @@
 # GENEL PLANLAMA — PiyasaPilot Yürütme Haritası
 
 > Tek yürütme rehberi. Yeni bir ajan veya yeni oturum önce burayı, sonra ilgili alt planı okur.
-> Tarih: 2026-05-02 · Branch: `codex/education-feature-planning`
+> Tarih: 2026-05-03 · Branch: `codex/financials-ui-api-v1`
 
 ---
 
@@ -28,10 +28,10 @@ once ilgili plan dosyasindaki checklistleri ve kod durumunu kontrol eder.
 
 | Metrik | Deger | Not |
 |---|---:|---|
-| Toplam uygulama tamamlanma | ~88% | Veri platformu, deploy hijyeni, skill agent, egitim UI eklendi. G1-10 ve B1 eklendi; Backtest B2-13 bekleniyor |
-| Kalan uygulama yuku | ~12% | En buyuk kalan is: Backtest Lab detay sprintleri |
-| Plan netligi | ~86% | Ana planlar yazildi; bazi uygulama detaylari sprintte netlesecek |
-| En kritik sonraki faz | Faz 3 | Backtest Lab (B2, B3, B4...) gelistirmeleri ve G1-10 dogrulamasi |
+| Toplam uygulama tamamlanma | ~94% | Veri platformu, deploy hijyeni, skill agent, Egitimler, Grafik G1-G10 ve Backtest B1-B13 urun entegrasyonu tamamlandi; Mali Analiz metadata/API/UI v1 seviyesinde |
+| Kalan uygulama yuku | ~6% | En buyuk kalan is: Mali Analiz gercek KAP/provider baglantisi, finansal tablo store'u ve E2E sertlestirme |
+| Plan netligi | ~88% | Ana planlar yazildi; ileri veri/provider kararlari kod durumuna gore netlesecek |
+| En kritik sonraki faz | Mali Analiz veri baglantisi | KAP/provider, finansal tablo normalize store'u ve gercek oran motoru |
 | Canliya cikis durumu | Iskelet Hazir | Docker-compose.prod ve ilgili temizlik denetimleri kuruldu |
 | Veri platformu durumu | Hazir | ClickHouse/MySQL/Redis DB katmanlari mock ve hazirlik asamasinda kuruldu |
 
@@ -44,9 +44,9 @@ once ilgili plan dosyasindaki checklistleri ve kod durumunu kontrol eder.
 | 2 | `planlama-temizlik-canliya-cikis.md` | 10% | 88% | 100% | 10.0% | Tamamlandi | Repo temizligi, docker ignore ve uretim araclari eklendi |
 | 3 | `planlama-agent-skill-mentor.md` | 7% | 85% | 100% | 7.0% | Tamamlandi | Skill ve mentor checkleri kuruldu |
 | 4 | `planlama-grafik.md` | 10% | 80% | 100% | 10.0% | Tamamlandi | Bütün sprintler G1-G10 tamamlandı (Dogrulama gerekli) |
-| 5 | `planlama-backtest.md` | 12% | 82% | 65% | 7.8% | Cekirdek ve B1-B5 tamam, B6 sirada | B6: WFA motoru |
-| 6 | `planlama-egitimler.md` | 5% | 92% | 100% | 5.0% | UI iskeleti ve icerik eklendi | Dogrula: Egitim kopruleri |
-| 7 | `planlama-mali-analiz.md` | 5% | 78% | 5% | 0.3% | Beklemede | Veri platformu ve Borfin/Fastweb on okuma tamamlaninca |
+| 5 | `planlama-backtest.md` | 12% | 88% | 100% | 12.0% | B1-B13 tamamlandi | QA/E2E sertlestirme ve canli veri kapilari |
+| 6 | `planlama-egitimler.md` | 5% | 92% | 100% | 5.0% | UI, icerik ve kopru QA tamam | E2E smoke testleri |
+| 7 | `planlama-mali-analiz.md` | 5% | 82% | 25% | 1.3% | Metadata/API/UI v1 tamam | KAP/provider ve finansal tablo store'u |
 | 8 | `planlama-tasarim.md` | 2% | 95% | 100% | 2.0% | Tamamlandi | Yeni UI isleri gelirse referans |
 | 9 | `egitimplanlama.md` | 1% | 90% | 57% | 0.6% | OCR sureci kismi tamam | Mali analiz ve opsiyon/varant/swap kurslarini oku |
 
@@ -107,7 +107,7 @@ Bu sira yeni AI icin zorunlu varsayilandir:
 | `planlama-grafik.md` | Grafik Lab | Aktif | ChartPanel, indikator, cizim, event marker islerinde |
 | `planlama-backtest.md` | Backtest Lab | Aktif | StrategySpec, WFA, Monte Carlo, kalite, optimizer islerinde |
 | `planlama-egitimler.md` | Egitimler | Aktif/kismi tamam | Egitim paneli, makale, kopru, Borfin policy islerinde |
-| `planlama-mali-analiz.md` | Mali analiz | Beklemede | Veri platformu ve finansal OCR on kosullari tamamlaninca |
+| `planlama-mali-analiz.md` | Mali analiz | Aktif/metadata-only v1 | KAP/provider, finansal tablo store'u veya mali analiz UI islerinde |
 | `planlama-tasarim.md` | UI tasarim | Tamamlandi/referans | UI dili bozulursa referans |
 | `egitimplanlama.md` | Borfin okuma sureci | Aktif/referans | Yeni kurs okunurken veya artifact temizlenirken |
 | `planlama-sprint-gecmis.md` | Tamamlanan sprint arsivi | Referans | Eski is yapildi mi kontrolu icin |
@@ -199,21 +199,23 @@ Okuma yöntemi şu an ses transkripti değil, macOS AVFoundation + Vision frame 
 
 ### 4. Grafik ve eğitim köprüleri
 
-- [ ] Eğitim makalesinden grafiğe indikatör ekleme.
+- [x] Eğitim makalesinden grafiğe indikatör ekleme.
+- [x] Eğitim makalesinden backtest preset köprüsü.
 - [ ] Formasyon/Fibonacci yazılarından ilgili çizim aracına köprü.
 - [ ] Risk uyarısı: gecikme, repaint, yanlış teyit, düşük hacim.
 
 ### 5. Backtest Lab düzeltme
 
 - [x] `planlama-backtest.md` mevcut yapılmış altyapı ve kalan işler diye ayrıldı.
-- [ ] StrategySpec/short/report archive/CSV/optimizer gibi mevcut işler tekrar yapılacak gibi gösterilmeyecek.
-- [ ] Kalan ağır işler: WFA modülü, Monte Carlo, kalite skoru, stabil optimizasyon, portföy lab.
+- [x] StrategySpec/short/report archive/CSV/optimizer gibi mevcut işler tekrar yapılacak gibi gösterilmeyecek.
+- [x] WFA, Monte Carlo, kalite skoru, stabil optimizasyon, portföy lab, paper operasyon, strategy pack ve lifecycle raporları ürüne bağlandı.
 
-### 6. Mali Analiz önce okuma, sonra kod
+### 6. Mali Analiz metadata v1, sonra gerçek veri
 
-- [ ] Cahit Yılmaz Mali Analiz Teknikleri, Temel Analiz, Üzeyir Doğan, Firma Değerleme ve Fastweb/Finnet eğitimleri önce OCR'dan geçirilecek.
-- [ ] Sonra `planlama-mali-analiz.md` oran seti, veri şeması ve API kontratı yeniden netleştirilecek.
-- [ ] BIST 30 listesi statik yazılmayacak; uygulamadaki sembol kaynağı veya sağlayıcıdan üretilecek.
+- [x] Metadata-only API/UI v1 kuruldu: sembol normalize, universe, reports/events/metric-history empty contract, tabbed UI ve şirket listesi.
+- [ ] Cahit Yılmaz Mali Analiz Teknikleri, Temel Analiz, Üzeyir Doğan, Firma Değerleme ve Fastweb/Finnet eğitimleri gerçek oran/analiz metni öncesi OCR'dan geçirilecek.
+- [ ] KAP/provider bağlantısı, finansal tablo store'u ve oran motoru gerçek veriyle bağlanacak.
+- [ ] BIST 30 listesi üretimde merkezi sembol kaynağı veya provider metadata'dan üretilecek.
 
 ### 7. VIOP ve türevler
 

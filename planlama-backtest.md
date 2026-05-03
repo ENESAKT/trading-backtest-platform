@@ -3,8 +3,8 @@
 > Kaynak: BORFİN eğitim arşivi — Kıvanç Özbilgiç Algo Trade + Hareketli Ortalamalar,
 > Fuat Akman Sistem Trading, Yaşar Erdinç Teknik Analiz + İleri Düzey.
 > Kural: Formüller, ekranlar, marka dili birebir kopyalanmaz. PiyasaPilot'a özgü DSL ve iş akışı.
-> Tarih: 2026-05-01
-> Durum: Bu plan sıfırdan başlangıç değildir; mevcut StrategySpec/backtest altyapısı üzerine kalan işleri listeler.
+> Tarih: 2026-05-03
+> Durum: B1-B13 ürün entegrasyonu tamamlandı. Bu plan artık Backtest Lab kabul kapsamı ve sonraki QA/E2E sertleştirme işleri için referanstır.
 
 ---
 
@@ -32,11 +32,11 @@ PiyasaPilot, sadece indikatör gösteren terminal değil; **strateji fikri → k
 | StrategySpec DSL | Var | B1/B3 sıfırdan değil, preset katalog ve görsel kurucu derinleşmesi |
 | Long/short intent motoru | Var | B4'te gerçekçilik, uyarı ve varsayım kartı güçlenecek |
 | CSV import ve OHLCV doğrulama | Var | B5 kalite skoru ve veri kapsama uyarılarına bağlanacak |
-| Backtest report archive | Var | B13 lifecycle ve postmortem UI'a bağlanacak |
-| Grid optimize ve screener v2 | Var | B8/B9'da stabil bölge, heatmap ve StrategySpec taraması büyütülecek |
-| Paper aktivasyon bağlantısı | Var | B11'de operasyon paneli, kill switch ve audit görünümü eklenecek |
-| WFA iskeleti | Kısmi | Ayrı modül, sızıntısız pencere testleri ve UI raporu gerekiyor |
-| Monte Carlo | Yok | B7 hâlâ net yeni modül |
+| Backtest report archive | Var | B13 lifecycle ve postmortem summary response/UI'a bağlandı |
+| Grid optimize ve screener v2 | Var | B8/B9 stabil bölge, heatmap ve scanner v3 kontratıyla ürünleşti |
+| Paper aktivasyon bağlantısı | Var | B11 operasyon/preflight summary eklendi; gerçek emir yolu kapalı |
+| WFA iskeleti | Tamamlandı | `walk_forward_report` response ve StrategyPanel performans görünümüne bağlandı |
+| Monte Carlo | Tamamlandı | Trade PnL bootstrap raporu response/UI'a bağlandı; büyük simülasyon array'i taşınmaz |
 
 Bu yüzden aşağıdaki B sprintleri "mevcut yapılmış işleri tekrar et" değil, ürünleşme ve dayanıklılık katmanıdır.
 
@@ -67,34 +67,34 @@ Bu yüzden aşağıdaki B sprintleri "mevcut yapılmış işleri tekrar et" değ
 
 ## Sprint B3 — Görsel Kurucu Bloklar + DSL Genişletme
 
-- [ ] Görsel kurucuya yeni bloklar: `CROSS_UP`, `CROSS_DOWN`, `ABOVE`, `BELOW`, `BARS_SINCE`, `DISTANCE_PCT`, `SLOPE`, `RISING`, `FALLING`, `VOLUME_ABOVE_AVG`
-- [ ] Risk blokları: sabit stop, yüzde stop, ATR stop, trailing stop, take profit, time stop, bar sayısı kadar bekle
-- [ ] Vade ve trend filtresi blokları: `C > SMA(C,200)`, `MA_ORDERED`, `TREND_FILTER`, `VOLATILITY_FILTER`
-- [ ] Bir stratejiye birden fazla giriş/çıkış koşulu; AND/OR grupları adlandırılabilir
-- [ ] Kural açıklaması otomatik üretilir: "RSI EMA'sını yukarı kesince ve fiyat EMA200 üstündeyse AL"
-- [ ] **Kabul:** Kod bilmeden momentum, trend, mean reversion ve HO sıkışma stratejisi kurulabilir
+- [x] Görsel kurucuya yeni bloklar: `CROSS_UP`, `CROSS_DOWN`, `ABOVE`, `BELOW`, `BARS_SINCE`, `DISTANCE_PCT`, `SLOPE`, `RISING`, `FALLING`, `VOLUME_ABOVE_AVG`
+- [x] Risk blokları: sabit stop, yüzde stop, ATR stop, trailing stop, take profit, time stop, bar sayısı kadar bekle
+- [x] Vade ve trend filtresi blokları: `C > SMA(C,200)`, `MA_ORDERED`, `TREND_FILTER`, `VOLATILITY_FILTER`
+- [x] Bir stratejiye birden fazla giriş/çıkış koşulu; AND/OR grupları adlandırılabilir
+- [x] Kural açıklaması otomatik üretilir: "RSI EMA'sını yukarı kesince ve fiyat EMA200 üstündeyse AL"
+- [x] **Kabul:** Kod bilmeden momentum, trend, mean reversion ve HO sıkışma stratejisi kurulabilir
 
 ---
 
 ## Sprint B4 — Backtest Gerçekçilik: Komisyon, Slipaj, Likidite
 
-- [ ] Backtest raporunda "varsayım kartı" zorunlu: sermaye, komisyon, slippage bps, yön, pozisyon %, veri kaynağı, fill modeli
-- [ ] Slippage modelleri: sabit bps, sabit kademe/tick, hacim oranına göre artan
-- [ ] Likidite kapasite kontrolü: işlem tutarı son N bar ortalama hacminin belirli yüzdesini aşarsa uyarı
-- [ ] Hacimsiz tahta riski BIST'te ayrıca raporlanır
-- [ ] Short BIST için "simülasyon" etiketi; gerçek piyasa uygunluğu garanti edilmez
-- [ ] **Kabul:** Aynı strateji komisyon açık/kapalı çalıştırılınca metrik farkı raporda net görünür
+- [x] Backtest raporunda "varsayım kartı" zorunlu: sermaye, komisyon, slippage bps, yön, pozisyon %, veri kaynağı, fill modeli
+- [x] Slippage modelleri: sabit bps, sabit kademe/tick, hacim oranına göre artan
+- [x] Likidite kapasite kontrolü: işlem tutarı son N bar ortalama hacminin belirli yüzdesini aşarsa uyarı
+- [x] Hacimsiz tahta riski BIST'te ayrıca raporlanır
+- [x] Short BIST için "simülasyon" etiketi; gerçek piyasa uygunluğu garanti edilmez
+- [x] **Kabul:** Aynı strateji komisyon açık/kapalı çalıştırılınca metrik farkı raporda net görünür
 
 ---
 
 ## Sprint B5 — Backtest Kalite Skoru ve Tuzak Uyarıları
 
-- [ ] Backtest raporuna "kalite kontrol" bölümü: veri kapsama, işlem sayısı, test aralığı, piyasa rejimi çeşitliliği, parametre sayısı, outlier etkisi
-- [ ] Tek sembol riski uyarısı: kullanıcı sadece kazandıran sembolde test yaptıysa
-- [ ] Intrabar fill uyarısı: high/low bilgisiyle gerçek dışı fill
-- [ ] Optimizasyon tuzağı: parametre sayısı arttıkça kalite skoru düşer
-- [ ] Minimum örneklem uyarısı: indikatör period / test bar oranı çok yüksekse
-- [ ] **Kabul:** Backtest sonucu `quality_score` ve kırmızı/sarı/yeşil uyarılarla döner
+- [x] Backtest raporuna "kalite kontrol" bölümü: veri kapsama, işlem sayısı, test aralığı, piyasa rejimi çeşitliliği, parametre sayısı, outlier etkisi
+- [x] Tek sembol riski uyarısı: kullanıcı sadece kazandıran sembolde test yaptıysa
+- [x] Intrabar fill uyarısı: high/low bilgisiyle gerçek dışı fill
+- [x] Optimizasyon tuzağı: parametre sayısı arttıkça kalite skoru düşer
+- [x] Minimum örneklem uyarısı: indikatör period / test bar oranı çok yüksekse
+- [x] **Kabul:** Backtest sonucu `quality_score` ve kırmızı/sarı/yeşil uyarılarla döner
 
 ---
 
@@ -212,12 +212,12 @@ B3 → B9 (Tarayıcı v3)
 
 ## Test ve Kabul Kapıları (Tüm B Sprintleri)
 
-- [ ] Unit: Yeni HO ve indikatör fonksiyonları sabit fixture'da beklenen çıktıyı verir
-- [ ] Unit: DSL tehlikeli ifade kabul etmez; yeni bloklar StrategySpec'e doğru çevrilir
-- [ ] Unit: Slippage, komisyon, hacim kontrolü, short PnL doğru hesaplanır
-- [ ] Unit: WFA pencereleri sızıntısız ayrılır
-- [ ] Unit: Monte Carlo sabit seed ile deterministik
-- [ ] Integration: Preset → backtest → kalite skoru → WFA → Monte Carlo zinciri çalışır
+- [x] Unit: Yeni HO ve indikatör fonksiyonları sabit fixture'da beklenen çıktıyı verir
+- [x] Unit: DSL tehlikeli ifade kabul etmez; yeni bloklar StrategySpec'e doğru çevrilir
+- [x] Unit: Slippage, komisyon, hacim kontrolü, short PnL doğru hesaplanır
+- [x] Unit: WFA pencereleri sızıntısız ayrılır
+- [x] Unit: Monte Carlo sabit seed ile deterministik
+- [x] Integration: Preset → backtest → kalite skoru → WFA → Monte Carlo zinciri çalışır
 - [ ] E2E: Preset seç → parametre değiştir → backtest → WFA raporu → paper izleme
 - [ ] E2E: Explorer taraması → sembol grafiğe açılır → marker'lar görünür
 - [ ] E2E: Strategy pack export/import → aynı kurallar geri gelir

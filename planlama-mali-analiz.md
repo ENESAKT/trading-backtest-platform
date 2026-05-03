@@ -1,8 +1,9 @@
 # Mali Analiz Sekmesi — Plan
 
-> Tarih: 2026-05-02
-> Durum: Beklemede. Bu dosya uygulanmadan once `genelplanlama.md`,
-> `planlama.md` ve ozellikle `planlama-veri-platformu.md` uygulanir.
+> Tarih: 2026-05-03
+> Durum: Metadata/API/UI v1 tamam. Gercek KAP/provider baglantisi,
+> finansal tablo store'u ve oran motoru icin `genelplanlama.md`,
+> `planlama.md` ve ozellikle `planlama-veri-platformu.md` izlenir.
 > Hedef: Veri platformu oturduktan sonra BIST sirketleri icin KAP tabanli,
 > Fastweb mantigina yakin ama PiyasaPilot'a ozgu mali analiz modulu kurmak.
 
@@ -35,10 +36,31 @@ ClickHouse/MySQL repository yapisina baglanacak.
 
 ---
 
+## 0. 2026-05-03 Uygulama Notu
+
+Metadata-only Mali Analiz v1 eklendi. Bu katman kullaniciya bos ama
+profesyonel kontratlar sunar; sahte finansal tablo, rasgele oran veya tavsiye
+uretmez.
+
+- [x] Sembol normalize davranisi: trim, uppercase, `.IS` temizleme ve bos sembolde `ValueError`
+- [x] `MockFinancialAnalysisProvider` sirket adini statik metadata fallback'inden alir
+- [x] Warning metni: "Finansal tablo verisi henüz bağlı değil."
+- [x] `GET /api/mali-analiz/universe?scope=bist30`
+- [x] `GET /api/mali-analiz/{symbol}/reports`
+- [x] `GET /api/mali-analiz/{symbol}/events`
+- [x] `GET /api/mali-analiz/{symbol}/metric-history`
+- [x] Frontend: tabbed Mali Analiz UI, empty state, source status ve universe sidebar
+- [ ] Gercek KAP finansal rapor provider'i
+- [ ] Finansal tablo normalize store'u
+- [ ] Gercek oran ve metrik gecmisi hesaplama
+
+---
+
 ## 2. Neden Bekliyor?
 
-Mali analiz tek basina bir ekran degil; dogru calismasi icin once veri
-omurgasinin netlesmesi gerekir.
+Mali analiz tek basina bir ekran degil; dogru calismasi icin gercek finansal
+veri omurgasinin netlesmesi gerekir. UI/API kabugu metadata-only olarak hazir,
+ancak asagidaki sorular gercek veri fazinin kabul kapisidir.
 
 Gereken temel cevaplar:
 

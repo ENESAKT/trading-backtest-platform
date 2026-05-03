@@ -2,7 +2,7 @@
 
 > Durum: Eğitimler sekmesi altyapısı ve Eğitimler v1 makale seti tamamlandı: indikatörler, formasyonlar, Sistem & Backtest, VIOP & Vadeli, Psikoloji & Disiplin (57/57 makale).
 > Kaynak: BORFİN eğitim arşivi (26 kurs, 825 video; 9 kurs/469 video OCR ile incelendi, 17 kurs/356 video bekliyor).
-> Tarih: 2026-05-01
+> Tarih: 2026-05-03
 
 ---
 

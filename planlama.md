@@ -1,7 +1,7 @@
 # PLANLAMA — PiyasaPilot Trading Terminali (Ana Index)
 
 > Bu dosya index'tir. Sıra ve öncelik için önce `genelplanlama.md`, kodlama için ilgili alt plan dosyasını oku.
-> Tarih: 2026-05-02 · Branch: codex/education-feature-planning
+> Tarih: 2026-05-03 · Branch: codex/financials-ui-api-v1
 
 ---
 
@@ -11,7 +11,7 @@
 
 **Hedef:** TradingView benzeri tek SPA; strateji fikri → kural → backtest → optimizasyon → paper robot zincirini tek ekranda yöneten algoritmik trade laboratuvarı.
 
-**Durum (2026-05-02):** Sprint 0–12 tamamlandı. Yeni ana fazlar: BIST/VIOP veri platformu, repo temizliği/canlıya çıkış, bu konuları denetleyen skill ve mentor agent katmanı. Eğitimler, Grafik Lab, Backtest Lab ve Mali Analiz planları mevcut sırada korunur.
+**Durum (2026-05-03):** Veri platformu, repo temizliği/canlıya çıkış hazırlığı, denetim skill/script katmanı, Eğitimler, Grafik Lab G1-G10 ve Backtest Lab B1-B13 ürün entegrasyonu tamamlandı. Mali Analiz tarafında metadata-only API/UI v1, universe sidebar ve boş kontratlar hazır; gerçek KAP/provider bağlantısı ve finansal tablo store'u henüz bağlanmadı.
 
 ---
 
@@ -96,16 +96,16 @@ Faz 0 — Veri platformu ve production hazırlığı
 
 Faz 1 — Eğitim kaynak modeli ve yeni sekmeler
   ├── Eğitimler sekmesi  → planlama-egitimler.md (klavye: 6)
-  └── Mali Analiz ön okuma → planlama-mali-analiz.md (klavye hedefi: 7)
+  └── Mali Analiz metadata/API/UI v1 → planlama-mali-analiz.md (klavye: 7)
 
 Faz 2 — Grafik iyileştirmeleri (ChartPanel.ts'e dikkatli dokunma)
   └── Sprint G2–G10 → planlama-grafik.md
 
-Faz 3 — Strateji Lab kalan işleri (quant_engine + StrategySpec değişiklikler)
-  └── Sprint B1–B6 → planlama-backtest.md
+Faz 3 — Strateji Lab ürün entegrasyonu (quant_engine + StrategySpec değişiklikler)
+  └── Sprint B1–B13 → planlama-backtest.md
 
-Faz 4 — İleri analitik (WFA, Monte Carlo, Portföy Lab)
-  └── Sprint B6–B13 → planlama-backtest.md
+Faz 4 — Mali Analiz gerçek veri fazı
+  └── KAP/provider + finansal tablo store'u → planlama-mali-analiz.md
 ```
 
 ---
