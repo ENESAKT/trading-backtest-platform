@@ -207,6 +207,18 @@ export interface PortfolioLabSummary {
   warnings: string[];
 }
 
+export interface PaperOperationSummary {
+  mode: string;
+  real_order_enabled: boolean;
+  preflight: {
+    checklist: Record<string, boolean>;
+    ready_to_start: boolean;
+    warnings: string[];
+  };
+  last_signal: Signal | null;
+  warnings: string[];
+}
+
 export interface StrategySpec {
   name?: string;
   note?: string;
@@ -259,6 +271,7 @@ export interface BacktestResult {
   walk_forward_report?: WalkForwardReport;
   monte_carlo_report?: MonteCarloReport;
   portfolio_lab_summary?: PortfolioLabSummary;
+  paper_operation_summary?: PaperOperationSummary;
   metrics: BacktestMetrics;
   equity_curve: EquityPoint[];
   trades: BacktestTrade[];

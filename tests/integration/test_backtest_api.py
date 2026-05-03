@@ -151,6 +151,10 @@ def test_backtest_run_returns_metrics_and_curve(tmp_path):
     portfolio = body["portfolio_lab_summary"]
     assert portfolio["strategy_count"] == 1
     assert "total_return_pct" in portfolio["metrics"]
+    paper = body["paper_operation_summary"]
+    assert paper["mode"] == "paper_only"
+    assert paper["real_order_enabled"] is False
+    assert "preflight" in paper
 
     if body["trades"]:
         trade = body["trades"][0]

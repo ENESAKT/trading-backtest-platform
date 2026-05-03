@@ -32,6 +32,7 @@ from backend.data.cache import OHLCVCache
 from backend.data.historical_store import HistoricalStore
 from quant_engine.backtest.engine import BacktestConfig, BacktestEngine, QualityWarning
 from quant_engine.research.monte_carlo import run_monte_carlo
+from quant_engine.research.paper_ops import generate_preflight_checklist
 from quant_engine.research.portfolio_lab import portfolio_metrics
 from quant_engine.research.walk_forward import run_walk_forward_analysis
 from quant_engine.strategy.registry import get_registry
@@ -463,6 +464,40 @@ def _portfolio_lab_payload(result: Any) -> dict[str, Any]:
     }
 
 
+def _paper_operation_payload(
+    *,
+    payload: dict[str, Any],
+    result: Any,
+    df: pd.DataFrame,
+    allow_short: bool,
+) -> dict[str, Any]:
+    data_source = payload.get("data_source") or {}
+    assumptions = payload.get("assumptions") or {}
+    wfa = payload.get("walk_forward_report") or {}
+    mc = payload.get("monte_carlo_report") or {}
+    checklist = generate_preflight_checklist(
+        {
+            "has_real_data": bool(data_source.get("is_real")),
+            "bar_count": int(data_source.get("bar_count") or len(df)),
+            "wfa_passed": bool(wfa.get("passed")),
+            "monte_carlo_passed": float(mc.get("probability_of_loss", 1.0)) < 0.5,
+            "has_slippage": float(assumptions.get("slippage_bps", 0) or 0) > 0,
+            "avg_volume": float(df["volume"].tail(20).mean()) if "volume" in df else 0.0,
+            "market": "BIST" if str(payload.get("symbol", "")).endswith(".IS") else "OTHER",
+            "allows_short": bool(allow_short),
+        }
+    )
+    return {
+        "mode": "paper_only",
+        "real_order_enabled": False,
+        "preflight": checklist,
+        "last_signal": (payload.get("signals") or [])[-1] if payload.get("signals") else None,
+        "warnings": [
+            "Gerçek emir gönderimi yoktur; bu özet yalnızca paper/alarm operasyon görünürlüğü sağlar."
+        ],
+    }
+
+
 def _report_payload(
     *,
     result: Any,
@@ -823,4 +858,10 @@ def run_backtest(
         capital=float(capital),
     )
     payload["portfolio_lab_summary"] = _portfolio_lab_payload(result)
+    payload["paper_operation_summary"] = _paper_operation_payload(
+        payload=payload,
+        result=result,
+        df=df,
+        allow_short=bool(allow_short),
+    )
     return payload

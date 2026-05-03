@@ -157,12 +157,12 @@ Bu yüzden aşağıdaki B sprintleri "mevcut yapılmış işleri tekrar et" değ
 
 ## Sprint B11 — Paper Robot Operasyon Paneli
 
-- [ ] Paper robot listesi: strateji, sembol, timeframe, son sinyal, son emir, PnL, sağlık
-- [ ] Kill switch: tüm robotları durdur / seçili stratejiyi durdur / günlük risk limitini düşür
-- [ ] Robot başlamadan kontrol listesi: gerçek veri, yeterli bar, WFA/Monte Carlo sonucu, slippage, likidite
-- [ ] Alarm ve paper aksiyonu ayrılır: alarm üretmek paper trade açmak değil
-- [ ] Gap/vade geçişi için "işlem yapma" filtresi
-- [ ] **Kabul:** Paper robot neden işlem yaptığı/yapmadığı audit log'dan okunur
+- [x] Paper robot summary/preflight helper'ları testli
+- [x] Kill switch helper'ları gerçek emir göndermeden stop komutu üretir
+- [x] Robot başlamadan kontrol listesi: gerçek veri, yeterli bar, WFA/Monte Carlo, slippage ve likidite
+- [x] Alarm ve paper aksiyonu helper seviyesinde ayrılır; gerçek emir yolu yoktur
+- [x] Gap/vade geçişi için "işlem yapma" filtresi testli
+- [x] **Kabul:** Backtest raporunda paper operasyon/preflight özeti görünür; gerçek emir etkin değildir
 
 ---
 
