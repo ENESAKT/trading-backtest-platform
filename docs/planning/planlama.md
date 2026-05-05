@@ -70,19 +70,18 @@
 
 | Dosya | İçerik |
 |-------|--------|
+| `YAPILANLAR.md` | Teknik envanter — tüm yapılanlar, modüller, teknolojiler |
+| `YAPILACAKLAR.md` | Kalan işler, sunucu çıkış, güvenlik, MySQL entegrasyon adımları |
 | `genelplanlama.md` | Tek yürütme haritası ve uygulama sırası |
 | `planlama.md` | Bu index |
 | `planlama-sprint-gecmis.md` | Sprint 0–12 arşiv (tamamlananlar, referans) |
 | `planlama-sprint-aktif.md` | Aktif geliştirme fazları ve sıraları |
 | `planlama-veri-platformu.md` | BIST/VIOP veri platformu, ClickHouse/MySQL/Redis, retention, inventory |
-| `planlama-temizlik-canliya-cikis.md` | Repo temizliği, Borfin artifact ayrımı, Docker production package, deploy |
 | `planlama-agent-skill-mentor.md` | Veri/deploy/temizlik skill'leri ve mentor/data/release agent planı |
-| `planlama-grafik.md` | Grafik Lab — Sprint G2–G10 |
-| `planlama-backtest.md` | Backtest Lab — Sprint B1–B13 (Borfin) |
-| `planlama-egitimler.md` | Eğitimler sekmesi + Blog içerik planı |
 | `planlama-mali-analiz.md` | Mali Analiz sekmesi planı |
-| `planlama-tasarim.md` | Arayüz (UI) ve tasarım revizyon planı |
 | `egitimplanlama.md` | BORFİN kurs okuma süreci ve OCR kayıtları |
+| `docs/DEPLOYMENT.md` | Sunucu kurulum rehberi (adım adım) |
+| `docs/archive/` | Tarihsel snapshot'lar (ROADMAP, ILERLEME, PROJE_DURUM_OZET) |
 
 ---
 
