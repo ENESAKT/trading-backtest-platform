@@ -2,24 +2,26 @@
 
 # ─── Docker Compose ────────────────────────────────────────────────────────
 
+COMPOSE = docker compose -f infra/docker-compose.yml
+
 up: build
-	docker compose up -d
+	$(COMPOSE) up -d
 	@echo "✅ PiyasaPilot servisleri başlatıldı"
-	@docker compose ps
+	@$(COMPOSE) ps
 
 down:
-	docker compose down
+	$(COMPOSE) down
 	@echo "🛑 Servisler durduruldu"
 
 restart:
-	docker compose restart
+	$(COMPOSE) restart
 	@echo "🔄 Servisler yeniden başlatıldı"
 
 logs:
-	docker compose logs --tail 100 -f
+	$(COMPOSE) logs --tail 100 -f
 
 status:
-	@docker compose ps
+	@$(COMPOSE) ps
 	@echo ""
 	@curl -sf http://localhost:8000/api/health | python3 -m json.tool 2>/dev/null || echo "⚠️  Gateway çalışmıyor"
 
@@ -27,7 +29,7 @@ status:
 
 build:
 	cd piyasapilot-v2 && npx vite build
-	docker compose build
+	$(COMPOSE) build
 
 # ─── Development ───────────────────────────────────────────────────────────
 
@@ -141,13 +143,13 @@ paper:
 # ─── Monitoring (Grafana + Prometheus) ─────────────────────────────────
 
 monitor:
-	docker compose -f docker-compose.yml -f docker-compose.monitor.yml up -d
+	docker compose -f infra/docker-compose.yml -f infra/docker-compose.monitor.yml up -d
 	@echo "📊 Grafana: http://localhost:3000 (admin/piyasapilot)"
 	@echo "📈 Prometheus: http://localhost:9090"
 	@echo "📉 Metrics: http://localhost:8000/metrics"
 
 monitor-down:
-	docker compose -f docker-compose.yml -f docker-compose.monitor.yml down
+	docker compose -f infra/docker-compose.yml -f infra/docker-compose.monitor.yml down
 
 daily-report:
 	source .venv/bin/activate && python scripts/daily_health_report.py

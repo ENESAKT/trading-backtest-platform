@@ -41,12 +41,17 @@
 |:---|:---|
 | **Frontend** | TypeScript, Vite 8, lightweight-charts v4, Chart.js, Playwright |
 | **Backend** | Python 3.11, FastAPI, uvicorn |
-| **Veritabanı** | SQLite (OHLCV cache + paper trades) |
-| **Veri** | ProviderRouter, yfinance best-effort BIST/FX/emtia, Binance WS/REST, lisanslı BIST/VİOP HTTP köprüleri |
-| **Backtest** | Custom engine (lookahead-free, 9 strateji) |
-| **Bildirim** | Telegram bot, Email (SMTP), macOS notification |
+| **Cache DB (mevcut)** | SQLite (OHLCV cache + paper trades) |
+| **OHLCV DB (hedef)** | ClickHouse 24.3 |
+| **Metadata DB (hedef)** | MySQL 8.0 |
+| **Cache/Pub-Sub (hedef)** | Redis 7 |
+| **Soğuk arşiv** | Parquet + DuckDB |
+| **Veri** | yfinance (BIST/FX/emtia), Binance WS/REST, borsapy, borsa-mcp, tradingview-mcp |
+| **Backtest** | Custom engine (lookahead-free, 9+ strateji, WFA, Monte Carlo) |
+| **ML** | LightGBM (sinyal güçlendirme) |
+| **Bildirim** | Telegram Bot (11 komut), Email (SMTP), macOS notification |
 | **Deployment** | Docker Compose, nginx reverse proxy |
-| **AI Ekosistemi** | Claude Code agents/skills/hooks/MCP |
+| **AI Ekosistemi** | Claude Code — 20 skill, 12 agent, MCP (borsa + tradingview) |
 
 ## 🚀 Hızlı Başlangıç
 
@@ -122,47 +127,72 @@ make up
 ## 📁 Proje Yapısı
 
 ```
-├── backend/                 # FastAPI gateway
-│   ├── api/main.py          # App factory + tüm endpoint'ler
+├── backend/                 # FastAPI gateway + Python servisleri
+│   ├── api/main.py          # App factory + tüm endpoint'ler (1352 satır)
 │   ├── backtest/            # Backtest runner + blueprint'ler
-│   ├── data/                # OHLCVCache + spike filter
+│   ├── data/                # OHLCVCache, repositories (CH/MySQL/Redis/SQLite)
+│   ├── mali_analiz/         # Mali Analiz API + cache
+│   ├── middleware/          # APIKeyMiddleware
 │   ├── paper/               # Paper trading (db + executor)
-│   ├── signals/             # SignalGenerator v2
+│   ├── signals/             # SignalGenerator v2 (konsensüs)
 │   ├── notifier/            # Telegram + email + macOS
 │   └── workers/             # Binance WS + Yahoo/BIST pollers
-├── piyasapilot-v2/          # TypeScript frontend
-│   ├── src/components/      # UI bileşenleri
-│   ├── src/core/            # DataEngine, QuoteStream
-│   └── src/indicators/      # Teknik göstergeler
-├── quant_engine/            # Python backtest framework
-│   ├── backtest/            # Lookahead-free engine
-│   ├── data/                # ProviderRouter + market data modelleri
-│   └── strategy/            # 9 strateji implementasyonu
-├── .claude/                 # AI ekosistemi
-│   ├── agents/              # 8 sub-agent
-│   ├── skills/              # 15 skill
-│   ├── commands/            # 5 slash command
-│   └── hooks/               # 4 hook script
-├── tests/                   # 301+ test (unit + integration)
-├── docker-compose.yml       # Deployment
+├── piyasapilot-v2/          # TypeScript SPA
+│   └── src/
+│       ├── components/      # 9 UI bileşeni (Chart, Strategy, Portfolio, vb.)
+│       ├── core/            # DataEngine, QuoteStream, HistoricalLoader
+│       ├── indicators/      # 10 teknik indikatör
+│       └── content/         # 57 eğitim makalesi
+├── quant_engine/            # Bağımsız Python backtest framework
+│   ├── backtest/engine.py   # Lookahead-free motor ⚠️
+│   ├── data/                # ProviderRouter, live_feed ⚠️
+│   ├── research/            # WFA, Monte Carlo, optimization_v2
+│   └── strategy/            # 9 strateji + DSL + katalog + pack
+├── infra/                   # Tüm Docker Compose dosyaları
+│   ├── docker-compose.yml       # Geliştirme uygulama servisleri
+│   ├── docker-compose.dev.yml   # Geliştirme DB (CH/MySQL/Redis)
+│   ├── docker-compose.prod.yml  # Production tam stack
+│   └── docker-compose.monitor.yml  # Grafana + Prometheus
+├── docker/                  # Tüm Dockerfile'lar + nginx + izleme
+│   ├── Dockerfile.api / .workers / .notifier / .frontend
+│   ├── nginx.conf
+│   └── prometheus.yml + grafana/
+├── .claude/                 # Claude Code AI ekosistemi
+│   ├── agents/              # 12 sub-agent
+│   ├── skills/              # 20 skill
+│   └── hooks/               # SessionStart, Stop, vb.
+├── tests/                   # 59 dosya — unit + integration
+├── scripts/                 # Denetim ve veri platform scriptleri
+├── docs/                    # Teknik dokümantasyon + archive/
+├── YAPILANLAR.md            # Teknik envanter ve sprint özeti
+├── YAPILACAKLAR.md          # Kalan işler, sunucu çıkış, güvenlik
 └── Makefile                 # Kısayollar
 ```
 
-## 🛠️ CLI Araçları ve Denetim (Agent Skills)
-
-PiyasaPilot repomuz AI ekosistemi tarafından kullanılmak veya kullanıcı tarafından elle tetiklenmek üzere çesitli Python scriptleri içerir:
+## 🛠️ CLI Araçları ve Denetim
 
 ```bash
-# Veri platformu kontrolleri
-python src/scripts/check_data_inventory.py
-python src/scripts/check_timeframe_graph.py
-python src/scripts/check_retention.py
+# Veri platformu
+make data-inventory           # Sembol/timeframe envanter raporu
+make derive-timeframes        # Timeframe rollup (1m → 5m → 1h vb.)
+make retention-cleanup        # Retention politikası uygula
+make backfill-bist100         # BIST 100 tarihsel veri doldurucu
 
-# Deployment ve Temizlik kontrolleri
-python src/scripts/scan_repo_weight.py
-python src/scripts/check_borfin_integration.py
-python src/scripts/check_production_package.py
-python src/scripts/check_deployment_readiness.py
+# Denetim scriptleri
+make repo-cleanup-report      # Büyük dosya ve artifact raporu
+make borfin-integration-check # Borfin telif denetimi
+make production-package-check # Docker paket kontrolü
+make deployment-check         # Canlıya çıkış hazırlık kontrolü
+
+# İzleme
+make monitor                  # Grafana (3000) + Prometheus (9090) başlat
+make health                   # /api/health çıktısı
+make prod-health              # Production sağlık kontrolü
+
+# Test
+make test                     # Hızlı pytest
+make lint                     # TSC + vite build
+make e2e                      # Playwright e2e
 ```
 
 ## 🧪 Testler
@@ -178,19 +208,20 @@ make test-full
 make lint
 ```
 
-## 📋 Sprint Durumu
+## 📋 Sprint / Faz Durumu
 
-| Sprint | Durum | Açıklama |
-|--------|-------|----------|
-| 0 — Planlama | ✅ | CLAUDE.md, iskelet, sembol listesi |
-| 1 — Backend Gateway | ✅ | FastAPI, SQLite, worker'lar |
-| 2 — Frontend Terminal | ✅ | Sidebar, ChartPanel, MultiChartLayout |
-| 3 — Backtest API | ✅ | 9 strateji, sinyal feed, signal bus |
-| 4 — Paper Trading | ✅ | PaperDB, PaperExecutor, PortfolioPanel v2 |
-| 5 — Agent/Skill/Hook | ✅ | 8 agent, 15 skill, 5 command, 4 hook |
-| 6 — AI Sinyal Motoru | ✅ | Konsensüs, sinyal gücü, metadata |
-| 7 — Always-On | ✅ | Docker, Telegram, email, toast |
-| 8 — Doküman | ✅ | README, mimari, rehberler |
+| Sprint / Faz | Durum | Konu |
+|---|---|---|
+| Sprint 0–8 | ✅ | Backend, Frontend, Paper, Agent/Skill, Sinyal, Docker, Docs |
+| Sprint 9–12 | ✅ | MCP, LightGBM, stres test, sabah brifing, risk skill'leri |
+| Faz 0A–0C | ✅ | ClickHouse/MySQL/Redis infra, repo temizliği, denetim skill'leri |
+| Faz 1A | ✅ | Eğitimler paneli — 57 makale, arama, grafik/preset köprüleri |
+| Faz 1B | ✅ | Mali Analiz metadata/API/UI v1 — universe, empty state |
+| Faz 2 (G1–G10) | ✅ | Grafik Lab — ölçek, indikatör merkezi, PnL, çizim, multi-chart, Fibonacci |
+| Faz 3 (B1–B13) | ✅ | Backtest Lab — WFA, Monte Carlo, optimize, tarayıcı, portföy, strategy pack |
+| **Kalan** | 🔄 | ClickHouse/MySQL API bağlantısı, TLS, Mali Analiz gerçek veri |
+
+Detay: `YAPILANLAR.md` (envanter) · `YAPILACAKLAR.md` (kalan işler + güvenlik) · `docs/planning/` (alt planlar)
 
 ## 📄 Lisans
 

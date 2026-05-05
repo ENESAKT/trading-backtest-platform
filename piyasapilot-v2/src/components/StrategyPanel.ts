@@ -1366,6 +1366,7 @@ export class StrategyPanel {
       </div>
       ${this.walkForwardHTML(r)}
       ${this.monteCarloHTML(r)}
+      ${this.portfolioLabHTML(r)}
     `;
   }
 
@@ -1406,8 +1407,30 @@ export class StrategyPanel {
     `;
   }
 
+  private portfolioLabHTML(r: BacktestResult): string {
+    const summary = r.portfolio_lab_summary;
+    if (!summary) return '';
+    const m = summary.metrics;
+    return `
+      <div class="report-subsection">
+        <h4>Portföy Lab Özeti</h4>
+        <div class="metrics-grid">
+          ${this.metric('Strateji', String(summary.strategy_count))}
+          ${this.metric('Portföy Getiri', formatPct(m.total_return_pct), m.total_return_pct >= 0 ? 'pos' : 'neg')}
+          ${this.metric('Portföy DD', formatPct(-m.max_drawdown_pct), 'neg')}
+          ${this.metric('PF', formatNumber(m.profit_factor, 2))}
+          ${this.metric('Sharpe-like', formatNumber(m.sharpe_like, 2))}
+          ${this.metric('En Kötü Dönem', formatPct(m.worst_period_pct), 'neg')}
+        </div>
+        ${summary.warnings?.length ? `<div class="warning-list">${summary.warnings.map(w => `<div class="warning-item">${this.escape(w)}</div>`).join('')}</div>` : ''}
+      </div>
+    `;
+  }
+
   private systemHTML(r: BacktestResult): string {
     const specRules = r.strategy_spec?.rules ?? {};
+    const paper = r.paper_operation_summary;
+    const lifecycle = r.lifecycle_summary;
     const rows = [
       ['Strateji', r.strategy_name ?? r.strategy_id],
       ['Sembol', r.symbol],
@@ -1415,6 +1438,9 @@ export class StrategyPanel {
       ['Veri Kalitesi', r.quality_score ? `${formatNumber(r.quality_score, 0)} / 100` : '-'],
       ['Kaynak', `${r.data_source?.source ?? '-'} / ${r.data_source?.status ?? '-'}`],
       ['Kapsama', `${formatNumber(r.data_source?.data_coverage_pct ?? 0, 1)}%`],
+      ['Lifecycle', lifecycle ? `${lifecycle.state} → ${lifecycle.next_step}` : '-'],
+      ['Paper Hazırlık', paper ? (paper.preflight.ready_to_start ? 'Hazır' : 'Hazır değil') : '-'],
+      ['Gerçek Emir', paper?.real_order_enabled ? 'Açık' : 'Kapalı'],
       ['Varsayım', `${r.assumptions?.['signal_timing'] ?? ''} → ${r.assumptions?.['execution_timing'] ?? ''}`],
       ['Long Giriş', specRules.long_entry ?? '-'],
       ['Long Çıkış', specRules.long_exit ?? '-'],
@@ -1423,7 +1449,11 @@ export class StrategyPanel {
     ];
     return `<table class="data-table system-table"><tbody>${
       rows.map(([k, v]) => `<tr><th>${this.escape(String(k))}</th><td>${this.escape(String(v || '-'))}</td></tr>`).join('')
-    }</tbody></table>`;
+    }</tbody></table>
+    ${lifecycle?.risk_cards?.length ? `<div class="warning-list">${
+      lifecycle.risk_cards.map(card => `<div class="warning-item warning-${this.escape(card.severity)}"><b>${this.escape(card.title)}</b> ${this.escape(card.description)}</div>`).join('')
+    }</div>` : ''}
+    ${paper?.warnings?.length ? `<div class="warning-list">${paper.warnings.map(w => `<div class="warning-item">${this.escape(w)}</div>`).join('')}</div>` : ''}`;
   }
 
   private warningsHTML(r: BacktestResult): string {

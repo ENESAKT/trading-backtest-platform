@@ -17,11 +17,11 @@ else
   echo "⚠️  Gateway çalışmıyor (port 8000). Başlatmak için: cd $PROJECT_ROOT && source .venv/bin/activate && uvicorn backend.api.main:app --port 8000"
 fi
 
-# 2. Son planlama durumu
-if [ -f "$PROJECT_ROOT/planlama.md" ]; then
-  DONE=$(grep -c '^- \[x\]' "$PROJECT_ROOT/planlama.md" 2>/dev/null || echo "0")
-  TODO=$(grep -c '^- \[ \]' "$PROJECT_ROOT/planlama.md" 2>/dev/null || echo "0")
-  echo "📋 Planlama: $DONE tamamlandı, $TODO kalan"
+# 2. Son planlama durumu (YAPILACAKLAR.md üzerinden)
+if [ -f "$PROJECT_ROOT/YAPILACAKLAR.md" ]; then
+  DONE=$(grep -c '^\- \[x\]' "$PROJECT_ROOT/docs/planning/planlama-sprint-gecmis.md" 2>/dev/null || echo "0")
+  REMAINING=$(grep -c '^\- \[ \]' "$PROJECT_ROOT/YAPILACAKLAR.md" 2>/dev/null || echo "0")
+  echo "📋 Planlama: $DONE tamamlandı, $REMAINING kalan"
 fi
 
 # 3. Son commit

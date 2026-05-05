@@ -8,20 +8,23 @@
 #   1. api servisine `PIYASAPILOT_DISABLE_WORKERS: "1"` ekle
 #   2. workers servisinin `profiles` satırını kaldır
 # Not: Bu modda /ws/quotes ve /ws/signals pasif olur.
+#
+# Kullanım: `cd infra && docker compose -f docker-compose.yml up -d`
+# veya kökten: `make up`
 # ────────────────────────────────────────────────────────────────────────────
 
 services:
   api:
     build:
-      context: .
-      dockerfile: Dockerfile.api
+      context: ../
+      dockerfile: docker/Dockerfile.api
     container_name: piyasapilot-api
     ports:
       - "8000:8000"
     volumes:
-      - ./data:/app/data
+      - ../data:/app/data
     env_file:
-      - .env
+      - ../.env
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health', timeout=5).read()"]
       interval: 30s
@@ -33,13 +36,13 @@ services:
 
   notifier:
     build:
-      context: .
-      dockerfile: Dockerfile.notifier
+      context: ../
+      dockerfile: docker/Dockerfile.notifier
     container_name: piyasapilot-notifier
     volumes:
-      - ./data:/app/data
+      - ../data:/app/data
     env_file:
-      - .env
+      - ../.env
     environment:
       NOTIFY_API_URL: http://api:8000
     depends_on:
@@ -59,8 +62,8 @@ services:
     ports:
       - "80:80"
     volumes:
-      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
-      - ./piyasapilot-v2/dist:/usr/share/nginx/html:ro
+      - ../docker/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ../piyasapilot-v2/dist:/usr/share/nginx/html:ro
     depends_on:
       api:
         condition: service_healthy
@@ -70,13 +73,13 @@ services:
   # Bağımsız cache-filler (varsayılan profilde kapalı — yukarıdaki notu oku)
   workers:
     build:
-      context: .
-      dockerfile: Dockerfile.workers
+      context: ../
+      dockerfile: docker/Dockerfile.workers
     container_name: piyasapilot-workers
     volumes:
-      - ./data:/app/data
+      - ../data:/app/data
     env_file:
-      - .env
+      - ../.env
     restart: unless-stopped
     mem_limit: 256m
     profiles:

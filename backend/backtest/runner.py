@@ -31,7 +31,10 @@ from backend.backtest import blueprints as _blueprints  # noqa: F401  (registry 
 from backend.data.cache import OHLCVCache
 from backend.data.historical_store import HistoricalStore
 from quant_engine.backtest.engine import BacktestConfig, BacktestEngine, QualityWarning
+from quant_engine.research.lifecycle import generate_risk_cards, get_next_logical_step
 from quant_engine.research.monte_carlo import run_monte_carlo
+from quant_engine.research.paper_ops import generate_preflight_checklist
+from quant_engine.research.portfolio_lab import portfolio_metrics
 from quant_engine.research.walk_forward import run_walk_forward_analysis
 from quant_engine.strategy.registry import get_registry
 from quant_engine.strategy.spec import FormulaError, StrategySpecSignal, validate_strategy_spec
@@ -437,6 +440,99 @@ def _monte_carlo_payload(
     }
 
 
+def _portfolio_lab_payload(result: Any) -> dict[str, Any]:
+    equity_values = [
+        float(getattr(point, "total_equity", 0.0))
+        for point in getattr(result, "equity_curve", [])
+    ]
+    if len(equity_values) < 2:
+        return {
+            "metrics": portfolio_metrics(pd.Series([], dtype=float)),
+            "strategy_count": 1,
+            "warnings": ["Portföy özeti için yeterli equity verisi yok."],
+        }
+    index = [
+        getattr(point, "timestamp", None) or idx
+        for idx, point in enumerate(getattr(result, "equity_curve", []))
+    ]
+    curve = pd.Series(equity_values, index=index)
+    return {
+        "metrics": portfolio_metrics(curve),
+        "strategy_count": 1,
+        "warnings": [
+            "Bu özet tek strateji equity curve'ünden üretilmiştir; çoklu strateji birleşimi Portfolio Lab helper'larıyla desteklenir."
+        ],
+    }
+
+
+def _paper_operation_payload(
+    *,
+    payload: dict[str, Any],
+    result: Any,
+    df: pd.DataFrame,
+    allow_short: bool,
+) -> dict[str, Any]:
+    data_source = payload.get("data_source") or {}
+    assumptions = payload.get("assumptions") or {}
+    wfa = payload.get("walk_forward_report") or {}
+    mc = payload.get("monte_carlo_report") or {}
+    checklist = generate_preflight_checklist(
+        {
+            "has_real_data": bool(data_source.get("is_real")),
+            "bar_count": int(data_source.get("bar_count") or len(df)),
+            "wfa_passed": bool(wfa.get("passed")),
+            "monte_carlo_passed": float(mc.get("probability_of_loss", 1.0)) < 0.5,
+            "has_slippage": float(assumptions.get("slippage_bps", 0) or 0) > 0,
+            "avg_volume": float(df["volume"].tail(20).mean()) if "volume" in df else 0.0,
+            "market": "BIST" if str(payload.get("symbol", "")).endswith(".IS") else "OTHER",
+            "allows_short": bool(allow_short),
+        }
+    )
+    return {
+        "mode": "paper_only",
+        "real_order_enabled": False,
+        "preflight": checklist,
+        "last_signal": (payload.get("signals") or [])[-1] if payload.get("signals") else None,
+        "warnings": [
+            "Gerçek emir gönderimi yoktur; bu özet yalnızca paper/alarm operasyon görünürlüğü sağlar."
+        ],
+    }
+
+
+def _lifecycle_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    wfa = payload.get("walk_forward_report") or {}
+    mc = payload.get("monte_carlo_report") or {}
+    data_source = payload.get("data_source") or {}
+    assumptions = payload.get("assumptions") or {}
+    metrics = payload.get("metrics") or {}
+    state = "pretest"
+    if wfa.get("passed"):
+        state = "wfa_passed"
+    if wfa.get("passed") and float(mc.get("probability_of_loss", 1.0)) < 0.5:
+        state = "monte_carlo_passed"
+    risk_cards = generate_risk_cards(
+        {
+            "data_gap_pct": max(0.0, 100.0 - float(data_source.get("data_coverage_pct", 100.0))),
+            "bar_count": int(data_source.get("bar_count", 0)),
+            "param_count": len(payload.get("params") or {}),
+            "wfa_passed": bool(wfa.get("passed")),
+            "avg_volume": 1_000_000,
+            "has_slippage_assumptions": float(assumptions.get("slippage_bps", 0) or 0) > 0,
+            "market": "BIST" if str(payload.get("symbol", "")).endswith(".IS") else "OTHER",
+            "allows_short": bool(assumptions.get("allow_short")),
+            "intrabar_fill": False,
+            "uses_future_data": False,
+            "total_trades": int(metrics.get("total_trades", 0)),
+        }
+    )
+    return {
+        "state": state,
+        "next_step": get_next_logical_step(state),
+        "risk_cards": risk_cards,
+        "postmortem_ready": state in {"paper_watching", "retired"},
+    }
+
+
 def _report_payload(
     *,
     result: Any,
@@ -796,4 +892,12 @@ def run_backtest(
         trades=list(result.trades),
         capital=float(capital),
     )
+    payload["portfolio_lab_summary"] = _portfolio_lab_payload(result)
+    payload["paper_operation_summary"] = _paper_operation_payload(
+        payload=payload,
+        result=result,
+        df=df,
+        allow_short=bool(allow_short),
+    )
+    payload["lifecycle_summary"] = _lifecycle_payload(payload)
     return payload

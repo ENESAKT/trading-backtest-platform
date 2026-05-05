@@ -148,6 +148,16 @@ def test_backtest_run_returns_metrics_and_curve(tmp_path):
         "warnings",
     } <= set(monte_carlo)
     assert "simulations" not in monte_carlo
+    portfolio = body["portfolio_lab_summary"]
+    assert portfolio["strategy_count"] == 1
+    assert "total_return_pct" in portfolio["metrics"]
+    paper = body["paper_operation_summary"]
+    assert paper["mode"] == "paper_only"
+    assert paper["real_order_enabled"] is False
+    assert "preflight" in paper
+    lifecycle = body["lifecycle_summary"]
+    assert lifecycle["state"] in {"pretest", "wfa_passed", "monte_carlo_passed"}
+    assert "risk_cards" in lifecycle
 
     if body["trades"]:
         trade = body["trades"][0]
@@ -156,6 +166,39 @@ def test_backtest_run_returns_metrics_and_curve(tmp_path):
         assert len(body["signals"]) >= 2 * len(body["trades"])
         assert {s["type"] for s in body["signals"]} <= {"BUY", "SELL"}
     assert body["run_id"]
+
+
+def test_backtest_optimize_returns_stability_report(tmp_path):
+    client, cache = _build_client(tmp_path)
+    _populate_cache(cache, "BTCUSDT", "1d", n=200)
+
+    resp = client.post(
+        "/api/backtest/optimize",
+        json={
+            "symbol": "BTCUSDT",
+            "interval": "1d",
+            "strategy_id": "sma_crossover",
+            "params": {},
+            "param_grid": {
+                "fast_period": [4, 5],
+                "slow_period": [12, 15],
+            },
+            "lookback_bars": 200,
+            "source_mode": "cache_only",
+            "slippage_model": "fixed_tick",
+            "slippage_tick": 0.01,
+            "volume_limit_pct": 0.10,
+            "volume_window": 3,
+        },
+    )
+
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["results"]
+    stability = body["stability_report"]
+    assert stability["param_keys"] == ["fast_period", "slow_period"]
+    assert set(stability["best_params"]) == {"fast_period", "slow_period"}
+    assert {"x_axis", "y_axis", "z_matrix"} <= set(stability["heatmap"])
 
 
 def test_v2_candles_prefers_local_daily_parquet_and_writes_cache(tmp_path):
@@ -244,6 +287,53 @@ def test_backtest_optimize_returns_stability_report(tmp_path):
     assert stability["param_keys"] == ["fast", "slow"]
     assert set(stability["best_params"]) == {"fast", "slow"}
     assert {"x_axis", "y_axis", "z_matrix"} <= set(stability["heatmap"])
+
+
+def test_backtest_scan_returns_scanner_v3_contract(tmp_path):
+    client, cache = _build_client(tmp_path)
+    _populate_cache(cache, "BTCUSDT", "15m", n=160)
+
+    resp = client.post(
+        "/api/backtest/scan",
+        json={
+            "symbols": ["BTCUSDT"],
+            "interval": "15m",
+            "strategy_id": "sma_crossover",
+            "params": {"fast_period": 5, "slow_period": 15},
+            "lookback_bars": 160,
+        },
+    )
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["scanner_version"] == "v3"
+    assert body["results"][0]["symbol"] == "BTCUSDT"
+
+
+def test_strategy_pack_export_import_api_rejects_invalid_package(tmp_path):
+    client, _ = _build_client(tmp_path)
+    spec = {
+        "rules": {
+            "long_entry": "C > EMA(C,20)",
+            "long_exit": "C < EMA(C,20)",
+        }
+    }
+
+    exported = client.post(
+        "/api/strategy-lab/pack/export",
+        json={"strategy_spec": spec, "description": "API pack"},
+    )
+    assert exported.status_code == 200, exported.text
+    pack = exported.json()["pack"]
+    assert exported.json()["filename"] == ".piyasapilot-strategy.json"
+
+    imported = client.post("/api/strategy-lab/pack/import", json={"pack": pack})
+    assert imported.status_code == 200, imported.text
+    assert imported.json()["pack"]["strategy_spec"]["rules"]["long_entry"] == "C > EMA(C,20)"
+
+    del pack["version"]
+    rejected = client.post("/api/strategy-lab/pack/import", json={"pack": pack})
+    assert rejected.status_code == 400
+    assert "version" in rejected.json()["detail"]
 
 
 def test_backtest_v2_strategy_spec_short_and_archive_export(tmp_path):

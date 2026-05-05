@@ -76,6 +76,7 @@ from quant_engine.data.live_feed import (
     PaperTradingRecorder,
 )
 from quant_engine.research.optimization_v2 import find_stable_region, generate_heatmap_data
+from quant_engine.strategy.pack import export_strategy_pack, import_strategy_pack
 from quant_engine.strategy.persistence import StrategyRecord, StrategyStore
 from quant_engine.strategy.catalog import list_strategy_presets
 from quant_engine.workspace.json_store import WorkspaceJsonStore
@@ -738,7 +739,7 @@ def create_app(
             except Exception as exc:  # noqa: BLE001
                 errors.append({"symbol": symbol, "error": str(exc)})
         rows.sort(key=lambda row: float(row["score"]), reverse=True)
-        return {"results": rows, "errors": errors}
+        return {"scanner_version": "v3", "results": rows, "errors": errors}
 
     @app.get("/api/strategy-lab/strategies")
     def strategy_lab_list() -> dict[str, Any]:
@@ -769,6 +770,29 @@ def create_app(
             notes=req.notes,
         )
         return _strategy_record_payload(record)
+
+    @app.post("/api/strategy-lab/pack/export")
+    def strategy_pack_export(req: StrategyPackExportRequest) -> dict[str, Any]:
+        try:
+            pack = export_strategy_pack(
+                req.strategy_spec,
+                params=req.params,
+                indicator_set=req.indicator_set,
+                risk_settings=req.risk_settings,
+                description=req.description,
+                example_backtest_metadata=req.example_backtest_metadata,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+        return {"filename": ".piyasapilot-strategy.json", "pack": pack}
+
+    @app.post("/api/strategy-lab/pack/import")
+    def strategy_pack_import(req: StrategyPackImportRequest) -> dict[str, Any]:
+        try:
+            pack = import_strategy_pack(req.pack)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+        return {"pack": pack}
 
     @app.post("/api/strategy-lab/strategies/{record_id}/paper/activate")
     def strategy_lab_activate_paper(record_id: int, req: PaperActivateRequest) -> dict[str, Any]:
@@ -1287,6 +1311,19 @@ class OptimizeRequest(BaseModel):
     max_position_pct: float = Field(0.20, gt=0, le=1.0)
     allow_short: bool = False
     source_mode: str = "cache_only"
+
+
+class StrategyPackExportRequest(BaseModel):
+    strategy_spec: dict[str, Any]
+    params: dict[str, Any] = Field(default_factory=dict)
+    indicator_set: dict[str, Any] | list[Any] = Field(default_factory=dict)
+    risk_settings: dict[str, Any] = Field(default_factory=dict)
+    description: str = ""
+    example_backtest_metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class StrategyPackImportRequest(BaseModel):
+    pack: dict[str, Any] | str
 
 
 class ScanRequest(BaseModel):

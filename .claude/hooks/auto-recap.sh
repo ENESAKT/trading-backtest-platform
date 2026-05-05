@@ -11,9 +11,9 @@ TIMESTAMP=$(date +"%Y-%m-%d %H:%M:%S")
 # Son commit'leri al (bu oturumda yapılanlar)
 RECENT_COMMITS=$(cd "$PROJECT_ROOT" && git log --oneline -10 --since="6 hours ago" 2>/dev/null || echo "commit yok")
 
-# Planlama durumu
-DONE=$(grep -c '\- \[x\]' "$PROJECT_ROOT/planlama.md" 2>/dev/null || echo "0")
-TODO=$(grep -c '\- \[ \]' "$PROJECT_ROOT/planlama.md" 2>/dev/null || echo "0")
+# Planlama durumu (YAPILACAKLAR.md üzerinden)
+DONE=$(grep -c '\- \[x\]' "$PROJECT_ROOT/docs/planning/planlama-sprint-gecmis.md" 2>/dev/null || echo "0")
+TODO=$(grep -c '\- \[ \]' "$PROJECT_ROOT/YAPILACAKLAR.md" 2>/dev/null || echo "0")
 
 cat > "$RECAP" << EOF
 # Session Recap — $TIMESTAMP
@@ -30,7 +30,7 @@ $RECENT_COMMITS
 - Kalan görev: $TODO
 
 ### Sıradaki
-- planlama.md'deki ilk açık (\`- [ ]\`) tick'ten devam et
+- YAPILACAKLAR.md'deki blokör maddelerden devam et
 EOF
 
 echo "📝 Session recap güncellendi: $RECAP"

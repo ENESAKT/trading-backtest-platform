@@ -55,8 +55,10 @@ Varsayilan ilk adimlar:
 2. Kullanici istegine gore en fazla 3 dosya sec ve nedenini yaz.
 3. Plan ver; uygulama icin onay bekle.
 
-`planlama.md`, `ROADMAP.md`, handoff dosyalari ve test dosyalari yalnizca gerekli
-oldugunda okunur. Her oturumda otomatik olarak buyuk plan dosyalari okunmaz.
+`docs/planning/planlama.md`, `docs/planning/genelplanlama.md` ve diger alt plan
+dosyalari yalnizca gerekli oldugunda okunur. Her oturumda otomatik olarak buyuk
+plan dosyalari okunmaz. Aktif referans: `YAPILANLAR.md` (envanter) ve
+`YAPILACAKLAR.md` (kalan isler + guvenlik + deploy).
 
 ## Test ve Build Politikasi
 

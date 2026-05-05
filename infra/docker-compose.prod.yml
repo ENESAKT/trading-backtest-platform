@@ -9,7 +9,7 @@ services:
       - "80:80"
       - "443:443"
     volumes:
-      - ../nginx.conf:/etc/nginx/nginx.conf:ro
+      - ../docker/nginx.conf:/etc/nginx/nginx.conf:ro
       # TLS sertifikaları için (Certbot vs entegre edildiyse)
       # - ./certbot/conf:/etc/letsencrypt
       # - ./certbot/www:/var/www/certbot
@@ -25,7 +25,7 @@ services:
     # Çoklu aşamalı (multi-stage) build ile dist hizmeti veren container
     build:
       context: ../
-      dockerfile: piyasapilot-v2/Dockerfile.prod
+      dockerfile: docker/Dockerfile.frontend
     container_name: piyasapilot_frontend_prod
     restart: unless-stopped
     networks:
@@ -35,7 +35,7 @@ services:
   api:
     build:
       context: ../
-      dockerfile: Dockerfile.api
+      dockerfile: docker/Dockerfile.api
     container_name: piyasapilot_api_prod
     env_file:
       - ../.env.production
@@ -49,7 +49,7 @@ services:
   workers:
     build:
       context: ../
-      dockerfile: Dockerfile.workers
+      dockerfile: docker/Dockerfile.workers
     container_name: piyasapilot_workers_prod
     env_file:
       - ../.env.production
@@ -71,9 +71,10 @@ services:
   clickhouse:
     image: clickhouse/clickhouse-server:24.3-alpine
     container_name: pp_clickhouse_prod
-    ports:
-      - "8123:8123"
-      - "9000:9000"
+    # Portlar sadece internal network — dışarı expose edilmez
+    expose:
+      - "8123"
+      - "9000"
     environment:
       - CLICKHOUSE_USER=${CLICKHOUSE_USER:-default}
       - CLICKHOUSE_PASSWORD=${CLICKHOUSE_PASSWORD:-}
@@ -98,8 +99,9 @@ services:
   mysql:
     image: mysql:8.0
     container_name: pp_mysql_prod
-    ports:
-      - "3306:3306"
+    # Port sadece internal network — dışarı expose edilmez
+    expose:
+      - "3306"
     environment:
       - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD:-root}
       - MYSQL_DATABASE=${MYSQL_DB:-piyasapilot}
@@ -120,8 +122,9 @@ services:
   redis:
     image: redis:7-alpine
     container_name: pp_redis_prod
-    ports:
-      - "6379:6379"
+    # Port sadece internal network — dışarı expose edilmez
+    expose:
+      - "6379"
     volumes:
       - redis_data:/data
     restart: unless-stopped

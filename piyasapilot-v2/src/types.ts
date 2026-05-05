@@ -194,6 +194,45 @@ export interface MonteCarloReport {
   warnings: string[];
 }
 
+export interface PortfolioLabSummary {
+  metrics: {
+    total_return_pct: number;
+    max_drawdown_pct: number;
+    profit_factor: number;
+    sharpe_like: number;
+    worst_period_pct: number;
+    monthly_returns: Record<string, number>;
+  };
+  strategy_count: number;
+  warnings: string[];
+}
+
+export interface PaperOperationSummary {
+  mode: string;
+  real_order_enabled: boolean;
+  preflight: {
+    checklist: Record<string, boolean>;
+    ready_to_start: boolean;
+    warnings: string[];
+  };
+  last_signal: Signal | null;
+  warnings: string[];
+}
+
+export interface LifecycleRiskCard {
+  type: string;
+  severity: string;
+  title: string;
+  description: string;
+}
+
+export interface LifecycleSummary {
+  state: string;
+  next_step: string;
+  risk_cards: LifecycleRiskCard[];
+  postmortem_ready: boolean;
+}
+
 export interface StrategySpec {
   name?: string;
   note?: string;
@@ -245,6 +284,9 @@ export interface BacktestResult {
   quality_score?: number;
   walk_forward_report?: WalkForwardReport;
   monte_carlo_report?: MonteCarloReport;
+  portfolio_lab_summary?: PortfolioLabSummary;
+  paper_operation_summary?: PaperOperationSummary;
+  lifecycle_summary?: LifecycleSummary;
   metrics: BacktestMetrics;
   equity_curve: EquityPoint[];
   trades: BacktestTrade[];

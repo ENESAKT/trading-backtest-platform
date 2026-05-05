@@ -2,7 +2,7 @@
 
 > Sprint 0–12 tamamlandı (bkz. `planlama-sprint-gecmis.md`).
 > Bu dosya aktif geliştirme sırasını ve önceliklerini gösterir.
-> Tarih: 2026-05-02
+> Tarih: 2026-05-03
 
 ---
 
@@ -101,7 +101,7 @@ Yeni dosyalar eklenir, `app.ts`'e iki sekme bağlanır. Sinyaller sekmesi `5` ol
 | M6 | "Grafikte Aç" köprüsü | Düşük |
 | M7 | BIST 100'e genişleme | Düşük |
 
-**Kabul:** THYAO seçilince bilanço, gelir tablosu, finansal oranlar görünür; "Grafikte Aç" ChartPanel'i açar.
+**Kabul:** Metadata-only v1'de THYAO seçilince şirket adı, kaynak durumu ve KAP/finansal tablo kaynağı bağlı değil empty state'i görünür; "Grafikte Aç" ve "Backtest'e Ekle" köprüleri çalışır. Gerçek bilanço, gelir tablosu ve oranlar KAP/provider fazına bağlıdır.
 
 ---
 
@@ -161,7 +161,7 @@ Her sprint öncesi `python -m pytest tests/ -q` tüm testler geçmeli.
 | Faz 0B | RCP-0...RCP-5 | ✅ Tamamlandı — Repo temizliği ve canlıya çıkış hazırlandı |
 | Faz 0C | ASM-0...ASM-4 | ✅ Tamamlandı — Skill ve mentor yapısı kuruldu |
 | Faz 1A | E1–E11 | ✅ Tamamlandı — Eğitimler paneli, 57 makale, arama/kategori, grafik ve preset köprüleri |
-| Faz 1B | Mali analiz eğitim OCR'ı | Ön koşul |
+| Faz 1B | Mali Analiz metadata/API/UI v1 | ✅ Tamamlandı — normalize sembol, universe, boş kontratlar, sekmeli UI ve şirket sidebar eklendi |
 | Faz 2 | G2 | ✅ Tamamlandı — ölçek menüsü, log/yüzde mod, yüzde baz ve iki pane testi |
 | Faz 2 | G3 | ✅ Çekirdek tamamlandı — indikatör merkezi, Stochastic paneli, parametre kalıcılığı |
 | Faz 2 | G4 | ✅ Tamamlandı — PnL çizgileri, trade bağlantıları, risk ve tavan/taban overlay |
@@ -179,12 +179,17 @@ Her sprint öncesi `python -m pytest tests/ -q` tüm testler geçmeli.
 | Faz 3 | B6 | ✅ Tamamlandı — Walk Forward Analysis raporu backend response ve StrategyPanel performans görünümüne bağlandı |
 | Faz 3 | B7 | ✅ Tamamlandı — Monte Carlo risk raporu backtest response ve StrategyPanel performans görünümüne bağlandı |
 | Faz 3 | B8 | ✅ Tamamlandı — Optimizasyon stabil bölge raporu backend optimize response ve StrategyPanel sonucuna bağlandı |
+| Faz 3 | B9 | ✅ Tamamlandı — Scanner v3 kontratı backtest scan API response'unda görünür |
+| Faz 3 | B10 | ✅ Tamamlandı — Portfolio Lab özeti backtest response ve StrategyPanel performans görünümüne bağlandı |
+| Faz 3 | B11 | ✅ Tamamlandı — Paper robot operasyon/preflight özeti gerçek emir yolu açmadan rapora bağlandı |
+| Faz 3 | B12 | ✅ Tamamlandı — Strategy Pack import/export API kontratı ve güvenli invalid paket reddi eklendi |
+| Faz 3 | B13 | ✅ Tamamlandı — Lifecycle ve risk kartları backtest response ve StrategyPanel sistem görünümüne bağlandı |
 
 ---
 
 ## Notlar
 
 - Her sprint tamamlanınca bu dosyada ilgili satır `✅` ile işaretlenir.
-- Faz 1 paralel gidebilir (Eğitimler ve Mali Analiz bağımsız).
+- Faz 1 paralel gidebilir (Eğitimler ve Mali Analiz bağımsız). Mali Analiz şu an metadata-only/API/UI v1 seviyesinde; gerçek finansal veri için KAP/provider fazı gerekir.
 - Faz 2 ve Faz 3 paralel gidebilir (frontend ve backend ayrı katmanlar).
-- Faz 3 B6–B13 en ağır kısım; WFA ve Monte Carlo backend'de yeni modüller gerektirir.
+- Faz 3 B1–B13 ürün entegrasyonu tamamlandı; sonraki iş QA/E2E sertleştirme ve canlı veri kapılarıdır.
