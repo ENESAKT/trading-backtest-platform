@@ -73,7 +73,7 @@ from backend.data.symbols import (
 )
 from backend.env_validator import validate_env
 from backend.mali_analiz.cache import FinancialAnalysisCache
-from backend.mali_analiz.harvester import harvest_if_stale, harvest_all
+from backend.mali_analiz.harvester import harvest_if_stale, harvest_all, recompute_ratios_from_stored
 from backend.mali_analiz.kap_provider import KapFinancialAnalysisProvider
 from backend.mali_analiz.repository import FinancialStatementRepository
 from backend.mali_analiz.service import FinancialAnalysisService
@@ -340,9 +340,9 @@ def create_app(
     ):
         market_data_facade = MarketDataFacade.from_env()
 
+    financial_repository = None  # her yolda tanımlı olsun
     if mali_analiz_service is None:
         ma_cache = FinancialAnalysisCache(ROOT / "data" / "cache" / "mali_analiz.sqlite3")
-        financial_repository = None
         if os.environ.get("PIYASAPILOT_DISABLE_FINANCIAL_REPOSITORY") != "1":
             financial_repository = FinancialStatementRepository()
             try:
@@ -1324,6 +1324,39 @@ def create_app(
         ok = sum(1 for v in results.values() if v == "ok")
         return {"triggered": len(targets), "ok": ok, "results": results}
 
+    @app.post("/api/mali-analiz/recompute")
+    async def recompute_mali_analiz_all() -> dict[str, Any]:
+        """Mevcut stored raw data'dan tüm BIST 30 için oranları yeniden hesaplar.
+
+        borsapy'ye gitmez — sadece MySQL'deki ham satırları kullanır.
+        """
+        if not _financial_repository_ref:
+            raise HTTPException(status_code=503, detail="Finansal repository hazır değil")
+        import asyncio as _aio
+        def _run():
+            results = {}
+            for sym in BIST_30_SYMBOLS:
+                results[sym] = recompute_ratios_from_stored(sym, _financial_repository_ref)
+            return results
+        results = await _aio.get_event_loop().run_in_executor(None, _run)
+        ok = sum(1 for v in results.values() if v == "ok")
+        return {"triggered": len(BIST_30_SYMBOLS), "ok": ok, "results": results}
+
+    @app.post("/api/mali-analiz/{symbol}/recompute")
+    async def recompute_mali_analiz_symbol(symbol: str) -> dict[str, Any]:
+        """Tek sembol için stored data'dan oran yeniden hesaplama."""
+        try:
+            normalized = normalize_symbol(symbol)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+        if not _financial_repository_ref:
+            raise HTTPException(status_code=503, detail="Finansal repository hazır değil")
+        import asyncio as _aio
+        result = await _aio.get_event_loop().run_in_executor(
+            None, recompute_ratios_from_stored, normalized, _financial_repository_ref
+        )
+        return {"symbol": normalized, "status": result}
+
     @app.post("/api/mali-analiz/{symbol}/refresh")
     async def refresh_mali_analiz_symbol(symbol: str) -> dict[str, Any]:
         """Tek sembol için veri yenileme tetikler."""
@@ -1495,6 +1528,167 @@ def create_app(
             for r in ratios
         ]
         return {"symbol": normalized, "metric": metric, "points": points, "source": "borsapy"}
+
+    @app.get("/api/mali-analiz/{symbol}/chart-data")
+    def get_mali_analiz_chart_data(
+        symbol: str,
+        limit: int = 16,
+    ) -> dict[str, Any]:
+        """Lightweight-charts için finansal zaman serisi döner.
+
+        Her metrik: [{period, time_iso, value}] (kronolojik, eskiden yeniye)
+        time_iso: lightweight-charts'ın kabul ettiği 'YYYY-MM-DD' formatında.
+        """
+        try:
+            normalized = normalize_symbol(symbol)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+
+        if not _financial_repository_ref:
+            return {"symbol": normalized, "metrics": {}, "source": "no_db"}
+
+        # Çekilen oranlar (son limit çeyrek)
+        CHART_METRICS = [
+            "net_kar_marji", "brut_kar_marji", "ebitda_marji",
+            "roe", "roa",
+            "ciro_buyume", "net_kar_buyume",
+            "net_borc_ebitda", "borc_ozkaynak",
+            "cari_oran",
+        ]
+        ratio_rows = _financial_repository_ref.get_computed_ratios(normalized, ratio_keys=CHART_METRICS)
+
+        # Ham gelir tablosu — ciro ve net kar absolute değerler için
+        income_rows = _financial_repository_ref.get_raw_rows(normalized, "income_stmt", "quarterly")
+
+        def _period_to_iso(period: str) -> str | None:
+            """'2023Q1' → '2023-01-01', '2023/12' → '2023-12-01'"""
+            import re
+            m = re.match(r"(\d{4})Q(\d)", period)
+            if m:
+                quarter_month = {"1": "01", "2": "04", "3": "07", "4": "10"}
+                return f"{m.group(1)}-{quarter_month.get(m.group(2), '01')}-01"
+            m2 = re.match(r"(\d{4})/(\d{2})", period)
+            if m2:
+                return f"{m2.group(1)}-{m2.group(2)}-01"
+            return None
+
+        # Oran serileri
+        metrics: dict[str, list[dict]] = {k: [] for k in CHART_METRICS}
+        seen: dict[str, set] = {k: set() for k in CHART_METRICS}
+        for row in ratio_rows:
+            key = row.get("ratio_key", "")
+            if key not in metrics:
+                continue
+            period = row.get("period", "")
+            if period in seen[key]:
+                continue
+            seen[key].add(period)
+            iso = _period_to_iso(period)
+            if iso and row.get("value") is not None:
+                metrics[key].append({"period": period, "time": iso, "value": float(row["value"])})
+
+        for key in metrics:
+            metrics[key].sort(key=lambda x: x["time"])
+            metrics[key] = metrics[key][-limit:]
+
+        # Ciro (revenue) ve Net Kar ham değerleri — row_index 1 ve 35
+        rev_series: list[dict] = []
+        ni_series: list[dict] = []
+        rev_by_period: dict[str, float] = {}
+        ni_by_period: dict[str, float] = {}
+        for row in income_rows:
+            period = row.get("period", "")
+            idx = row.get("row_index")
+            val = row.get("value")
+            if val is None:
+                continue
+            fval = float(val)
+            if idx == 1:
+                rev_by_period[period] = fval
+            elif idx == 35:
+                ni_by_period[period] = fval
+
+        for period, val in sorted(rev_by_period.items())[-limit:]:
+            iso = _period_to_iso(period)
+            if iso:
+                rev_series.append({"period": period, "time": iso, "value": val})
+        for period, val in sorted(ni_by_period.items())[-limit:]:
+            iso = _period_to_iso(period)
+            if iso:
+                ni_series.append({"period": period, "time": iso, "value": val})
+
+        metrics["revenue"] = rev_series
+        metrics["net_income"] = ni_series
+
+        return {"symbol": normalized, "metrics": metrics, "source": "borsapy"}
+
+    @app.get("/api/mali-analiz/comparison")
+    def get_mali_analiz_comparison() -> dict[str, Any]:
+        """BIST 30 karşılaştırma tablosu — tüm semboller için son dönem oranları.
+
+        Dönüş:
+          comparison_keys: gösterilecek oran sırası
+          symbols: [{symbol, name, period, ratios:{key:{value,unit}}}]
+        """
+        COMPARISON_KEYS = [
+            "fk", "pd_dd", "ev_ebitda",
+            "roe", "net_kar_marji", "brut_kar_marji",
+            "ciro_buyume", "net_kar_buyume",
+            "net_borc_ebitda", "borc_ozkaynak",
+            "cari_oran", "fcf_marji",
+        ]
+        KEY_META = {
+            "fk":             ("F/K",         "x"),
+            "pd_dd":          ("PD/DD",        "x"),
+            "ev_ebitda":      ("EV/EBITDA",    "x"),
+            "roe":            ("ROE",          "%"),
+            "net_kar_marji":  ("NK Marjı",     "%"),
+            "brut_kar_marji": ("Brüt Marj",    "%"),
+            "ciro_buyume":    ("Ciro Büy.",    "%"),
+            "net_kar_buyume": ("NK Büy.",      "%"),
+            "net_borc_ebitda":("ND/EBITDA",    "x"),
+            "borc_ozkaynak":  ("Borç/ÖK",      "x"),
+            "cari_oran":      ("Cari Oran",    "x"),
+            "fcf_marji":      ("FCF Marjı",    "%"),
+        }
+
+        if not _financial_repository_ref:
+            return {"comparison_keys": COMPARISON_KEYS, "key_meta": KEY_META, "symbols": [], "source": "no_db"}
+
+        rows = _financial_repository_ref.get_latest_ratios_all_symbols(
+            BIST_30_SYMBOLS, COMPARISON_KEYS
+        )
+
+        # {symbol: {period, ratios:{key:{value,unit}}}}
+        by_symbol: dict[str, dict] = {}
+        for row in rows:
+            sym = row["symbol"]
+            if sym not in by_symbol:
+                by_symbol[sym] = {"period": row.get("period", ""), "ratios": {}}
+            key = row["ratio_key"]
+            if key in KEY_META:
+                by_symbol[sym]["ratios"][key] = {
+                    "value": float(row["value"]) if row["value"] is not None else None,
+                    "unit":  KEY_META[key][1],
+                }
+
+        symbols_out = []
+        for sym in BIST_30_SYMBOLS:
+            entry = by_symbol.get(sym, {})
+            symbols_out.append({
+                "symbol":  sym,
+                "name":    SYMBOL_METADATA.get(sym, sym),
+                "period":  entry.get("period", ""),
+                "ratios":  entry.get("ratios", {}),
+                "has_data": sym in by_symbol,
+            })
+
+        return {
+            "comparison_keys": COMPARISON_KEYS,
+            "key_meta": {k: {"label": v[0], "unit": v[1]} for k, v in KEY_META.items()},
+            "symbols": symbols_out,
+            "source": "borsapy",
+        }
 
     # ── Statik dosyalar (SPA / index.html) ───────────────────────────────
     # Mount en sona; daha spesifik /api/* route'larını gölgelemesin diye.

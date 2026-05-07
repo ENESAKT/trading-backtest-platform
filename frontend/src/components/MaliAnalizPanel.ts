@@ -1,22 +1,23 @@
 /**
  * MaliAnalizPanel — Fastweb / Yaşar Erdinç tarzı finansal analiz paneli.
  *
- * Sekmeler: Özet + Direktifler | Bilanço | Gelir Tablosu | Nakit Akışı | Oranlar
- * Özellikler:
- *   - Startup'ta otomatik veri kontrolü
- *   - Manuel "Yenile" butonu (tek sembol veya tüm BIST 30)
- *   - Yeni açıklanan bilançolar tablosu
- *   - Direktif / uyarı kartları (yüksek borç, ucuz değerleme vb.)
- *   - Tüm tablolar: dönem × kalem pivot
+ * Sekmeler: Özet | Karşılaştırma | Bilanço | Gelir | Nakit | Oranlar | Grafikler
  */
 
-type TabId = 'summary' | 'balance' | 'income' | 'cashflow' | 'ratios';
+import { createChart, ColorType, LineStyle } from 'lightweight-charts';
+import type { IChartApi, ISeriesApi, UTCTimestamp } from 'lightweight-charts';
+
+type TabId = 'summary' | 'comparison' | 'balance' | 'income' | 'cashflow' | 'ratios' | 'charts';
 
 interface FetchStatus { status: string; last_period?: string; fetched_at?: string; periods_fetched?: number }
 interface UniverseSymbol { symbol: string; name: string; fetch_status: FetchStatus }
 interface Alert { id: number; symbol: string; alert_type: string; title: string; body: string; severity: string; period: string; metric_key: string; metric_value: number; created_at: string; is_read: boolean }
 interface RatioRow { key: string; name: string; value: number | null; unit: string; category: string; period: string }
 interface TableRow { row_index: number; label: string; values: Record<string, number | null> }
+interface ComparisonRatioValue { value: number | null; unit: string }
+interface ComparisonSymbol { symbol: string; name: string; period: string; ratios: Record<string, ComparisonRatioValue>; has_data: boolean }
+interface ComparisonKeyMeta { label: string; unit: string }
+interface ComparisonResponse { comparison_keys: string[]; key_meta: Record<string, ComparisonKeyMeta>; symbols: ComparisonSymbol[]; source: string }
 
 const API = '/api/mali-analiz';
 
@@ -54,7 +55,6 @@ function fmtBig(v: number): string {
 
 function colorClass(val: number | null, unit: string, key: string): string {
   if (val === null) return '';
-  // Borç oranları için ters renk
   if (['net_borc_ebitda', 'borc_ozkaynak'].includes(key)) {
     return val > 3 ? 'val-danger' : val > 1.5 ? 'val-warn' : 'val-good';
   }
@@ -63,8 +63,22 @@ function colorClass(val: number | null, unit: string, key: string): string {
   }
   if (key === 'fk') return val < 6 ? 'val-good' : val < 15 ? 'val-neutral' : 'val-warn';
   if (key === 'pd_dd') return val < 1 ? 'val-good' : val < 3 ? 'val-neutral' : 'val-warn';
+  if (key === 'ev_ebitda') return val < 5 ? 'val-good' : val < 12 ? 'val-neutral' : 'val-warn';
+  if (key === 'cari_oran') return val > 2 ? 'val-good' : val > 1 ? 'val-neutral' : 'val-danger';
+  if (key === 'faiz_karsilama') return val > 3 ? 'val-good' : val > 1 ? 'val-neutral' : 'val-danger';
   return '';
 }
+
+function deltaArrow(curr: number | null, prev: number | null): string {
+  if (curr === null || prev === null || prev === 0) return '';
+  const pct = ((curr - prev) / Math.abs(prev)) * 100;
+  const cls = pct >= 0 ? 'delta-up' : 'delta-down';
+  const arrow = pct >= 0 ? '▲' : '▼';
+  return ` <span class="${cls}">${arrow}${Math.abs(pct).toFixed(1)}%</span>`;
+}
+
+interface ChartPoint { period: string; time: string; value: number }
+interface ChartDataResponse { symbol: string; metrics: Record<string, ChartPoint[]>; source: string }
 
 export class MaliAnalizPanel {
   private container: HTMLElement;
@@ -73,6 +87,8 @@ export class MaliAnalizPanel {
   private universe: UniverseSymbol[] = [];
   private universeQuery = '';
   private refreshing = false;
+  private comparisonSortKey = 'symbol';
+  private comparisonSortAsc = true;
 
   // DOM refs
   private titleEl!: HTMLElement;
@@ -82,10 +98,12 @@ export class MaliAnalizPanel {
   private refreshBtnEl!: HTMLButtonElement;
   private refreshAllBtnEl!: HTMLButtonElement;
 
+  private _charts: IChartApi[] = [];
+
   constructor(container: HTMLElement) {
     this.container = container;
     this.render();
-    this.loadUniverse();
+    this.loadUniverse().then(() => this.autoFetchIfNeeded());
     this.loadTab();
   }
 
@@ -115,10 +133,12 @@ export class MaliAnalizPanel {
           </div>
           <div class="ma-tabs" id="ma-tabs">
             <button class="ma-tab active" data-tab="summary">Özet</button>
+            <button class="ma-tab" data-tab="comparison">BIST 30</button>
             <button class="ma-tab" data-tab="balance">Bilanço</button>
             <button class="ma-tab" data-tab="income">Gelir</button>
             <button class="ma-tab" data-tab="cashflow">Nakit</button>
             <button class="ma-tab" data-tab="ratios">Oranlar</button>
+            <button class="ma-tab" data-tab="charts">Grafikler</button>
           </div>
           <div class="ma-body" id="ma-body">
             <div class="ma-loading">Veriler yükleniyor…</div>
@@ -196,6 +216,19 @@ export class MaliAnalizPanel {
     });
   }
 
+  // ── Auto-fetch ─────────────────────────────────────────────────────────────
+
+  private async autoFetchIfNeeded(): Promise<void> {
+    const sym = this.universe.find(s => s.symbol === this.currentSymbol);
+    if (sym && sym.fetch_status.status === 'no_data') {
+      this.statusBadgeEl.className = 'ma-status-badge badge-info';
+      this.statusBadgeEl.textContent = '↓ Veri çekiliyor…';
+      await this.doRefreshSymbol(this.currentSymbol, false);
+      await this.loadUniverse();
+      this.loadTab();
+    }
+  }
+
   // ── Symbol selection ────────────────────────────────────────────────────────
 
   private selectSymbol(symbol: string): void {
@@ -203,7 +236,17 @@ export class MaliAnalizPanel {
     this.titleEl.innerHTML = `<span class="ma-sym-code">${symbol}</span>
       <span class="ma-sym-fullname">${this.universe.find(s => s.symbol === symbol)?.name || ''}</span>`;
     this.renderUniverseList();
-    this.loadTab();
+    // Auto-fetch eğer veri yoksa
+    const sym = this.universe.find(s => s.symbol === symbol);
+    if (sym && sym.fetch_status.status === 'no_data') {
+      this.statusBadgeEl.className = 'ma-status-badge badge-info';
+      this.statusBadgeEl.textContent = '↓ Veri çekiliyor…';
+      this.doRefreshSymbol(symbol, false).then(() => {
+        this.loadUniverse().then(() => this.loadTab());
+      });
+    } else {
+      this.loadTab();
+    }
   }
 
   /** Dışarıdan (örn. grafik panelinden) sembol yüklemek için public API. */
@@ -222,13 +265,17 @@ export class MaliAnalizPanel {
   }
 
   private loadTab(): void {
+    this._charts.forEach(c => c.remove());
+    this._charts = [];
     this.bodyEl.innerHTML = '<div class="ma-loading">Yükleniyor…</div>';
     switch (this.activeTab) {
-      case 'summary':   this.loadSummary();   break;
-      case 'balance':   this.loadStatement('balance-sheet', 'Bilanço');       break;
-      case 'income':    this.loadStatement('income-stmt',   'Gelir Tablosu'); break;
-      case 'cashflow':  this.loadStatement('cashflow',      'Nakit Akışı');   break;
-      case 'ratios':    this.loadRatios();    break;
+      case 'summary':    this.loadSummary();   break;
+      case 'comparison': this.loadComparison(); break;
+      case 'balance':    this.loadStatement('balance-sheet', 'Bilanço');       break;
+      case 'income':     this.loadStatement('income-stmt',   'Gelir Tablosu'); break;
+      case 'cashflow':   this.loadStatement('cashflow',      'Nakit Akışı');   break;
+      case 'ratios':     this.loadRatios();    break;
+      case 'charts':     this.loadCharts();    break;
     }
   }
 
@@ -320,6 +367,119 @@ export class MaliAnalizPanel {
     </div>`;
   }
 
+  // ── BIST 30 Karşılaştırma sekmesi ─────────────────────────────────────────
+
+  private async loadComparison(): Promise<void> {
+    try {
+      const resp = await fetch(`${API}/comparison`);
+      const data: ComparisonResponse = await resp.json();
+      this.renderComparisonTable(data);
+    } catch (e) {
+      this.bodyEl.innerHTML = `<div class="ma-error">Karşılaştırma yüklenemedi: ${e}</div>`;
+    }
+  }
+
+  private renderComparisonTable(data: ComparisonResponse): void {
+    const { comparison_keys, key_meta, symbols } = data;
+    const hasData = symbols.filter(s => s.has_data);
+    const noData  = symbols.filter(s => !s.has_data);
+
+    if (!hasData.length) {
+      this.bodyEl.innerHTML = `<div class="ma-empty-block">
+        Henüz hiçbir sembol için veri çekilmedi.<br>
+        Sol taraftan sembol seçin ve "Yenile" ile veri çekin,<br>
+        veya "⟳ BIST 30" ile tümünü güncelleyin.
+      </div>`;
+      return;
+    }
+
+    // Sıralama
+    const sortedSymbols = [...hasData].sort((a, b) => {
+      if (this.comparisonSortKey === 'symbol') {
+        return this.comparisonSortAsc
+          ? a.symbol.localeCompare(b.symbol)
+          : b.symbol.localeCompare(a.symbol);
+      }
+      const va = a.ratios[this.comparisonSortKey]?.value ?? null;
+      const vb = b.ratios[this.comparisonSortKey]?.value ?? null;
+      if (va === null && vb === null) return 0;
+      if (va === null) return 1;
+      if (vb === null) return -1;
+      return this.comparisonSortAsc ? va - vb : vb - va;
+    });
+
+    const sortArrow = (key: string) => {
+      if (this.comparisonSortKey !== key) return '';
+      return this.comparisonSortAsc ? ' ▲' : ' ▼';
+    };
+
+    const headerCells = comparison_keys.map(k => {
+      const meta = key_meta[k];
+      return `<th class="ma-cmp-sortable" data-sort="${k}">${meta?.label || k}${sortArrow(k)}</th>`;
+    }).join('');
+
+    const bodyRows = sortedSymbols.map(s => {
+      const isActive = s.symbol === this.currentSymbol ? ' class="ma-cmp-row-active"' : '';
+      const cells = comparison_keys.map(k => {
+        const r = s.ratios[k];
+        if (!r || r.value === null) return '<td class="ma-num">—</td>';
+        const cls = colorClass(r.value, r.unit, k);
+        return `<td class="ma-num ${cls}">${fmt(r.value, r.unit)}</td>`;
+      }).join('');
+      return `<tr${isActive} data-symbol="${s.symbol}">
+        <td class="ma-cmp-symbol"><strong>${s.symbol}</strong><span class="ma-cmp-name">${s.name}</span></td>
+        <td class="ma-cmp-period">${s.period}</td>
+        ${cells}
+      </tr>`;
+    }).join('');
+
+    const noDataNote = noData.length
+      ? `<div class="ma-cmp-nodata">Veri çekilmemiş: ${noData.map(s => s.symbol).join(', ')}</div>`
+      : '';
+
+    this.bodyEl.innerHTML = `
+      <div class="ma-table-header">
+        <span class="ma-table-title">BIST 30 Finansal Karşılaştırma — ${hasData.length} şirket</span>
+        <span class="ma-table-source">Sütun başlığına tıkla: sırala</span>
+      </div>
+      ${noDataNote}
+      <div class="ma-table-wrap">
+        <table class="ma-table ma-cmp-table">
+          <thead>
+            <tr>
+              <th class="ma-cmp-sortable" data-sort="symbol">Şirket${sortArrow('symbol')}</th>
+              <th>Dönem</th>
+              ${headerCells}
+            </tr>
+          </thead>
+          <tbody>${bodyRows}</tbody>
+        </table>
+      </div>`;
+
+    // Sıralama dinleyicisi
+    this.bodyEl.querySelectorAll('.ma-cmp-sortable').forEach(th => {
+      th.addEventListener('click', () => {
+        const key = (th as HTMLElement).dataset.sort!;
+        if (this.comparisonSortKey === key) {
+          this.comparisonSortAsc = !this.comparisonSortAsc;
+        } else {
+          this.comparisonSortKey = key;
+          this.comparisonSortAsc = true;
+        }
+        this.renderComparisonTable(data);
+      });
+    });
+
+    // Satıra tıkla → sembol seç
+    this.bodyEl.querySelectorAll('tr[data-symbol]').forEach(row => {
+      row.addEventListener('click', () => {
+        const sym = (row as HTMLElement).dataset.symbol!;
+        this.selectSymbol(sym);
+        this.switchTab('summary');
+      });
+    });
+  }
+
   // ── Tablo sekmeleri (bilanço / gelir / nakit) ──────────────────────────────
 
   private async loadStatement(endpoint: string, title: string): Promise<void> {
@@ -336,9 +496,12 @@ export class MaliAnalizPanel {
 
       const headerCells = periods.map(p => `<th>${p}</th>`).join('');
       const bodyRows = rows.map(r => {
-        const valueCells = periods.map(p => {
-          const v = r.values[p];
-          return `<td class="ma-num">${v !== null && v !== undefined ? fmtBig(v) : '—'}</td>`;
+        const vals = periods.map(p => r.values[p] ?? null);
+        const valueCells = vals.map((v, i) => {
+          if (v === null || v === undefined) return '<td class="ma-num">—</td>';
+          const prev = vals[i + 1] ?? null;
+          const arrow = deltaArrow(v, prev);
+          return `<td class="ma-num">${fmtBig(v)}${arrow}</td>`;
         }).join('');
         return `<tr><td class="ma-label">${r.label}</td>${valueCells}</tr>`;
       }).join('');
@@ -373,15 +536,6 @@ export class MaliAnalizPanel {
         return;
       }
 
-      // Kategorilere göre grupla
-      const byCategory: Record<string, RatioRow[]> = {};
-      for (const r of ratios) {
-        const cat = r.category || 'diger';
-        if (!byCategory[cat]) byCategory[cat] = [];
-        byCategory[cat].push(r);
-      }
-
-      // Dönem × oran pivot
       const ratiosByKey: Record<string, Record<string, RatioRow>> = {};
       const allKeys: string[] = [];
       for (const r of ratios) {
@@ -395,7 +549,7 @@ export class MaliAnalizPanel {
       let html = `
         <div class="ma-table-header">
           <span class="ma-table-title">Finansal Oranlar — ${this.currentSymbol}</span>
-          <span class="ma-table-source">Son ${periods.length} çeyrek</span>
+          <span class="ma-table-source">Son ${periods.length} çeyrek · ▲/▼ dönemden döneme değişim</span>
         </div>
         <div class="ma-table-wrap">
           <table class="ma-table ma-ratio-table">
@@ -412,11 +566,14 @@ export class MaliAnalizPanel {
         }
         for (const key of keysInCat) {
           const sample = ratiosByKey[key][periods[0]];
-          const cells = periods.map(p => {
+          const cells = periods.map((p, i) => {
             const r = ratiosByKey[key]?.[p];
             if (!r) return '<td>—</td>';
             const cls = colorClass(r.value, r.unit, r.key);
-            return `<td class="ma-num ${cls}">${fmt(r.value, r.unit)}</td>`;
+            const prevPeriod = periods[i + 1];
+            const prevR = prevPeriod ? ratiosByKey[key]?.[prevPeriod] : undefined;
+            const arrow = prevR ? deltaArrow(r.value, prevR.value) : '';
+            return `<td class="ma-num ${cls}">${fmt(r.value, r.unit)}${arrow}</td>`;
           }).join('');
           html += `<tr><td class="ma-ratio-name">${sample?.name || key}</td>${cells}</tr>`;
         }
@@ -429,6 +586,99 @@ export class MaliAnalizPanel {
     }
   }
 
+  // ── Grafikler sekmesi ───────────────────────────────────────────────────────
+
+  private async loadCharts(): Promise<void> {
+    try {
+      const resp = await fetch(`${API}/${this.currentSymbol}/chart-data?limit=20`);
+      const data: ChartDataResponse = await resp.json();
+      const m = data.metrics || {};
+
+      const CHART_DEFS: { key: string; title: string; unit: string; type: 'bar' | 'line' }[] = [
+        { key: 'revenue',        title: 'Ciro (Satış Gelirleri)',   unit: 'TRY', type: 'bar'  },
+        { key: 'net_income',     title: 'Net Kar',                  unit: 'TRY', type: 'bar'  },
+        { key: 'ebitda',         title: 'EBITDA',                   unit: 'TRY', type: 'bar'  },
+        { key: 'net_kar_marji',  title: 'Net Kar Marjı',            unit: '%',   type: 'line' },
+        { key: 'brut_kar_marji', title: 'Brüt Kar Marjı',           unit: '%',   type: 'line' },
+        { key: 'ebitda_marji',   title: 'EBITDA Marjı',             unit: '%',   type: 'line' },
+        { key: 'roe',            title: 'ROE (Özkaynak Karlılığı)', unit: '%',   type: 'line' },
+        { key: 'roa',            title: 'ROA (Aktif Karlılık)',      unit: '%',   type: 'line' },
+        { key: 'ciro_buyume',    title: 'Ciro Büyümesi (YoY)',       unit: '%',   type: 'bar'  },
+        { key: 'net_kar_buyume', title: 'Net Kar Büyümesi (YoY)',    unit: '%',   type: 'bar'  },
+        { key: 'net_borc_ebitda',title: 'Net Borç / EBITDA',         unit: 'x',   type: 'line' },
+        { key: 'borc_ozkaynak',  title: 'Borç / Özkaynak',          unit: 'x',   type: 'line' },
+        { key: 'cari_oran',      title: 'Cari Oran',                 unit: 'x',   type: 'line' },
+        { key: 'fcf_marji',      title: 'FCF Marjı',                 unit: '%',   type: 'line' },
+      ];
+
+      const active = CHART_DEFS.filter(d => (m[d.key] || []).length > 0);
+
+      if (!active.length) {
+        this.bodyEl.innerHTML = '<div class="ma-empty-block">Grafik verisi yok — önce "Yenile" ile veri çekin.</div>';
+        return;
+      }
+
+      this.bodyEl.innerHTML = `
+        <div class="ma-chart-grid">
+          ${active.map(d => `
+            <div class="ma-chart-block">
+              <div class="ma-chart-title">${d.title}</div>
+              <div class="ma-chart-canvas" id="ma-chart-${d.key}"></div>
+            </div>`).join('')}
+        </div>`;
+
+      const darkTheme = {
+        layout: { background: { type: ColorType.Solid, color: '#1a1d27' }, textColor: '#c4c9d6' },
+        grid: { vertLines: { color: '#2a2d3e' }, horzLines: { color: '#2a2d3e' } },
+        rightPriceScale: { borderColor: '#2a2d3e' },
+        timeScale: { borderColor: '#2a2d3e', timeVisible: false },
+      };
+
+      for (const def of active) {
+        const el = this.bodyEl.querySelector(`#ma-chart-${def.key}`) as HTMLElement;
+        if (!el) continue;
+
+        const chart = createChart(el, {
+          ...darkTheme,
+          width: el.clientWidth || 340,
+          height: 160,
+          handleScroll: false,
+          handleScale: false,
+        });
+        this._charts.push(chart);
+
+        const points = m[def.key]
+          .filter(p => p.value !== null && p.value !== undefined)
+          .map(p => ({ time: p.time as unknown as UTCTimestamp, value: p.value }));
+
+        if (def.type === 'bar') {
+          const series = chart.addHistogramSeries({
+            color: '#3a86ff',
+            priceFormat: { type: 'custom', formatter: (v: number) => _fmtChartVal(v, def.unit) },
+          }) as ISeriesApi<'Histogram'>;
+          series.setData(points.map(p => ({
+            time: p.time,
+            value: p.value,
+            color: p.value >= 0 ? '#26c97e' : '#ef4444',
+          })));
+        } else {
+          const color = def.key.includes('borc') ? '#ef4444' : '#3a86ff';
+          const series = chart.addLineSeries({
+            color,
+            lineWidth: 2,
+            lineStyle: LineStyle.Solid,
+            priceFormat: { type: 'custom', formatter: (v: number) => _fmtChartVal(v, def.unit) },
+          }) as ISeriesApi<'Line'>;
+          series.setData(points);
+        }
+
+        chart.timeScale().fitContent();
+      }
+    } catch (e) {
+      this.bodyEl.innerHTML = `<div class="ma-error">Grafikler yüklenemedi: ${e}</div>`;
+    }
+  }
+
   // ── Refresh ─────────────────────────────────────────────────────────────────
 
   private async refreshSymbol(): Promise<void> {
@@ -436,31 +686,38 @@ export class MaliAnalizPanel {
     this.refreshing = true;
     this.refreshBtnEl.disabled = true;
     this.refreshBtnEl.textContent = '⟳ İndiriliyor…';
-    this.statusBadgeEl.textContent = 'Güncelleniyor…';
+    await this.doRefreshSymbol(this.currentSymbol, true);
+    this.refreshing = false;
+    this.refreshBtnEl.disabled = false;
+    this.refreshBtnEl.textContent = '⟳ Yenile';
+  }
+
+  private async doRefreshSymbol(symbol: string, updateBadge: boolean): Promise<void> {
+    if (updateBadge) {
+      this.statusBadgeEl.textContent = 'Güncelleniyor…';
+    }
     try {
-      const resp = await fetch(`${API}/${this.currentSymbol}/refresh`, { method: 'POST' });
+      const resp = await fetch(`${API}/${symbol}/refresh`, { method: 'POST' });
       const data = await resp.json();
-      if (data.status === 'ok') {
-        this.statusBadgeEl.className = 'ma-status-badge badge-success';
-        this.statusBadgeEl.textContent = '✓ Güncellendi';
-      } else {
-        this.statusBadgeEl.className = 'ma-status-badge badge-warning';
-        this.statusBadgeEl.textContent = '⚠ ' + (data.status || 'Hata');
+      if (updateBadge) {
+        if (data.status === 'ok') {
+          this.statusBadgeEl.className = 'ma-status-badge badge-success';
+          this.statusBadgeEl.textContent = '✓ Güncellendi';
+        } else {
+          this.statusBadgeEl.className = 'ma-status-badge badge-warning';
+          this.statusBadgeEl.textContent = '⚠ ' + (data.status || 'Hata');
+        }
+        await this.loadUniverse();
+        this.loadTab();
       }
-      await this.loadUniverse();
-      this.loadTab();
-    } catch (e) {
-      this.statusBadgeEl.textContent = '✗ Hata';
-    } finally {
-      this.refreshing = false;
-      this.refreshBtnEl.disabled = false;
-      this.refreshBtnEl.textContent = '⟳ Yenile';
+    } catch {
+      if (updateBadge) this.statusBadgeEl.textContent = '✗ Hata';
     }
   }
 
   private async refreshAll(): Promise<void> {
     if (this.refreshing) return;
-    if (!confirm('Tüm BIST 30 bilançoları güncelleniyor (~5 dk). Devam edilsin mi?')) return;
+    if (!confirm('Tüm BIST 30 bilançoları güncelleniyor (~5-10 dk). Devam edilsin mi?')) return;
     this.refreshing = true;
     this.refreshAllBtnEl.disabled = true;
     this.refreshAllBtnEl.textContent = '⟳ BIST 30 indiriliyor…';
@@ -503,4 +760,17 @@ export class MaliAnalizPanel {
       el.textContent = status.last_period || status.status;
     }
   }
+}
+
+function _fmtChartVal(v: number, unit: string): string {
+  if (unit === '%') return `${v.toFixed(1)}%`;
+  if (unit === 'x')  return `${v.toFixed(2)}x`;
+  if (unit === 'TRY') {
+    const abs = Math.abs(v);
+    const sign = v < 0 ? '-' : '';
+    if (abs >= 1e9)  return `${sign}${(abs / 1e9).toFixed(1)}Mr`;
+    if (abs >= 1e6)  return `${sign}${(abs / 1e6).toFixed(0)}Mn`;
+    return `${sign}${abs.toFixed(0)}`;
+  }
+  return v.toFixed(2);
 }

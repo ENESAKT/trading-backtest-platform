@@ -130,17 +130,58 @@ class FinancialStatementRepository:
             return None
 
     def get_all_fetch_status(self) -> list[dict]:
-        """Tüm semboller için son çekim durumunu döner."""
+        """Tüm semboller için son çekim durumunu döner.
+
+        Önce financial_fetch_log'a bakar; log yoksa financial_raw_rows'dan
+        gerçek dönem bilgisini alır — eski veri bütünlüğü için.
+        """
+        # MySQL FULL OUTER JOIN = LEFT JOIN + RIGHT JOIN UNION
         sql = """
-        SELECT l1.*
-        FROM financial_fetch_log l1
-        INNER JOIN (
-            SELECT symbol, MAX(fetched_at) AS max_at
-            FROM financial_fetch_log
-            WHERE fetch_type = 'quarterly'
+        SELECT
+            COALESCE(l.symbol, r.symbol) AS symbol,
+            COALESCE(l.last_period, r.max_period)     AS last_period,
+            COALESCE(l.fetched_at, r.max_fetched)     AS fetched_at,
+            COALESCE(l.status, 'ok')                  AS status,
+            COALESCE(l.periods_fetched, r.period_cnt) AS periods_fetched
+        FROM (
+            SELECT l1.symbol, l1.last_period, l1.fetched_at, l1.status, l1.periods_fetched
+            FROM financial_fetch_log l1
+            INNER JOIN (
+                SELECT symbol, MAX(fetched_at) AS max_at
+                FROM financial_fetch_log
+                WHERE fetch_type = 'quarterly'
+                GROUP BY symbol
+            ) l2 ON l1.symbol = l2.symbol AND l1.fetched_at = l2.max_at
+        ) l
+        LEFT JOIN (
+            SELECT symbol,
+                   MAX(period)            AS max_period,
+                   MAX(fetched_at)        AS max_fetched,
+                   COUNT(DISTINCT period) AS period_cnt
+            FROM financial_raw_rows
+            WHERE period_type = 'quarterly'
             GROUP BY symbol
-        ) l2 ON l1.symbol = l2.symbol AND l1.fetched_at = l2.max_at
-        ORDER BY l1.symbol
+        ) r ON l.symbol = r.symbol
+        UNION
+        SELECT
+            r2.symbol,
+            r2.max_period  AS last_period,
+            r2.max_fetched AS fetched_at,
+            'ok'           AS status,
+            r2.period_cnt  AS periods_fetched
+        FROM (
+            SELECT symbol,
+                   MAX(period)            AS max_period,
+                   MAX(fetched_at)        AS max_fetched,
+                   COUNT(DISTINCT period) AS period_cnt
+            FROM financial_raw_rows
+            WHERE period_type = 'quarterly'
+            GROUP BY symbol
+        ) r2
+        WHERE r2.symbol NOT IN (
+            SELECT DISTINCT symbol FROM financial_fetch_log WHERE fetch_type = 'quarterly'
+        )
+        ORDER BY symbol
         """
         try:
             with self._connect() as conn:
@@ -285,6 +326,66 @@ class FinancialStatementRepository:
         except Exception as exc:
             _log.error("get_computed_ratios failed: %s", exc)
             return []
+
+    def get_latest_ratios_all_symbols(
+        self,
+        symbols: list[str],
+        ratio_keys: list[str],
+    ) -> list[dict]:
+        """Tüm semboller için en güncel dönemin belirtilen oranlarını döner.
+
+        Dönüş: [{symbol, period, ratio_key, ratio_name, value, unit, category}, ...]
+        """
+        if not symbols or not ratio_keys:
+            return []
+        sym_placeholders  = ",".join(["%s"] * len(symbols))
+        key_placeholders  = ",".join(["%s"] * len(ratio_keys))
+        sql = f"""
+        SELECT cr.*
+        FROM financial_computed_ratios cr
+        INNER JOIN (
+            SELECT symbol, MAX(period) AS max_period
+            FROM financial_computed_ratios
+            WHERE symbol IN ({sym_placeholders})
+            GROUP BY symbol
+        ) latest ON cr.symbol = latest.symbol AND cr.period = latest.max_period
+        WHERE cr.ratio_key IN ({key_placeholders})
+        ORDER BY cr.symbol, cr.ratio_key
+        """
+        params: list[Any] = symbols + ratio_keys
+        try:
+            with self._connect() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(sql, params)
+                    return cur.fetchall() or []
+        except Exception as exc:
+            _log.error("get_latest_ratios_all_symbols failed: %s", exc)
+            return []
+
+    def get_market_caps(self, symbols: list[str]) -> dict[str, float | None]:
+        """financial_fetch_log'dan piyasa değeri bilgisi çeker (varsa)."""
+        if not symbols:
+            return {}
+        placeholders = ",".join(["%s"] * len(symbols))
+        sql = f"""
+        SELECT cr.symbol, cr.value AS market_cap
+        FROM financial_computed_ratios cr
+        INNER JOIN (
+            SELECT symbol, MAX(period) AS max_period
+            FROM financial_computed_ratios
+            WHERE symbol IN ({placeholders})
+            GROUP BY symbol
+        ) latest ON cr.symbol = latest.symbol AND cr.period = latest.max_period
+        WHERE cr.ratio_key = 'market_cap'
+        """
+        try:
+            with self._connect() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(sql, symbols)
+                    rows = cur.fetchall() or []
+                    return {r["symbol"]: float(r["market_cap"]) if r["market_cap"] is not None else None for r in rows}
+        except Exception:
+            return {}
 
     # ── Eski uyumluluk (v1 service.py hâlâ çağırıyor) ────────────
     def save_response(self, response: FinancialAnalysisResponse, source: str) -> None:
