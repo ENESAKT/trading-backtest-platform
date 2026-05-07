@@ -1,0 +1,313 @@
+"""MySQL depolama katmanı — finansal tablolar, oranlar, log ve uyarılar."""
+
+from __future__ import annotations
+
+import json
+import logging
+import os
+from datetime import datetime, timezone
+from typing import Any
+
+import pymysql
+import pymysql.cursors
+
+from backend.mali_analiz.directive_engine import Alert
+from backend.mali_analiz.models import FinancialAnalysisResponse
+
+_log = logging.getLogger(__name__)
+
+
+class FinancialStatementRepository:
+    def __init__(self) -> None:
+        self.host     = os.environ.get("MYSQL_HOST",     "localhost")
+        self.port     = int(os.environ.get("MYSQL_PORT", "3306"))
+        self.user     = os.environ.get("MYSQL_USER",     "piyasapilot")
+        self.password = os.environ.get("MYSQL_PASSWORD", "")
+        self.database = (
+            os.environ.get("MYSQL_DATABASE")
+            or os.environ.get("MYSQL_DB", "piyasapilot")
+        )
+
+    def _connect(self) -> pymysql.Connection:
+        return pymysql.connect(
+            host=self.host, port=self.port, user=self.user,
+            password=self.password, database=self.database,
+            charset="utf8mb4", autocommit=True,
+            cursorclass=pymysql.cursors.DictCursor,
+        )
+
+    # ── Ham satır upsert ──────────────────────────────────────────
+    def upsert_raw_rows(self, records: list[dict]) -> None:
+        if not records:
+            return
+        sql = """
+        INSERT INTO financial_raw_rows
+            (symbol, period, period_type, statement_type, row_index, label, value, source)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+        ON DUPLICATE KEY UPDATE
+            label = VALUES(label),
+            value = VALUES(value),
+            source = VALUES(source),
+            fetched_at = NOW()
+        """
+        try:
+            with self._connect() as conn:
+                with conn.cursor() as cur:
+                    for rec in records:
+                        cur.execute(sql, (
+                            rec["symbol"], rec["period"], rec["period_type"],
+                            rec["statement_type"], rec["row_index"],
+                            rec["label"], rec["value"], rec["source"],
+                        ))
+        except Exception as exc:
+            _log.error("upsert_raw_rows failed: %s", exc)
+
+    # ── Hesaplanmış oran upsert ───────────────────────────────────
+    def upsert_computed_ratios(self, records: list[dict]) -> None:
+        if not records:
+            return
+        sql = """
+        INSERT INTO financial_computed_ratios
+            (symbol, period, ratio_key, ratio_name, value, unit, category)
+        VALUES (%s, %s, %s, %s, %s, %s, %s)
+        ON DUPLICATE KEY UPDATE
+            ratio_name = VALUES(ratio_name),
+            value = VALUES(value),
+            unit = VALUES(unit),
+            category = VALUES(category),
+            updated_at = NOW()
+        """
+        try:
+            with self._connect() as conn:
+                with conn.cursor() as cur:
+                    for rec in records:
+                        cur.execute(sql, (
+                            rec["symbol"], rec["period"], rec["ratio_key"],
+                            rec["ratio_name"], rec["value"],
+                            rec.get("unit", "x"), rec.get("category", "diger"),
+                        ))
+        except Exception as exc:
+            _log.error("upsert_computed_ratios failed: %s", exc)
+
+    # ── Fetch log ─────────────────────────────────────────────────
+    def log_fetch(
+        self,
+        symbol: str,
+        fetch_type: str,
+        *,
+        status: str = "ok",
+        last_period: str | None = None,
+        periods_fetched: int = 0,
+        error_message: str | None = None,
+    ) -> None:
+        sql = """
+        INSERT INTO financial_fetch_log
+            (symbol, fetch_type, last_period, status, periods_fetched, error_message)
+        VALUES (%s, %s, %s, %s, %s, %s)
+        """
+        try:
+            with self._connect() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(sql, (
+                        symbol, fetch_type, last_period,
+                        status, periods_fetched, error_message,
+                    ))
+        except Exception as exc:
+            _log.error("log_fetch failed: %s", exc)
+
+    def get_last_fetch(self, symbol: str, fetch_type: str) -> dict | None:
+        sql = """
+        SELECT * FROM financial_fetch_log
+        WHERE symbol = %s AND fetch_type = %s
+        ORDER BY fetched_at DESC LIMIT 1
+        """
+        try:
+            with self._connect() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(sql, (symbol, fetch_type))
+                    return cur.fetchone()
+        except Exception:
+            return None
+
+    def get_all_fetch_status(self) -> list[dict]:
+        """Tüm semboller için son çekim durumunu döner."""
+        sql = """
+        SELECT l1.*
+        FROM financial_fetch_log l1
+        INNER JOIN (
+            SELECT symbol, MAX(fetched_at) AS max_at
+            FROM financial_fetch_log
+            WHERE fetch_type = 'quarterly'
+            GROUP BY symbol
+        ) l2 ON l1.symbol = l2.symbol AND l1.fetched_at = l2.max_at
+        ORDER BY l1.symbol
+        """
+        try:
+            with self._connect() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(sql)
+                    return cur.fetchall() or []
+        except Exception:
+            return []
+
+    # ── Uyarı / direktif ─────────────────────────────────────────
+    def insert_alerts(self, symbol: str, alerts: list[Alert]) -> None:
+        if not alerts:
+            return
+        sql = """
+        INSERT INTO financial_alerts
+            (symbol, alert_type, title, body, severity, period, metric_key, metric_value)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+        """
+        try:
+            with self._connect() as conn:
+                with conn.cursor() as cur:
+                    for a in alerts:
+                        cur.execute(sql, (
+                            symbol, a.alert_type, a.title, a.body,
+                            a.severity, a.period, a.metric_key, a.metric_value,
+                        ))
+        except Exception as exc:
+            _log.error("insert_alerts failed: %s", exc)
+
+    def get_alerts(
+        self,
+        symbol: str | None = None,
+        limit: int = 50,
+        unread_only: bool = False,
+    ) -> list[dict]:
+        conditions = []
+        params: list[Any] = []
+        if symbol:
+            conditions.append("symbol = %s")
+            params.append(symbol)
+        if unread_only:
+            conditions.append("is_read = FALSE")
+        where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
+        sql = f"""
+        SELECT * FROM financial_alerts {where}
+        ORDER BY created_at DESC LIMIT %s
+        """
+        params.append(limit)
+        try:
+            with self._connect() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(sql, params)
+                    return cur.fetchall() or []
+        except Exception:
+            return []
+
+    def mark_alerts_read(self, alert_ids: list[int]) -> None:
+        if not alert_ids:
+            return
+        placeholders = ",".join(["%s"] * len(alert_ids))
+        sql = f"UPDATE financial_alerts SET is_read = TRUE WHERE id IN ({placeholders})"
+        try:
+            with self._connect() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(sql, alert_ids)
+        except Exception as exc:
+            _log.error("mark_alerts_read failed: %s", exc)
+
+    # ── Ham veri okuma ────────────────────────────────────────────
+    def get_raw_rows(
+        self,
+        symbol: str,
+        statement_type: str,
+        period_type: str = "quarterly",
+        periods: list[str] | None = None,
+    ) -> list[dict]:
+        """Belirli sembol+tablo+dönem için ham satırları döner."""
+        conditions = ["symbol = %s", "statement_type = %s", "period_type = %s"]
+        params: list[Any] = [symbol, statement_type, period_type]
+        if periods:
+            placeholders = ",".join(["%s"] * len(periods))
+            conditions.append(f"period IN ({placeholders})")
+            params.extend(periods)
+        where = "WHERE " + " AND ".join(conditions)
+        sql = f"""
+        SELECT period, row_index, label, value
+        FROM financial_raw_rows {where}
+        ORDER BY period DESC, row_index ASC
+        """
+        try:
+            with self._connect() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(sql, params)
+                    return cur.fetchall() or []
+        except Exception as exc:
+            _log.error("get_raw_rows failed: %s", exc)
+            return []
+
+    def get_available_periods(self, symbol: str, period_type: str = "quarterly") -> list[str]:
+        """Sembol için mevcut dönemleri döner (en yeni önce)."""
+        sql = """
+        SELECT DISTINCT period FROM financial_raw_rows
+        WHERE symbol = %s AND period_type = %s
+        ORDER BY period DESC
+        """
+        try:
+            with self._connect() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(sql, (symbol, period_type))
+                    rows = cur.fetchall() or []
+                    return [r["period"] for r in rows]
+        except Exception:
+            return []
+
+    def get_computed_ratios(
+        self,
+        symbol: str,
+        periods: list[str] | None = None,
+        ratio_keys: list[str] | None = None,
+    ) -> list[dict]:
+        """Hesaplanmış oranları döner."""
+        conditions = ["symbol = %s"]
+        params: list[Any] = [symbol]
+        if periods:
+            placeholders = ",".join(["%s"] * len(periods))
+            conditions.append(f"period IN ({placeholders})")
+            params.extend(periods)
+        if ratio_keys:
+            placeholders = ",".join(["%s"] * len(ratio_keys))
+            conditions.append(f"ratio_key IN ({placeholders})")
+            params.extend(ratio_keys)
+        where = "WHERE " + " AND ".join(conditions)
+        sql = f"""
+        SELECT * FROM financial_computed_ratios {where}
+        ORDER BY period DESC, category, ratio_key
+        """
+        try:
+            with self._connect() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(sql, params)
+                    return cur.fetchall() or []
+        except Exception as exc:
+            _log.error("get_computed_ratios failed: %s", exc)
+            return []
+
+    # ── Eski uyumluluk (v1 service.py hâlâ çağırıyor) ────────────
+    def save_response(self, response: FinancialAnalysisResponse, source: str) -> None:
+        """V1 uyumluluk metodu — yeni sistemde kullanılmıyor."""
+        pass
+
+    # ── Migration helper ──────────────────────────────────────────
+    def ensure_tables(self) -> None:
+        """Migration dosyasını okuyup tabloları oluşturur (dev/startup için)."""
+        import pathlib
+        migration = (
+            pathlib.Path(__file__).parent.parent.parent
+            / "infra" / "mysql" / "migrations" / "006_financial_enhanced.sql"
+        )
+        if not migration.exists():
+            return
+        sql_text = migration.read_text(encoding="utf-8")
+        statements = [s.strip() for s in sql_text.split(";") if s.strip() and not s.strip().startswith("--")]
+        try:
+            with self._connect() as conn:
+                with conn.cursor() as cur:
+                    for stmt in statements:
+                        if stmt:
+                            cur.execute(stmt)
+        except Exception as exc:
+            _log.warning("ensure_tables: %s", exc)

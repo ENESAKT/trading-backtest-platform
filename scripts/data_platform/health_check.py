@@ -1,7 +1,8 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 import asyncio
 import os
 import sys
+from urllib.parse import urlparse
 from loguru import logger
 import clickhouse_connect
 import aiomysql
@@ -12,14 +13,16 @@ load_dotenv()
 
 async def check_health():
     logger.info("Running Data Platform Health Check...")
+    failures = 0
     
     # 1. Clickhouse
     try:
-        host = os.getenv("CLICKHOUSE_HOST", "localhost")
-        port = int(os.getenv("CLICKHOUSE_PORT", "8123"))
+        parsed = urlparse(os.getenv("CLICKHOUSE_URL", "http://localhost:8123/market_data"))
+        host = os.getenv("CLICKHOUSE_HOST") or parsed.hostname or "localhost"
+        port = int(os.getenv("CLICKHOUSE_PORT") or parsed.port or "8123")
         username = os.getenv("CLICKHOUSE_USER", "default")
         password = os.getenv("CLICKHOUSE_PASSWORD", "")
-        db = os.getenv("CLICKHOUSE_DB", "market_data")
+        db = os.getenv("CLICKHOUSE_DB") or (parsed.path or "/market_data").strip("/") or "market_data"
         
         client = clickhouse_connect.get_client(
             host=host, 
@@ -32,15 +35,17 @@ async def check_health():
         logger.info("[OK] ClickHouse connection successful.")
     except Exception as e:
         logger.error(f"[FAIL] ClickHouse connection failed: {e}")
+        failures += 1
 
     # 2. MySQL
     try:
+        parsed = urlparse(os.getenv("MYSQL_URL") or os.getenv("DATABASE_URL", "mysql://localhost:3306/metadata"))
         pool = await aiomysql.create_pool(
-            host=os.getenv("MYSQL_HOST", "localhost"),
-            port=int(os.getenv("MYSQL_PORT", 3306)),
+            host=os.getenv("MYSQL_HOST") or parsed.hostname or "localhost",
+            port=int(os.getenv("MYSQL_PORT") or parsed.port or 3306),
             user=os.getenv("MYSQL_USER", "veri_platform"),
             password=os.getenv("MYSQL_PASSWORD", "secret123"),
-            db=os.getenv("MYSQL_DATABASE", "veri_platform_db")
+            db=os.getenv("MYSQL_DATABASE") or os.getenv("MYSQL_DB", "veri_platform_db")
         )
         async with pool.acquire() as conn:
             async with conn.cursor() as cur:
@@ -51,6 +56,7 @@ async def check_health():
         await pool.wait_closed()
     except Exception as e:
         logger.error(f"[FAIL] MySQL connection failed: {e}")
+        failures += 1
 
     # 3. Redis
     try:
@@ -60,6 +66,12 @@ async def check_health():
         await r.close()
     except Exception as e:
         logger.error(f"[FAIL] Redis connection failed: {e}")
+        failures += 1
+
+    if failures:
+        return 1
+    logger.info("[OK] Data platform health check passed.")
+    return 0
 
 if __name__ == "__main__":
-    asyncio.run(check_health())
+    sys.exit(asyncio.run(check_health()))

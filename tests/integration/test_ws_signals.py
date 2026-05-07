@@ -13,7 +13,7 @@ from fastapi.testclient import TestClient
 
 from backend.api.main import create_app
 from backend.api.quote_bus import QuoteBus
-from backend.api.signal_bus import SignalBus
+from backend.signals.signal_bus import SignalBus
 from backend.data.cache import OHLCVCache
 from backend.workers.base import WorkerSupervisor
 
@@ -82,12 +82,30 @@ def test_ws_signals_filters_by_symbol(tmp_path):
     client, bus = _build_client(tmp_path)
     with client.websocket_connect("/ws/signals?symbols=BTCUSDT") as ws:
         ws.receive_json()  # ready
-        threading.Thread(target=_publish_in_loop,
-                         kwargs={"bus": bus, "symbol": "ETHUSDT", "signal_type": "BUY",
-                                 "price": 1.0, "strategy_id": "x"}).start()
-        threading.Thread(target=_publish_in_loop,
-                         kwargs={"bus": bus, "symbol": "BTCUSDT", "signal_type": "BUY",
-                                 "price": 1.0, "strategy_id": "x"}).start()
+        ignored = threading.Thread(
+            target=_publish_in_loop,
+            kwargs={
+                "bus": bus,
+                "symbol": "ETHUSDT",
+                "signal_type": "BUY",
+                "price": 1.0,
+                "strategy_id": "x",
+            },
+        )
+        matched = threading.Thread(
+            target=_publish_in_loop,
+            kwargs={
+                "bus": bus,
+                "symbol": "BTCUSDT",
+                "signal_type": "BUY",
+                "price": 1.0,
+                "strategy_id": "x",
+            },
+        )
+        ignored.start()
+        ignored.join(timeout=2.0)
+        matched.start()
+        matched.join(timeout=2.0)
         msg = ws.receive_json()
         assert msg["symbol"] == "BTCUSDT"
 

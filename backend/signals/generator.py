@@ -33,7 +33,7 @@ from typing import Any
 
 import pandas as pd
 
-from backend.api.signal_bus import SignalBus
+from backend.signals.signal_bus import SignalBus
 from backend.config import getenv
 from backend.data.cache import OHLCVCache
 from quant_engine.backtest.domain import Portfolio

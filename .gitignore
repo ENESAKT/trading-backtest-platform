@@ -34,6 +34,10 @@ artifacts/
 # Test/build çıktıları
 piyasapilot-v2/test-results/
 piyasapilot-v2/playwright-report/
+frontend/node_modules/
+frontend/test-results/
+frontend/playwright-report/
+frontend/dist/
 
 # Loglar
 logs/
@@ -47,6 +51,8 @@ Thumbs.db
 .claude/settings.local.json
 
 .env
+.env.production
+backups/
 
 # Matriks referans dokümanları (PDF'den üretilir, repoya girmez)
 matriks.md

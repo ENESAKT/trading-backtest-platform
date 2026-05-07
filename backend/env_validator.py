@@ -24,9 +24,14 @@ class EnvValidationError(RuntimeError):
 
 # Gerekli (strict modda eksikse RuntimeError)
 REQUIRED_VARS: list[tuple[str, str]] = [
-    # Şu an zorunlu gerekli değişken yok — tümü opsiyonel.
-    # İleride dışa açılacaksa:
-    # ("API_KEY", "API erişimi için zorunlu anahtar"),
+    # Geliştirme modunda zorunlu değişken yok; production'a özel liste aşağıda.
+]
+
+PRODUCTION_REQUIRED_VARS: list[tuple[str, str]] = [
+    ("CORS_ORIGINS", "Production CORS origin listesi"),
+    ("DATABASE_URL", "MySQL metadata bağlantısı"),
+    ("CLICKHOUSE_URL", "ClickHouse OHLCV bağlantısı"),
+    ("REDIS_URL", "Redis sıcak cache/pub-sub bağlantısı"),
 ]
 
 # Opsiyonel (eksikse uyarı loglanır)
@@ -59,8 +64,19 @@ def validate_env(*, strict: bool | None = None) -> dict[str, list[str]]:
     if strict is None:
         strict = os.environ.get("STRICT_ENV_VALIDATION", "") == "1"
 
+    app_env = os.environ.get("APP_ENV", "").strip().lower()
     missing_required: list[str] = []
     missing_optional: list[str] = []
+
+    if app_env == "production" and not os.environ.get("API_KEY"):
+        missing_required.append("API_KEY")
+        _logger.error("[env] ZORUNLU değişken eksik: API_KEY — production API koruması")
+
+    if app_env == "production":
+        for key, note in PRODUCTION_REQUIRED_VARS:
+            if not os.environ.get(key):
+                missing_required.append(key)
+                _logger.error("[env] ZORUNLU değişken eksik: %s — %s", key, note)
 
     for key, note in REQUIRED_VARS:
         if not os.environ.get(key):
@@ -71,6 +87,9 @@ def validate_env(*, strict: bool | None = None) -> dict[str, list[str]]:
         if not os.environ.get(key):
             missing_optional.append(key)
             _logger.warning("[env] Opsiyonel değişken eksik: %s — %s", key, note)
+
+    if app_env == "production" and "API_KEY" in missing_required:
+        raise EnvValidationError("Production'da API_KEY zorunludur.")
 
     if strict and missing_required:
         raise EnvValidationError(

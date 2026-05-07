@@ -11,7 +11,7 @@ import math
 
 import pytest
 
-from backend.api.signal_bus import SignalBus
+from backend.signals.signal_bus import SignalBus
 from backend.backtest import blueprints as _blueprints  # noqa: F401  (registry yükle)
 from backend.data.cache import OHLCVCache
 from backend.signals import SignalGenerator, SignalGeneratorConfig

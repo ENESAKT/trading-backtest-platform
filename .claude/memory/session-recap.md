@@ -1,15 +1,15 @@
-# Session Recap — 2026-05-05 14:09:54
+# Session Recap — 2026-05-07 07:57:28
 
 ## Bu Oturumda Yapılanlar
 
 ### Son Commit'ler
 ```
-1ea0998 chore(docs): consolidate planning, docker, and repo structure
+
 ```
 
 ### Sprint Durumu
-- Tamamlanan görev: 93
-- Kalan görev: 45
+- Tamamlanan görev: 0
+- Kalan görev: 0
 
 ### Sıradaki
-- YAPILACAKLAR.md'deki blokör maddelerden devam et
+- planlama.md'deki ilk açık (`- [ ]`) tick'ten devam et
