@@ -13,7 +13,7 @@ RECENT_COMMITS=$(cd "$PROJECT_ROOT" && git log --oneline -10 --since="6 hours ag
 
 # Planlama durumu (YAPILACAKLAR.md üzerinden)
 DONE=$(grep -c '\- \[x\]' "$PROJECT_ROOT/docs/planning/planlama-sprint-gecmis.md" 2>/dev/null || echo "0")
-TODO=$(grep -c '\- \[ \]' "$PROJECT_ROOT/YAPILACAKLAR.md" 2>/dev/null || echo "0")
+TODO=$(grep -c '\- \[ \]' "$PROJECT_ROOT/docs/YAPILACAKLAR.md" 2>/dev/null || echo "0")
 
 cat > "$RECAP" << EOF
 # Session Recap — $TIMESTAMP

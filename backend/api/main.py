@@ -14,7 +14,7 @@ devreye alındı.
   durur. Sağlık verisi ``/api/health`` içinde.
 * **Detaylı ``/api/health``**: cache stats, worker listesi (iter sayısı, son
   hata), v1/v2 mod durumu.
-* **CORS** açık (``*``); read-only mod.
+* **CORS** env tabanlı; lokal geliştirmede Vite origin'i varsayılan.
 * Eski v1 endpoint'leri (``/api/market/defaults``, ``/api/market/chart``,
   ``/api/workspace``, ``POST /api/paper/signal``) aynen korunuyor.
 """
@@ -38,8 +38,18 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
+try:
+    from slowapi import Limiter, _rate_limit_exceeded_handler
+    from slowapi.errors import RateLimitExceeded
+    from slowapi.util import get_remote_address
+except ImportError:  # pragma: no cover - dependency bootstrap fallback
+    Limiter = None  # type: ignore[assignment]
+    RateLimitExceeded = None  # type: ignore[assignment]
+    _rate_limit_exceeded_handler = None  # type: ignore[assignment]
+    get_remote_address = None  # type: ignore[assignment]
+
 from backend.api.quote_bus import QuoteBus
-from backend.api.signal_bus import SignalBus
+from backend.signals.signal_bus import SignalBus
 from backend.backtest import (
     BacktestArchive,
     BacktestNotEnoughData,
@@ -53,6 +63,7 @@ from backend.backtest import (
 from backend.config import getenv, llm_configured, mask_sensitive, telegram_configured
 from backend.data.cache import OHLCVCache
 from backend.data.historical_store import HistoricalStore
+from backend.data.repositories.market_data_facade import MarketDataFacade
 from backend.data.spike_filter import filter_bars
 from backend.data.symbols import (
     BIST_STOCKS,
@@ -62,8 +73,11 @@ from backend.data.symbols import (
 )
 from backend.env_validator import validate_env
 from backend.mali_analiz.cache import FinancialAnalysisCache
+from backend.mali_analiz.harvester import harvest_if_stale, harvest_all
+from backend.mali_analiz.kap_provider import KapFinancialAnalysisProvider
+from backend.mali_analiz.repository import FinancialStatementRepository
 from backend.mali_analiz.service import FinancialAnalysisService
-from backend.mali_analiz.symbols import SYMBOL_METADATA, normalize_symbol
+from backend.mali_analiz.symbols import BIST_30_SYMBOLS, SYMBOL_METADATA, normalize_symbol
 from backend.middleware.api_key_auth import APIKeyMiddleware
 from backend.paper import PaperDB, PaperExecutor
 from backend.signals import SignalGenerator
@@ -90,6 +104,33 @@ _logger = logging.getLogger(__name__)
 # Cache miss eşiği: cache'teki en yeni bar'dan beri bu süreden uzun zaman
 # geçmişse provider'a yeniden git. 15dk barlar için 90s mantıklı.
 CACHE_FRESHNESS_SECONDS = 90
+
+
+def _cors_origins() -> list[str]:
+    raw = os.environ.get("CORS_ORIGINS", "http://localhost:5173")
+    origins = [origin.strip() for origin in raw.split(",") if origin.strip()]
+    return origins or ["http://localhost:5173"]
+
+
+def _require_ws_token(ws: WebSocket) -> bool:
+    api_key = os.environ.get("API_KEY", "")
+    if not api_key:
+        return True
+    token = ws.query_params.get("token", "")
+    return token == api_key
+
+
+def _rate_limiter() -> Any:
+    if Limiter is None or get_remote_address is None:
+        _logger.warning("[security] slowapi kurulu değil; rate limiting devre dışı.")
+        return None
+    return Limiter(key_func=get_remote_address)
+
+
+def _limit(limiter: Any, rule: str) -> Any:
+    if limiter is None:
+        return lambda func: func
+    return limiter.limit(rule)
 
 
 def _utc_iso() -> str:
@@ -260,6 +301,7 @@ def create_app(
     strategy_store: StrategyStore | None = None,
     mali_analiz_service: FinancialAnalysisService | None = None,
     historical_store: HistoricalStore | None = None,
+    market_data_facade: MarketDataFacade | None = None,
 ) -> FastAPI:
     """FastAPI app factory.
 
@@ -268,6 +310,7 @@ def create_app(
     setli değilse varsayılan worker seti kurulur. ``quote_bus`` verilmezse
     yeni bir tane yaratılır ve worker'lar buna ``on_bar`` ile bağlanır.
     """
+    injected_data_service = data_service is not None
     cache = cache or OHLCVCache()
     data_service = data_service or LiveDataService()
     workspace_store = workspace_store or WorkspaceJsonStore(
@@ -290,10 +333,30 @@ def create_app(
     backtest_archive = backtest_archive or BacktestArchive(ROOT / _BACKTEST_ARCHIVE_PATH)
     strategy_store = strategy_store or StrategyStore(ROOT / _STRATEGY_STORE_PATH)
     historical_store = historical_store or HistoricalStore()
+    if (
+        market_data_facade is None
+        and not injected_data_service
+        and os.environ.get("PIYASAPILOT_DISABLE_DB_FACADE") != "1"
+    ):
+        market_data_facade = MarketDataFacade.from_env()
 
     if mali_analiz_service is None:
         ma_cache = FinancialAnalysisCache(ROOT / "data" / "cache" / "mali_analiz.sqlite3")
-        mali_analiz_service = FinancialAnalysisService(cache=ma_cache)
+        financial_repository = None
+        if os.environ.get("PIYASAPILOT_DISABLE_FINANCIAL_REPOSITORY") != "1":
+            financial_repository = FinancialStatementRepository()
+            try:
+                financial_repository.ensure_tables()
+            except Exception:
+                pass
+        mali_analiz_service = FinancialAnalysisService(
+            cache=ma_cache,
+            provider=KapFinancialAnalysisProvider(),
+            repository=financial_repository,
+        )
+
+    # Startup finansal veri kontrolü — bayat semboller arka planda güncellenir
+    _financial_repository_ref = financial_repository
 
     if supervisor is None:
         if os.environ.get("PIYASAPILOT_DISABLE_WORKERS") == "1":
@@ -331,6 +394,16 @@ def create_app(
         await supervisor.start_all()
         executor_task = asyncio.create_task(_paper_executor_loop())
 
+        # Finansal veri startup kontrolü — bayat semboller arka planda güncellenir
+        if _financial_repository_ref is not None and os.environ.get("PIYASAPILOT_DISABLE_FINANCIAL_HARVEST") != "1":
+            import asyncio as _aio
+            def _bg_harvest():
+                try:
+                    harvest_if_stale(_financial_repository_ref, max_workers=2)
+                except Exception as _e:
+                    _logger.warning("[mali-analiz] Startup harvest hatası: %s", _e)
+            _aio.get_event_loop().run_in_executor(None, _bg_harvest)
+
         # Worker sağlık izleyici — çöküşlerde Telegram uyarısı
         from backend.workers.health_monitor import WorkerHealthMonitor
         health_monitor = WorkerHealthMonitor(supervisor)
@@ -363,10 +436,16 @@ def create_app(
     app.state.paper_executor = paper_executor
     app.state.backtest_archive = backtest_archive
     app.state.strategy_store = strategy_store
+    app.state.market_data_facade = market_data_facade
+
+    limiter = _rate_limiter()
+    if limiter is not None:
+        app.state.limiter = limiter
+        app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],
+        allow_origins=_cors_origins(),
         allow_methods=["GET", "POST", "OPTIONS"],
         allow_headers=["*", "X-API-Key"],
     )
@@ -520,7 +599,9 @@ def create_app(
         }
 
     @app.post("/api/backtest/run")
-    def backtest_run(req: BacktestRequest) -> dict[str, Any]:
+    @_limit(limiter, "30/minute")
+    def backtest_run(request: Request, req: BacktestRequest) -> dict[str, Any]:
+        del request
         try:
             result = run_backtest(
                 cache=cache,
@@ -912,7 +993,12 @@ def create_app(
         Query params:
           * ``symbols=BTCUSDT,ETHUSDT`` (boş = hepsi)
           * ``types=BUY,SELL`` (boş = hepsi)
+          * ``token=...`` (API_KEY tanımlıysa zorunlu)
         """
+        if not _require_ws_token(ws):
+            await ws.close(code=1008)
+            return
+
         symbols_q = ws.query_params.get("symbols", "")
         types_q = ws.query_params.get("types", "")
         symbols = [s for s in symbols_q.split(",") if s] or None
@@ -958,7 +1044,12 @@ def create_app(
             yeniden bağlan.
           * Server worker'lardan gelen her bar paketini ``{"type": "bars",
             "symbol", "interval", "bars": [...], "ts"}`` formatında yollar.
+          * ``token=...`` query param'ı API_KEY tanımlıysa zorunludur.
         """
+        if not _require_ws_token(ws):
+            await ws.close(code=1008)
+            return
+
         symbols_q = ws.query_params.get("symbols", "")
         intervals_q = ws.query_params.get("intervals", "")
         symbols = [s for s in symbols_q.split(",") if s] or None
@@ -1041,15 +1132,45 @@ def create_app(
           4. Provider hata verirse cache'te biriken eski veriyi yine de döndür
              (graceful degradation), metadata'da ``status='stale'``.
         """
+        try:
+            safe_limit = max(1, min(int(limit), 5000))
+        except (TypeError, ValueError):
+            safe_limit = 500
+
+        if market_data_facade is not None and symbol.strip():
+            repo_result = market_data_facade.read_candles(symbol, interval, safe_limit)
+            if repo_result is not None:
+                canonical_symbol = symbol.strip().upper()
+                return JSONResponse({
+                    "symbol": canonical_symbol,
+                    "display_name": canonical_symbol,
+                    "market": "",
+                    "interval": interval,
+                    "status": "ok",
+                    "bars": repo_result.bars,
+                    "quote": {
+                        "last": repo_result.bars[-1]["close"],
+                        "timestamp": _utc_iso(),
+                    },
+                    "metadata": {
+                        "read_only": True,
+                        "cache": repo_result.source,
+                        "source": repo_result.source,
+                        "is_real": True,
+                        "status": "ok",
+                        "fetched_at": _utc_iso(),
+                    },
+                })
+
         if interval == "1d":
             try:
-                safe_limit = max(20, min(int(limit), 5000))
+                local_limit = max(20, min(int(limit), 5000))
             except (TypeError, ValueError):
-                safe_limit = 500
+                local_limit = 500
             local_payload = historical_store.payload(
                 symbol=symbol,
                 interval=interval,
-                limit=safe_limit,
+                limit=local_limit,
             )
             if local_payload is not None:
                 canonical_symbol = local_payload["symbol"]
@@ -1086,6 +1207,14 @@ def create_app(
         if provider_payload.get("status") == "ok" and bars:
             cleaned, report = filter_bars(bars)
             cache.upsert_bars(canonical_symbol, interval, cleaned)
+            if market_data_facade is not None:
+                market_data_facade.write_candles(
+                    canonical_symbol,
+                    interval,
+                    cleaned,
+                    source=provider_payload.get("metadata", {}).get("provider", "provider"),
+                    limit=safe_limit,
+                )
             provider_payload["bars"] = cleaned
             provider_payload.setdefault("metadata", {})
             provider_payload["metadata"]["spike_filter"] = {
@@ -1132,74 +1261,221 @@ def create_app(
         # Hem provider hem cache boş ve gerçek provider hatası var.
         return JSONResponse(provider_payload, status_code=502)
 
-    # ── Mali Analiz API (Sprint 12) ──────────────────────────────────────────
+    # ── Mali Analiz API v2 — gerçek borsapy verisi ──────────────────────────
     @app.get("/api/mali-analiz/universe")
     def get_mali_analiz_universe(scope: str = "bist30") -> dict[str, Any]:
-        """Mali analiz için metadata-only sembol evrenini döndürür."""
+        """BIST 30 sembol listesini fetch durumu ile döndürür."""
+        fetch_status: dict[str, dict] = {}
+        if _financial_repository_ref:
+            for row in _financial_repository_ref.get_all_fetch_status():
+                fetch_status[row["symbol"]] = {
+                    "last_period": row.get("last_period"),
+                    "fetched_at": str(row["fetched_at"]) if row.get("fetched_at") else None,
+                    "status": row.get("status", "unknown"),
+                    "periods_fetched": row.get("periods_fetched", 0),
+                }
         symbols = [
             {
-                "symbol": symbol,
-                "ticker": f"{symbol}.IS",
-                "name": name,
+                "symbol": sym,
+                "ticker": f"{sym}.IS",
+                "name": SYMBOL_METADATA.get(sym, sym),
+                "fetch_status": fetch_status.get(sym, {"status": "no_data"}),
             }
-            for symbol, name in sorted(SYMBOL_METADATA.items())
+            for sym in BIST_30_SYMBOLS
         ]
-        return {
-            "scope": scope,
-            "symbols": symbols,
-            "source_status": {
-                "source": "static_metadata",
-                "status": "metadata_only",
-            },
-        }
+        return {"scope": scope, "symbols": symbols, "source": "borsapy"}
 
-    @app.get("/api/mali-analiz/{symbol}")
-    def get_mali_analiz(symbol: str, force_refresh: bool = False) -> dict[str, Any]:
-        """Sembol için mali analiz raporunu döndürür."""
-        try:
-            # FinancialAnalysisService JSON-serializable FinancialAnalysisResponse döner.
-            # (FinancialAnalysisResponse bir Pydantic modelidir)
-            response = mali_analiz_service.get_analysis(symbol, force_refresh=force_refresh)
-            return response.model_dump()
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc))
-        except Exception as exc:
-            _logger.exception("Mali analiz beklenmedik hata: %s", exc)
-            raise HTTPException(status_code=500, detail="Mali analiz servis hatası")
+    @app.get("/api/mali-analiz/alerts")
+    def get_mali_analiz_alerts(
+        symbol: str | None = None,
+        limit: int = 50,
+        unread_only: bool = False,
+    ) -> dict[str, Any]:
+        """Direktif ve uyarıları döndürür."""
+        if not _financial_repository_ref:
+            return {"alerts": [], "source": "no_db"}
+        rows = _financial_repository_ref.get_alerts(symbol=symbol, limit=limit, unread_only=unread_only)
+        return {"alerts": _serialize_rows(rows), "total": len(rows)}
 
-    @app.get("/api/mali-analiz/{symbol}/reports")
-    def get_mali_analiz_reports(symbol: str) -> dict[str, Any]:
-        """KAP finansal rapor kontratı; provider bağlanana kadar boş döner."""
+    @app.post("/api/mali-analiz/alerts/mark-read")
+    def mark_mali_analiz_alerts_read(body: dict[str, Any]) -> dict[str, Any]:
+        """Belirtilen uyarıları okundu olarak işaretle."""
+        ids = [int(i) for i in body.get("ids", [])]
+        if _financial_repository_ref and ids:
+            _financial_repository_ref.mark_alerts_read(ids)
+        return {"marked": len(ids)}
+
+    @app.post("/api/mali-analiz/refresh")
+    async def refresh_mali_analiz_all(
+        symbols: list[str] | None = None,
+    ) -> dict[str, Any]:
+        """Tüm BIST 30 (veya belirtilen semboller) için veri yenileme tetikler."""
+        if not _financial_repository_ref:
+            raise HTTPException(status_code=503, detail="Finansal repository hazır değil")
+        import asyncio as _aio
+        targets = symbols or BIST_30_SYMBOLS
+        def _run():
+            return harvest_all(
+                symbols=targets,
+                repository=_financial_repository_ref,
+                max_workers=2,
+            )
+        results = await _aio.get_event_loop().run_in_executor(None, _run)
+        ok = sum(1 for v in results.values() if v == "ok")
+        return {"triggered": len(targets), "ok": ok, "results": results}
+
+    @app.post("/api/mali-analiz/{symbol}/refresh")
+    async def refresh_mali_analiz_symbol(symbol: str) -> dict[str, Any]:
+        """Tek sembol için veri yenileme tetikler."""
         try:
             normalized = normalize_symbol(symbol)
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc))
+        if not _financial_repository_ref:
+            raise HTTPException(status_code=503, detail="Finansal repository hazır değil")
+        import asyncio as _aio
+        def _run():
+            return harvest_all(
+                symbols=[normalized],
+                repository=_financial_repository_ref,
+                max_workers=1,
+            )
+        results = await _aio.get_event_loop().run_in_executor(None, _run)
+        return {"symbol": normalized, "status": results.get(normalized, "unknown")}
+
+    @app.get("/api/mali-analiz/{symbol}/balance-sheet")
+    def get_balance_sheet(
+        symbol: str,
+        period_type: str = "quarterly",
+        limit: int = 20,
+    ) -> dict[str, Any]:
+        """Bilanço verisi — satır × dönem pivot tablosu."""
+        try:
+            normalized = normalize_symbol(symbol)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+        if not _financial_repository_ref:
+            return {"symbol": normalized, "rows": [], "periods": [], "source": "no_db"}
+        periods = _financial_repository_ref.get_available_periods(normalized, period_type)[:limit]
+        rows = _financial_repository_ref.get_raw_rows(normalized, "balance_sheet", period_type, periods)
         return {
             "symbol": normalized,
-            "reports": [],
-            "message": "KAP finansal rapor kaynağı henüz bağlı değil.",
-            "source_status": {
-                "source": "kap",
-                "status": "not_configured",
-            },
+            "periods": periods,
+            "rows": _pivot_rows(rows, periods),
+            "source": "borsapy",
         }
+
+    @app.get("/api/mali-analiz/{symbol}/income-stmt")
+    def get_income_stmt(
+        symbol: str,
+        period_type: str = "quarterly",
+        limit: int = 20,
+    ) -> dict[str, Any]:
+        """Gelir tablosu."""
+        try:
+            normalized = normalize_symbol(symbol)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+        if not _financial_repository_ref:
+            return {"symbol": normalized, "rows": [], "periods": [], "source": "no_db"}
+        periods = _financial_repository_ref.get_available_periods(normalized, period_type)[:limit]
+        rows = _financial_repository_ref.get_raw_rows(normalized, "income_stmt", period_type, periods)
+        return {
+            "symbol": normalized,
+            "periods": periods,
+            "rows": _pivot_rows(rows, periods),
+            "source": "borsapy",
+        }
+
+    @app.get("/api/mali-analiz/{symbol}/cashflow")
+    def get_cashflow(
+        symbol: str,
+        period_type: str = "quarterly",
+        limit: int = 20,
+    ) -> dict[str, Any]:
+        """Nakit akışı tablosu."""
+        try:
+            normalized = normalize_symbol(symbol)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+        if not _financial_repository_ref:
+            return {"symbol": normalized, "rows": [], "periods": [], "source": "no_db"}
+        periods = _financial_repository_ref.get_available_periods(normalized, period_type)[:limit]
+        rows = _financial_repository_ref.get_raw_rows(normalized, "cashflow", period_type, periods)
+        return {
+            "symbol": normalized,
+            "periods": periods,
+            "rows": _pivot_rows(rows, periods),
+            "source": "borsapy",
+        }
+
+    @app.get("/api/mali-analiz/{symbol}/ratios")
+    def get_symbol_ratios(
+        symbol: str,
+        limit: int = 12,
+    ) -> dict[str, Any]:
+        """Hesaplanmış finansal oranlar."""
+        try:
+            normalized = normalize_symbol(symbol)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+        if not _financial_repository_ref:
+            return {"symbol": normalized, "ratios": [], "source": "no_db"}
+        periods = _financial_repository_ref.get_available_periods(normalized, "quarterly")[:limit]
+        rows = _financial_repository_ref.get_computed_ratios(normalized, periods=periods)
+        return {
+            "symbol": normalized,
+            "periods": periods,
+            "ratios": _serialize_rows(rows),
+            "source": "borsapy",
+        }
+
+    @app.get("/api/mali-analiz/{symbol}/summary")
+    def get_symbol_summary(symbol: str) -> dict[str, Any]:
+        """Özet + direktifler."""
+        try:
+            normalized = normalize_symbol(symbol)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+        if not _financial_repository_ref:
+            return {"symbol": normalized, "alerts": [], "ratios": [], "source": "no_db"}
+        alerts = _financial_repository_ref.get_alerts(symbol=normalized, limit=10)
+        periods = _financial_repository_ref.get_available_periods(normalized, "quarterly")[:4]
+        ratios = _financial_repository_ref.get_computed_ratios(
+            normalized, periods=periods[:1],
+            ratio_keys=["fk", "pd_dd", "ev_ebitda", "roe", "net_kar_marji", "net_borc_ebitda", "ciro_buyume"]
+        )
+        return {
+            "symbol": normalized,
+            "name": SYMBOL_METADATA.get(normalized, normalized),
+            "latest_period": periods[0] if periods else None,
+            "alerts": _serialize_rows(alerts),
+            "key_ratios": _serialize_rows(ratios),
+            "source": "borsapy",
+        }
+
+    # Eski endpoint'ler — geriye dönük uyumluluk
+    @app.get("/api/mali-analiz/{symbol}/reports")
+    def get_mali_analiz_reports(symbol: str) -> dict[str, Any]:
+        try:
+            normalized = normalize_symbol(symbol)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+        periods = []
+        if _financial_repository_ref:
+            periods = _financial_repository_ref.get_available_periods(normalized, "quarterly")
+        return {"symbol": normalized, "periods": periods, "source": "borsapy"}
 
     @app.get("/api/mali-analiz/{symbol}/events")
     def get_mali_analiz_events(symbol: str) -> dict[str, Any]:
-        """KAP olay/veri kontratı; provider bağlanana kadar boş döner."""
         try:
             normalized = normalize_symbol(symbol)
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc))
-        return {
-            "symbol": normalized,
-            "events": [],
-            "message": "KAP olay/veri kaynağı henüz bağlı değil.",
-            "source_status": {
-                "source": "kap",
-                "status": "not_configured",
-            },
-        }
+        alerts = []
+        if _financial_repository_ref:
+            alerts = _financial_repository_ref.get_alerts(symbol=normalized, limit=20)
+        return {"symbol": normalized, "events": _serialize_rows(alerts), "source": "borsapy"}
 
     @app.get("/api/mali-analiz/{symbol}/metric-history")
     def get_mali_analiz_metric_history(
@@ -1211,16 +1487,14 @@ def create_app(
             normalized = normalize_symbol(symbol)
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc))
-        return {
-            "symbol": normalized,
-            "metric": metric,
-            "points": [],
-            "message": "Metrik geçmişi için finansal veri henüz bağlı değil.",
-            "source_status": {
-                "source": "financial_metric_series",
-                "status": "not_configured",
-            },
-        }
+        if not _financial_repository_ref:
+            return {"symbol": normalized, "metric": metric, "points": [], "source": "no_db"}
+        ratios = _financial_repository_ref.get_computed_ratios(normalized, ratio_keys=[metric])
+        points = [
+            {"period": r["period"], "value": float(r["value"]) if r["value"] is not None else None}
+            for r in ratios
+        ]
+        return {"symbol": normalized, "metric": metric, "points": points, "source": "borsapy"}
 
     # ── Statik dosyalar (SPA / index.html) ───────────────────────────────
     # Mount en sona; daha spesifik /api/* route'larını gölgelemesin diye.
@@ -1235,6 +1509,54 @@ def create_app(
         app.mount("/data", StaticFiles(directory=static_dir), name="data")
 
     return app
+
+
+# ── Mali analiz yardımcıları ────────────────────────────────────────────────
+
+def _serialize_rows(rows: list[dict]) -> list[dict]:
+    """datetime/Decimal → JSON serileştirilebilir."""
+    import decimal
+    result = []
+    for row in rows:
+        clean = {}
+        for k, v in row.items():
+            if isinstance(v, decimal.Decimal):
+                clean[k] = float(v)
+            elif hasattr(v, "isoformat"):
+                clean[k] = v.isoformat()
+            else:
+                clean[k] = v
+        result.append(clean)
+    return result
+
+
+def _pivot_rows(rows: list[dict], periods: list[str]) -> list[dict]:
+    """Satır bazlı DB sonucunu {label, row_index, {period: value}} pivotuna çevirir."""
+    import decimal
+    # row_index bazında grupla
+    index_map: dict[int, dict] = {}
+    for row in rows:
+        idx = row["row_index"]
+        if idx not in index_map:
+            index_map[idx] = {"row_index": idx, "label": row["label"], "values": {}}
+        raw_val = row["value"]
+        val = float(raw_val) if isinstance(raw_val, decimal.Decimal) else raw_val
+        index_map[idx]["values"][row["period"]] = val
+
+    # Sıralı döndür
+    result = []
+    for idx in sorted(index_map.keys()):
+        entry = index_map[idx]
+        # Tüm değerler 0 veya None ise atla
+        vals = [v for v in entry["values"].values() if v is not None and v != 0]
+        if not vals:
+            continue
+        result.append({
+            "row_index": entry["row_index"],
+            "label": entry["label"],
+            "values": {p: entry["values"].get(p) for p in periods},
+        })
+    return result
 
 
 class BacktestRequest(BaseModel):

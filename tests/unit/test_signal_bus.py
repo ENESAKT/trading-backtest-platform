@@ -1,4 +1,4 @@
-"""``backend.api.signal_bus.SignalBus`` için unit testler."""
+"""``backend.signals.signal_bus.SignalBus`` için unit testler."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ import asyncio
 
 import pytest
 
-from backend.api.signal_bus import SignalBus
+from backend.signals.signal_bus import SignalBus
 
 
 @pytest.mark.asyncio

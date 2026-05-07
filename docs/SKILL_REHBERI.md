@@ -14,3 +14,10 @@ Ajanların veya kullanıcıların projeyi kurallara (mimari, temizlik vb.) uygun
 | `deployment-readiness-check` | Canlı çıkış için `.env`, domain, TLS gibi koşulları test eder. |
 
 Skill detayları için `.claude/skills/` dizinini inceleyebilirsiniz.
+
+## Tek Kaynak Kuralı
+
+- `.claude/skills/` ortak ve canonical skill kaynağıdır.
+- `.agents/skills/` Codex/OpenAI uyumluluk aynasıdır; ortak skill'lerde isim ve açıklama `.claude/skills/` ile senkron tutulur.
+- `source-command-*` skill'leri yalnızca Codex komut köprüsüdür ve `.agents/skills/` altında kalır.
+- Yeni ortak skill eklendiğinde önce `.claude/skills/`, sonra gerekiyorsa `.agents/skills/` aynası güncellenir.

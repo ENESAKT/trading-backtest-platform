@@ -164,8 +164,8 @@ make up
 ├── tests/                   # 59 dosya — unit + integration
 ├── scripts/                 # Denetim ve veri platform scriptleri
 ├── docs/                    # Teknik dokümantasyon + archive/
-├── YAPILANLAR.md            # Teknik envanter ve sprint özeti
-├── YAPILACAKLAR.md          # Kalan işler, sunucu çıkış, güvenlik
+│   ├── YAPILANLAR.md        # Teknik envanter ve sprint özeti
+│   └── YAPILACAKLAR.md      # Kalan işler, sunucu çıkış, güvenlik
 └── Makefile                 # Kısayollar
 ```
 
@@ -183,6 +183,7 @@ make repo-cleanup-report      # Büyük dosya ve artifact raporu
 make borfin-integration-check # Borfin telif denetimi
 make production-package-check # Docker paket kontrolü
 make deployment-check         # Canlıya çıkış hazırlık kontrolü
+make backup-now               # Production MySQL + ClickHouse yedeği
 
 # İzleme
 make monitor                  # Grafana (3000) + Prometheus (9090) başlat
@@ -219,9 +220,9 @@ make lint
 | Faz 1B | ✅ | Mali Analiz metadata/API/UI v1 — universe, empty state |
 | Faz 2 (G1–G10) | ✅ | Grafik Lab — ölçek, indikatör merkezi, PnL, çizim, multi-chart, Fibonacci |
 | Faz 3 (B1–B13) | ✅ | Backtest Lab — WFA, Monte Carlo, optimize, tarayıcı, portföy, strategy pack |
-| **Kalan** | 🔄 | ClickHouse/MySQL API bağlantısı, TLS, Mali Analiz gerçek veri |
+| **Kalan** | 🔄 | ClickHouse/MySQL API bağlantısı, TLS domain/sertifika, Mali Analiz gerçek veri |
 
-Detay: `YAPILANLAR.md` (envanter) · `YAPILACAKLAR.md` (kalan işler + güvenlik) · `docs/planning/` (alt planlar)
+Detay: `docs/YAPILANLAR.md` (envanter) · `docs/YAPILACAKLAR.md` (kalan işler + güvenlik) · `docs/planning/` (alt planlar)
 
 ## 📄 Lisans
 

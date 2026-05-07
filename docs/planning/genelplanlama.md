@@ -100,18 +100,15 @@ Bu sira yeni AI icin zorunlu varsayilandir:
 |---|---|---|---|
 | `genelplanlama.md` | Ana yonetim paneli | Aktif | Her oturumun ilk dosyasi |
 | `planlama.md` | Plan index'i | Aktif | Dosya haritasi ve karar ozetleri icin |
-| `planlama-sprint-aktif.md` | Aktif sprint tablosu | Aktif | Siradaki sprint/adim secimi icin |
-| `planlama-veri-platformu.md` | Yeni veri platformu | Aktif/oncelikli | Veri, DB, retention, inventory islerinde |
-| `planlama-temizlik-canliya-cikis.md` | Repo/deploy planı | Aktif/oncelikli | Temizlik, Docker, domain, canliya cikis islerinde |
+| `planlama-veri-platformu.md` | Veri platformu | Aktif/oncelikli | ClickHouse/MySQL/Redis, retention, inventory islerinde |
 | `planlama-agent-skill-mentor.md` | Skill/agent planı | Aktif/oncelikli | Yeni skill, agent, mentor, denetim scriptlerinde |
-| `planlama-grafik.md` | Grafik Lab | Aktif | ChartPanel, indikator, cizim, event marker islerinde |
-| `planlama-backtest.md` | Backtest Lab | Aktif | StrategySpec, WFA, Monte Carlo, kalite, optimizer islerinde |
-| `planlama-egitimler.md` | Egitimler | Aktif/kismi tamam | Egitim paneli, makale, kopru, Borfin policy islerinde |
 | `planlama-mali-analiz.md` | Mali analiz | Aktif/metadata-only v1 | KAP/provider, finansal tablo store'u veya mali analiz UI islerinde |
-| `planlama-tasarim.md` | UI tasarim | Tamamlandi/referans | UI dili bozulursa referans |
 | `egitimplanlama.md` | Borfin okuma sureci | Aktif/referans | Yeni kurs okunurken veya artifact temizlenirken |
 | `planlama-sprint-gecmis.md` | Tamamlanan sprint arsivi | Referans | Eski is yapildi mi kontrolu icin |
-| `ROADMAP.md`, `ILERLEME.md`, `PROJE_DURUM_OZET.md` | Tarihsel snapshot | Referans degil | Sadece gecmis baglam; karar kaynagi degil |
+| `planlama.md` | Plan index'i | Referans | Dosya haritasi ve karar ozetleri icin |
+| `genelplanlama.md` | Ana yonetim paneli | Aktif | Her oturumun ilk dosyasi |
+| **`/mentorplan.md`** | **Tek başvuru kaynağı** | **Aktif** | **Her oturumun birinci dosyası** |
+| `docs/archive/` — eski dosyalar | Tarihsel snapshot | Referans degil | Sadece gecmis baglam |
 
 ---
 
@@ -119,17 +116,14 @@ Bu sira yeni AI icin zorunlu varsayilandir:
 
 | Öncelik | Dosya | Rol |
 |---:|---|---|
+| **0** | **`/mentorplan.md`** | **Her oturumun tek başvuru kaynağı — önce bunu oku** |
 | 1 | `genelplanlama.md` | Hangi sırayla ilerleyeceğimizi söyler |
-| 2 | `planlama.md` | Plan dosyalarının index'i |
-| 3 | `planlama-sprint-aktif.md` | Aktif fazların kısa takip tablosu |
-| 4 | `planlama-veri-platformu.md` | BIST/VIOP veri platformu, ClickHouse/MySQL/Redis, retention ve inventory planı |
-| 5 | `planlama-temizlik-canliya-cikis.md` | Repo temizliği, Borfin artifact ayrımı, production package ve deploy planı |
-| 6 | `planlama-agent-skill-mentor.md` | Bu konuları denetleyen skill'ler ve mentor/data/release agent planı |
-| 7 | `planlama-egitimler.md` | Eğitimler sekmesi ve makale planı |
-| 8 | `egitimplanlama.md` | BORFİN okuma kanıtları ve kurs envanteri |
-| 9 | `planlama-backtest.md`, `planlama-grafik.md`, `planlama-mali-analiz.md` | Alan planları |
+| 2 | `planlama-veri-platformu.md` | BIST/VIOP veri platformu, ClickHouse/MySQL/Redis, retention ve inventory planı |
+| 3 | `planlama-agent-skill-mentor.md` | Skill'ler ve mentor/data/release agent planı |
+| 4 | `planlama-mali-analiz.md` | KAP/provider, finansal tablo store'u, mali analiz UI |
+| 5 | `egitimplanlama.md` | BORFİN okuma kanıtları ve kurs envanteri |
 
-`ROADMAP.md`, `ILERLEME.md` ve `PROJE_DURUM_OZET.md` tarihsel snapshot kabul edilir; güncel sprint kararı için kullanılmaz.
+`docs/archive/` içindeki dosyalar tarihsel snapshot kabul edilir; güncel sprint kararı için kullanılmaz.
 
 ---
 

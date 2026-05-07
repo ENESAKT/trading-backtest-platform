@@ -128,7 +128,7 @@ async def run_pytest(path: str = "tests/", quick: bool = True) -> tuple[int, str
 async def run_tsc() -> tuple[int, str]:
     return await run_safe(
         "npx tsc --noEmit",
-        cwd=str(ROOT / "piyasapilot-v2"),
+        cwd=str(ROOT / "frontend"),
         timeout=60,
     )
 

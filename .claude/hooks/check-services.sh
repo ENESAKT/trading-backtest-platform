@@ -18,9 +18,9 @@ else
 fi
 
 # 2. Son planlama durumu (YAPILACAKLAR.md üzerinden)
-if [ -f "$PROJECT_ROOT/YAPILACAKLAR.md" ]; then
+if [ -f "$PROJECT_ROOT/docs/YAPILACAKLAR.md" ]; then
   DONE=$(grep -c '^\- \[x\]' "$PROJECT_ROOT/docs/planning/planlama-sprint-gecmis.md" 2>/dev/null || echo "0")
-  REMAINING=$(grep -c '^\- \[ \]' "$PROJECT_ROOT/YAPILACAKLAR.md" 2>/dev/null || echo "0")
+  REMAINING=$(grep -c '^\- \[ \]' "$PROJECT_ROOT/docs/YAPILACAKLAR.md" 2>/dev/null || echo "0")
   echo "📋 Planlama: $DONE tamamlandı, $REMAINING kalan"
 fi
 

@@ -1,17 +1,26 @@
-.PHONY: up down restart logs status build dev test lint e2e mcp-check stress-smoke stress-live docker-restart-check provider-check provider-check-strict provider-mock-check metrics-check retrain verify monitor daily-report wal-check data-inventory data-size-report health-check
+.PHONY: up run down clean-containers restart logs status build dev test lint e2e mcp-check stress-smoke stress-live docker-restart-check provider-check provider-check-strict provider-mock-check metrics-check retrain verify monitor daily-report wal-check data-inventory data-size-report health-check backup-now env-production tls-setup install-backup-cron borfin-ocr-inventory skill-source-check
 
 # ─── Docker Compose ────────────────────────────────────────────────────────
 
 COMPOSE = docker compose -f infra/docker-compose.yml
+PIYASAPILOT_CONTAINERS = piyasapilot-api piyasapilot-notifier piyasapilot-nginx
+PYTHON ?= $(shell test -x .venv/bin/python && echo .venv/bin/python || echo python3)
 
 up: build
+	$(MAKE) clean-containers
 	$(COMPOSE) up -d
 	@echo "✅ PiyasaPilot servisleri başlatıldı"
 	@$(COMPOSE) ps
 
+run: up
+
 down:
-	$(COMPOSE) down
+	$(COMPOSE) down --remove-orphans
+	$(MAKE) clean-containers
 	@echo "🛑 Servisler durduruldu"
+
+clean-containers:
+	@docker rm -f $(PIYASAPILOT_CONTAINERS) >/dev/null 2>&1 || true
 
 restart:
 	$(COMPOSE) restart
@@ -28,7 +37,7 @@ status:
 # ─── Build ─────────────────────────────────────────────────────────────────
 
 build:
-	cd piyasapilot-v2 && npx vite build
+	cd frontend && npx vite build
 	$(COMPOSE) build
 
 # ─── Development ───────────────────────────────────────────────────────────
@@ -39,7 +48,7 @@ dev:
 	source .venv/bin/activate && uvicorn backend.api.main:app --host 0.0.0.0 --port 8000 --reload
 
 dev-frontend:
-	cd piyasapilot-v2 && npx vite --port 5173
+	cd frontend && npx vite --port 5173
 
 # ─── Test ──────────────────────────────────────────────────────────────────
 
@@ -50,11 +59,11 @@ test-full:
 	source .venv/bin/activate && python -m pytest tests/ -v --timeout=30
 
 lint:
-	cd piyasapilot-v2 && npx tsc --noEmit
-	cd piyasapilot-v2 && npx vite build
+	cd frontend && npx tsc --noEmit
+	cd frontend && npx vite build
 
 e2e:
-	cd piyasapilot-v2 && npm run e2e
+	cd frontend && npm run e2e
 
 mcp-check:
 	source .venv/bin/activate && python scripts/verify_mcp.py
@@ -89,16 +98,16 @@ verify: test lint e2e mcp-check provider-check provider-mock-check
 # ─── Data Platform ───────────────────────────────────────────────────────────
 
 data-inventory:
-	python scripts/data_platform/inventory_sync.py
+	$(PYTHON) scripts/data_platform/inventory_sync.py
 
 data-size-report:
 	@echo "Size report (To be implemented or check ClickHouse system.parts)"
 
 health-check:
-	python scripts/data_platform/health_check.py
+	$(PYTHON) scripts/data_platform/health_check.py
 
 prod-health:
-	python scripts/data_platform/health_check.py --prod
+	$(PYTHON) scripts/data_platform/health_check.py --prod
 
 derive-timeframes:
 	python3 -m backend.data.ingest.derive_timeframes
@@ -115,22 +124,37 @@ backfill-viop:
 # ─── Deployment & Cleanup ─────────────────────────────────────────────────
 
 repo-cleanup-report:
-	python scripts/deployment/repo_cleanup_report.py
+	$(PYTHON) scripts/deployment/repo_cleanup_report.py
 
 borfin-integration-check:
-	python scripts/deployment/borfin_check.py
+	$(PYTHON) scripts/deployment/borfin_check.py
+
+borfin-ocr-inventory:
+	$(PYTHON) scripts/deployment/borfin_ocr_inventory.py
 
 production-package-check:
-	python scripts/deployment/production_package_check.py
+	$(PYTHON) scripts/deployment/production_package_check.py
 
 docker-context-size:
 	du -sh . --exclude=.git --exclude=.venv --exclude=artifacts
 
 deployment-check:
-	python scripts/deployment/deployment_check.py
+	$(PYTHON) scripts/deployment/deployment_check.py
+
+skill-source-check:
+	$(PYTHON) scripts/deployment/skill_source_check.py
 
 backup-now:
-	@echo "Manual backup not fully implemented yet."
+	bash scripts/deployment/backup_now.sh
+
+env-production:
+	$(PYTHON) scripts/deployment/create_env_production.py
+
+tls-setup:
+	bash scripts/deployment/setup_tls.sh
+
+install-backup-cron:
+	bash scripts/deployment/install_backup_cron.sh
 
 # ─── Utility ───────────────────────────────────────────────────────────────
 

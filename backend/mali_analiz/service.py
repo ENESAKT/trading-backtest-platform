@@ -71,11 +71,13 @@ class FinancialAnalysisService:
         *,
         cache: FinancialAnalysisCache,
         provider: FinancialAnalysisProvider | None = None,
+        repository: Any | None = None,
         ttl: timedelta = DEFAULT_TTL,
         now_provider: Callable[[], datetime] | None = None,
     ):
         self.cache = cache
         self.provider = provider or MockFinancialAnalysisProvider()
+        self.repository = repository
         self.ttl = ttl
         self._now_provider = now_provider or _utc_now
 
@@ -142,4 +144,9 @@ class FinancialAnalysisService:
             status=payload.source_status.status,
             fetched_at=fetched_at,
         )
+        if self.repository is not None:
+            try:
+                self.repository.save_response(payload, source=result.source)
+            except Exception:
+                pass
         return entry.to_response(cache_hit=False, stale=False)

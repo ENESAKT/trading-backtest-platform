@@ -14,4 +14,8 @@ logs
 piyasapilot-v2/node_modules
 piyasapilot-v2/test-results
 piyasapilot-v2/playwright-report
+frontend/node_modules
+frontend/test-results
+frontend/playwright-report
+frontend/dist
 .claude/agent-logs
