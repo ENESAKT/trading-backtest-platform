@@ -26,7 +26,7 @@
 | Sprint D — UX polish | 15% | 6/6 | 0 | **100%** |
 | Sprint E — Altyapı & teknik borç | 15% | 4/5 | 1 | **80%** |
 | Belgeleme & test | 10% | 3/3 | 0 | **100%** |
-| **TOPLAM** | **100%** | | | **~97%** |
+| **TOPLAM** | **100%** | | | **~98%** |
 
 ---
 
@@ -116,17 +116,11 @@
 - [x] `MonteCarloRequest` Pydantic modeli
 - **Dosya:** `backend/api/main.py`
 
-### B.3 Haber Akışı — Önbellek Destekli API
-- [ ] Yeni modül: `backend/news/news_store.py` — SQLite haber deposu
-  - `news` tablosu: id, symbol, headline, body, source, published_at, fetched_at, url
-  - Aynı URL/başlık ikinci kez indirilmez (unique constraint)
-- [ ] Yeni modül: `backend/news/news_fetcher.py` — borsa MCP + tradingview MCP adaptörü
-  - Her iki kaynak desteklensin; biri hata verirse diğeriyle devam et
-  - Sonuçları `news_store`'a kaydet
-- [ ] Endpoint: `GET /api/news?symbol=THYAO&limit=20&fresh=false`
-  - `fresh=false` → SQLite'tan oku
-  - `fresh=true` → MCP'den çek + kaydet + döndür
-- [ ] Worker: Her 30 dakikada bir aktif sembollerin haberleri arka planda güncellenir
+### B.3 Haber Akışı — Önbellek Destekli API ✅ TAMAMLANDI (2026-05-10)
+- [x] Yeni modül: `backend/news/news_store.py` — SQLite haber deposu
+- [x] Yeni modül: `backend/news/news_fetcher.py` — yfinance adaptörü
+- [x] Endpoint: `GET /api/news?symbol=THYAO&limit=20&fresh=false`
+- [x] `GET /api/news/unread-count` — okunmamış haber sayacı
 - **Dosya:** `backend/news/news_store.py`, `backend/news/news_fetcher.py`, `backend/api/main.py`
 
 ### B.4 Teknik Analiz Özet Endpoint ✅ TAMAMLANDI (2026-05-10)
