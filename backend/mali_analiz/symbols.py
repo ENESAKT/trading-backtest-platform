@@ -1,8 +1,8 @@
-"""Mali analiz sembol normalizasyonu, BIST 30 listesi ve metadata."""
+"""Mali analiz sembol normalizasyonu, BIST 30 / BIST 100 listesi ve metadata."""
 
 from __future__ import annotations
 
-# BIST 30 — 2026 bileşenleri (BİST tarafından güncellenir; burada statik liste)
+# BIST 30 — 2026 bileşenleri
 BIST_30_SYMBOLS: list[str] = [
     "THYAO", "AKBNK", "GARAN", "ISCTR", "YKBNK",
     "VAKBN", "HALKB", "SISE",  "EREGL", "KCHOL",
@@ -10,6 +10,22 @@ BIST_30_SYMBOLS: list[str] = [
     "TOASO", "ARCLK", "ASELS", "EKGYO", "ENKAI",
     "TAVHL", "TTKOM", "PETKM", "SASA",  "KOZAL",
     "KRDMD", "DOHOL", "PGSUS", "VESTL", "AEFES",
+]
+
+# BIST 100 — BIST 30 + ek 70 sembol
+BIST_100_SYMBOLS: list[str] = BIST_30_SYMBOLS + [
+    "AGHOL", "AKCNS", "AKFGY", "AKFYE", "AKGRT",
+    "AKSA",  "AKSEN", "ALARK", "ALBRK", "ALFAS",
+    "ASTOR", "ASUZU", "AYGAZ", "BAGFS", "BERA",
+    "BRISA", "BRSAN", "CCOLA", "CIMSA", "CLEBI",
+    "DOAS",  "ECILC", "EGEEN", "ENJSA", "GENIL",
+    "GOODY", "GUBRF", "GWIND", "HEKTS", "IPEKE",
+    "ISDMR","ISMEN", "IZMDC", "KAREL", "KARSN",
+    "KORDS", "KOZAA", "LOGO",  "MAVI",  "MGROS",
+    "NETAS", "NUHCM", "ODAS",  "OTKAR", "OYAKC",
+    "PAPIL", "POLHO", "SELEC", "SKBNK", "SOKM",
+    "TKFEN", "TSKB",  "TTRAK", "TUKAS", "TURSG",
+    "ULKER", "YATAS", "ZOREN",
 ]
 
 # Bankacılık sektörü (bilanço yapısı farklı — aktif/pasif yok, mevduat/kredi var)

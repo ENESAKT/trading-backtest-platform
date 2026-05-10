@@ -322,10 +322,12 @@ export class ChartPanel {
   private drawingManager!: DrawingManager;
   private handleThemeChange = (): void => this.applyThemeOptions();
 
-  // G6: Multi-symbol comparison
+  // G6: Multi-symbol comparison (primary + up to 2 extras)
   private compareSeries: any = null;
   private compareCandles: OHLCV[] = [];
   private comparePercentBaseClose: number | null = null;
+  private _extraEntries: Array<{ symbol: string; series: any; candles: OHLCV[] }> = [];
+  private readonly _extraColors = ['#3a86ff', '#26c97e'];
   private compareSuggestionIndex = 0;
 
   // G9: Event markers
@@ -449,11 +451,12 @@ export class ChartPanel {
         <button class="tool-trigger" type="button"><span>Karşılaştır</span><b>+ Sembol</b></button>
         <div class="tool-inline compare-inline">
           <div class="compare-search-wrap">
-            <input type="text" class="search-input compare-input" id="compare-input" placeholder="+ Sembol" autocomplete="off" spellcheck="false" role="combobox" aria-expanded="false" aria-controls="compare-suggestions">
+            <input type="text" class="search-input compare-input" id="compare-input" placeholder="+ Sembol (maks 3)" autocomplete="off" spellcheck="false" role="combobox" aria-expanded="false" aria-controls="compare-suggestions">
             <div class="compare-suggestions" id="compare-suggestions" role="listbox"></div>
           </div>
-          <button class="ctrl-btn" id="compare-add-btn" title="Ekle/Değiştir">Ekle</button>
-          <button class="ctrl-btn" id="compare-clear-btn" title="Temizle">x</button>
+          <button class="ctrl-btn" id="compare-add-btn" title="Ekle">+</button>
+          <button class="ctrl-btn" id="compare-clear-btn" title="Hepsini temizle">×</button>
+          <div id="compare-chips" class="compare-chips"></div>
           <div id="compare-options" class="compare-options">
             <input type="color" id="compare-color-picker" value="${COMPARE_COLOR}" title="Renk">
             <select id="compare-type-select">
@@ -1824,6 +1827,9 @@ export class ChartPanel {
     if (this.compareSeries && this.compareCandles.length > 0) {
       this.renderCompareSeries();
     }
+    if (this._extraEntries.length > 0) {
+      this._renderExtraCompareSeries();
+    }
     if (savedVisibleRange) this.restoreVisibleRange(savedVisibleRange);
     this.updateUnitBadge();
   }
@@ -2524,6 +2530,10 @@ export class ChartPanel {
     if (this.compareSeries) {
       this.mainChart.removeSeries(this.compareSeries);
     }
+    for (const e of this._extraEntries) {
+      try { this.mainChart.removeSeries(e.series); } catch { /* ignored */ }
+    }
+    this._extraEntries = [];
     this.mainChart.remove();
     this.volChart.remove();
     this.rsiChart.remove();
@@ -2535,6 +2545,44 @@ export class ChartPanel {
   // ─── Compare Symbol Logic ───────────────────────────────────────────────
 
   setCompareData(symbol: string, candles: OHLCV[]): void {
+    // If symbol is already an extra compare entry, update its data and re-render
+    const existingExtraIdx = this._extraEntries.findIndex(e => e.symbol === symbol);
+    if (existingExtraIdx !== -1) {
+      this._extraEntries[existingExtraIdx].candles = candles;
+      this._renderExtraCompareSeries();
+      return;
+    }
+
+    // If primary slot is empty or being replaced with same symbol, use primary slot
+    const isPrimary = !this.compareSeries || this.container.dataset['compareSymbol'] === symbol;
+    if (!isPrimary) {
+      // Route to extra slot (up to 2 extras = 3 total)
+      if (this._extraEntries.length >= 2) {
+        // Replace oldest extra
+        try { this.mainChart.removeSeries(this._extraEntries[0].series); } catch { /* ignored */ }
+        this._extraEntries.shift();
+      }
+      const color = this._extraColors[this._extraEntries.length] ?? '#aaa';
+      const series = this.mainChart.addLineSeries({
+        color,
+        lineWidth: 2,
+        priceLineVisible: false,
+        lastValueVisible: true,
+        crosshairMarkerVisible: true,
+        title: symbol,
+        priceScaleId: 'left',
+      });
+      this._extraEntries.push({ symbol, series, candles });
+      this.mainChart.priceScale('left').applyOptions({
+        visible: true, autoScale: true,
+        scaleMargins: { top: 0.08, bottom: 0.14 }, borderColor: C.border,
+      });
+      this._renderExtraCompareSeries();
+      this._updateCompareChips();
+      return;
+    }
+
+    // Primary slot
     if (this.compareSeries) {
       this.mainChart.removeSeries(this.compareSeries);
       this.compareSeries = null;
@@ -2547,13 +2595,11 @@ export class ChartPanel {
       const syncMatch = candles.find(c => c.time >= this.candles[0].time) || candles[0];
       const mainPrice = this.candles[0].close;
       const compPrice = syncMatch.close;
-      
+
       if (mainPrice > 0 && compPrice > 0) {
         const ratio = mainPrice > compPrice ? mainPrice / compPrice : compPrice / mainPrice;
         if (ratio > 3) {
-          console.log(`[Chart] Fiyat farkı çok yüksek (${ratio.toFixed(1)}x). Otomatik yüzdesel moda geçiliyor.`);
           this.scaleMode = 'percent';
-          // scaleMode değiştirdiğimiz için base recalculation tetiklenmeli
           this.ensurePercentBase(this.candles);
           this.updateScaleButtons();
         }
@@ -2566,7 +2612,6 @@ export class ChartPanel {
     const compareType = this.container.dataset['compareType'] || compareTypeSelect?.value || 'candle';
     this.container.dataset['compareType'] = compareType;
 
-    // H2: Toolbar'da eklenen sembolü ve rengini göster
     const compareTrigger = this.container.querySelector('.compare-cluster .tool-trigger b') as HTMLElement;
     if (compareTrigger) {
       compareTrigger.textContent = symbol;
@@ -2605,7 +2650,7 @@ export class ChartPanel {
       });
     }
 
-    // H4: Sol ekseni bağımsız autoScale ile yapılandır — iki grafik birbirini ezmesin
+    // H4: Sol ekseni bağımsız autoScale ile yapılandır
     this.mainChart.priceScale('left').applyOptions({
       visible: true,
       autoScale: true,
@@ -2616,6 +2661,7 @@ export class ChartPanel {
     if (compareOptions) compareOptions.style.display = 'flex';
 
     this.renderCompareSeries();
+    this._updateCompareChips();
 
     this.applyScaleMode();
     this.updateUnitBadge();
@@ -2687,10 +2733,33 @@ export class ChartPanel {
     this.compareSeries.setData(compareLineData);
   }
 
+  private _renderExtraCompareSeries(): void {
+    if (!this.candles.length) return;
+    for (const entry of this._extraEntries) {
+      if (!entry.candles.length) continue;
+      const synced = this.syncCompareData(this.candles, entry.candles);
+      if (!synced.length) continue;
+      const baseClose = synced[0].close;
+      if (!baseClose) continue;
+      const data = synced.map(c => ({
+        time: c.time as Time,
+        value: (c.close / baseClose) * 100,
+      }));
+      entry.series.setData(data);
+    }
+  }
+
   clearCompare(): void {
     if (this.compareSeries) {
       this.mainChart.removeSeries(this.compareSeries);
       this.compareSeries = null;
+    }
+    for (const e of this._extraEntries) {
+      try { this.mainChart.removeSeries(e.series); } catch { /* ignored */ }
+    }
+    this._extraEntries = [];
+
+    if (!this.compareSeries) {
       this.mainChart.priceScale('left').applyOptions({ visible: false });
     }
     this.compareCandles = [];
@@ -2700,15 +2769,58 @@ export class ChartPanel {
     const compareOptions = this.container.querySelector<HTMLElement>('#compare-options');
     if (compareOptions) compareOptions.style.display = 'none';
 
-    // Toolbar metnini geri yükle
     const compareTrigger = this.container.querySelector('.compare-cluster .tool-trigger b') as HTMLElement;
     if (compareTrigger) {
       compareTrigger.textContent = '+ Sembol';
       compareTrigger.style.color = '';
     }
+    this._updateCompareChips();
 
     this.applyScaleMode();
     this.updateUnitBadge();
+  }
+
+  private clearCompareSymbol(symbol: string): void {
+    if (this.container.dataset['compareSymbol'] === symbol) {
+      this.clearCompare();
+      return;
+    }
+    const idx = this._extraEntries.findIndex(e => e.symbol === symbol);
+    if (idx === -1) return;
+    try { this.mainChart.removeSeries(this._extraEntries[idx].series); } catch { /* ignored */ }
+    this._extraEntries.splice(idx, 1);
+    if (this._extraEntries.length === 0 && !this.compareSeries) {
+      this.mainChart.priceScale('left').applyOptions({ visible: false });
+    }
+    this._updateCompareChips();
+  }
+
+  private _updateCompareChips(): void {
+    const chips = this.container.querySelector<HTMLElement>('#compare-chips');
+    if (!chips) return;
+    const allSymbols: Array<{ sym: string; color: string }> = [];
+    const primarySym = this.container.dataset['compareSymbol'];
+    if (primarySym) {
+      const colorPicker = this.container.querySelector<HTMLInputElement>('#compare-color-picker');
+      allSymbols.push({ sym: primarySym, color: colorPicker?.value ?? COMPARE_COLOR });
+    }
+    for (let i = 0; i < this._extraEntries.length; i++) {
+      allSymbols.push({ sym: this._extraEntries[i].symbol, color: this._extraColors[i] ?? '#aaa' });
+    }
+    chips.innerHTML = allSymbols.map(({ sym, color }) =>
+      `<span class="cmp-chip" data-sym="${this._escHtml(sym)}" style="border-color:${color};color:${color}">${this._escHtml(sym)} <button class="cmp-chip-x" title="Kaldır">×</button></span>`
+    ).join('');
+    chips.querySelectorAll<HTMLElement>('.cmp-chip-x').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const sym = (btn.closest<HTMLElement>('.cmp-chip')?.dataset['sym']) ?? '';
+        if (sym) this.clearCompareSymbol(sym);
+      });
+    });
+  }
+
+  private _escHtml(s: string): string {
+    return s.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c] ?? c);
   }
 
   // ─── G9: Event Marker System ─────────────────────────────────────────────

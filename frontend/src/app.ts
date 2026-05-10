@@ -11,6 +11,7 @@ import { Screener } from './components/Screener.js';
 import { SignalFeed } from './components/SignalFeed.js';
 import { EgitimlerPanel } from './components/EgitimlerPanel.js';
 import { MaliAnalizPanel } from './components/MaliAnalizPanel.js';
+import { NewsPanel } from './components/NewsPanel.js';
 import { TR, formatAgo } from './constants/tr.js';
 import { loadHistorical } from './core/HistoricalLoader.js';
 
@@ -28,8 +29,61 @@ const tabBtns      = document.querySelectorAll<HTMLElement>('[data-tab]');
 const LS_LAST_TAB  = 'piyasapilot_last_tab';
 const LS_THEME     = 'piyasapilot_theme';
 const LS_ACCENT    = 'piyasapilot_accent';
-type AppTab = 'chart' | 'portfolio' | 'strategy' | 'screener' | 'signals' | 'education' | 'financials';
-const TABS: AppTab[] = ['chart', 'portfolio', 'strategy', 'screener', 'signals', 'education', 'financials'];
+type AppTab = 'chart' | 'portfolio' | 'strategy' | 'screener' | 'signals' | 'education' | 'financials' | 'news';
+const TABS: AppTab[] = ['chart', 'portfolio', 'strategy', 'screener', 'signals', 'education', 'financials', 'news'];
+
+// ─── Shortcut overlay ─────────────────────────────────────────────────────────
+
+function buildShortcutOverlay(): void {
+  if (document.getElementById('shortcut-overlay')) return;
+  const overlay = document.createElement('div');
+  overlay.id = 'shortcut-overlay';
+  overlay.className = 'shortcut-overlay hidden';
+  overlay.innerHTML = `
+    <div class="shortcut-modal">
+      <div class="shortcut-modal-header">
+        <h3>Klavye Kısayolları</h3>
+        <button class="shortcut-close" id="shortcut-close">✕</button>
+      </div>
+      <div class="shortcut-grid">
+        <div class="shortcut-section">
+          <h4>Sekmeler</h4>
+          <div class="shortcut-row"><kbd>1</kbd><span>Grafik</span></div>
+          <div class="shortcut-row"><kbd>2</kbd><span>Portföy</span></div>
+          <div class="shortcut-row"><kbd>3</kbd><span>Strateji</span></div>
+          <div class="shortcut-row"><kbd>4</kbd><span>Tarayıcı</span></div>
+          <div class="shortcut-row"><kbd>5</kbd><span>Sinyaller</span></div>
+          <div class="shortcut-row"><kbd>6</kbd><span>Eğitim</span></div>
+          <div class="shortcut-row"><kbd>7</kbd><span>Finansallar</span></div>
+          <div class="shortcut-row"><kbd>8</kbd><span>Haberler</span></div>
+        </div>
+        <div class="shortcut-section">
+          <h4>Grafik</h4>
+          <div class="shortcut-row"><kbd>G</kbd><span>Layout döngüsü (1×1 → 1×2 → 2×2)</span></div>
+          <div class="shortcut-row"><kbd>F</kbd><span>Tam ekran</span></div>
+          <div class="shortcut-row"><kbd>B</kbd><span>Bollinger Bantları</span></div>
+          <div class="shortcut-row"><kbd>R</kbd><span>RSI</span></div>
+        </div>
+        <div class="shortcut-section">
+          <h4>Genel</h4>
+          <div class="shortcut-row"><kbd>?</kbd><span>Bu pencereyi aç / kapat</span></div>
+          <div class="shortcut-row"><kbd>Esc</kbd><span>Kapat / İptal</span></div>
+        </div>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+  overlay.addEventListener('click', (e) => {
+    if ((e.target as HTMLElement).id === 'shortcut-overlay') toggleShortcutOverlay(false);
+  });
+  document.getElementById('shortcut-close')!.addEventListener('click', () => toggleShortcutOverlay(false));
+}
+
+function toggleShortcutOverlay(force?: boolean): void {
+  const el = document.getElementById('shortcut-overlay');
+  if (!el) return;
+  const open = force !== undefined ? force : el.classList.contains('hidden');
+  el.classList.toggle('hidden', !open);
+}
 
 const ACCENT_PRESETS: Record<string, Record<string, string>> = {
   amber: {
@@ -149,6 +203,7 @@ const screenerEl  = createPanel('panel-screener');
 const signalsEl   = createPanel('panel-signals');
 const educationEl = createPanel('panel-education');
 const financialsEl= createPanel('panel-financials');
+const newsEl      = createPanel('panel-news');
 
 // Inject Financials tab button if not exists
 let financialsBtn = document.querySelector('[data-tab="financials"]');
@@ -165,6 +220,37 @@ if (!financialsBtn) {
     btn.addEventListener('click', () => showTab('financials'));
   }
 }
+
+// Inject News tab button if not exists
+if (!document.querySelector('[data-tab="news"]')) {
+  const tabsContainer = document.querySelector('.topbar-tabs');
+  if (tabsContainer) {
+    const btn = document.createElement('button');
+    btn.dataset.tab = 'news';
+    btn.className = 'tab-btn';
+    btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 20H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h10l6 6v8a2 2 0 0 1-2 2z"/><polyline points="17 1 17 7 23 7"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg><span>Haberler</span><span class="shortcut">8</span><span class="tab-news-badge" id="tab-news-badge" hidden></span>`;
+    tabsContainer.appendChild(btn);
+    btn.addEventListener('click', () => showTab('news'));
+  }
+}
+
+async function refreshNewsBadge(): Promise<void> {
+  try {
+    const res = await fetch('/api/news/unread-count');
+    if (!res.ok) return;
+    const data = await res.json() as { count: number };
+    const badge = document.getElementById('tab-news-badge');
+    if (!badge) return;
+    if (data.count > 0) {
+      badge.textContent = data.count > 99 ? '99+' : String(data.count);
+      badge.hidden = false;
+    } else {
+      badge.hidden = true;
+    }
+  } catch { /* ignore */ }
+}
+void refreshNewsBadge();
+setInterval(() => void refreshNewsBadge(), 60_000);
 
 const portfolioEngine = new PortfolioEngine();
 const sidebar         = new Sidebar(sidebarEl);
@@ -188,6 +274,13 @@ function getMaliAnalizPanel(): MaliAnalizPanel {
     maliAnalizPanel = new MaliAnalizPanel(financialsEl);
   }
   return maliAnalizPanel;
+}
+let newsPanelInstance: NewsPanel | null = null;
+function getNewsPanel(): NewsPanel {
+  if (!newsPanelInstance) {
+    newsPanelInstance = new NewsPanel(newsEl);
+  }
+  return newsPanelInstance;
 }
 // Screener is self-contained; reference kept to prevent GC
 const _screener = new Screener(screenerEl, () => dataEngine.getAllCached());
@@ -239,7 +332,13 @@ function showTab(tab: string, persist = true): void {
   signalsEl.style.display   = tab === 'signals'   ? 'flex' : 'none';
   educationEl.style.display = tab === 'education' ? 'flex' : 'none';
   financialsEl.style.display= tab === 'financials'? 'flex' : 'none';
-  if (tab === 'financials') getMaliAnalizPanel(); // Trigger load if switching to financials
+  newsEl.style.display      = tab === 'news'       ? 'flex' : 'none';
+  if (tab === 'financials') {
+    const panel = getMaliAnalizPanel();
+    const activeSym = multiChart.getActivePaneSymbol()?.symbol;
+    if (activeSym) panel.loadData(activeSym);
+  }
+  if (tab === 'news') getNewsPanel();
   if (persist) localStorage.setItem(LS_LAST_TAB, tab);
 
   // Trigger backtest when strategy tab becomes visible
@@ -250,6 +349,13 @@ function showTab(tab: string, persist = true): void {
       multiChart.getActivePaneTimeframe(),
     );
   }
+
+  // URL deep-link sync
+  const url = new URL(window.location.href);
+  url.searchParams.set('tab', tab);
+  const sym = multiChart.getActivePaneSymbol()?.symbol;
+  if (sym) url.searchParams.set('symbol', sym);
+  history.replaceState(null, '', url.toString());
 }
 
 tabBtns.forEach(btn => {
@@ -260,7 +366,9 @@ const savedLastTab = localStorage.getItem(LS_LAST_TAB);
 const initialTab: AppTab = isAppTab(savedLastTab) ? savedLastTab : 'chart';
 showTab(initialTab, false);
 
-// ─── Keyboard shortcuts (1–7 = tabs, F = fullscreen, G = cycle layout) ──────
+// ─── Keyboard shortcuts (1–7 = tabs, F = fullscreen, G = cycle layout, ? = help) ──────
+
+buildShortcutOverlay();
 
 document.addEventListener('keydown', (e) => {
   if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement) return;
@@ -272,6 +380,9 @@ document.addEventListener('keydown', (e) => {
     case '5': showTab('signals');   break;
     case '6': showTab('education'); break;
     case '7': showTab('financials'); break;
+    case '8': showTab('news');       break;
+    case '?': toggleShortcutOverlay(); break;
+    case 'Escape': toggleShortcutOverlay(false); break;
     case 'g':
     case 'G': {
       // Layout döngüsü: 1x1 → 1x2 → 2x2 → 1x1
@@ -285,6 +396,23 @@ document.addEventListener('keydown', (e) => {
     // 'F' and timeframe shortcuts are handled within ChartPanel
   }
 });
+
+// ─── URL deep-link boot ───────────────────────────────────────────────────────
+// Apply ?symbol=... and ?tab=... on initial load (after all components are ready)
+(function applyUrlParams(): void {
+  const params = new URLSearchParams(window.location.search);
+  const tabParam = params.get('tab');
+  const symParam = params.get('symbol');
+  if (tabParam && isAppTab(tabParam)) {
+    showTab(tabParam, false);
+  }
+  if (symParam) {
+    const info = dataEngine.getSymbolInfo(symParam) || {
+      symbol: symParam, name: symParam, assetType: 'equity', group: 'BIST', currency: 'TRY',
+    };
+    void openSymbol(info as Parameters<typeof openSymbol>[0]);
+  }
+})();
 
 // ─── Global Custom Events ─────────────────────────────────────────────────────
 

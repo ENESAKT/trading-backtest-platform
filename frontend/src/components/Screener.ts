@@ -6,11 +6,16 @@ import { SMA } from '../indicators/index.js';
 
 // ─── Screener ─────────────────────────────────────────────────────────────────
 
+type SortCol = 'symbol' | 'price' | 'changePct' | 'rsi' | 'emaSignal' | 'bbPosition';
+type SortDir = 'asc' | 'desc';
+
 export class Screener {
   private container: HTMLElement;
   private activeFilters = new Set<ScreenerFilter>();
   private results: ScreenerResult[] = [];
   private getCache: () => Map<string, OHLCV[]>;
+  private sortCol: SortCol = 'changePct';
+  private sortDir: SortDir = 'desc';
 
   constructor(container: HTMLElement, getCache: () => Map<string, OHLCV[]>) {
     this.container = container;
@@ -180,6 +185,27 @@ export class Screener {
 
   // ─── Results table ───────────────────────────────────────────────────────
 
+  private sortResults(): ScreenerResult[] {
+    const dir = this.sortDir === 'asc' ? 1 : -1;
+    return [...this.results].sort((a, b) => {
+      switch (this.sortCol) {
+        case 'symbol':    return dir * a.symbol.localeCompare(b.symbol);
+        case 'price':     return dir * (a.price - b.price);
+        case 'changePct': return dir * (a.changePct - b.changePct);
+        case 'rsi':       return dir * (a.rsi - b.rsi);
+        case 'emaSignal': return dir * a.emaSignal.localeCompare(b.emaSignal);
+        case 'bbPosition':return dir * a.bbPosition.localeCompare(b.bbPosition);
+        default:          return 0;
+      }
+    });
+  }
+
+  private thHTML(col: SortCol, label: string): string {
+    const active = this.sortCol === col;
+    const arrow = active ? (this.sortDir === 'asc' ? ' ▲' : ' ▼') : '';
+    return `<th class="sortable-th${active ? ' sort-active' : ''}" data-sort="${col}">${label}${arrow}</th>`;
+  }
+
   private renderResults(): void {
     const el = this.container.querySelector('#screener-results')!;
 
@@ -188,26 +214,59 @@ export class Screener {
       return;
     }
 
+    const sorted = this.sortResults();
+
     el.innerHTML = `
       <div class="screener-count">${this.results.length} sembol bulundu</div>
       <table class="data-table screener-table">
         <thead>
           <tr>
-            <th>${TR.SYMBOL}</th>
-            <th>${TR.PRICE}</th>
-            <th>${TR.CHANGE_PCT}</th>
-            <th>RSI</th>
-            <th>${TR.EMA_SIGNAL}</th>
-            <th>${TR.BB_POSITION}</th>
+            ${this.thHTML('symbol', TR.SYMBOL)}
+            ${this.thHTML('price', TR.PRICE)}
+            ${this.thHTML('changePct', TR.CHANGE_PCT)}
+            ${this.thHTML('rsi', 'RSI')}
+            ${this.thHTML('emaSignal', TR.EMA_SIGNAL)}
+            ${this.thHTML('bbPosition', TR.BB_POSITION)}
             <th>${TR.VOLUME_ALERT}</th>
             <th>${TR.ALERTS}</th>
+            <th>İşlem</th>
           </tr>
         </thead>
         <tbody>
-          ${this.results.map(r => this.rowHTML(r)).join('')}
+          ${sorted.map(r => this.rowHTML(r)).join('')}
         </tbody>
       </table>
     `;
+
+    el.querySelectorAll<HTMLElement>('.sortable-th').forEach(th => {
+      th.style.cursor = 'pointer';
+      th.addEventListener('click', () => {
+        const col = th.dataset['sort'] as SortCol;
+        if (this.sortCol === col) {
+          this.sortDir = this.sortDir === 'asc' ? 'desc' : 'asc';
+        } else {
+          this.sortCol = col;
+          this.sortDir = 'desc';
+        }
+        this.renderResults();
+      });
+    });
+
+    el.querySelectorAll<HTMLButtonElement>('.screener-backtest').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const symbol = btn.dataset['backtest']!;
+        window.dispatchEvent(new CustomEvent('addSymbolToBacktest', { detail: { symbol } }));
+      });
+    });
+
+    el.querySelectorAll<HTMLButtonElement>('.screener-chart').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const symbol = btn.dataset['chart']!;
+        window.dispatchEvent(new CustomEvent('openSymbolOnChart', { detail: { symbol } }));
+      });
+    });
   }
 
   private rowHTML(r: ScreenerResult): string {
@@ -225,6 +284,10 @@ export class Screener {
         <td class="${bbCls}">${r.bbPosition}</td>
         <td>${r.volumeAlert ? '⚡' : '—'}</td>
         <td class="alerts-cell">${r.alerts.slice(0, 3).map(a => `<span class="alert-tag">${a}</span>`).join('')}</td>
+        <td class="screener-actions">
+          <button class="btn-sm screener-chart" data-chart="${r.symbol}" title="Grafikte aç">📈</button>
+          <button class="btn-sm screener-backtest" data-backtest="${r.symbol}" title="Bu sembolü backtest için aç">▶ BT</button>
+        </td>
       </tr>
     `;
   }

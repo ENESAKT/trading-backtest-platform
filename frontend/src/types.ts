@@ -191,6 +191,7 @@ export interface MonteCarloReport {
   probability_of_loss: number;
   median_max_drawdown_pct: number;
   p95_max_drawdown_pct: number;
+  sample_simulations?: number[][];
   warnings: string[];
 }
 

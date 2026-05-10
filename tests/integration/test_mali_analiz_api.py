@@ -1,166 +1,194 @@
-"""Mali analiz API entegrasyon testleri."""
+"""Mali analiz API v2 entegrasyon testleri — borsapy tabanlı yeni endpoint'ler."""
 
 from __future__ import annotations
 
+import os
+import pytest
 from fastapi.testclient import TestClient
 
 from backend.api.main import create_app
-from backend.mali_analiz.cache import FinancialAnalysisCache
-from backend.mali_analiz.models import FinancialAnalysisResponse
-from backend.mali_analiz.service import FinancialAnalysisService, FinancialProviderResult
 from backend.workers import WorkerSupervisor
 
-
-class FakeFinancialProvider:
-    def __init__(self):
-        self.should_fail = False
-        self.calls = 0
-
-    def fetch(self, symbol: str) -> FinancialProviderResult:
-        self.calls += 1
-        if self.should_fail:
-            raise RuntimeError("Provider error")
-
-        payload = FinancialAnalysisResponse(
-            symbol=symbol.upper(),
-            company_name=f"{symbol} Corp",
-            periods=["2023/12"],
-            balance_sheet={"donen_varliklar": 1000},
-            income_statement={"net_kar": 100},
-            cash_flow={},
-            ratios=[],
-            warnings=[],
-        )
-        return FinancialProviderResult(payload=payload, source="fake")
+# Test ortamında gerçek MySQL bağlantısı ve borsapy harvest yok.
+_TEST_ENV = {
+    "PIYASAPILOT_DISABLE_FINANCIAL_REPOSITORY": "1",
+    "PIYASAPILOT_DISABLE_FINANCIAL_HARVEST": "1",
+    "PIYASAPILOT_DISABLE_DB_FACADE": "1",
+    "PIYASAPILOT_DISABLE_WORKERS": "1",
+}
 
 
-def _build_client(tmp_path) -> tuple[TestClient, FakeFinancialProvider, FinancialAnalysisCache]:
-    ma_cache = FinancialAnalysisCache(db_path=tmp_path / "mali_analiz.sqlite3")
-    fake_provider = FakeFinancialProvider()
-    service = FinancialAnalysisService(cache=ma_cache, provider=fake_provider)
-
-    app = create_app(
-        mali_analiz_service=service,
-        supervisor=WorkerSupervisor([]),
-    )
-    return TestClient(app), fake_provider, ma_cache
-
-
-def test_mali_analiz_endpoint_success(tmp_path):
-    client, provider, _ = _build_client(tmp_path)
-
-    resp = client.get("/api/mali-analiz/THYAO")
-    assert resp.status_code == 200
-    body = resp.json()
-
-    assert body["symbol"] == "THYAO"
-    assert body["company_name"] == "THYAO Corp"
-    assert body["source_status"]["cache_hit"] is False
-    assert provider.calls == 1
+def _client() -> TestClient:
+    """DB olmadan minimal app — tüm mali-analiz endpoint'leri 'no_db' / boş döner."""
+    orig = {k: os.environ.get(k) for k in _TEST_ENV}
+    os.environ.update(_TEST_ENV)
+    try:
+        app = create_app(supervisor=WorkerSupervisor([]))
+    finally:
+        for k, v in orig.items():
+            if v is None:
+                os.environ.pop(k, None)
+            else:
+                os.environ[k] = v
+    return TestClient(app)
 
 
-def test_mali_analiz_endpoint_cache_hit(tmp_path):
-    client, provider, _ = _build_client(tmp_path)
+# ── Universe ──────────────────────────────────────────────────────────────────
 
-    # First call - cache miss
-    client.get("/api/mali-analiz/THYAO")
-    assert provider.calls == 1
-
-    # Second call - cache hit
-    resp = client.get("/api/mali-analiz/THYAO")
-    assert resp.status_code == 200
-    body = resp.json()
-    assert body["source_status"]["cache_hit"] is True
-    assert provider.calls == 1  # No new provider call
-
-
-def test_mali_analiz_endpoint_force_refresh(tmp_path):
-    client, provider, _ = _build_client(tmp_path)
-
-    client.get("/api/mali-analiz/THYAO")
-    resp = client.get("/api/mali-analiz/THYAO", params={"force_refresh": True})
-
-    assert resp.status_code == 200
-    body = resp.json()
-    assert body["source_status"]["cache_hit"] is False
-    assert provider.calls == 2
-
-
-def test_mali_analiz_endpoint_provider_error_with_fallback(tmp_path):
-    client, provider, _ = _build_client(tmp_path)
-
-    # 1) Fill cache
-    client.get("/api/mali-analiz/THYAO")
-
-    # 2) Provider fails, but we have cache
-    provider.should_fail = True
-    resp = client.get("/api/mali-analiz/THYAO", params={"force_refresh": True})
-
-    assert resp.status_code == 200
-    body = resp.json()
-    assert body["source_status"]["stale"] is True
-    assert any("Provider hatası" in w for w in body["warnings"])
-
-
-def test_mali_analiz_endpoint_invalid_symbol(tmp_path):
-    client, _, _ = _build_client(tmp_path)
-    resp = client.get("/api/mali-analiz/ ")
-    assert resp.status_code == 400
-    assert "symbol boş olamaz" in resp.json()["detail"]
-
-
-def test_mali_analiz_universe_returns_static_metadata(tmp_path):
-    client, _, _ = _build_client(tmp_path)
-
+def test_universe_returns_bist30_list():
+    client = _client()
     resp = client.get("/api/mali-analiz/universe")
     assert resp.status_code == 200
     body = resp.json()
-
     assert body["scope"] == "bist30"
-    assert body["source_status"] == {
-        "source": "static_metadata",
-        "status": "metadata_only",
-    }
-    assert any(
-        item["symbol"] == "THYAO"
-        and item["ticker"] == "THYAO.IS"
-        and item["name"]
-        for item in body["symbols"]
-    )
+    assert body["source"] == "borsapy"
+    symbols = [s["symbol"] for s in body["symbols"]]
+    assert "THYAO" in symbols
+    assert "AKBNK" in symbols
+    assert len(symbols) == 30
 
 
-def test_mali_analiz_reports_empty_contract_normalizes_symbol(tmp_path):
-    client, _, _ = _build_client(tmp_path)
+def test_universe_symbol_has_required_fields():
+    client = _client()
+    body = client.get("/api/mali-analiz/universe").json()
+    thyao = next(s for s in body["symbols"] if s["symbol"] == "THYAO")
+    assert thyao["ticker"] == "THYAO.IS"
+    assert thyao["name"]  # Türk Hava Yolları
+    assert "fetch_status" in thyao
 
+
+# ── Alerts ────────────────────────────────────────────────────────────────────
+
+def test_alerts_returns_empty_without_db():
+    client = _client()
+    resp = client.get("/api/mali-analiz/alerts")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["alerts"] == []
+    assert body["source"] == "no_db"
+
+
+def test_alerts_mark_read_graceful_without_db():
+    client = _client()
+    resp = client.post("/api/mali-analiz/alerts/mark-read", json={"ids": [1, 2]})
+    assert resp.status_code == 200
+    assert resp.json()["marked"] == 2
+
+
+# ── Symbol validation ─────────────────────────────────────────────────────────
+
+def test_invalid_symbol_returns_400():
+    client = _client()
+    for endpoint in ["balance-sheet", "income-stmt", "cashflow", "ratios", "summary"]:
+        resp = client.get(f"/api/mali-analiz/%20/{endpoint}")  # URL-encoded space
+        assert resp.status_code == 400, f"{endpoint} should reject empty symbol"
+        assert "symbol boş olamaz" in resp.json()["detail"]
+
+
+def test_bist_suffix_normalized():
+    """THYAO.IS → THYAO normalizasyonu."""
+    client = _client()
     resp = client.get("/api/mali-analiz/THYAO.IS/reports")
     assert resp.status_code == 200
-    body = resp.json()
-
-    assert body["symbol"] == "THYAO"
-    assert body["reports"] == []
-    assert body["message"] == "KAP finansal rapor kaynağı henüz bağlı değil."
+    assert resp.json()["symbol"] == "THYAO"
 
 
-def test_mali_analiz_events_empty_contract_normalizes_symbol(tmp_path):
-    client, _, _ = _build_client(tmp_path)
+# ── Balance sheet / income / cashflow (no DB) ─────────────────────────────────
 
-    resp = client.get("/api/mali-analiz/THYAO.IS/events")
+@pytest.mark.parametrize("endpoint,key", [
+    ("balance-sheet", "rows"),
+    ("income-stmt",   "rows"),
+    ("cashflow",      "rows"),
+])
+def test_statement_endpoints_return_empty_without_db(endpoint, key):
+    client = _client()
+    resp = client.get(f"/api/mali-analiz/THYAO/{endpoint}")
     assert resp.status_code == 200
     body = resp.json()
-
     assert body["symbol"] == "THYAO"
-    assert body["events"] == []
-    assert body["message"] == "KAP olay/veri kaynağı henüz bağlı değil."
+    assert body[key] == []
+    assert body["periods"] == []
+    assert body["source"] == "no_db"
 
 
-def test_mali_analiz_metric_history_empty_contract_normalizes_symbol(tmp_path):
-    client, _, _ = _build_client(tmp_path)
+# ── Ratios ────────────────────────────────────────────────────────────────────
 
-    resp = client.get("/api/mali-analiz/THYAO.IS/metric-history", params={"metric": "roe"})
+def test_ratios_returns_empty_without_db():
+    client = _client()
+    resp = client.get("/api/mali-analiz/THYAO/ratios")
     assert resp.status_code == 200
     body = resp.json()
+    assert body["symbol"] == "THYAO"
+    assert body["ratios"] == []
+    assert body["source"] == "no_db"
 
+
+# ── Summary ───────────────────────────────────────────────────────────────────
+
+def test_summary_returns_empty_without_db():
+    client = _client()
+    resp = client.get("/api/mali-analiz/THYAO/summary")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["symbol"] == "THYAO"
+    assert body["alerts"] == []
+    assert body["source"] == "no_db"
+
+
+# ── Reports / events / metric-history (eski uyumluluk) ───────────────────────
+
+def test_reports_returns_periods_list():
+    client = _client()
+    resp = client.get("/api/mali-analiz/THYAO/reports")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["symbol"] == "THYAO"
+    assert "periods" in body
+    assert isinstance(body["periods"], list)
+
+
+def test_events_returns_events_list():
+    client = _client()
+    resp = client.get("/api/mali-analiz/THYAO/events")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["symbol"] == "THYAO"
+    assert "events" in body
+    assert isinstance(body["events"], list)
+
+
+def test_metric_history_returns_points():
+    client = _client()
+    resp = client.get("/api/mali-analiz/THYAO/metric-history", params={"metric": "roe"})
+    assert resp.status_code == 200
+    body = resp.json()
     assert body["symbol"] == "THYAO"
     assert body["metric"] == "roe"
-    assert body["points"] == []
-    assert body["message"] == "Metrik geçmişi için finansal veri henüz bağlı değil."
+    assert "points" in body
+    assert isinstance(body["points"], list)
+
+
+# ── Chart data ────────────────────────────────────────────────────────────────
+
+def test_chart_data_returns_metrics_dict():
+    client = _client()
+    resp = client.get("/api/mali-analiz/THYAO/chart-data")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["symbol"] == "THYAO"
+    assert "metrics" in body
+    assert isinstance(body["metrics"], dict)
+
+
+# ── Refresh endpoints return 503 without DB ───────────────────────────────────
+
+def test_refresh_single_symbol_503_without_db():
+    client = _client()
+    resp = client.post("/api/mali-analiz/THYAO/refresh")
+    assert resp.status_code == 503
+
+
+def test_refresh_all_503_without_db():
+    client = _client()
+    resp = client.post("/api/mali-analiz/refresh")
+    assert resp.status_code == 503

@@ -17,49 +17,70 @@ import pandas as pd
 
 _log = logging.getLogger(__name__)
 
-# DataFrame satır konumları — TFRS formatı (tüm BIST şirketleri aynı yapı)
+# Label anahtar kelimeleri — borsapy DataFrame index'i alfabetik sırada gelir.
+# Her key için sıralı aday etiket parçaları (küçük harf, Türkçe).
+_BS_LABELS: dict[str, list[str]] = {
+    "current_assets":        ["dönen varlıklar"],
+    "cash":                  ["nakit ve nakit benzerleri"],
+    "short_fin_investments": ["finansal yatırımlar", "kısa vadeli finansal"],
+    "non_current_assets":    ["duran varlıklar"],
+    "long_fin_investments":  ["uzun vadeli finansal yatırım"],
+    "total_assets":          ["toplam varlıklar", "varlıklar toplamı"],
+    "current_liabilities":   ["kısa vadeli yükümlülükler", "kısa vadeli borçlar"],
+    "st_financial_debt":     ["kısa vadeli finansal borçlar", "kısa vadeli banka"],
+    "long_term_liabilities": ["uzun vadeli yükümlülükler", "uzun vadeli borçlar"],
+    "lt_financial_debt":     ["uzun vadeli finansal borçlar", "uzun vadeli banka"],
+    "total_equity":          ["özkaynaklar toplamı", "toplam özkaynaklar", "özkaynaklar"],
+    "parent_equity":         ["ana ortaklığa ait özkaynaklar"],
+    "paid_in_capital":       ["ödenmiş sermaye"],
+    "retained_earnings":     ["geçmiş yıllar kâr", "geçmiş yıllar kar"],
+    "period_net_income":     ["dönem net kâr", "dönem net kar"],
+    "minority_interest":     ["azınlık payları", "kontrol gücü olmayan"],
+}
+
+_IS_LABELS: dict[str, list[str]] = {
+    # Keyword'ler MySQL'de LOWER(label) olarak saklanmış değerlerle eşleşmeli
+    "revenue":               ["satış gelirleri"],
+    "cogs":                  ["satışların maliyeti"],
+    "gross_profit":          ["brüt kar (zarar)", "ticari faaliyetlerden brüt"],
+    "operating_profit":      ["faaliyet kari (zarari)", "faaliyet karı (zarari)", "net faaliyet kar/zarar"],
+    "ebit_before_finance":   ["finansman gideri öncesi faaliyet"],
+    "financial_income":      ["(esas faaliyet dışı) finansal gelir", "finansal gelirler"],
+    "financial_expenses":    ["(esas faaliyet dışı) finansal gider", "finansal giderler (-)"],
+    "pretax_income":         ["sürdürülen faaliyetler vergi öncesi kari", "vergi öncesi kari (zarari)"],
+    "net_income":            ["dönem kari (zarari)", "dönem karı (zarari)", "sürdürülen faaliyetler dönem kari"],
+    "parent_net_income":     ["ana ortaklık payları"],
+    "eps":                   ["hisse başına kazanç"],
+}
+
+_CF_LABELS: dict[str, list[str]] = {
+    "depreciation":    ["amortisman giderleri"],
+    "operating_cf":    ["işletme faaliyetlerinden kaynaklanan", "işletme faaliyetleri"],
+    "da_total":        ["amortisman ve itfa", "amortisman & itfa"],
+    "capex":           ["sabit sermaye yatırımları", "maddi duran varlık alımı"],
+    "investing_cf":    ["yatırım faaliyetlerinden kaynaklanan"],
+    "fcf":             ["serbest nakit akım", "serbest nakit"],
+    "financing_cf":    ["finansman faaliyetlerden kaynaklanan"],
+    "end_cash":        ["dönem sonu nakit"],
+}
+
+# Pozisyon tabanlı yedek — label bulunamazsa kullanılır
 _BS = {
-    "current_assets":          0,   # Dönen Varlıklar
-    "cash":                    1,   # Nakit ve Nakit Benzerleri
-    "short_fin_investments":   2,   # Finansal Yatırımlar (kısa vadeli)
-    "non_current_assets":     12,   # Duran Varlıklar
-    "long_fin_investments":   17,   # Finansal Yatırımlar (uzun vadeli)
-    "total_assets":           28,   # TOPLAM VARLIKLAR
-    "current_liabilities":    30,   # Kısa Vadeli Yükümlülükler
-    "st_financial_debt":      31,   # Finansal Borçlar (kısa vadeli)
-    "long_term_liabilities":  44,   # Uzun Vadeli Yükümlülükler
-    "lt_financial_debt":      45,   # Finansal Borçlar (uzun vadeli)
-    "total_equity":           57,   # Özkaynaklar
-    "parent_equity":          58,   # Ana Ortaklığa Ait Özkaynaklar
-    "paid_in_capital":        59,   # Ödenmiş Sermaye
-    "retained_earnings":      65,   # Geçmiş Yıllar Kar/Zararları
-    "period_net_income":      66,   # Dönem Net Kar/Zararı
-    "minority_interest":      68,   # Azınlık Payları
+    "current_assets": 0, "cash": 1, "short_fin_investments": 2,
+    "non_current_assets": 12, "long_fin_investments": 17,
+    "total_assets": 28, "current_liabilities": 30, "st_financial_debt": 31,
+    "long_term_liabilities": 44, "lt_financial_debt": 45,
+    "total_equity": 57, "parent_equity": 58, "paid_in_capital": 59,
+    "retained_earnings": 65, "period_net_income": 66, "minority_interest": 68,
 }
-
 _IS = {
-    "revenue":                 1,   # Satış Gelirleri
-    "cogs":                    2,   # Satışların Maliyeti (-)
-    "gross_profit":           10,   # BRÜT KAR (ZARAR)
-    "operating_profit":       17,   # FAALİYET KARI (ZARARI)
-    "ebit_before_finance":    23,   # Finansman Gideri Öncesi Faaliyet Karı/Zararı
-    "financial_income":       24,   # (Esas Faaliyet Dışı) Finansal Gelirler
-    "financial_expenses":     25,   # (Esas Faaliyet Dışı) Finansal Giderler (-)
-    "pretax_income":          27,   # SÜRDÜRÜLEN FAALİYETLER VERGİ ÖNCESİ KARI
-    "net_income":             35,   # DÖNEM KARI (ZARARI)
-    "parent_net_income":      38,   # Ana Ortaklık Payları
-    "eps":                    39,   # Hisse Başına Kazanç
+    "revenue": 1, "cogs": 2, "gross_profit": 10, "operating_profit": 17,
+    "ebit_before_finance": 23, "financial_income": 24, "financial_expenses": 25,
+    "pretax_income": 27, "net_income": 35, "parent_net_income": 38, "eps": 39,
 }
-
 _CF = {
-    "depreciation":            0,   # Amortisman Giderleri
-    "operating_cf":            8,   # İşletme Faaliyetlerinden Kaynaklanan Net Nakit
-    "da_total":               11,   # Amortisman & İtfa Payları
-    "capex":                  18,   # Sabit Sermaye Yatırımları (negatif)
-    "investing_cf":           20,   # Yatırım Faaliyetlerinden Kaynaklanan Nakit
-    "fcf":                    21,   # Serbest Nakit Akım
-    "financing_cf":           26,   # Finansman Faaliyetlerden Kaynaklanan Nakit
-    "end_cash":               33,   # Dönem Sonu Nakit
+    "depreciation": 0, "operating_cf": 8, "da_total": 11, "capex": 18,
+    "investing_cf": 20, "fcf": 21, "financing_cf": 26, "end_cash": 33,
 }
 
 
@@ -97,16 +118,48 @@ def _safe(val: Any) -> float | None:
         return None
 
 
-def _extract(df: pd.DataFrame, mapping: dict[str, int]) -> dict[str, dict[str, float | None]]:
-    """İlgili satır pozisyonlarından {key: {period: value}} çıkarır."""
+def _extract(
+    df: pd.DataFrame,
+    mapping: dict[str, int],
+    label_mapping: dict[str, list[str]] | None = None,
+) -> dict[str, dict[str, float | None]]:
+    """Label-based extraction, pozisyon tabanlı fallback ile.
+
+    borsapy DataFrame index'i alfabetik sıralı Türkçe etiketler içerir.
+    Önce label_mapping'deki anahtar kelimeleri arar (büyük/küçük harf fark etmez),
+    bulamazsa mapping'deki pozisyona döner.
+    """
     result: dict[str, dict[str, float | None]] = {}
     n_rows = len(df)
+    if df.empty:
+        return {key: {} for key in mapping}
+
+    # İndeks etiketlerini küçük harfe normalize et → hızlı arama
+    index_labels_lower = [str(idx).lower().strip() for idx in df.index]
+
+    def _find_row(keywords: list[str]) -> pd.Series | None:
+        for kw in keywords:
+            kw_l = kw.lower()
+            for i, label in enumerate(index_labels_lower):
+                if kw_l in label:
+                    return df.iloc[i]
+        return None
+
     for key, pos in mapping.items():
-        if pos >= n_rows:
-            result[key] = {}
-            continue
-        row = df.iloc[pos]
-        result[key] = {period: _safe(val) for period, val in row.items()}
+        row = None
+
+        # 1) Label-based arama
+        if label_mapping and key in label_mapping:
+            row = _find_row(label_mapping[key])
+
+        # 2) Pozisyon tabanlı fallback
+        if row is None and pos < n_rows:
+            row = df.iloc[pos]
+
+        result[key] = (
+            {period: _safe(val) for period, val in row.items()}
+            if row is not None else {}
+        )
     return result
 
 
@@ -114,23 +167,27 @@ def fetch_symbol(
     symbol: str,
     quarterly_periods: int = 40,
     annual_periods: int = 10,
-    retry: int = 2,
-    delay: float = 1.0,
+    retry: int = 4,
+    delay: float = 2.5,
 ) -> FinancialSnapshot:
     """Tek sembol için borsapy'den veri çeker.
 
     quarterly_periods=40 → ~10 yıl çeyreklik veri
     annual_periods=10    → 10 yıl yıllık veri
-    retry → hata durumunda tekrar sayısı
-    delay → istekler arası bekleme (saniye)
+    retry → hata durumunda tekrar sayısı (isyatirim.com rate-limit için 4)
+    delay → istekler arası bekleme (saniye); bankalar için uzun tutulur
     """
     for attempt in range(retry + 1):
         try:
             return _do_fetch(symbol, quarterly_periods, annual_periods, delay)
         except Exception as exc:
-            _log.warning("Fetch attempt %d/%d failed for %s: %s", attempt + 1, retry + 1, symbol, exc)
+            wait = delay * (attempt + 1) * 1.5  # exponential backoff
+            _log.warning(
+                "Fetch attempt %d/%d failed for %s: %s — %.1fs bekleniyor",
+                attempt + 1, retry + 1, symbol, exc, wait,
+            )
             if attempt < retry:
-                time.sleep(delay * (attempt + 1))
+                time.sleep(wait)
 
     return FinancialSnapshot(
         symbol=symbol,
@@ -138,7 +195,7 @@ def fetch_symbol(
         current_price=None,
         market_cap=None,
         shares_outstanding=None,
-        error="Tüm yeniden deneme girişimleri başarısız.",
+        error="Veri çekilemedi — isyatirim.com yanıt vermedi veya sembol desteklenmiyor.",
     )
 
 
@@ -221,9 +278,9 @@ def _do_fetch(symbol: str, quarterly_periods: int, annual_periods: int, delay: f
         current_price=current_price,
         market_cap=market_cap,
         shares_outstanding=shares_outstanding,
-        balance_sheet=_extract(bs_q, _BS) if not bs_q.empty else {},
-        income_stmt=_extract(inc_q, _IS) if not inc_q.empty else {},
-        cashflow=_extract(cf_q, _CF) if not cf_q.empty else {},
+        balance_sheet=_extract(bs_q, _BS, _BS_LABELS) if not bs_q.empty else {},
+        income_stmt=_extract(inc_q, _IS, _IS_LABELS) if not inc_q.empty else {},
+        cashflow=_extract(cf_q, _CF, _CF_LABELS) if not cf_q.empty else {},
         raw_quarterly={"balance_sheet": bs_q, "income_stmt": inc_q, "cashflow": cf_q},
         raw_annual={"balance_sheet": bs_a, "income_stmt": inc_a, "cashflow": cf_a},
         periods_quarterly=periods_q,
