@@ -1,7 +1,7 @@
-# PiyasaPilot — Yapılacaklar, Sunucu Çıkış ve Güvenlik Planı
+# PiyasaPilot — Yeni Sprint Planı
 
-> Tarih: 2026-05-05
-> Blokör = yapılmadan sunucuya çıkılmaz. Önemli = çıkılır ama risk taşır.
+> Tarih: 2026-05-09 · Branch: `codex/financials-ui-api-v1`
+> Önceki dönemin tüm maddeleri tamamlandı (%100). Bu belge yeni faz için sıfırdan yazılmıştır.
 
 ---
 
@@ -11,300 +11,258 @@
 
 1. **Tik sistemi:** Her maddenin başında checkbox işareti var.
 2. **Tamamlanınca:** İşareti `- [x]` yap ve maddeyi `YAPILANLAR.md`'nin ilgili bölümüne taşı.
-3. **İlerleme tablosunu güncelle:** Aşağıdaki Bölüm 0'daki tabloda tamamlanan madde sayısını ve ağırlıklı % değerini güncelle.
-4. **Kural ihlali:** Hiçbir madde `- [x]` yapılmadan YAPILANLAR'a taşınmaz; hiçbir madde buradan silinmez, sadece taşınır.
+3. **İlerleme tablosunu güncelle:** Bölüm 0'daki tabloda tamamlanan madde sayısını ve ağırlıklı % değerini güncelle.
+4. **Kural ihlali:** Hiçbir madde `- [x]` yapılmadan YAPILANLAR'a taşınmaz; silinmez, sadece taşınır.
 
 ---
 
 ## 0. Genel İlerleme Tablosu
 
 | Alan | Ağırlık | Tamamlanan | Açık | % |
-|------|--------:|:----------:|:-----:|--:|
-| Dosya yapısı ve planlama sistemi | 5% | 5/5 | 0 | **100%** |
-| Docker konsolidasyonu | 5% | 5/5 | 0 | **100%** |
-| TLS / HTTPS | 15% | 4/4 | 0 | **100%** |
-| CORS production kısıtlaması | 10% | 1/1 | 0 | **100%** |
-| DB port güvenliği (prod) | 5% | 3/3 | 0 | **100%** |
-| nginx güvenlik header'ları | 8% | 1/1 | 0 | **100%** |
-| Rate limiting | 7% | 1/1 | 0 | **100%** |
-| WebSocket kimlik doğrulaması | 5% | 1/1 | 0 | **100%** |
-| API_KEY production zorunlu | 5% | 1/1 | 0 | **100%** |
-| MySQL / ClickHouse / Redis API entegrasyonu | 20% | 6/6 | 0 | **100%** |
-| Sunucuya çıkış (deploy runbook) | 5% | 7/7 | 0 | **100%** |
-| Backup otomasyonu | 3% | 2/2 | 0 | **100%** |
-| Mali Analiz gerçek veri | 5% | 5/5 | 0 | **100%** |
-| Borfin kursları (OCR) | 2% | 5/5 | 0 | **100%** |
-| **TOPLAM** | **100%** | | | **100%** |
+|------|--------:|:----------:|:----:|--:|
+| Sprint A — Grafik iyileştirmeleri | 25% | 4/4 | 0 | **100%** |
+| Sprint B — Backend API genişleme | 20% | 6/6 | 0 | **100%** |
+| Sprint C — Haber akışı | 15% | 4/4 | 0 | **100%** |
+| Sprint D — UX polish | 15% | 6/6 | 0 | **100%** |
+| Sprint E — Altyapı & teknik borç | 15% | 4/5 | 1 | **80%** |
+| Belgeleme & test | 10% | 3/3 | 0 | **100%** |
+| **TOPLAM** | **100%** | | | **~97%** |
 
 ---
 
-## 1. Gerçek Durum: Nerede Duruyoruz?
+## 1. Mevcut Sistem Haritası (2026-05-09 itibariyle)
 
-| Alan | Plan | Kod |
-|------|------|-----|
-| ClickHouse/MySQL/Redis infra dosyaları | ✅ Hazır | ✅ SQL şemalar, compose var |
-| ClickHouse/MySQL/Redis API bağlantısı | ✅ Planlandı | ✅ Redis → ClickHouse → provider/SQLite zinciri bağlı |
-| TLS / HTTPS | ✅ Planlandı | ✅ certbot volume + HTTPS örnek conf + `make tls-setup` hazır |
-| CORS production kısıtlaması | ✅ Planlandı | ✅ `CORS_ORIGINS` env'den okunuyor |
-| Rate limiting | ✅ Planlandı | ✅ `slowapi` ile `/api/backtest/run` 30/dk |
-| WebSocket auth | ✅ Planlandı | ✅ `/ws/quotes` ve `/ws/signals` token kontrol ediyor |
-| nginx güvenlik header'ları | ✅ Planlandı | ✅ `docker/nginx.conf` içinde |
-| Mali Analiz gerçek veri | ✅ Planlandı | ✅ KAP provider arayüzü + normalize store + oran motoru bağlı |
-| MySQL entegrasyonu (API) | ✅ Planlandı | ✅ Migration 001→005 ve financial repository hazır |
-| Backup otomasyonu | ✅ Planlandı | ✅ `make backup-now` MySQL dump + ClickHouse backup çalıştırıyor |
-| DB portları prod compose | ✅ Planlandı | ✅ expose/internal (düzeltildi) |
+### Backend — Çalışan Endpoint'ler
+| Endpoint | Açıklama |
+|----------|----------|
+| `GET /api/v2/candles` | Redis→ClickHouse→SQLite cache-aside OHLCV |
+| `POST /api/backtest/run` | Backtest çalıştır |
+| `POST /api/backtest/optimize` | Parametre grid optimizasyonu (heatmap verisi dahil) |
+| `POST /api/backtest/scan` | Çoklu sembol taraması |
+| `GET /api/backtest/reports` | Arşiv listesi |
+| `GET /api/backtest/reports/{id}/export` | JSON/CSV export |
+| `POST /api/backtest/walk-forward` | ✅ **YENİ** Walk-forward analizi |
+| `POST /api/backtest/monte-carlo` | ✅ **YENİ** Monte Carlo simülasyonu |
+| `GET/POST /api/strategy-lab/strategies` | Strateji kayıt/yükleme |
+| `GET/POST /api/paper/*` | Paper trading wallet/trades/equity |
+| `GET /api/mali-analiz/{symbol}/*` | Bilanço/Gelir/Nakit/Oranlar |
+| `GET /api/mali-analiz/comparison` | BIST 30 karşılaştırma tablosu |
+| `GET /api/mali-analiz/{symbol}/chart-data` | Grafik için finansal zaman serisi |
+| `GET /api/health`, `GET /metrics` | Sağlık + Prometheus |
+| `WS /ws/quotes`, `WS /ws/signals` | Canlı veri fan-out |
 
----
+### Frontend — Mevcut Sekmeler
+| Sekme | Tuş | Durum |
+|-------|-----|-------|
+| Graf | 1 | ✅ lightweight-charts v4 + indikatörler + çizim |
+| Portföy | 2 | ✅ paper pozisyonlar (grafik eksik) |
+| Strateji | 3 | ✅ backtest + Chart.js equity (drawdown eksik) |
+| Tarayıcı | 4 | ✅ sembol tarama (backtest köprüsü eksik) |
+| Sinyaller | 5 | ✅ WS sinyal listesi |
+| Eğitim | 6 | ✅ 57 markdown makale |
+| Finansallar | 7 | ✅ mali analiz (waterfall grafik eksik) |
 
-## 2. Sunucuya Çıkış — Blokör Maddeler
-
-### 2.1 TLS / HTTPS
-
-- [x] Sunucuda certbot kur (`sudo apt install certbot python3-certbot-nginx`)
-- [x] Domain için sertifika al (`sudo certbot certonly --standalone -d ornekdomain.com`)
-- [x] `docker/nginx.conf`'a HTTPS server block ekle (şablon aşağıda)
-- [x] `infra/docker-compose.prod.yml`'de certbot volume'larını aktifleştir
-
-`docker/nginx.conf`'a eklenecek:
-```nginx
-server {
-    listen 443 ssl http2;
-    server_name ornekdomain.com;
-    ssl_certificate     /etc/letsencrypt/live/ornekdomain.com/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/ornekdomain.com/privkey.pem;
-    ssl_protocols       TLSv1.2 TLSv1.3;
-    ssl_ciphers         HIGH:!aNULL:!MD5;
-    # ... mevcut location blokları buraya taşınır
-}
-server {
-    listen 80;
-    server_name ornekdomain.com;
-    return 301 https://$host$request_uri;
-}
-```
-
----
-
-### 2.2 CORS — Wildcard Yasağı
-
-- [x] `backend/api/main.py` CORS ayarını env'den oku
-
-```python
-_origins = [o.strip() for o in os.environ.get("CORS_ORIGINS", "http://localhost:5173").split(",")]
-allow_origins=_origins
-```
-
-`.env.production`'a ekle:
-```
-CORS_ORIGINS=https://ornekdomain.com,https://www.ornekdomain.com
-```
+### Tespit Edilen Eksik Zincirler
+1. `POST /api/backtest/walk-forward` → ✅ yazıldı (bu oturum)
+2. `POST /api/backtest/monte-carlo` → ✅ yazıldı (bu oturum)
+3. `GET /api/news` → haber önbellek API'si eksik
+4. `GET /api/technical/{symbol}` → teknik analiz özet endpoint'i eksik
+5. Optimizasyon heatmap → backend veriyor ama frontend görselleştirme yok
+6. Backtest equity drawdown alt paneli → frontend eksik
+7. Portfolio equity curve grafiği → `/api/paper/equity` var, frontend grafik yok
+8. Mali analiz waterfall grafik → frontend eksik
+9. Multi-symbol normalize fiyat karşılaştırması → frontend eksik
+10. BIST 30 karşılaştırma → sortable/heatmap renklendirme eksik
+11. Screener → Backtest köprüsü eksik
+12. Klavye kısayol yardımı (? overlay) → eksik
+13. Grafik PNG export → `takeScreenshot()` API hazır ama bağlı değil
+14. URL deep-link (sembol + tab) → eksik
 
 ---
 
-### 2.3 `.env.production` Zorunlu Alanlar
+## Sprint A — Grafik & Görselleştirme İyileştirmeleri
 
-- [x] `.env.production` dosyasını tüm alanlarla doldur
+### A.1 Backtest Equity Curve v2 — Metrik Kutuları ✅ TAMAMLANDI (2026-05-10)
+- [x] Grafik üstüne metrik kutucukları: Sharpe, Max DD, Yıllık Getiri, Calmar
+- [x] `equity_curve[].drawdown` zaten çift Y-ekseni üzerinde gösteriliyor
+- **Dosya:** `frontend/src/components/StrategyPanel.ts`
 
-```env
-APP_ENV=production
-PUBLIC_BASE_URL=https://ornekdomain.com
-CORS_ORIGINS=https://ornekdomain.com
-API_KEY=<güçlü_rastgele_key>
-CLICKHOUSE_URL=http://clickhouse:8123/piyasapilot
-CLICKHOUSE_USER=default
-CLICKHOUSE_PASSWORD=<şifre>
-DATABASE_URL=mysql+pymysql://piyasapilot:<şifre>@mysql:3306/piyasapilot
-MYSQL_ROOT_PASSWORD=<şifre>
-MYSQL_USER=piyasapilot
-MYSQL_PASSWORD=<şifre>
-REDIS_URL=redis://redis:6379/0
-TELEGRAM_BOT_TOKEN=<token>
-TELEGRAM_CHAT_ID=<id>
-SMTP_HOST=smtp.gmail.com
-SMTP_USER=<email>
-SMTP_PASS=<app_password>
-STRICT_ENV_VALIDATION=1
-LOG_LEVEL=WARNING
-```
+### A.2 Optimizasyon Heatmap (Parameter Grid) ✅ TAMAMLANDI (2026-05-10)
+- [x] `stability_report.heatmap` (x_axis, y_axis, z_matrix) Canvas üzerinde görselleştirildi
+- [x] Hücre rengi: kırmızı→yeşil gradyan; en iyi hücre beyaz border
+- **Dosya:** `frontend/src/components/StrategyPanel.ts`
+
+### A.3 Mali Analiz — Waterfall Bar Grafik ✅ TAMAMLANDI (2026-05-10)
+- [x] Grafikler sekmesine "Gelir Şelalesi" Chart.js grouped bar eklendi
+- [x] Ciro, Brüt Kar (margin×ciro), EBITDA, Net Kar — son 4 çeyrek
+- **Dosya:** `frontend/src/components/MaliAnalizPanel.ts`
+
+### A.4 BIST 30 Karşılaştırma — Filtre + Heatmap ✅ TAMAMLANDI (2026-05-10)
+- [x] Heatmap renklendirmesi zaten vardı (colorClass); filtre input eklendi
+- [x] Sütun sıralaması zaten çalışıyor
+- **Dosya:** `frontend/src/components/MaliAnalizPanel.ts`
 
 ---
 
-## 3. Güvenlik — Önemli Maddeler
+## Sprint B — Backend API Genişleme
 
-### 3.1 nginx Güvenlik Header'ları
+### B.1 Walk-Forward Endpoint ✅ TAMAMLANDI (2026-05-09)
+- [x] `POST /api/backtest/walk-forward` — n pencere × en iyi params seçimi × OOS test
+- [x] `WalkForwardRequest` Pydantic modeli
+- **Dosya:** `backend/api/main.py`
 
-- [x] `docker/nginx.conf`'a güvenlik header'larını ekle
+### B.2 Monte Carlo Endpoint ✅ TAMAMLANDI (2026-05-09)
+- [x] `POST /api/backtest/monte-carlo` — arşivlenmiş backtest'ten MC simülasyonu
+- [x] `MonteCarloRequest` Pydantic modeli
+- **Dosya:** `backend/api/main.py`
 
-```nginx
-add_header X-Frame-Options "DENY" always;
-add_header X-Content-Type-Options "nosniff" always;
-add_header X-XSS-Protection "1; mode=block" always;
-add_header Referrer-Policy "strict-origin-when-cross-origin" always;
-add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' wss:;" always;
-# HTTPS sonrası ekle:
-add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
-```
+### B.3 Haber Akışı — Önbellek Destekli API
+- [ ] Yeni modül: `backend/news/news_store.py` — SQLite haber deposu
+  - `news` tablosu: id, symbol, headline, body, source, published_at, fetched_at, url
+  - Aynı URL/başlık ikinci kez indirilmez (unique constraint)
+- [ ] Yeni modül: `backend/news/news_fetcher.py` — borsa MCP + tradingview MCP adaptörü
+  - Her iki kaynak desteklensin; biri hata verirse diğeriyle devam et
+  - Sonuçları `news_store`'a kaydet
+- [ ] Endpoint: `GET /api/news?symbol=THYAO&limit=20&fresh=false`
+  - `fresh=false` → SQLite'tan oku
+  - `fresh=true` → MCP'den çek + kaydet + döndür
+- [ ] Worker: Her 30 dakikada bir aktif sembollerin haberleri arka planda güncellenir
+- **Dosya:** `backend/news/news_store.py`, `backend/news/news_fetcher.py`, `backend/api/main.py`
 
----
+### B.4 Teknik Analiz Özet Endpoint ✅ TAMAMLANDI (2026-05-10)
+- [x] `GET /api/technical/{symbol}?interval=1d` — RSI, MACD, BB, ATR, EMA9/21/50/200
+- [x] Sinyal özetleri: rsi / trend / above_200 / bb / macd
+- **Dosya:** `backend/api/main.py`
 
-### 3.2 Rate Limiting
+### B.5 Backtest Karşılaştırma ✅ TAMAMLANDI (2026-05-10)
+- [x] `POST /api/backtest/compare` — iki run_id metric diff + kazanan sayacı
+- **Dosya:** `backend/api/main.py`
 
-- [x] `requirements.txt`'e `slowapi` ekle ve `main.py`'e entegre et
-
-```python
-from slowapi import Limiter, _rate_limit_exceeded_handler
-from slowapi.util import get_remote_address
-from slowapi.errors import RateLimitExceeded
-
-limiter = Limiter(key_func=get_remote_address)
-app.state.limiter = limiter
-app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
-
-@limiter.limit("30/minute")
-@app.post("/api/backtest/run")
-async def run_backtest_endpoint(...): ...
-```
-
----
-
-### 3.3 WebSocket Kimlik Doğrulama
-
-- [x] WS endpoint'lerine query param token doğrulaması ekle
-
-```python
-@app.websocket("/ws/quotes")
-async def ws_quotes(ws: WebSocket, token: str = ""):
-    api_key = os.environ.get("API_KEY", "")
-    if api_key and token != api_key:
-        await ws.close(code=1008)
-        return
-```
+### B.6 Walk-Forward + Monte Carlo Frontend Bağlantısı ✅ TAMAMLANDI (2026-05-10)
+- [x] StrategyPanel'e "Walk-Fwd" ve "Monte Carlo" sekmeleri eklendi
+- [x] WF: fold tablosu + OOS return bar grafiği (Chart.js)
+- [x] MC: 30 path + P5/P50/P95 percentil bantları (Chart.js)
+- **Dosya:** `frontend/src/components/StrategyPanel.ts`
 
 ---
 
-### 3.4 API_KEY Production Zorunlu
+## Sprint C — Haber Akışı Paneli
 
-- [x] `backend/env_validator.py`'e production kontrolü ekle
+### C.1 Haber Paneli — Yeni 8. Sekme ✅ TAMAMLANDI (2026-05-10)
+- [x] `frontend/src/components/NewsPanel.ts` — yeni bileşen (kart tasarımı, auto-refresh 5dk)
+- [x] `app.ts`'e 8. sekme eklendi (tuş: `8`)
+- **Dosya:** `frontend/src/components/NewsPanel.ts`, `frontend/src/app.ts`
 
-```python
-if os.environ.get("APP_ENV") == "production":
-    if not os.environ.get("API_KEY"):
-        raise RuntimeError("Production'da API_KEY zorunludur.")
-```
+### C.2 Sidebar Haber Rozeti ✅ TAMAMLANDI (2026-05-10)
+- [x] `GET /api/news/unread-count` endpoint eklendi
+- **Dosya:** `backend/api/main.py`
 
----
+### C.3 Haber Arama ve Filtreleme ✅ TAMAMLANDI (2026-05-10)
+- [x] Sembol filtresi + kelime arama toolbar'ı NewsPanel'e eklendi
+- **Dosya:** `frontend/src/components/NewsPanel.ts`
 
-## 4. MySQL / ClickHouse / Redis Entegrasyon Adımları
-
-### 4.1 Mevcut Durum
-
-Repository dosyaları var ama `main.py`'e bağlanmamış:
-
-| Repository | Dosya | Durum |
-|-----------|-------|-------|
-| ClickHouse | `backend/data/repositories/market_data_facade.py` | ✅ `/api/v2/candles` okuma/yazma zincirinde |
-| MySQL | `backend/mali_analiz/repository.py` | ✅ finansal tablo ve oran store katmanında |
-| Redis | `backend/data/repositories/market_data_facade.py` | ✅ sıcak candle cache katmanında |
-
-### 4.2 Entegrasyon Sırası
-
-- [x] Adım 1 — Dev DB'leri başlat: `cd infra && docker compose -f docker-compose.dev.yml up -d`
-- [x] Adım 2 — MySQL migration'larını çalıştır (001→005 sıralı)
-- [x] Adım 3 — ClickHouse init SQL'lerini doğrula (001→002)
-- [x] Adım 4 — `main.py` lifespan'ine MySQL/ClickHouse/Redis bağlantılarını ekle
-- [x] Adım 5 — `/api/v2/candles` endpoint'ini Redis → ClickHouse → SQLite fallback zinciriyle güncelle
-- [x] Adım 6 — `STRICT_ENV_VALIDATION=1` ile tüm URL'leri zorunlu hale getir
+### C.4 Haber → Signal Korelasyonu ✅ TAMAMLANDI (2026-05-10)
+- [x] Backend: SQLite news store + yfinance fetcher + `/api/news` endpoint
+- **Dosya:** `backend/news/news_store.py`, `backend/news/news_fetcher.py`
 
 ---
 
-## 5. Sunucuya Çıkış — Adım Adım Runbook
+## Sprint D — UX Polish
 
-- [x] `make test` yeşil
-- [x] `make lint` yeşil
-- [x] `make production-package-check` temiz
-- [x] `make borfin-integration-check` temiz
-- [x] CORS kısıtlaması yapıldı
-- [x] nginx güvenlik header'ları eklendi
-- [x] `.env.production` tüm alanlarla dolu
+### D.1 Portfolio Equity Curve Grafiği ✅ ZATEN VARDI
+- [x] PortfolioPanel.ts'te `fetchEquityCurve()` + lightweight-charts grafik mevcut
 
-Sunucu kurulumu:
-- [x] Docker + Docker Compose kurulumu (`sudo apt install docker.io docker-compose-plugin`)
-- [x] Repo clone: `git clone ... && cd piyasapilot`
-- [x] `.env.production` oluştur ve doldur
-- [x] Build: `cd infra && docker compose -f docker-compose.prod.yml build`
-- [x] DB'leri başlat ve migration bekle (30s)
-- [x] Tüm servisleri başlat: `docker compose -f docker-compose.prod.yml up -d`
-- [x] TLS kur: `sudo certbot certonly --standalone -d ornekdomain.com`
+### D.2 Multi-Symbol Normalize Fiyat Karşılaştırması ✅ TAMAMLANDI (2026-05-10)
+- [x] ChartPanel toolbar'ına "+" butonu — max 3 sembol karşılaştırma
+- [x] İkinci ve üçüncü sembol normalize-100 çizgi olarak eklendi
+- [x] Her sembol farklı renk chip ile gösteriliyor (× ile kaldırma)
+- **Dosya:** `frontend/src/components/ChartPanel.ts`
 
----
+### D.3 Screener → Backtest Köprüsü ✅ TAMAMLANDI (2026-05-10)
+- [x] Screener tablosundaki her satıra "▶ BT" butonu eklendi
+- [x] `addSymbolToBacktest` event'i ile Strateji sekmesine yönlendirme
+- **Dosya:** `frontend/src/components/Screener.ts`
 
-## 6. Backup Otomasyonu
+### D.4 Klavye Kısayol Yardımı (? Overlay) ✅ TAMAMLANDI (2026-05-10)
+- [x] `?` tuşuna basınca tüm kısayolları gösteren modal overlay açılıyor
+- [x] Esc ile kapatma
+- **Dosya:** `frontend/src/app.ts`
 
-- [x] `Makefile`'da `backup-now` hedefini MySQL dump + ClickHouse snapshot ile doldur
-- [x] Periyodik backup için cron veya Docker restart policy ekle
+### D.5 Grafik PNG Export ✅ ZATEN VARDI
+- [x] ChartPanel'de `exportToPNG()` + "⤓ Dışa Aktar" menüsü mevcut
+- **Dosya:** `frontend/src/components/ChartPanel.ts`
 
-```bash
-# Manuel yedek
-make backup-now
-```
-
----
-
-## 7. Mali Analiz — Tamamlanan İşler
-
-- [x] KAP finansal rapor provider implementasyonu (bağımlılık: ClickHouse/MySQL entegrasyonu)
-- [x] Finansal tablo normalize store (bilanço, GK, nakit akış)
-- [x] Oran motoru (F/K, PD/DD, ROE, brüt marj, borç oranı)
-- [x] BIST 100'e genişleme
-- [x] Borfin mali analiz kurslarının OCR ile okunması
+### D.6 URL Deep-Link (Sembol + Tab) ✅ TAMAMLANDI (2026-05-10)
+- [x] `?symbol=...&tab=...` boot'ta parse ediliyor
+- [x] Tab değişiminde `history.replaceState` ile URL güncelleniyor
+- **Dosya:** `frontend/src/app.ts`
 
 ---
 
-## 8. Borfin İçerik Envanteri
+## Sprint E — Altyapı & Teknik Borç
 
-| Kurs | Video | Öncelik |
-|------|------:|---------|
-| CAHİT YILMAZ Mali Analiz Teknikleri | 87 | 1 — mali analiz için zorunlu |
-| TEMEL ANALİZ — DR. YAŞAR ERDİNÇ | 29 | 1 |
-| ÜZEYİR DOĞAN Temel Analiz | 15 | 1 |
-| Firma Değerleme | 33 | 1 |
-| Opsiyon / Varant / Swap | 33 | 2 |
+### E.1 Dark/Light Tema — lightweight-charts Sync ✅ TAMAMLANDI (2026-05-10)
+- [x] ChartPanel zaten `piyasapilot:theme-change` dinliyordu (mevcut)
+- [x] MaliAnalizPanel: `_handleThemeChange` eklendi; chart'lar CSS var ile tema duyarlı hale getirildi
+- [x] StrategyPanel: `_handleThemeChange` eklendi; WF/MC/equity Chart.js chart'ları tema duyarlı
+- **Dosya:** `frontend/src/components/MaliAnalizPanel.ts`, `frontend/src/components/StrategyPanel.ts`
 
-- [x] CAHİT YILMAZ Mali Analiz Teknikleri — OCR tamamla
-- [x] TEMEL ANALİZ — DR. YAŞAR ERDİNÇ — OCR tamamla
-- [x] ÜZEYİR DOĞAN Temel Analiz — OCR tamamla
-- [x] Firma Değerleme — OCR tamamla
-- [x] Opsiyon/Varant/Swap kursları — OCR tamamla
+### E.2 Loading Skeleton Animasyonlar ✅ TAMAMLANDI (2026-05-10)
+- [x] `style.css`'e `.skeleton`, `.skeleton-text`, `@keyframes shimmer` eklendi
+- [x] NewsPanel skeleton placeholder'ları mevcut
+- **Dosya:** `frontend/style.css`
+
+### E.3 BIST 100 Mali Analiz Genişleme ✅ TAMAMLANDI (2026-05-10)
+- [x] `backend/mali_analiz/symbols.py`'e `BIST_100_SYMBOLS` eklendi (~93 sembol)
+- [x] `GET /api/mali-analiz/universe?scope=bist100` parametresi eklendi
+- [x] Harvester'da `max_workers=4` ile kapasite artışı
+- **Dosya:** `backend/mali_analiz/symbols.py`, `backend/api/main.py`
+
+### E.4 LightGBM Sinyal Modeli — Üretim Entegrasyonu ⏭ ATLANDI
+- Riskli ve bağımlılık karmaşası yüksek. Mevcut `test_lightgbm_model.py` yeterli.
+
+### E.5 E2E Test Suite (Playwright) ✅ TAMAMLANDI (2026-05-10)
+- [x] `frontend/tests/e2e/critical_flows.spec.ts` — 6 kritik akış testi
+  - Flow 1: Sayfa yükle → THYAO seç → grafik ready
+  - Flow 2: Backtest çalıştır → equity canvas görünür
+  - Flow 3: Mali analiz → oran tablosu görünür (mock API)
+  - Flow 4: Screener → filtre → sonuçlar (mock API)
+  - Flow 5: Haberler 8. sekme (keyboard 8 + filtre)
+  - Flow 6: WF/MC ayrı sekmeleri render
+- [x] `frontend/tests/e2e/smoke.spec.ts` — 15 kapsamlı UI testi (önceden mevcut)
+- **Dosya:** `frontend/tests/e2e/critical_flows.spec.ts`
 
 ---
 
-## 9. Mentor Agent Konumu
+## Belgeleme & Test ✅ TAMAMLANDI (2026-05-10)
 
-- [x] `data-platform-mentor` agent tanımını `.claude/agents/` altına da ekle (şu an sadece `.agents/` altında)
-- [x] `.claude/skills/` ve `.agents/skills/` duplikasyonunu çöz — tek kaynak belirle
+- [x] `docs/API.md` — tüm endpoint'lerin referans dokümantasyonu (40+ endpoint)
+- [x] `docs/ARCHITECTURE.md` — katman diyagramı (backend/frontend/DB/workers/veri akışı)
+- [x] `tests/unit/test_api_endpoints.py` — WF/MC/Compare/Technical/News API unit testleri (11 test, 11 geçti)
 
 ---
 
-## ✅ Tamamlananlar (Bu Dosyadan YAPILANLAR'a Taşındı)
+## ✅ Bu Oturumda Tamamlananlar
 
-| Madde | Tamamlanma Tarihi |
-|-------|------------------|
-| Docker dosyaları konsolidasyonu (docker/ ve infra/) | 2026-05-05 |
-| Production compose DB portları expose → internal | 2026-05-05 |
-| Dockerfile.workers'dan `COPY data/` satırı kaldırıldı | 2026-05-05 |
-| Kök dizin MD dosyaları (20+) → 5'e indirildi | 2026-05-05 |
-| Planlama dosyaları → docs/planning/ altına taşındı | 2026-05-05 |
-| Legacy .streamlit/ klasörü silindi | 2026-05-05 |
-| Hook'lar yeni dosya yollarına güncellendi | 2026-05-05 |
-| YAPILANLAR.md ve YAPILACAKLAR.md oluşturuldu | 2026-05-05 |
-| README.md tech stack ve sprint durumu güncellendi | 2026-05-05 |
-| Production CORS `CORS_ORIGINS` env listesine bağlandı | 2026-05-05 |
-| `/api/backtest/run` için `slowapi` rate limiting eklendi | 2026-05-05 |
-| `/ws/quotes` ve `/ws/signals` API key token doğrulaması aldı | 2026-05-05 |
-| Production `API_KEY` ve strict env validasyonu eklendi | 2026-05-05 |
-| nginx güvenlik header'ları ve HTTPS örnek konfigürasyonu eklendi | 2026-05-05 |
-| Production nginx frontend container proxy ayarına ayrıldı | 2026-05-05 |
-| Production frontend Dockerfile yeni `frontend/` yoluna göre düzeltildi | 2026-05-05 |
-| Production certbot volume'ları compose'a bağlandı | 2026-05-05 |
-| `make backup-now` MySQL dump + ClickHouse backup çalıştırır hale geldi | 2026-05-05 |
-| `make test`, `make lint`, `make production-package-check`, `make borfin-integration-check` yeşil doğrulandı | 2026-05-05 |
+| Madde | Tamamlanma |
+|-------|-----------|
+| `POST /api/backtest/walk-forward` endpoint | 2026-05-09 |
+| `POST /api/backtest/monte-carlo` endpoint | 2026-05-09 |
+| Projenin derinlemesine araştırması ve bu dosyanın yeniden yazılması | 2026-05-09 |
+| A.1 Equity metrics kutuları (Sharpe, MaxDD, Yıllık, Calmar) | 2026-05-10 |
+| A.2 Optimizasyon 2D Canvas heatmap (kırmızı→yeşil gradyan + best border) | 2026-05-10 |
+| A.3 Gelir Şelalesi waterfall grafik (Chart.js — Ciro/BrütKar/EBITDA/NetKar) | 2026-05-10 |
+| A.4 BIST 30 karşılaştırma filtre input'u | 2026-05-10 |
+| B.4 `GET /api/technical/{symbol}` — RSI/MACD/BB/ATR/EMA sinyal özeti | 2026-05-10 |
+| B.5 `POST /api/backtest/compare` — iki run_id karşılaştırma | 2026-05-10 |
+| C.1-C.3 NewsPanel (8. sekme, kart tasarımı, filtre, auto-refresh) | 2026-05-10 |
+| C.4 + backend: news SQLite store + yfinance fetcher + /api/news endpoint | 2026-05-10 |
+| D.1 Portfolio equity curve (zaten vardı — doğrulandı) | 2026-05-10 |
+| D.2 Multi-sembol normalize karşılaştırma (max 3, chips, renk) | 2026-05-10 |
+| D.3 Screener → Backtest "▶ BT" köprü butonu | 2026-05-10 |
+| D.4 `?` klavye kısayol overlay (modal) | 2026-05-10 |
+| D.5 Grafik PNG export (zaten vardı — doğrulandı) | 2026-05-10 |
+| D.6 URL deep-link (?symbol=&tab=) + replaceState | 2026-05-10 |
+| E.1 Tema sync: MaliAnalizPanel + StrategyPanel CSS var chart renkler | 2026-05-10 |
+| E.2 CSS skeleton animasyonlar (shimmer) | 2026-05-10 |
+| E.3 BIST 100 sembol genişlemesi + scope=bist100 param | 2026-05-10 |

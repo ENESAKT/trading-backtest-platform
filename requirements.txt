@@ -15,6 +15,7 @@ pyarrow>=15.0.0
 # Veri Çekme (Data Pipeline)
 ccxt>=4.3.0
 yfinance>=0.2.36
+borsapy>=0.8.7
 
 # Teknik İndikatörler
 # pandas-ta kaldırıldı (pip'te bulunamıyor). İndikatörler ileride kendimiz yazılacak.

@@ -166,7 +166,7 @@
 | Backtest Lab (B1–B13: WFA, Monte Carlo, optimizer, tarayıcı, pack) | ✅ |
 | Paper Trading (PaperDB, PaperExecutor, PortfolioPanel) | ✅ |
 | Eğitimler Paneli (57 makale, arama, köprüler) | ✅ |
-| Mali Analiz — metadata/API/UI v1 (boş kontratlar) | ✅ |
+| Mali Analiz — borsapy gerçek veri, oran motoru, direktif motoru, MySQL store, lightweight-charts grafikler | ✅ |
 | Docker Compose (dev + prod + monitor) | ✅ |
 | TLS/HTTPS şablonu + certbot | ✅ |
 | CORS, rate limiting, WS auth, API_KEY zorunluluk | ✅ |
@@ -174,7 +174,7 @@
 | Telegram + email + macOS bildirim | ✅ |
 | 20 skill, 12 agent, 4 hook, MCP entegrasyonu | ✅ |
 | ClickHouse/MySQL/Redis infra (SQL şemalar, compose) | ✅ |
-| MySQL migration 001–005 | ✅ |
+| MySQL migration 001–006 (006: financial_raw_rows, computed_ratios, fetch_log, alerts) | ✅ |
 | Backup otomasyonu (`make backup-now`) | ✅ |
 | Borfin OCR (9 kurs, 469 video) | ✅ |
 | Production package temizliği | ✅ |
@@ -183,13 +183,11 @@
 
 | # | Alan | Kalan İş | Dosya |
 |---|------|-----------|-------|
-| 1 | **Mali Analiz** | KAP gerçek provider, finansal tablo store, oran motoru | `backend/mali_analiz/` |
-| 2 | **Veri Platformu** | ClickHouse/MySQL API bağlantısı (infra hazır, backend bağlanmadı) | `backend/data/repositories/` |
-| 3 | **VIOP** | Vadeli veri modeli + kontrat rollover mantığı | `infra/clickhouse/` |
-| 4 | **Eğitim köprüleri** | Formasyon/Fibonacci yazılarından çizim aracına köprü | `frontend/src/content/` |
-| 5 | **Borfin OCR** | Kalan 17 kurs (356 video) — özellikle mali analiz ve opsiyon | `artifacts/` |
-| 6 | **Production deploy** | Gerçek domain, TLS, sunucu kurulumu | `docs/DEPLOYMENT.md` |
-| 7 | **LightGBM** | 3 ay cache birikmesi bekleniyor, sonra ML hazırlığı | `scripts/retrain_lightgbm.py` |
+| 1 | **Veri Platformu** | ClickHouse/Redis OHLCV bağlantısı (MySQL finansal ✅, OHLCV zinciri eksik) | `backend/data/repositories/` |
+| 2 | **VIOP** | Vadeli veri modeli + kontrat rollover mantığı | `infra/clickhouse/` |
+| 3 | **Eğitim köprüleri** | Formasyon/Fibonacci yazılarından çizim aracına köprü | `frontend/src/content/` |
+| 4 | **Production deploy** | Gerçek domain, TLS, sunucu kurulumu | `docs/DEPLOYMENT.md` |
+| 5 | **LightGBM** | 3 ay cache birikmesi bekleniyor, sonra ML hazırlığı | `scripts/retrain_lightgbm.py` |
 
 ---
 
@@ -210,18 +208,15 @@
 
 ---
 
-### Faz B — Mali Analiz Gerçek Veri
+### Faz B — Mali Analiz Gerçek Veri ✅ TAMAMLANDI (2026-05-07)
 
-**Neden:** UI/API iskeleti hazır (metadata-only v1), ama finansal tablolar boş dönüyor.
-
-**Yapılacaklar:**
-1. KAP web scraper / provider implementasyonu (`backend/mali_analiz/service.py`)
-2. Finansal tablo normalize store → MySQL `005_financial_analysis` tablosuna yaz
-3. Oran motoru: F/K, PD/DD, ROE, brüt marj, net borç/EBITDA
-4. `MaliAnalizPanel.ts`'i gerçek veriye bağla
-5. BIST 30 listesini merkezi sembol metadata'sından üret (statik liste değil)
-
-**Kabul kapısı:** 5 BIST 30 hissesi için gerçek bilanço gösteriyor.
+**Yapılanlar:**
+1. borsapy provider: BIST 30 için bilanço / GK / nakit akışı çekiyor (`backend/mali_analiz/borsapy_provider.py`)
+2. MySQL migration 006: `financial_raw_rows`, `financial_computed_ratios`, `financial_fetch_log`, `financial_alerts`
+3. Oran motoru: F/K, PD/DD, ROE, ROA, brüt/net marj, net borç/EBITDA, 6 oran tabanlı uyarı
+4. `MaliAnalizPanel.ts` v2: 6 sekme (Özet/Bilanço/GK/Nakit/Oranlar/Grafikler), lightweight-charts entegrasyonu
+5. BIST 30 universe endpoint (`/api/mali-analiz/universe`) — borsapy kaynaklı, 30 sembol
+6. Entegrasyon testleri: 17 test, 448 passed, 3 skipped
 
 ---
 
@@ -444,4 +439,4 @@ Toplam: ~130 sembol aktif cache
 ---
 
 *Bu dosya her büyük karar veya faz tamamlandığında güncellenir.*
-*Son güncelleme: 2026-05-06 — Klasör temizliği sonrası ilk versiyon.*
+*Son güncelleme: 2026-05-07 — Faz B (Mali Analiz gerçek veri) tamamlandı.*

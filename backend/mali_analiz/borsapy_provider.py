@@ -167,23 +167,27 @@ def fetch_symbol(
     symbol: str,
     quarterly_periods: int = 40,
     annual_periods: int = 10,
-    retry: int = 2,
-    delay: float = 1.0,
+    retry: int = 4,
+    delay: float = 2.5,
 ) -> FinancialSnapshot:
     """Tek sembol için borsapy'den veri çeker.
 
     quarterly_periods=40 → ~10 yıl çeyreklik veri
     annual_periods=10    → 10 yıl yıllık veri
-    retry → hata durumunda tekrar sayısı
-    delay → istekler arası bekleme (saniye)
+    retry → hata durumunda tekrar sayısı (isyatirim.com rate-limit için 4)
+    delay → istekler arası bekleme (saniye); bankalar için uzun tutulur
     """
     for attempt in range(retry + 1):
         try:
             return _do_fetch(symbol, quarterly_periods, annual_periods, delay)
         except Exception as exc:
-            _log.warning("Fetch attempt %d/%d failed for %s: %s", attempt + 1, retry + 1, symbol, exc)
+            wait = delay * (attempt + 1) * 1.5  # exponential backoff
+            _log.warning(
+                "Fetch attempt %d/%d failed for %s: %s — %.1fs bekleniyor",
+                attempt + 1, retry + 1, symbol, exc, wait,
+            )
             if attempt < retry:
-                time.sleep(delay * (attempt + 1))
+                time.sleep(wait)
 
     return FinancialSnapshot(
         symbol=symbol,
@@ -191,7 +195,7 @@ def fetch_symbol(
         current_price=None,
         market_cap=None,
         shares_outstanding=None,
-        error="Tüm yeniden deneme girişimleri başarısız.",
+        error="Veri çekilemedi — isyatirim.com yanıt vermedi veya sembol desteklenmiyor.",
     )
 
 

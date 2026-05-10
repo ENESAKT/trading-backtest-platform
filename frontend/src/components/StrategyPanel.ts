@@ -32,7 +32,7 @@ type SignalsListener = (signals: Signal[]) => void;
 type FocusListener = (timestamp: number) => void;
 type SymbolSelectListener = (info: SymbolInfo) => void;
 type StrategyMode = 'blueprint' | 'spec' | 'preset';
-type ReportTab = 'summary' | 'trades' | 'performance' | 'system' | 'warnings';
+type ReportTab = 'summary' | 'trades' | 'performance' | 'walk-forward' | 'monte-carlo' | 'system' | 'warnings';
 
 interface SavedStrategy {
   id: number;
@@ -62,6 +62,12 @@ interface OptimizationRow {
   warnings: string[];
 }
 
+interface OptimizationHeatmap {
+  x_axis: number[];
+  y_axis: number[];
+  z_matrix: number[][];
+}
+
 interface OptimizationStabilityReport {
   param_keys: string[];
   best_params: Record<string, unknown>;
@@ -69,6 +75,7 @@ interface OptimizationStabilityReport {
   metric_value: number;
   global_max: number;
   warnings: string[];
+  heatmap?: OptimizationHeatmap;
 }
 
 interface ScanRow {
@@ -170,6 +177,8 @@ export class StrategyPanel {
   private activeSymbol = DEFAULT_SYMBOL.symbol;
   private activeInterval: Timeframe = '1d';
   private equityChart: Chart | null = null;
+  private wfChart: Chart | null = null;
+  private mcChart: Chart | null = null;
   private signalListeners: Set<SignalsListener> = new Set();
   private focusListeners: Set<FocusListener> = new Set();
   private symbolSelectListeners: Set<SymbolSelectListener> = new Set();
@@ -184,12 +193,22 @@ export class StrategyPanel {
   private optimizationStability: OptimizationStabilityReport | null = null;
   private scanRows: ScanRow[] = [];
 
+  private readonly _handleThemeChange = (): void => {
+    const needsRender = ['performance', 'walk-forward', 'monte-carlo'].includes(this.reportTab);
+    if (needsRender && this.lastResult) {
+      this.equityChart?.destroy();
+      this.equityChart = null;
+      this.renderReport();
+    }
+  };
+
   constructor(container: HTMLElement) {
     this.container = container;
     this.render();
     void this.loadBlueprints();
     void this.loadSavedStrategies();
     void this.loadReports();
+    window.addEventListener('piyasapilot:theme-change', this._handleThemeChange);
   }
 
   setCandles(candles: OHLCV[], symbol?: string, interval?: Timeframe): void {
@@ -290,10 +309,18 @@ export class StrategyPanel {
 
   private async loadReports(): Promise<void> {
     try {
-      const resp = await fetch(`${BACKTEST_REPORTS_ENDPOINT}?limit=8`);
+      const resp = await fetch(`${BACKTEST_REPORTS_ENDPOINT}?limit=50`);
       if (!resp.ok) return;
       const body = await resp.json() as { reports?: ReportSummary[] };
-      this.reportSummaries = body.reports ?? [];
+      const all = body.reports ?? [];
+      // Deduplicate: keep first occurrence per (symbol, strategy_name, return_pct rounded to 2dp)
+      const seen = new Set<string>();
+      this.reportSummaries = all.filter(r => {
+        const key = `${r.symbol}|${r.strategy_name}|${r.return_pct.toFixed(2)}`;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      }).slice(0, 12);
       this.renderReportArchive();
     } catch {
       // Optional panel remains empty.
@@ -403,6 +430,8 @@ export class StrategyPanel {
                 ${this.reportTabButton('summary', 'Özet')}
                 ${this.reportTabButton('trades', 'İşlemler')}
                 ${this.reportTabButton('performance', 'Performans')}
+                ${this.reportTabButton('walk-forward', 'Walk-Fwd')}
+                ${this.reportTabButton('monte-carlo', 'Monte Carlo')}
                 ${this.reportTabButton('system', 'Sistem')}
                 ${this.reportTabButton('warnings', 'Veri')}
               </div>
@@ -414,11 +443,14 @@ export class StrategyPanel {
               <div class="panel-title-row">
                 <h3>${TR.EQUITY_CURVE}</h3>
                 <div class="export-actions">
+                  <button class="btn-sm" id="bt-open-chart" title="Sembolü grafikte aç">📈 Grafik</button>
+                  <button class="btn-sm" id="bt-open-financials" title="Mali analizi aç">💰 Mali</button>
                   <button class="btn-sm" data-export="json">JSON</button>
                   <button class="btn-sm" data-export="trades_csv">İşlem CSV</button>
                   <button class="btn-sm" data-export="equity_csv">Equity CSV</button>
                 </div>
               </div>
+              <div class="equity-metrics-row" id="equity-metrics-row"></div>
               <div class="equity-wrap"><canvas id="equity-canvas"></canvas></div>
             </div>
             <div class="panel-section">
@@ -602,6 +634,18 @@ export class StrategyPanel {
 
       if (target.closest('#refresh-reports')) {
         void this.loadReports();
+        return;
+      }
+
+      if (target.closest('#bt-open-chart')) {
+        const sym = this.lastResult?.symbol;
+        if (sym) window.dispatchEvent(new CustomEvent('openSymbolOnChart', { detail: { symbol: sym } }));
+        return;
+      }
+
+      if (target.closest('#bt-open-financials')) {
+        const sym = this.lastResult?.symbol;
+        if (sym) window.dispatchEvent(new CustomEvent('openFinancialAnalysis', { detail: { symbol: sym } }));
         return;
       }
 
@@ -1251,6 +1295,12 @@ export class StrategyPanel {
             <span>${formatNumber(stability.stable_score ?? 0, 2)} / Max ${formatNumber(stability.global_max ?? 0, 2)}</span>
           </div>
         </div>
+        ${stability.heatmap && stability.heatmap.x_axis.length > 1 && stability.heatmap.y_axis.length > 1
+          ? `<div class="opt-heatmap-wrap">
+               <div class="opt-heatmap-label">${this.escape(stability.param_keys[0] ?? 'p1')} → / ${this.escape(stability.param_keys[1] ?? 'p2')} ↓</div>
+               <canvas id="opt-heatmap-canvas" class="opt-heatmap-canvas"></canvas>
+             </div>`
+          : ''}
       ` : ''}
       <table class="data-table mini-table">
         <thead><tr><th>Parametre</th><th>Getiri</th><th>DD</th><th>Skor</th><th></th></tr></thead>
@@ -1270,6 +1320,76 @@ export class StrategyPanel {
         </tbody>
       </table>
     `;
+
+    if (stability?.heatmap) {
+      requestAnimationFrame(() => this.drawOptHeatmap(stability.heatmap!, stability));
+    }
+  }
+
+  private drawOptHeatmap(hm: OptimizationHeatmap, stability: OptimizationStabilityReport): void {
+    const canvas = this.container.querySelector<HTMLCanvasElement>('#opt-heatmap-canvas');
+    if (!canvas || !hm.x_axis.length || !hm.y_axis.length) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const cols = hm.x_axis.length;
+    const rows = hm.y_axis.length;
+    const cellW = 32;
+    const cellH = 24;
+    const padL = 36;
+    const padT = 8;
+    const padR = 8;
+    const padB = 20;
+    canvas.width  = padL + cols * cellW + padR;
+    canvas.height = padT + rows * cellH + padB;
+
+    // compute min/max for colour mapping
+    const flat = hm.z_matrix.flat().filter(v => Number.isFinite(v));
+    const zMin = Math.min(...flat);
+    const zMax = Math.max(...flat);
+    const range = zMax - zMin || 1;
+
+    function heatColor(z: number): string {
+      const t = (z - zMin) / range;
+      // red → yellow → green
+      const r = t < 0.5 ? 255 : Math.round(255 * (1 - (t - 0.5) * 2));
+      const g = t > 0.5 ? 255 : Math.round(255 * t * 2);
+      return `rgb(${r},${g},40)`;
+    }
+
+    // Draw cells
+    for (let yi = 0; yi < rows; yi++) {
+      for (let xi = 0; xi < cols; xi++) {
+        const z = hm.z_matrix[yi]?.[xi] ?? 0;
+        ctx.fillStyle = heatColor(z);
+        const x = padL + xi * cellW;
+        const y = padT + yi * cellH;
+        ctx.fillRect(x, y, cellW - 1, cellH - 1);
+      }
+    }
+
+    // Highlight best params
+    const bestP1 = stability.best_params[stability.param_keys[0] ?? ''];
+    const bestP2 = stability.best_params[stability.param_keys[1] ?? ''];
+    const bxi = hm.x_axis.indexOf(Number(bestP1));
+    const byi = hm.y_axis.indexOf(Number(bestP2));
+    if (bxi >= 0 && byi >= 0) {
+      ctx.strokeStyle = '#fff';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(padL + bxi * cellW + 1, padT + byi * cellH + 1, cellW - 3, cellH - 3);
+    }
+
+    // Axis labels (x = p1 values, y = p2 values)
+    ctx.fillStyle = this._chartCssVar('--text', '#8b949e');
+    ctx.font = '9px monospace';
+    ctx.textAlign = 'center';
+    for (let xi = 0; xi < cols; xi += Math.ceil(cols / 6)) {
+      ctx.fillText(String(hm.x_axis[xi] ?? ''), padL + xi * cellW + cellW / 2, canvas.height - 4);
+    }
+    ctx.textAlign = 'right';
+    for (let yi = 0; yi < rows; yi += Math.ceil(rows / 5)) {
+      ctx.fillText(String(hm.y_axis[yi] ?? ''), padL - 3, padT + yi * cellH + cellH / 2 + 3);
+    }
   }
 
   private renderScanResults(): void {
@@ -1327,7 +1447,21 @@ export class StrategyPanel {
     if (!el || !r) return;
     if (this.reportTab === 'summary') el.innerHTML = this.summaryHTML(r);
     if (this.reportTab === 'trades') el.innerHTML = this.tradesHTML(r.trades);
-    if (this.reportTab === 'performance') el.innerHTML = this.performanceHTML(r);
+    if (this.reportTab === 'performance') {
+      el.innerHTML = this.performanceHTML(r);
+      requestAnimationFrame(() => {
+        this.renderWalkForwardChart(r.walk_forward_report);
+        this.renderMCChart(r.monte_carlo_report);
+      });
+    }
+    if (this.reportTab === 'walk-forward') {
+      el.innerHTML = this.walkForwardHTML(r);
+      requestAnimationFrame(() => this.renderWalkForwardChart(r.walk_forward_report));
+    }
+    if (this.reportTab === 'monte-carlo') {
+      el.innerHTML = this.monteCarloHTML(r);
+      requestAnimationFrame(() => this.renderMCChart(r.monte_carlo_report));
+    }
     if (this.reportTab === 'system') el.innerHTML = this.systemHTML(r);
     if (this.reportTab === 'warnings') el.innerHTML = this.warningsHTML(r);
   }
@@ -1383,9 +1517,48 @@ export class StrategyPanel {
           ${this.metric('Pencere', String(report.windows.length))}
           ${this.metric('Durum', status, report.passed ? 'pos' : 'neg')}
         </div>
+        ${report.windows?.length ? `<div class="wf-chart-wrap"><canvas id="wf-chart-canvas"></canvas></div>` : ''}
         ${report.warnings?.length ? `<div class="warning-list">${report.warnings.map(w => `<div class="warning-item">${this.escape(w)}</div>`).join('')}</div>` : ''}
       </div>
     `;
+  }
+
+  private _chartCssVar(v: string, fb: string): string {
+    return getComputedStyle(document.documentElement).getPropertyValue(v).trim() || fb;
+  }
+
+  private renderWalkForwardChart(report: BacktestResult['walk_forward_report']): void {
+    if (!report?.windows?.length) return;
+    const canvas = this.container.querySelector<HTMLCanvasElement>('#wf-chart-canvas');
+    if (!canvas) return;
+    const tc = this._chartCssVar('--text', '#8b949e');
+    const gc = this._chartCssVar('--border', '#21262d');
+    const labels = report.windows.map((_w: unknown, i: number) => `F${i + 1}`);
+    const data   = report.windows.map((w) => w.out_of_sample_return_pct ?? 0);
+    this.wfChart?.destroy();
+    this.wfChart = new Chart(canvas, {
+      type: 'bar',
+      data: {
+        labels,
+        datasets: [{
+          label: 'OOS Getiri %',
+          data,
+          backgroundColor: data.map(v => v >= 0 ? '#3fb95088' : '#f8514988'),
+          borderColor:     data.map(v => v >= 0 ? '#3fb950' : '#f85149'),
+          borderWidth: 1,
+        }],
+      },
+      options: {
+        animation: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { ticks: { color: tc, font: { size: 9 } }, grid: { color: gc } },
+          y: { ticks: { color: tc, font: { size: 9 }, callback: v => `${v}%` }, grid: { color: gc } },
+        },
+        responsive: true,
+        maintainAspectRatio: false,
+      },
+    });
   }
 
   private monteCarloHTML(r: BacktestResult): string {
@@ -1402,9 +1575,62 @@ export class StrategyPanel {
           ${this.metric('Medyan DD', formatPct(-report.median_max_drawdown_pct), 'neg')}
           ${this.metric('%95 DD', formatPct(-report.p95_max_drawdown_pct), 'neg')}
         </div>
+        ${report.sample_simulations?.length ? `<div class="mc-chart-wrap"><canvas id="mc-chart-canvas"></canvas></div>` : ''}
         ${report.warnings?.length ? `<div class="warning-list">${report.warnings.map(w => `<div class="warning-item">${this.escape(w)}</div>`).join('')}</div>` : ''}
       </div>
     `;
+  }
+
+  private renderMCChart(report: BacktestResult['monte_carlo_report']): void {
+    if (!report?.sample_simulations?.length) return;
+    const canvas = this.container.querySelector<HTMLCanvasElement>('#mc-chart-canvas');
+    if (!canvas) return;
+    const sims: number[][] = report.sample_simulations;
+    const maxLen = Math.max(...sims.map(s => s.length));
+    const labels = Array.from({ length: maxLen }, (_, i) => String(i));
+    const pathDatasets = sims.slice(0, 30).map(sim => ({
+      data: sim,
+      borderColor: 'rgba(58,134,255,0.15)',
+      borderWidth: 1,
+      pointRadius: 0,
+      fill: false,
+      tension: 0,
+    }));
+    // Percentile bands — build from per-step values
+    const byStep: number[][] = Array.from({ length: maxLen }, () => []);
+    for (const sim of sims) {
+      for (let i = 0; i < sim.length; i++) {
+        byStep[i]!.push(sim[i]!);
+      }
+    }
+    const pct = (arr: number[], p: number) => {
+      const sorted = [...arr].sort((a, b) => a - b);
+      const idx = Math.floor(p * (sorted.length - 1));
+      return sorted[idx] ?? 0;
+    };
+    const p5  = byStep.map(a => pct(a, 0.05));
+    const p50 = byStep.map(a => pct(a, 0.50));
+    const p95 = byStep.map(a => pct(a, 0.95));
+    const bandDatasets = [
+      { label: 'P95', data: p95, borderColor: '#3fb950', borderWidth: 2, pointRadius: 0, fill: false, tension: 0 },
+      { label: 'P50', data: p50, borderColor: '#ffb020', borderWidth: 2, pointRadius: 0, fill: false, tension: 0 },
+      { label: 'P5',  data: p5,  borderColor: '#f85149', borderWidth: 2, pointRadius: 0, fill: false, tension: 0 },
+    ];
+    this.mcChart?.destroy();
+    this.mcChart = new Chart(canvas, {
+      type: 'line',
+      data: { labels, datasets: [...pathDatasets, ...bandDatasets] as any[] },
+      options: {
+        animation: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { display: false },
+          y: { ticks: { color: this._chartCssVar('--text', '#8b949e'), font: { size: 9 }, callback: v => `₺${Number(v).toLocaleString('tr-TR', { maximumFractionDigits: 0 })}` }, grid: { color: this._chartCssVar('--border', '#21262d') } },
+        },
+        responsive: true,
+        maintainAspectRatio: false,
+      },
+    });
   }
 
   private portfolioLabHTML(r: BacktestResult): string {
@@ -1518,9 +1744,27 @@ export class StrategyPanel {
     `).join('');
   }
 
+  private renderEquityMetrics(result: BacktestResult): void {
+    const el = this.container.querySelector<HTMLElement>('#equity-metrics-row');
+    if (!el) return;
+    const m = result.metrics;
+    const sharpe = m.sharpe_ratio ?? 0;
+    const maxDD = m.max_drawdown_pct ?? 0;
+    const annRet = m.annualized_return_pct ?? 0;
+    const calmar = maxDD !== 0 ? annRet / Math.abs(maxDD) : 0;
+    const item = (label: string, val: string, cls = '') =>
+      `<div class="eq-metric"><span class="eq-metric-label">${label}</span><span class="eq-metric-val ${cls}">${val}</span></div>`;
+    el.innerHTML =
+      item('Sharpe', formatNumber(sharpe, 2), sharpe >= 1 ? 'pos' : sharpe < 0 ? 'neg' : '') +
+      item('Max DD', formatPct(-maxDD), 'neg') +
+      item('Yıllık', formatPct(annRet), annRet >= 0 ? 'pos' : 'neg') +
+      item('Calmar', formatNumber(calmar, 2), calmar >= 1 ? 'pos' : calmar < 0 ? 'neg' : '');
+  }
+
   private renderEquityCurve(result: BacktestResult): void {
     const canvas = this.container.querySelector<HTMLCanvasElement>('#equity-canvas');
     if (!canvas || result.equity_curve.length === 0) return;
+    this.renderEquityMetrics(result);
 
     const labels = result.equity_curve.map(p => formatDateTime(p.time));
     const equity = result.equity_curve.map(p => p.total_equity);
@@ -1562,6 +1806,8 @@ export class StrategyPanel {
       return;
     }
 
+    const tc = this._chartCssVar('--text', '#8b949e');
+    const gc = this._chartCssVar('--border', '#21262d');
     this.equityChart = new Chart(canvas, {
       type: 'line',
       data: { labels: sampledLabels, datasets },
@@ -1570,10 +1816,10 @@ export class StrategyPanel {
         plugins: { legend: { display: false } },
         scales: {
           x: { display: false },
-          y: { ticks: { color: '#8b949e', font: { size: 10 } }, grid: { color: '#21262d' } },
+          y: { ticks: { color: tc, font: { size: 10 } }, grid: { color: gc } },
           y1: {
             position: 'right',
-            ticks: { color: '#8b949e', font: { size: 10 } },
+            ticks: { color: tc, font: { size: 10 } },
             grid: { drawOnChartArea: false },
           },
         },
@@ -1667,7 +1913,10 @@ export class StrategyPanel {
   }
 
   destroy(): void {
+    window.removeEventListener('piyasapilot:theme-change', this._handleThemeChange);
     this.equityChart?.destroy();
+    this.wfChart?.destroy();
+    this.mcChart?.destroy();
   }
 }
 

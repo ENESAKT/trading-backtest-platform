@@ -23,26 +23,27 @@ _log = logging.getLogger(__name__)
 def harvest_all(
     symbols: list[str] | None = None,
     repository: "Any | None" = None,
-    max_workers: int = 3,
-    inter_batch_delay: float = 2.0,
+    max_workers: int = 1,
+    inter_batch_delay: float = 3.0,
     on_progress: Callable[[str, str], None] | None = None,
 ) -> dict[str, str]:
     """Tüm BIST 30 (veya verilen liste) için veri çeker.
 
+    max_workers=1: isyatirim.com rate-limit'i tetiklememek için seri çekim.
+    inter_batch_delay: semboller arası bekleme (saniye).
     on_progress(symbol, status) → ilerleme callback'i
     Döndürür: {symbol: "ok" | "error: <msg>"}
     """
     targets = symbols or BIST_30_SYMBOLS
     results: dict[str, str] = {}
-    _log.info("Harvest başlıyor: %d sembol", len(targets))
+    _log.info("Harvest başlıyor: %d sembol (max_workers=%d)", len(targets), max_workers)
 
-    # Toplu çekimde rate limit aşmamak için düşük concurrency
     with ThreadPoolExecutor(max_workers=max_workers) as pool:
         futures = {
             pool.submit(_harvest_one, sym, repository): sym
             for sym in targets
         }
-        for future in as_completed(futures):
+        for i, future in enumerate(as_completed(futures)):
             sym = futures[future]
             try:
                 status = future.result()
@@ -53,6 +54,9 @@ def harvest_all(
             except Exception as exc:
                 results[sym] = f"error: {exc}"
                 _log.error("Harvest exception %s: %s", sym, exc)
+            # Semboller arası bekleme — rate-limit koruma
+            if i < len(targets) - 1 and inter_batch_delay > 0:
+                time.sleep(inter_batch_delay)
 
     _log.info("Harvest tamamlandı: %d/%d başarılı", sum(1 for v in results.values() if v == "ok"), len(targets))
     return results

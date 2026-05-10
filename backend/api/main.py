@@ -77,7 +77,7 @@ from backend.mali_analiz.harvester import harvest_if_stale, harvest_all, recompu
 from backend.mali_analiz.kap_provider import KapFinancialAnalysisProvider
 from backend.mali_analiz.repository import FinancialStatementRepository
 from backend.mali_analiz.service import FinancialAnalysisService
-from backend.mali_analiz.symbols import BIST_30_SYMBOLS, SYMBOL_METADATA, normalize_symbol
+from backend.mali_analiz.symbols import BIST_30_SYMBOLS, BIST_100_SYMBOLS, SYMBOL_METADATA, normalize_symbol
 from backend.middleware.api_key_auth import APIKeyMiddleware
 from backend.paper import PaperDB, PaperExecutor
 from backend.signals import SignalGenerator
@@ -99,6 +99,7 @@ ROOT = Path(__file__).resolve().parents[2]
 _PAPER_DB_PATH = "data/cache/ohlcv.sqlite3"
 _BACKTEST_ARCHIVE_PATH = "data/strategy_lab/backtest_reports.sqlite3"
 _STRATEGY_STORE_PATH = "data/strategy_lab/strategies.sqlite3"
+_NEWS_DB_PATH = "data/cache/news.sqlite3"
 _logger = logging.getLogger(__name__)
 
 # Cache miss eşiği: cache'teki en yeni bar'dan beri bu süreden uzun zaman
@@ -399,7 +400,7 @@ def create_app(
             import asyncio as _aio
             def _bg_harvest():
                 try:
-                    harvest_if_stale(_financial_repository_ref, max_workers=2)
+                    harvest_if_stale(_financial_repository_ref, max_workers=1)
                 except Exception as _e:
                     _logger.warning("[mali-analiz] Startup harvest hatası: %s", _e)
             _aio.get_event_loop().run_in_executor(None, _bg_harvest)
@@ -409,10 +410,34 @@ def create_app(
         health_monitor = WorkerHealthMonitor(supervisor)
         await health_monitor.start()
 
+        # Haber arka plan worker — her 30 dakikada BIST30 haberlerini günceller
+        async def _news_background_worker():
+            from backend.news.news_store import NewsStore
+            from backend.news.news_fetcher import fetch_news_for_symbol
+            store = NewsStore(_NEWS_DB_PATH)
+            while True:
+                try:
+                    for sym in BIST_30_SYMBOLS[:15]:  # İlk 15 sembol — rate-limit dostu
+                        try:
+                            items = fetch_news_for_symbol(sym, limit=10)
+                            if items:
+                                store.upsert(items)
+                        except Exception as _e:
+                            _logger.debug("[news-worker] %s hatası: %s", sym, _e)
+                        await asyncio.sleep(2)  # Semboller arası bekleme
+                except asyncio.CancelledError:
+                    break
+                except Exception as _e:
+                    _logger.warning("[news-worker] Döngü hatası: %s", _e)
+                await asyncio.sleep(30 * 60)  # 30 dakika bekle
+
+        news_worker_task = asyncio.create_task(_news_background_worker())
+
         try:
             yield
         finally:
             await health_monitor.stop()
+            news_worker_task.cancel()
             executor_task.cancel()
             await supervisor.stop_all()
             try:
@@ -821,6 +846,430 @@ def create_app(
                 errors.append({"symbol": symbol, "error": str(exc)})
         rows.sort(key=lambda row: float(row["score"]), reverse=True)
         return {"scanner_version": "v3", "results": rows, "errors": errors}
+
+    # ── Walk-Forward Analizi ──────────────────────────────────────────────
+    @app.post("/api/backtest/walk-forward")
+    def backtest_walk_forward(req: WalkForwardRequest) -> dict[str, Any]:
+        """Kayan pencere walk-forward analizi.
+
+        Her pencerede en iyi parametre kombinasyonu in-sample'da seçilir,
+        ardından out-of-sample döneminde değerlendirilir.
+        """
+        from quant_engine.research.walk_forward import generate_windows
+
+        canonical = req.symbol.strip().upper()
+        total_bars_needed = req.in_sample_bars + req.out_of_sample_bars
+        bars = cache.get_window(canonical, req.interval, req.lookback_bars)
+        if not bars or len(bars) < total_bars_needed:
+            have = len(bars) if bars else 0
+            raise HTTPException(
+                status_code=409,
+                detail=f"Walk-forward için yeterli bar yok (gerekli: {total_bars_needed}, mevcut: {have}).",
+            )
+
+        # Param grid'den kombinasyon listesi oluştur
+        grid = req.param_grid or {}
+        if grid:
+            keys = list(grid.keys())
+            combos = [
+                dict(zip(keys, combo, strict=False))
+                for combo in itertools.product(*[grid[k] for k in keys])
+            ]
+        else:
+            combos = [dict(req.params)]
+
+        if not combos:
+            raise HTTPException(status_code=400, detail="param_grid veya params boş olamaz.")
+
+        windows = generate_windows(
+            len(bars),
+            in_sample_bars=req.in_sample_bars,
+            out_of_sample_bars=req.out_of_sample_bars,
+            step_bars=req.step_bars,
+        )
+        if not windows:
+            raise HTTPException(
+                status_code=409,
+                detail="Verilen bar sayısı ile pencere üretilemedi. in_sample_bars + out_of_sample_bars toplamını küçültün.",
+            )
+
+        def _run_slice(params: dict[str, Any], bar_slice: list[dict[str, Any]]) -> dict[str, Any]:
+            try:
+                return run_backtest(
+                    cache=cache,
+                    data_service=data_service,
+                    symbol=canonical,
+                    interval=req.interval,
+                    strategy_id=req.strategy_id,
+                    params=params,
+                    capital=req.capital,
+                    commission_rate=req.commission_rate,
+                    slippage_bps=req.slippage_bps,
+                    allow_short=req.allow_short,
+                    source_mode="csv_import",
+                    strategy_spec=req.strategy_spec,
+                    csv_bars=bar_slice,
+                )
+            except Exception:  # noqa: BLE001
+                return {}
+
+        def _score(result: dict[str, Any]) -> float:
+            m = result.get("metrics") or {}
+            if not m:
+                return -999.0
+            ret = float(m.get("total_return_pct", 0))
+            dd = float(m.get("max_drawdown_pct", 0))
+            trades = int(m.get("total_trades", 0))
+            s = ret - dd * 0.7 + min(trades, 20) * 0.1
+            if trades < 2:
+                s -= 10
+            return s
+
+        fold_results: list[dict[str, Any]] = []
+        all_oos_returns: list[float] = []
+        all_efficiencies: list[float] = []
+
+        for window in windows:
+            in_bars = bars[window.in_sample_start : window.in_sample_end]
+            oos_bars = bars[window.out_of_sample_start : window.out_of_sample_end]
+
+            best_score = -float("inf")
+            best_params: dict[str, Any] = combos[0]
+            for combo in combos:
+                res = _run_slice(combo, in_bars)
+                s = _score(res)
+                if s > best_score:
+                    best_score = s
+                    best_params = combo
+
+            oos_result = _run_slice(best_params, oos_bars)
+            oos_metrics = oos_result.get("metrics") or {}
+            oos_return = float(oos_metrics.get("total_return_pct", 0))
+            efficiency = oos_return / abs(best_score) if best_score not in (0, -999.0) else 0.0
+
+            all_oos_returns.append(oos_return)
+            all_efficiencies.append(efficiency)
+
+            # Tarih bilgisi (bar zaman damgaları)
+            in_start_ts = in_bars[0]["time"] if in_bars else 0
+            in_end_ts = in_bars[-1]["time"] if in_bars else 0
+            oos_start_ts = oos_bars[0]["time"] if oos_bars else 0
+            oos_end_ts = oos_bars[-1]["time"] if oos_bars else 0
+
+            fold_results.append({
+                "fold": window.index,
+                "in_sample": {
+                    "start_ts": in_start_ts,
+                    "end_ts": in_end_ts,
+                    "bars": len(in_bars),
+                    "score": best_score,
+                },
+                "out_of_sample": {
+                    "start_ts": oos_start_ts,
+                    "end_ts": oos_end_ts,
+                    "bars": len(oos_bars),
+                    "return_pct": oos_return,
+                    "total_trades": int(oos_metrics.get("total_trades", 0)),
+                    "max_drawdown_pct": float(oos_metrics.get("max_drawdown_pct", 0)),
+                },
+                "best_params": best_params,
+                "walk_forward_efficiency": efficiency,
+            })
+
+        # Bileşik OOS getiri
+        compound = 1.0
+        for r in all_oos_returns:
+            compound *= 1 + r / 100.0
+        total_oos_return = (compound - 1) * 100.0
+        avg_efficiency = sum(all_efficiencies) / len(all_efficiencies) if all_efficiencies else 0.0
+        avg_oos = sum(all_oos_returns) / len(all_oos_returns) if all_oos_returns else 0.0
+
+        return {
+            "symbol": canonical,
+            "interval": req.interval,
+            "n_folds": len(windows),
+            "in_sample_bars": req.in_sample_bars,
+            "out_of_sample_bars": req.out_of_sample_bars,
+            "step_bars": req.step_bars,
+            "folds": fold_results,
+            "aggregate": {
+                "avg_oos_return_pct": avg_oos,
+                "total_oos_return_pct": total_oos_return,
+                "avg_walk_forward_efficiency": avg_efficiency,
+                "passed": avg_oos > 0,
+                "n_folds": len(windows),
+            },
+        }
+
+    # ── Monte Carlo Simülasyonu ───────────────────────────────────────────
+    @app.post("/api/backtest/monte-carlo")
+    def backtest_monte_carlo(req: MonteCarloRequest) -> dict[str, Any]:
+        """Arşivlenmiş backtest PnL serisinden Monte Carlo simülasyonu.
+
+        ``run_id`` ile bir backtest raporu belirtilir; trade PnL'leri
+        bootstrap/permütasyon yöntemiyle yeniden örneklenerek N simülasyon
+        koşturulur.
+        """
+        from quant_engine.research.monte_carlo import run_monte_carlo
+
+        report = backtest_archive.get(req.run_id)
+        if report is None:
+            raise HTTPException(status_code=404, detail="Backtest raporu bulunamadı.")
+
+        trades = report.get("trades") or []
+        pnl_series = [
+            float(t.get("net_pnl", 0))
+            for t in trades
+            if t.get("net_pnl") is not None
+        ]
+
+        if not pnl_series:
+            raise HTTPException(
+                status_code=409,
+                detail="Backtest raporunda işlem PnL verisi bulunamadı. Önce backtest çalıştırın.",
+            )
+
+        capital = float(report.get("capital", 100_000.0))
+        mc = run_monte_carlo(
+            pnl_series=pnl_series,
+            initial_capital=capital,
+            n_simulations=min(req.n_simulations, 2000),
+            method=req.method,
+            seed=req.seed,
+        )
+
+        # 50 örnek path döndür (tüm simülasyonlar çok büyük olur)
+        sample_count = min(50, len(mc.simulations))
+        sample_sims = mc.simulations[:sample_count]
+
+        # Percentil bantları için tüm son değerleri hesapla (frontend için)
+        import numpy as np
+        final_equities = [path[-1] for path in mc.simulations if path]
+        pct_values: dict[str, float] = {}
+        if final_equities:
+            arr = np.array(final_equities)
+            pct_values = {
+                "p5":  float(np.percentile(arr, 5)),
+                "p25": float(np.percentile(arr, 25)),
+                "p50": float(np.percentile(arr, 50)),
+                "p75": float(np.percentile(arr, 75)),
+                "p95": float(np.percentile(arr, 95)),
+            }
+
+        return {
+            "run_id": req.run_id,
+            "symbol": str(report.get("symbol", "")),
+            "interval": str(report.get("interval", "")),
+            "n_simulations": req.n_simulations,
+            "method": req.method,
+            "n_trades": len(pnl_series),
+            "initial_capital": capital,
+            "results": {
+                "median_final_equity": mc.median_final_equity,
+                "p05_final_equity": mc.p05_final_equity,
+                "p95_final_equity": mc.p95_final_equity,
+                "probability_of_loss": mc.probability_of_loss,
+                "median_max_drawdown_pct": mc.median_max_drawdown_pct,
+                "p95_max_drawdown_pct": mc.p95_max_drawdown_pct,
+                "percentiles": pct_values,
+            },
+            "sample_simulations": sample_sims,
+            "warnings": mc.warnings,
+        }
+
+    # ── Backtest Karşılaştırma ────────────────────────────────────────────────
+    @app.post("/api/backtest/compare")
+    def backtest_compare(body: dict[str, Any]) -> dict[str, Any]:
+        """İki backtest raporunu yan yana karşılaştır.
+
+        Body: {run_id_a: str, run_id_b: str}
+        """
+        run_id_a = str(body.get("run_id_a", ""))
+        run_id_b = str(body.get("run_id_b", ""))
+        if not run_id_a or not run_id_b:
+            raise HTTPException(status_code=400, detail="run_id_a ve run_id_b zorunlu.")
+
+        report_a = backtest_archive.get(run_id_a)
+        report_b = backtest_archive.get(run_id_b)
+        if report_a is None:
+            raise HTTPException(status_code=404, detail=f"Rapor bulunamadı: {run_id_a}")
+        if report_b is None:
+            raise HTTPException(status_code=404, detail=f"Rapor bulunamadı: {run_id_b}")
+
+        COMPARE_KEYS = [
+            "total_return_pct", "annualized_return_pct", "max_drawdown_pct",
+            "sharpe_ratio", "win_rate", "profit_factor", "total_trades",
+            "final_equity", "total_commission", "total_slippage",
+        ]
+
+        def _metrics(r: dict[str, Any]) -> dict[str, Any]:
+            return r.get("metrics") or {}
+
+        ma = _metrics(report_a)
+        mb = _metrics(report_b)
+
+        diffs: list[dict[str, Any]] = []
+        for key in COMPARE_KEYS:
+            va = ma.get(key)
+            vb = mb.get(key)
+            if va is None and vb is None:
+                continue
+            winner: str | None = None
+            if va is not None and vb is not None:
+                better_higher = key not in ("max_drawdown_pct", "total_commission", "total_slippage")
+                winner = "a" if (float(va) > float(vb)) == better_higher else "b"
+            diffs.append({"key": key, "a": va, "b": vb, "winner": winner})
+
+        def _summary(r: dict[str, Any]) -> dict[str, Any]:
+            return {
+                "run_id": r.get("run_id", ""),
+                "symbol": r.get("symbol", ""),
+                "interval": r.get("interval", ""),
+                "strategy_name": r.get("strategy_name", ""),
+                "created_at": r.get("created_at", ""),
+            }
+
+        return {
+            "a": _summary(report_a),
+            "b": _summary(report_b),
+            "diffs": diffs,
+            "winner_counts": {
+                "a": sum(1 for d in diffs if d["winner"] == "a"),
+                "b": sum(1 for d in diffs if d["winner"] == "b"),
+            },
+        }
+
+    # ── Teknik Analiz Özet ────────────────────────────────────────────────────
+    @app.get("/api/technical/{symbol}")
+    def get_technical_analysis(symbol: str, interval: str = "1d") -> dict[str, Any]:
+        """Son N bar üzerinden teknik göstergeler ve sinyal özetleri.
+
+        Yanıt: {symbol, interval, indicators: {...}, signals: {...}}
+        """
+        import pandas as pd
+        from quant_engine.strategy.indicators import (
+            rsi as calc_rsi, ema, bollinger_bands, atr as calc_atr, macd,
+        )
+
+        sym_upper = symbol.upper()
+        bars = cache.get_window(sym_upper, interval, limit=200)
+        if not bars:
+            raise HTTPException(status_code=404, detail=f"{sym_upper}/{interval} için veri bulunamadı.")
+
+        closes = pd.Series([float(b["close"]) for b in bars])
+        highs  = pd.Series([float(b["high"])  for b in bars])
+        lows   = pd.Series([float(b["low"])   for b in bars])
+
+        def _last(s: pd.Series) -> float | None:
+            if len(s) == 0:
+                return None
+            v = s.iloc[-1]
+            return None if (v != v) else round(float(v), 4)
+
+        rsi14  = calc_rsi(closes, 14)
+        ema9   = ema(closes, 9)
+        ema21  = ema(closes, 21)
+        ema50  = ema(closes, 50)
+        ema200 = ema(closes, 200)
+        bb_upper, _bb_mid, bb_lower = bollinger_bands(closes, 20, 2.0)
+        atr14  = calc_atr(highs, lows, closes, 14)
+        macd_line, macd_sig, macd_hist = macd(closes, 12, 26, 9)
+
+        last_close  = _last(closes)
+        last_rsi    = _last(rsi14)
+        last_ema9   = _last(ema9)
+        last_ema21  = _last(ema21)
+        last_ema50  = _last(ema50)
+        last_ema200 = _last(ema200)
+        last_bb_u   = _last(bb_upper)
+        last_bb_l   = _last(bb_lower)
+        last_macd   = _last(macd_line)
+        last_msig   = _last(macd_sig)
+        last_mhist  = _last(macd_hist)
+
+        rsi_signal = (
+            "oversold"  if (last_rsi is not None and last_rsi < 30) else
+            "overbought" if (last_rsi is not None and last_rsi > 70) else "neutral"
+        )
+        trend_signal = (
+            "bullish" if (last_ema9 and last_ema21 and last_ema9 > last_ema21) else
+            "bearish" if (last_ema9 and last_ema21 and last_ema9 < last_ema21) else "neutral"
+        )
+        above_200 = bool(last_close and last_ema200 and last_close > last_ema200)
+        bb_signal = (
+            "at_upper" if (last_close and last_bb_u and last_close >= last_bb_u * 0.99) else
+            "at_lower" if (last_close and last_bb_l and last_close <= last_bb_l * 1.01) else "inside"
+        )
+        macd_cross = (
+            "bullish" if (last_mhist is not None and last_mhist > 0) else
+            "bearish" if (last_mhist is not None and last_mhist < 0) else "neutral"
+        )
+
+        return {
+            "symbol": sym_upper,
+            "interval": interval,
+            "last_close": last_close,
+            "bars_used": len(bars),
+            "indicators": {
+                "close":       last_close,
+                "rsi14":       last_rsi,
+                "ema9":        last_ema9,
+                "ema21":       last_ema21,
+                "ema50":       last_ema50,
+                "ema200":      last_ema200,
+                "bb_upper":    last_bb_u,
+                "bb_lower":    last_bb_l,
+                "atr14":       _last(atr14),
+                "macd":        last_macd,
+                "macd_signal": last_msig,
+                "macd_hist":   last_mhist,
+            },
+            "signals": {
+                "rsi":       rsi_signal,
+                "trend":     trend_signal,
+                "above_200": above_200,
+                "bb":        bb_signal,
+                "macd":      macd_cross,
+            },
+        }
+
+    # ── Haber Akışı ──────────────────────────────────────────────────────────
+    _news_store_instance = None
+
+    def _get_news_store():
+        nonlocal _news_store_instance
+        if _news_store_instance is None:
+            from backend.news.news_store import NewsStore
+            _news_store_instance = NewsStore(_NEWS_DB_PATH)
+        return _news_store_instance
+
+    @app.get("/api/news")
+    def get_news(
+        symbol: str | None = None,
+        limit: int = 30,
+        fresh: bool = False,
+        keyword: str | None = None,
+    ) -> dict[str, Any]:
+        """Haber listesi döndür.
+
+        ``fresh=true`` ile yfinance'den çekip cache'e yaz.
+        ``fresh=false`` (varsayılan) ile SQLite'tan oku.
+        """
+        store = _get_news_store()
+        if fresh and symbol:
+            from backend.news.news_fetcher import fetch_news_for_symbol
+            items = fetch_news_for_symbol(symbol, limit=min(limit, 40))
+            if items:
+                store.upsert(items)
+        news = store.query(symbol=symbol, limit=limit, keyword=keyword)
+        unread = store.count_unread(symbol=symbol)
+        return {"news": news, "total": len(news), "unread_24h": unread}
+
+    @app.get("/api/news/unread-count")
+    def get_news_unread_count(symbol: str | None = None) -> dict[str, Any]:
+        """Son 24 saatteki haber sayısı (sidebar rozeti için)."""
+        store = _get_news_store()
+        return {"count": store.count_unread(symbol=symbol)}
 
     @app.get("/api/strategy-lab/strategies")
     def strategy_lab_list() -> dict[str, Any]:
@@ -1264,7 +1713,8 @@ def create_app(
     # ── Mali Analiz API v2 — gerçek borsapy verisi ──────────────────────────
     @app.get("/api/mali-analiz/universe")
     def get_mali_analiz_universe(scope: str = "bist30") -> dict[str, Any]:
-        """BIST 30 sembol listesini fetch durumu ile döndürür."""
+        """BIST 30 / BIST 100 sembol listesini fetch durumu ile döndürür."""
+        target_list = BIST_100_SYMBOLS if scope == "bist100" else BIST_30_SYMBOLS
         fetch_status: dict[str, dict] = {}
         if _financial_repository_ref:
             for row in _financial_repository_ref.get_all_fetch_status():
@@ -1281,7 +1731,7 @@ def create_app(
                 "name": SYMBOL_METADATA.get(sym, sym),
                 "fetch_status": fetch_status.get(sym, {"status": "no_data"}),
             }
-            for sym in BIST_30_SYMBOLS
+            for sym in target_list
         ]
         return {"scope": scope, "symbols": symbols, "source": "borsapy"}
 
@@ -1309,7 +1759,7 @@ def create_app(
     async def refresh_mali_analiz_all(
         symbols: list[str] | None = None,
     ) -> dict[str, Any]:
-        """Tüm BIST 30 (veya belirtilen semboller) için veri yenileme tetikler."""
+        """Tüm BIST 30/100 (veya belirtilen semboller) için veri yenileme tetikler."""
         if not _financial_repository_ref:
             raise HTTPException(status_code=503, detail="Finansal repository hazır değil")
         import asyncio as _aio
@@ -1318,7 +1768,7 @@ def create_app(
             return harvest_all(
                 symbols=targets,
                 repository=_financial_repository_ref,
-                max_workers=2,
+                max_workers=4,
             )
         results = await _aio.get_event_loop().run_in_executor(None, _run)
         ok = sum(1 for v in results.values() if v == "ok")
@@ -1862,6 +2312,37 @@ class ScanRequest(BaseModel):
     max_position_pct: float = Field(0.20, gt=0, le=1.0)
     allow_short: bool = False
     source_mode: str = "cache_only"
+
+
+class WalkForwardRequest(BaseModel):
+    """``POST /api/backtest/walk-forward`` gövdesi."""
+
+    symbol: str = Field(..., description="Sembol")
+    interval: str = Field("1d", description="Timeframe")
+    strategy_id: str = Field("", description="Blueprint id veya strategy_spec için boş")
+    strategy_spec: dict[str, Any] | None = Field(None)
+    params: dict[str, Any] = Field(default_factory=dict, description="Sabit parametreler")
+    param_grid: dict[str, list[Any]] = Field(
+        default_factory=dict,
+        description="Optimizasyon grid'i — boş ise params kullanılır",
+    )
+    in_sample_bars: int = Field(200, ge=50, le=2000, description="Her penceredeki in-sample bar sayısı")
+    out_of_sample_bars: int = Field(50, ge=10, le=500, description="Her penceredeki out-of-sample bar sayısı")
+    step_bars: int = Field(50, ge=10, le=500, description="Pencere kayma adımı (bar)")
+    lookback_bars: int = Field(1000, ge=100, le=5000, description="Cache'ten alınacak toplam bar")
+    capital: float = Field(100_000.0, gt=0)
+    commission_rate: float = Field(0.001, ge=0, le=0.10)
+    slippage_bps: int = Field(5, ge=0, le=500)
+    allow_short: bool = False
+
+
+class MonteCarloRequest(BaseModel):
+    """``POST /api/backtest/monte-carlo`` gövdesi."""
+
+    run_id: str = Field(..., description="Arşivlenmiş backtest rapor ID'si")
+    n_simulations: int = Field(500, ge=100, le=2000, description="Simülasyon tekrar sayısı")
+    method: str = Field("bootstrap", description="bootstrap veya permutation")
+    seed: int | None = Field(None, description="Tekrarlanabilirlik için rastgele tohum")
 
 
 # Uvicorn entry point: `uvicorn backend.api.main:app`

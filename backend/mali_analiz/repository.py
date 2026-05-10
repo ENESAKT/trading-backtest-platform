@@ -38,27 +38,41 @@ class FinancialStatementRepository:
 
     # ── Ham satır upsert ──────────────────────────────────────────
     def upsert_raw_rows(self, records: list[dict]) -> None:
+        """Her (symbol, period, period_type, statement_type) grubu için DELETE+INSERT.
+
+        ON DUPLICATE KEY UPDATE yerine gruplu silme+ekleme yaparız çünkü borsapy
+        her çekimde satırları farklı sırayla döndürebilir ve row_index değişirse
+        yeni satırlar birikerek veri şişmesine yol açar.
+        """
         if not records:
             return
-        sql = """
+        # Grupla: (symbol, period, period_type, statement_type) → satır listesi
+        from collections import defaultdict
+        groups: dict[tuple, list[dict]] = defaultdict(list)
+        for rec in records:
+            key = (rec["symbol"], rec["period"], rec["period_type"], rec["statement_type"])
+            groups[key].append(rec)
+
+        sql_del = """
+        DELETE FROM financial_raw_rows
+        WHERE symbol=%s AND period=%s AND period_type=%s AND statement_type=%s
+        """
+        sql_ins = """
         INSERT INTO financial_raw_rows
             (symbol, period, period_type, statement_type, row_index, label, value, source)
         VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-        ON DUPLICATE KEY UPDATE
-            label = VALUES(label),
-            value = VALUES(value),
-            source = VALUES(source),
-            fetched_at = NOW()
         """
         try:
             with self._connect() as conn:
                 with conn.cursor() as cur:
-                    for rec in records:
-                        cur.execute(sql, (
-                            rec["symbol"], rec["period"], rec["period_type"],
-                            rec["statement_type"], rec["row_index"],
-                            rec["label"], rec["value"], rec["source"],
-                        ))
+                    for (sym, period, ptype, stype), recs in groups.items():
+                        cur.execute(sql_del, (sym, period, ptype, stype))
+                        cur.executemany(sql_ins, [
+                            (r["symbol"], r["period"], r["period_type"],
+                             r["statement_type"], r["row_index"],
+                             r["label"], r["value"], r["source"])
+                            for r in recs
+                        ])
         except Exception as exc:
             _log.error("upsert_raw_rows failed: %s", exc)
 
