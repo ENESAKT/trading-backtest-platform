@@ -137,10 +137,10 @@ export class PortfolioPanel {
     avgPnl: number;
     maxDrawdown: number;
   } {
-    const totalCapital = this.wallets.reduce((s, w) => s + w.initial_capital, 0) || 10000;
+    const totalCapital = this.wallets.reduce((s, w) => s + w.initial_capital, 0);
     const totalCash = this.wallets.reduce((s, w) => s + w.cash, 0);
     const totalEquity = totalCash; // open positions not tracked client-side
-    const totalPnl = totalEquity - totalCapital;
+    const totalPnl = totalCapital > 0 ? totalEquity - totalCapital : 0;
     const totalPnlPct = totalCapital > 0 ? (totalPnl / totalCapital) * 100 : 0;
 
     const completed = this.trades.filter(t => t.closed_at !== null && t.pnl !== null);

@@ -21,27 +21,20 @@ export default defineConfig({
     port: 5173,
     open: true,
     proxy: {
-      // v2 API: tüm tarihsel/poll çağrıları lokal Python backend'e (live_server.py)
-      '/api/v2': {
+      // Tüm /api/* isteklerini backend'e yönlendir (tek kural — duplicate yok)
+      '/api': {
         target: apiTarget,
         changeOrigin: true,
       },
-      '/api/backtest': {
-        target: apiTarget,
-        changeOrigin: true,
-      },
-      '/api/mali-analiz': {
-        target: apiTarget,
-        changeOrigin: true,
-      },
-      '/api/backtest': {
-        target: 'http://127.0.0.1:8000',
-        changeOrigin: true,
-      },
-      // /ws/quotes: backend'in worker'larından fan-out edilen canlı bar feed.
+      // WebSocket: canlı fiyat + sinyal feed
       '/ws': {
         target: wsTarget,
         ws: true,
+        changeOrigin: true,
+      },
+      // Prometheus metrics
+      '/metrics': {
+        target: apiTarget,
         changeOrigin: true,
       },
     },

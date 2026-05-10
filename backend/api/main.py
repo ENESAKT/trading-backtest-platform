@@ -25,6 +25,7 @@ import asyncio
 import datetime as dt
 import itertools
 import logging
+import math
 import os
 import signal
 from contextlib import asynccontextmanager
@@ -286,6 +287,19 @@ def _build_default_supervisor(
             ),
         ]
     )
+
+
+def _sanitize_floats(obj: Any) -> Any:
+    """Recursively replace NaN/Inf with None so JSON serialization never fails."""
+    if isinstance(obj, float):
+        if math.isnan(obj) or math.isinf(obj):
+            return None
+        return obj
+    if isinstance(obj, dict):
+        return {k: _sanitize_floats(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_sanitize_floats(v) for v in obj]
+    return obj
 
 
 def create_app(
@@ -653,6 +667,7 @@ def create_app(
                 csv_bars=req.csv_bars,
                 historical_store=historical_store,
             )
+            result = _sanitize_floats(result)
             run_id = backtest_archive.save(result)
             result["run_id"] = run_id
             return result
@@ -984,7 +999,7 @@ def create_app(
         avg_efficiency = sum(all_efficiencies) / len(all_efficiencies) if all_efficiencies else 0.0
         avg_oos = sum(all_oos_returns) / len(all_oos_returns) if all_oos_returns else 0.0
 
-        return {
+        return _sanitize_floats({
             "symbol": canonical,
             "interval": req.interval,
             "n_folds": len(windows),
@@ -999,7 +1014,7 @@ def create_app(
                 "passed": avg_oos > 0,
                 "n_folds": len(windows),
             },
-        }
+        })
 
     # ── Monte Carlo Simülasyonu ───────────────────────────────────────────
     @app.post("/api/backtest/monte-carlo")
@@ -1056,7 +1071,7 @@ def create_app(
                 "p95": float(np.percentile(arr, 95)),
             }
 
-        return {
+        return _sanitize_floats({
             "run_id": req.run_id,
             "symbol": str(report.get("symbol", "")),
             "interval": str(report.get("interval", "")),
@@ -1075,7 +1090,7 @@ def create_app(
             },
             "sample_simulations": sample_sims,
             "warnings": mc.warnings,
-        }
+        })
 
     # ── Backtest Karşılaştırma ────────────────────────────────────────────────
     @app.post("/api/backtest/compare")
