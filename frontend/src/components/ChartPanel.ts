@@ -496,6 +496,7 @@ export class ChartPanel {
             <div class="template-item" id="export-csv-btn">📊 ${TR.EXPORT_CSV}</div>
           </div>
           </div>
+          <button class="ctrl-btn" id="price-alert-btn" title="Fiyat uyarısı kur">🔔 Uyarı</button>
           <button class="ctrl-btn" id="fullscreen-btn" title="${TR.FULLSCREEN} (F)">⛶ Tam Ekran</button>
         </div>
       </div>
@@ -680,6 +681,11 @@ export class ChartPanel {
       if (btn.id === 'export-csv-btn') {
         this.exportToCSV();
         this.container.querySelector('#export-menu')?.classList.remove('show');
+      }
+
+      // Fiyat uyarısı
+      if (btn.id === 'price-alert-btn') {
+        this.openPriceAlertModal();
       }
 
       // Compare
@@ -2326,6 +2332,96 @@ export class ChartPanel {
     a.href = canvas.toDataURL('image/png');
     a.download = `piyasapilot_${this.lastSymbol}_${Date.now()}.png`;
     a.click();
+  }
+
+  // ── Fiyat Uyarısı Modal ──────────────────────────────────────────────────
+
+  private openPriceAlertModal(): void {
+    const existing = document.getElementById('price-alert-modal');
+    if (existing) existing.remove();
+
+    const lastClose = this.candles.length ? this.candles[this.candles.length - 1]!.close : 0;
+    const modal = document.createElement('div');
+    modal.id = 'price-alert-modal';
+    modal.className = 'modal-overlay';
+    modal.innerHTML = `
+      <div class="modal-box" style="max-width:340px">
+        <div class="modal-header">
+          <span>🔔 Fiyat Uyarısı — ${this.lastSymbol}</span>
+          <button class="modal-close" id="pa-close">✕</button>
+        </div>
+        <div class="modal-body" style="display:flex;flex-direction:column;gap:12px;padding:16px">
+          <label style="display:flex;flex-direction:column;gap:4px;font-size:12px">
+            Hedef Fiyat
+            <input id="pa-price" type="number" step="0.01" value="${lastClose.toFixed(2)}" class="input-field" style="font-size:14px">
+          </label>
+          <label style="display:flex;flex-direction:column;gap:4px;font-size:12px">
+            Yön
+            <select id="pa-dir" class="input-field">
+              <option value="above">▲ Fiyat bu seviyeye ulaşırsa (yukarı)</option>
+              <option value="below">▼ Fiyat bu seviyeye düşerse (aşağı)</option>
+            </select>
+          </label>
+          <label style="display:flex;flex-direction:column;gap:4px;font-size:12px">
+            Not (isteğe bağlı)
+            <input id="pa-note" type="text" placeholder="Direnç seviyesi vs." class="input-field">
+          </label>
+          <div id="pa-active-list" style="font-size:11px;color:#8b949e"></div>
+          <div style="display:flex;gap:8px">
+            <button class="btn-primary" id="pa-save" style="flex:1">Uyarı Kur</button>
+            <button class="btn-secondary" id="pa-cancel" style="flex:1">İptal</button>
+          </div>
+        </div>
+      </div>`;
+    document.body.appendChild(modal);
+
+    void this.loadActiveAlerts(this.lastSymbol);
+
+    const close = () => modal.remove();
+    modal.querySelector('#pa-close')?.addEventListener('click', close);
+    modal.querySelector('#pa-cancel')?.addEventListener('click', close);
+    modal.addEventListener('click', (e) => { if (e.target === modal) close(); });
+
+    modal.querySelector('#pa-save')?.addEventListener('click', () => {
+      const priceInput = (modal.querySelector('#pa-price') as HTMLInputElement).value;
+      const dir = (modal.querySelector('#pa-dir') as HTMLSelectElement).value;
+      const note = (modal.querySelector('#pa-note') as HTMLInputElement).value;
+      const target = parseFloat(priceInput);
+      if (isNaN(target) || target <= 0) { alert('Geçerli bir fiyat girin.'); return; }
+      void fetch('/api/alerts/price', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ symbol: this.lastSymbol, target, direction: dir, note }),
+      }).then(r => r.json()).then(() => {
+        void this.loadActiveAlerts(this.lastSymbol);
+        (modal.querySelector('#pa-note') as HTMLInputElement).value = '';
+      });
+    });
+  }
+
+  private async loadActiveAlerts(symbol: string): Promise<void> {
+    const container = document.getElementById('pa-active-list');
+    if (!container) return;
+    try {
+      const res = await fetch(`/api/alerts/price?symbol=${encodeURIComponent(symbol)}&active_only=true`);
+      const data = await res.json() as { alerts: { id: number; target: number; direction: string; note: string }[] };
+      const alerts = data.alerts || [];
+      if (!alerts.length) { container.textContent = 'Aktif uyarı yok.'; return; }
+      container.innerHTML = `<div style="margin-bottom:4px;font-weight:600">Aktif Uyarılar:</div>` +
+        alerts.map(a => `
+          <div style="display:flex;align-items:center;gap:6px;padding:3px 0">
+            <span>${a.direction === 'above' ? '▲' : '▼'} ${a.target.toFixed(2)}</span>
+            ${a.note ? `<span style="color:#6b7280">${a.note}</span>` : ''}
+            <button data-del-alert="${a.id}" style="margin-left:auto;cursor:pointer;background:none;border:none;color:#f85149;font-size:12px">✕</button>
+          </div>`).join('');
+      container.querySelectorAll<HTMLButtonElement>('[data-del-alert]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const id = btn.dataset['delAlert']!;
+          void fetch(`/api/alerts/price/${id}`, { method: 'DELETE' })
+            .then(() => void this.loadActiveAlerts(symbol));
+        });
+      });
+    } catch { container.textContent = 'Uyarılar yüklenemedi.'; }
   }
 
   // ─── G7: Multi-chart Sync Methods ───────────────────────────────────────

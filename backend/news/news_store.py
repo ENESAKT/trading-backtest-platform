@@ -20,11 +20,14 @@ CREATE TABLE IF NOT EXISTS news (
     source       TEXT,
     published_at TEXT,
     fetched_at   TEXT NOT NULL DEFAULT (datetime('now')),
-    url          TEXT UNIQUE
+    url          TEXT UNIQUE,
+    is_read      INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS idx_news_symbol ON news (symbol);
 CREATE INDEX IF NOT EXISTS idx_news_published ON news (published_at DESC);
 """
+
+_MIGRATE_DDL = "ALTER TABLE news ADD COLUMN is_read INTEGER NOT NULL DEFAULT 0"
 
 
 class NewsStore:
@@ -43,6 +46,10 @@ class NewsStore:
     def _init_db(self) -> None:
         with self._lock, self._connect() as conn:
             conn.executescript(_DDL)
+            # Migration: add is_read column if it doesn't exist yet
+            cols = {row[1] for row in conn.execute("PRAGMA table_info(news)").fetchall()}
+            if "is_read" not in cols:
+                conn.execute(_MIGRATE_DDL)
             conn.commit()
 
     def upsert(self, items: list[dict[str, Any]]) -> int:
@@ -85,7 +92,9 @@ class NewsStore:
             clauses.append("(headline LIKE ? OR body LIKE ?)")
             k = f"%{keyword}%"
             args.extend([k, k])
-        where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
+        # Always filter out placeholder records with no real headline
+        clauses.append("headline != ''")
+        where = f"WHERE {' AND '.join(clauses)}"
         args.append(int(limit))
         with self._lock, self._connect() as conn:
             rows = conn.execute(
@@ -94,9 +103,18 @@ class NewsStore:
             ).fetchall()
         return [dict(r) for r in rows]
 
+    def mark_read(self, ids: list[int]) -> None:
+        """Belirtilen haber id'lerini okundu olarak işaretle."""
+        if not ids:
+            return
+        placeholders = ",".join("?" * len(ids))
+        with self._lock, self._connect() as conn:
+            conn.execute(f"UPDATE news SET is_read=1 WHERE id IN ({placeholders})", ids)
+            conn.commit()
+
     def count_unread(self, symbol: str | None = None) -> int:
-        """Son 24 saatteki haber sayısı (okunmamış proxy olarak)."""
-        where = "WHERE published_at >= datetime('now', '-1 day')"
+        """is_read=0 olan haber sayısı."""
+        where = "WHERE is_read = 0"
         args: list[Any] = []
         if symbol:
             where += " AND symbol = ?"

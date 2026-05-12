@@ -110,6 +110,12 @@ class BacktestArchive:
             return None
         return json.loads(str(row["report_json"]))
 
+    def delete(self, run_id: str) -> bool:
+        with self._write_lock, self._connect() as conn:
+            conn.execute("DELETE FROM backtest_reports WHERE id = ?", (run_id,))
+            deleted = conn.execute("SELECT changes()").fetchone()[0]
+        return int(deleted) > 0
+
 
 def trades_csv(report: dict[str, Any]) -> str:
     return _rows_csv(

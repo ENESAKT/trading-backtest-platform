@@ -196,7 +196,10 @@ export class PortfolioPanel {
 
         <!-- Trade History -->
         <div class="paper-section">
-          <h2 class="paper-title">${TR.TRADE_HISTORY}</h2>
+          <div class="panel-title-row">
+            <h2 class="paper-title">${TR.TRADE_HISTORY}</h2>
+            <button class="btn-sm" id="export-trades-btn" title="İşlemleri CSV olarak indir">⤓ CSV</button>
+          </div>
           <div id="paper-trades"></div>
         </div>
 
@@ -206,6 +209,17 @@ export class PortfolioPanel {
     this.renderWallets();
     this.renderMetrics();
     this.renderTrades();
+
+    const exportBtn = this.container.querySelector<HTMLButtonElement>('#export-trades-btn');
+    if (exportBtn) {
+      exportBtn.addEventListener('click', () => {
+        const sid = this.selectedStrategy || this.wallets[0]?.strategy_id || '';
+        const url = sid
+          ? `/api/paper/trades/export?strategy_id=${encodeURIComponent(sid)}`
+          : '/api/paper/trades/export';
+        window.open(url, '_blank');
+      });
+    }
   }
 
   private renderMetrics(): void {

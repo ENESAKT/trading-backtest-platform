@@ -12,6 +12,7 @@ interface NewsItem {
   published_at: string | null;
   fetched_at: string;
   url: string | null;
+  is_read: number;
 }
 
 const REFRESH_MS = 5 * 60 * 1000;
@@ -32,6 +33,7 @@ export class NewsPanel {
   private filterSymbol = '';
   private refreshTimer: ReturnType<typeof setInterval> | null = null;
   private loading = false;
+  private readIds = new Set<number>();
 
   constructor(container: HTMLElement) {
     this.container = container;
@@ -133,6 +135,20 @@ export class NewsPanel {
 
     el.querySelectorAll<HTMLElement>('.news-card').forEach(card => {
       card.addEventListener('click', () => {
+        const idStr = card.dataset['id'];
+        const id = idStr ? parseInt(idStr, 10) : NaN;
+        if (!isNaN(id) && !this.readIds.has(id)) {
+          this.readIds.add(id);
+          card.classList.add('news-read');
+          void fetch('/api/news/mark-read', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ids: [id] }),
+          }).then(r => r.ok && r.json()).then((res: unknown) => {
+            const d = res as { unread?: number } | null;
+            if (d) this.updateBadge(d.unread ?? 0);
+          }).catch(() => { /* ignore */ });
+        }
         const sym = card.dataset['symbol'];
         if (sym) window.dispatchEvent(new CustomEvent('openSymbolOnChart', { detail: { symbol: sym } }));
         const url = card.dataset['url'];
@@ -141,13 +157,26 @@ export class NewsPanel {
     });
   }
 
+  private updateBadge(count: number): void {
+    const badge = document.getElementById('tab-news-badge');
+    if (!badge) return;
+    if (count > 0) {
+      badge.textContent = String(count > 99 ? '99+' : count);
+      badge.hidden = false;
+    } else {
+      badge.hidden = true;
+    }
+  }
+
   private cardHTML(n: NewsItem): string {
     const ago = timeAgo(n.published_at ?? n.fetched_at);
     const src = n.source ? this.esc(n.source) : 'Haber';
     const sym = this.esc(n.symbol);
     const url = n.url ? ` data-url="${this.esc(n.url)}"` : '';
+    const isRead = n.is_read || this.readIds.has(n.id);
+    const readCls = isRead ? ' news-read' : '';
     return `
-      <div class="news-card" data-symbol="${sym}"${url}>
+      <div class="news-card${readCls}" data-id="${n.id}" data-symbol="${sym}"${url}>
         <div class="news-card-header">
           <span class="news-source">${src}</span>
           ${ago ? `<span class="news-time">${ago} önce</span>` : ''}
