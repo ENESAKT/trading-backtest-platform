@@ -3109,13 +3109,15 @@ h3 { font-family: var(--font-sans); font-size: 14px; font-weight: 600; color: va
 .ma-empty   { color: #6b7280; padding: 12px 0; font-style: italic; }
 .ma-empty-block { color: #6b7280; padding: 40px; text-align: center; font-style: italic; }
 .ma-error   { color: #ef4444; padding: 12px; font-size: 12px; }
+.ma-events-header { padding: 8px 12px 0; }
 .ma-events-list, .ma-reports-list { display: flex; flex-direction: column; gap: 8px; padding: 12px; }
-.ma-event-row, .ma-report-row { background: var(--panel2, #161b22); border: 1px solid var(--border, #21262d); border-radius: 6px; padding: 10px 12px; }
+.ma-event-row, .ma-report-row { background: var(--panel2, #161b22); border: 1px solid var(--border, #21262d); border-radius: 6px; padding: 10px 12px; transition: opacity .15s; }
+.ma-event-row.ma-event-read { opacity: .5; }
 .ma-event-header { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 4px; }
 .ma-event-title { font-weight: 600; font-size: 13px; flex: 1; }
 .ma-event-period, .ma-event-date { color: #6b7280; font-size: 11px; }
 .ma-event-body { font-size: 12px; color: #8b949e; margin-top: 4px; }
-.ma-report-meta { margin-bottom: 2px; }
+.ma-report-meta { display: flex; gap: 8px; align-items: center; margin-bottom: 4px; }
 .ma-report-title { font-size: 13px; font-weight: 500; margin-bottom: 4px; }
 .ma-report-link { font-size: 11px; color: var(--accent, #58a6ff); text-decoration: none; }
 .ma-report-link:hover { text-decoration: underline; }

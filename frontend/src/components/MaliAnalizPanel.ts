@@ -1043,10 +1043,15 @@ export class MaliAnalizPanel {
       if (this._loadSeq !== seq) return;
       const events = data.events || [];
       if (!events.length) {
-        this.bodyEl.innerHTML = '<div class="ma-empty-block">Olay/uyarı kaydı bulunamadı.</div>';
+        this.bodyEl.innerHTML = '<div class="ma-empty-block">Olay/uyarı kaydı bulunamadı. "Yenile" ile veri çekin.</div>';
         return;
       }
+      const unreadIds = events.filter(e => !e.is_read).map(e => Number(e.id)).filter(Boolean);
+      const markBtn = unreadIds.length
+        ? `<button class="btn-sm btn-ghost ma-events-mark-all" data-ids='${JSON.stringify(unreadIds)}'>Tümünü okundu işaretle (${unreadIds.length})</button>`
+        : '';
       const rows = events.map(e => {
+        const id = Number(e.id) || 0;
         const title = String(e.title || e.alert_type || '');
         const body = String(e.body || e.description || '');
         const period = String(e.period || '');
@@ -1054,7 +1059,8 @@ export class MaliAnalizPanel {
         const badge = SEVERITY_BADGE[severity] || 'badge-info';
         const date = String(e.created_at || e.published_at || '');
         const dateStr = date ? new Date(date).toLocaleDateString('tr-TR') : '';
-        return `<div class="ma-event-row">
+        const isRead = e.is_read ? ' ma-event-read' : '';
+        return `<div class="ma-event-row${isRead}" data-event-id="${id}">
           <div class="ma-event-header">
             <span class="badge ${badge}">${this.escHtml(severity.toUpperCase())}</span>
             <span class="ma-event-title">${this.escHtml(title)}</span>
@@ -1065,7 +1071,15 @@ export class MaliAnalizPanel {
         </div>`;
       }).join('');
       if (this._loadSeq !== seq) return;
-      this.bodyEl.innerHTML = `<div class="ma-events-list">${rows}</div>`;
+      this.bodyEl.innerHTML = `
+        <div class="ma-events-header">${markBtn}</div>
+        <div class="ma-events-list">${rows}</div>`;
+      if (markBtn) {
+        this.bodyEl.querySelector<HTMLButtonElement>('.ma-events-mark-all')?.addEventListener('click', (btn) => {
+          const ids = JSON.parse((btn.currentTarget as HTMLElement).dataset.ids || '[]') as number[];
+          this.markRead(ids);
+        });
+      }
     } catch (e) {
       if (this._loadSeq !== seq) return;
       this.bodyEl.innerHTML = `<div class="ma-error">Veri yüklenemedi: ${e}</div>`;
@@ -1095,13 +1109,18 @@ export class MaliAnalizPanel {
       const rows = reports.map(r => {
         const title = String(r.title || r.headline || '');
         const url = String(r.url || r.link || '');
+        const period = String(r.period || '');
         const date = String(r.published_at || r.date || '');
-        const dateStr = date ? new Date(date).toLocaleDateString('tr-TR') : '';
+        const metaStr = date ? new Date(date).toLocaleDateString('tr-TR') : period;
+        const src = String(r.source || '');
         const linkHtml = url
           ? `<a class="ma-report-link" href="${this.escAttr(url)}" target="_blank" rel="noopener">Görüntüle ↗</a>`
           : '';
         return `<div class="ma-report-row">
-          <div class="ma-report-meta">${dateStr ? `<span class="ma-event-date">${dateStr}</span>` : ''}</div>
+          <div class="ma-report-meta">
+            ${metaStr ? `<span class="ma-event-period">${this.escHtml(metaStr)}</span>` : ''}
+            ${src ? `<span class="ma-event-date">${this.escHtml(src)}</span>` : ''}
+          </div>
           <div class="ma-report-title">${this.escHtml(title)}</div>
           ${linkHtml}
         </div>`;

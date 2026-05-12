@@ -101,6 +101,7 @@ _PAPER_DB_PATH = "data/cache/ohlcv.sqlite3"
 _BACKTEST_ARCHIVE_PATH = "data/strategy_lab/backtest_reports.sqlite3"
 _STRATEGY_STORE_PATH = "data/strategy_lab/strategies.sqlite3"
 _NEWS_DB_PATH = "data/cache/news.sqlite3"
+_PRICE_ALERTS_DB_PATH = "data/cache/price_alerts.sqlite3"
 _logger = logging.getLogger(__name__)
 
 # Cache miss eşiği: cache'teki en yeni bar'dan beri bu süreden uzun zaman
@@ -447,11 +448,67 @@ def create_app(
 
         news_worker_task = asyncio.create_task(_news_background_worker())
 
+        # Fiyat uyarısı worker — her 15 saniyede cache'ten son fiyatı kontrol eder
+        async def _price_alert_worker():
+            import sqlite3 as _sqlite3
+            from pathlib import Path as _Path
+            _pa_path = _Path(_PRICE_ALERTS_DB_PATH)
+            _pa_path.parent.mkdir(parents=True, exist_ok=True)
+            _pa_ddl = """
+            CREATE TABLE IF NOT EXISTS price_alerts (
+                id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                symbol     TEXT NOT NULL,
+                target     REAL NOT NULL,
+                direction  TEXT NOT NULL,
+                triggered  INTEGER NOT NULL DEFAULT 0,
+                note       TEXT,
+                created_at TEXT NOT NULL DEFAULT (datetime('now'))
+            );"""
+            with _sqlite3.connect(str(_pa_path)) as _c:
+                _c.executescript(_pa_ddl)
+            while True:
+                try:
+                    with _sqlite3.connect(str(_pa_path)) as _c:
+                        _c.row_factory = _sqlite3.Row
+                        active = _c.execute(
+                            "SELECT * FROM price_alerts WHERE triggered=0"
+                        ).fetchall()
+                    for row in active:
+                        sym = str(row["symbol"])
+                        target = float(row["target"])
+                        direction = str(row["direction"])
+                        last = cache.get_last_price(sym) if hasattr(cache, "get_last_price") else None
+                        if last is None:
+                            continue
+                        hit = (direction == "above" and last >= target) or \
+                              (direction == "below" and last <= target)
+                        if hit:
+                            with _sqlite3.connect(str(_pa_path)) as _c:
+                                _c.execute(
+                                    "UPDATE price_alerts SET triggered=1 WHERE id=?",
+                                    (row["id"],),
+                                )
+                            msg = f"🔔 Fiyat uyarısı: {sym} {'≥' if direction=='above' else '≤'} {target:.2f} (şu an: {last:.2f})"
+                            _logger.info("[price-alert] %s", msg)
+                            try:
+                                from backend.notifier.telegram import send_telegram
+                                send_telegram(msg)
+                            except Exception:
+                                pass
+                except asyncio.CancelledError:
+                    break
+                except Exception as _e:
+                    _logger.debug("[price-alert-worker] hata: %s", _e)
+                await asyncio.sleep(15)
+
+        price_alert_task = asyncio.create_task(_price_alert_worker())
+
         try:
             yield
         finally:
             await health_monitor.stop()
             news_worker_task.cancel()
+            price_alert_task.cancel()
             executor_task.cancel()
             await supervisor.stop_all()
             try:
@@ -704,6 +761,13 @@ def create_app(
             status_code=400,
             detail="format json, trades_csv veya equity_csv olmalı.",
         )
+
+    @app.delete("/api/backtest/reports/{run_id}")
+    def backtest_report_delete(run_id: str) -> dict[str, Any]:
+        deleted = backtest_archive.delete(run_id)
+        if not deleted:
+            raise HTTPException(status_code=404, detail="Backtest raporu bulunamadı.")
+        return {"deleted": run_id}
 
     @app.post("/api/backtest/optimize")
     def backtest_optimize(req: OptimizeRequest) -> dict[str, Any]:
@@ -1282,9 +1346,18 @@ def create_app(
 
     @app.get("/api/news/unread-count")
     def get_news_unread_count(symbol: str | None = None) -> dict[str, Any]:
-        """Son 24 saatteki haber sayısı (sidebar rozeti için)."""
         store = _get_news_store()
         return {"count": store.count_unread(symbol=symbol)}
+
+    @app.post("/api/news/mark-read")
+    def mark_news_read(body: dict[str, Any]) -> dict[str, Any]:
+        """Haber id listesini okundu olarak işaretle."""
+        ids = body.get("ids", [])
+        if not isinstance(ids, list):
+            raise HTTPException(status_code=422, detail="ids must be a list")
+        store = _get_news_store()
+        store.mark_read([int(i) for i in ids])
+        return {"marked": len(ids), "unread": store.count_unread()}
 
     @app.get("/api/strategy-lab/strategies")
     def strategy_lab_list() -> dict[str, Any]:
@@ -1561,6 +1634,73 @@ def create_app(
     @app.get("/api/workspace")
     def workspace() -> dict[str, Any]:
         return workspace_store.load()
+
+    # ── Fiyat Uyarıları ──────────────────────────────────────────────────────
+
+    def _pa_connect() -> "sqlite3.Connection":
+        import sqlite3 as _sq3
+        from pathlib import Path as _P
+        p = _P(_PRICE_ALERTS_DB_PATH)
+        p.parent.mkdir(parents=True, exist_ok=True)
+        conn = _sq3.connect(str(p))
+        conn.row_factory = _sq3.Row
+        conn.executescript("""
+            CREATE TABLE IF NOT EXISTS price_alerts (
+                id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                symbol     TEXT NOT NULL,
+                target     REAL NOT NULL,
+                direction  TEXT NOT NULL,
+                triggered  INTEGER NOT NULL DEFAULT 0,
+                note       TEXT,
+                created_at TEXT NOT NULL DEFAULT (datetime('now'))
+            );""")
+        return conn
+
+    @app.get("/api/alerts/price")
+    def list_price_alerts(symbol: str | None = None, active_only: bool = True) -> dict[str, Any]:
+        with _pa_connect() as conn:
+            q = "SELECT * FROM price_alerts"
+            args: list[Any] = []
+            clauses: list[str] = []
+            if active_only:
+                clauses.append("triggered=0")
+            if symbol:
+                clauses.append("symbol=?")
+                args.append(symbol.upper())
+            if clauses:
+                q += " WHERE " + " AND ".join(clauses)
+            q += " ORDER BY created_at DESC LIMIT 100"
+            rows = conn.execute(q, args).fetchall()
+        return {"alerts": [dict(r) for r in rows]}
+
+    @app.post("/api/alerts/price")
+    def create_price_alert(body: dict[str, Any]) -> dict[str, Any]:
+        symbol = str(body.get("symbol", "")).upper()
+        target = body.get("target")
+        direction = str(body.get("direction", "above"))
+        note = str(body.get("note", ""))
+        if not symbol or target is None:
+            raise HTTPException(status_code=422, detail="symbol ve target zorunludur.")
+        if direction not in ("above", "below"):
+            raise HTTPException(status_code=422, detail="direction 'above' veya 'below' olmalı.")
+        with _pa_connect() as conn:
+            cur = conn.execute(
+                "INSERT INTO price_alerts (symbol, target, direction, note) VALUES (?,?,?,?)",
+                (symbol, float(target), direction, note),
+            )
+            conn.commit()
+            alert_id = cur.lastrowid
+        return {"id": alert_id, "symbol": symbol, "target": target, "direction": direction}
+
+    @app.delete("/api/alerts/price/{alert_id}")
+    def delete_price_alert(alert_id: int) -> dict[str, Any]:
+        with _pa_connect() as conn:
+            conn.execute("DELETE FROM price_alerts WHERE id=?", (alert_id,))
+            deleted = conn.execute("SELECT changes()").fetchone()[0]
+            conn.commit()
+        if not deleted:
+            raise HTTPException(status_code=404, detail="Uyarı bulunamadı.")
+        return {"deleted": alert_id}
 
     @app.post("/api/paper/signal")
     async def paper_signal(request: Request) -> dict[str, Any]:
@@ -1959,10 +2099,21 @@ def create_app(
             normalized = normalize_symbol(symbol)
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc))
-        periods = []
+        periods: list[str] = []
         if _financial_repository_ref:
             periods = _financial_repository_ref.get_available_periods(normalized, "quarterly")
-        return {"symbol": normalized, "periods": periods, "source": "borsapy"}
+        # Convert available periods to report-style entries for the frontend
+        reports = [
+            {
+                "title": f"{normalized} — {p} Çeyreklik Finansal Rapor",
+                "period": p,
+                "published_at": None,
+                "url": None,
+                "source": "borsapy / isyatirim.com",
+            }
+            for p in periods
+        ]
+        return {"symbol": normalized, "reports": reports, "source": "borsapy"}
 
     @app.get("/api/mali-analiz/{symbol}/events")
     def get_mali_analiz_events(symbol: str) -> dict[str, Any]:
@@ -1970,10 +2121,18 @@ def create_app(
             normalized = normalize_symbol(symbol)
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc))
-        alerts = []
+        alerts: list[Any] = []
         if _financial_repository_ref:
-            alerts = _financial_repository_ref.get_alerts(symbol=normalized, limit=20)
-        return {"symbol": normalized, "events": _serialize_rows(alerts), "source": "borsapy"}
+            alerts = _financial_repository_ref.get_alerts(symbol=normalized, limit=100)
+        # Deduplicate: keep only the most recent alert per (alert_type, period) combination
+        seen: set[tuple[str, str]] = set()
+        deduped: list[Any] = []
+        for a in _serialize_rows(alerts):
+            key = (str(a.get("alert_type", "")), str(a.get("period", "")))
+            if key not in seen:
+                seen.add(key)
+                deduped.append(a)
+        return {"symbol": normalized, "events": deduped, "source": "borsapy"}
 
     @app.get("/api/mali-analiz/{symbol}/metric-history")
     def get_mali_analiz_metric_history(
