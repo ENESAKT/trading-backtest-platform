@@ -50,6 +50,7 @@ PiyasaPilot v2.0 finansal terminal uygulaması Vite ve TypeScript mimarisi üzer
 - Haberler bölümünde 99+ bildirim rozeti bulunmasına rağmen liste içerikleri "yfinance" modülünden geldiği varsayılan placeholder/dummy veriler veya tamamen boş ibareler içermektedir.
 
 ## 9. UI/UX Sorunları
+- **Tema ve Kontrast Uyumsuzluğu:** Koyu mod (Dark Mode) açıkken bazı veri tablolarındaki (örneğin Bilanço detayları) metinlerin gri tonlarının arka plan rengiyle birleşerek okunabilirliği ciddi ölçüde düşürmesi.
 - Asenkron uzun işlemler (Örn: "Strateji Çalıştır", "Mali Analiz İndiriliyor") esnasında ekranda açık ve tatmin edici bir `progress bar` veya `toast` olmaması. Kullanıcı butonun işleyip işlemediğinden emin olamamaktadır.
 - Sinyaller ve Eğitim sekmelerinde Telegram botu entegrasyonu karmaşıktır; kullanıcıyı yönlendiren "Setup Wizard" (Kurulum Sihirbazı) eksikliği vardır.
 
