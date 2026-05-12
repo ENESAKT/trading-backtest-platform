@@ -7,7 +7,8 @@ import Chart from 'chart.js/auto';
 import { createChart, ColorType, LineStyle } from 'lightweight-charts';
 import type { IChartApi, ISeriesApi, UTCTimestamp } from 'lightweight-charts';
 
-type TabId = 'summary' | 'comparison' | 'balance' | 'income' | 'cashflow' | 'ratios' | 'charts';
+type TabId = 'summary' | 'comparison' | 'balance' | 'income' | 'cashflow' | 'ratios' | 'charts' | 'events' | 'reports';
+type FinancialChartTarget = 'balance' | 'income' | 'cashflow' | 'ratios';
 
 interface FetchStatus { status: string; last_period?: string; fetched_at?: string; periods_fetched?: number }
 interface UniverseSymbol { symbol: string; name: string; fetch_status: FetchStatus }
@@ -20,6 +21,13 @@ interface ComparisonKeyMeta { label: string; unit: string }
 interface ComparisonResponse { comparison_keys: string[]; key_meta: Record<string, ComparisonKeyMeta>; symbols: ComparisonSymbol[]; source: string }
 interface ChartPoint { period: string; time: string; value: number }
 interface ChartDataResponse { symbol: string; metrics: Record<string, ChartPoint[]>; source: string }
+interface FinancialChartDef {
+  key: string;
+  title: string;
+  unit: string;
+  type: 'bar' | 'line';
+  target: FinancialChartTarget;
+}
 
 const API = '/api/mali-analiz';
 
@@ -88,10 +96,12 @@ export class MaliAnalizPanel {
   private activeTab: TabId = 'summary';
   private currentSymbol = 'THYAO';
   private universe: UniverseSymbol[] = [];
+  private _universeLoaded = false;
   private universeQuery = '';
   private refreshing = false;
   private comparisonSortKey = 'symbol';
   private comparisonSortAsc = true;
+  private _loadSeq = 0; // incremented on each loadTab call; used to discard stale responses
 
   // Per-(symbol,tab) data cache — cleared when switching to a NEW symbol
   // Key: `${symbol}:${tab}`, Value: the raw API response
@@ -107,7 +117,10 @@ export class MaliAnalizPanel {
   private chartBtnEl!: HTMLButtonElement;
 
   private _charts: IChartApi[] = [];
+  private _chartByKey = new Map<string, IChartApi>();
+  private _chartResizeObserver: ResizeObserver | null = null;
   private _waterfallChart: Chart | null = null;
+  private _expandedCharts = new Set<string>();
 
   private readonly _handleThemeChange = (): void => {
     if (this.activeTab === 'charts') this.loadTab();
@@ -159,6 +172,8 @@ export class MaliAnalizPanel {
             <button class="ma-tab" data-tab="cashflow">Nakit</button>
             <button class="ma-tab" data-tab="ratios">Oranlar</button>
             <button class="ma-tab" data-tab="charts">Grafikler</button>
+            <button class="ma-tab" data-tab="events">Olaylar</button>
+            <button class="ma-tab" data-tab="reports">Raporlar</button>
           </div>
           <div class="ma-body" id="ma-body">
             <div class="ma-loading">Veriler yükleniyor…</div>
@@ -218,20 +233,26 @@ export class MaliAnalizPanel {
       const resp = await fetch(`${API}/universe?scope=bist30`);
       const data = await resp.json();
       this.universe = data.symbols || [];
+      this._universeLoaded = true;
       this.renderUniverseList();
     } catch {
       this.universe = [];
+      this._universeLoaded = true;
     }
   }
 
   private renderUniverseList(): void {
     const list = this.container.querySelector('#ma-universe-list')!;
+    if (!this._universeLoaded) {
+      list.innerHTML = '<div class="ma-loading">Yükleniyor…</div>';
+      return;
+    }
     const filtered = this.universe.filter(s =>
       s.symbol.toLowerCase().includes(this.universeQuery) ||
       s.name.toLowerCase().includes(this.universeQuery)
     );
     if (!filtered.length) {
-      list.innerHTML = '<div class="ma-empty">Sonuç yok</div>';
+      list.innerHTML = `<div class="ma-empty">${this.universeQuery ? 'Sonuç yok' : 'Liste boş'}</div>`;
       return;
     }
     list.innerHTML = filtered.map(s => {
@@ -303,6 +324,10 @@ export class MaliAnalizPanel {
   }
 
   loadData(symbol: string): void {
+    // If universe is loaded and symbol is not a BIST stock, keep current selection
+    if (this._universeLoaded && this.universe.length > 0 && !this.universe.some(s => s.symbol === symbol)) {
+      return;
+    }
     this.selectSymbol(symbol);
   }
 
@@ -322,6 +347,7 @@ export class MaliAnalizPanel {
 
   private loadTab(): void {
     this._destroyCharts();
+    this._loadSeq++; // invalidate any in-flight requests
     this.bodyEl.innerHTML = '<div class="ma-loading">Yükleniyor…</div>';
     switch (this.activeTab) {
       case 'summary':    this.loadSummary();   break;
@@ -329,14 +355,19 @@ export class MaliAnalizPanel {
       case 'balance':    this.loadStatement('balance-sheet', 'Bilanço');       break;
       case 'income':     this.loadStatement('income-stmt',   'Gelir Tablosu'); break;
       case 'cashflow':   this.loadStatement('cashflow',      'Nakit Akışı');   break;
-      case 'ratios':     this.loadRatios();    break;
-      case 'charts':     this.loadCharts();    break;
+      case 'ratios':     this.loadRatios();       break;
+      case 'charts':     this.loadCharts();       break;
+      case 'events':     this.loadEvents();       break;
+      case 'reports':    this.loadMaliReports();  break;
     }
   }
 
   private _destroyCharts(): void {
+    this._chartResizeObserver?.disconnect();
+    this._chartResizeObserver = null;
     this._charts.forEach(c => { try { c.remove(); } catch { /* ignore */ } });
     this._charts = [];
+    this._chartByKey.clear();
     this._waterfallChart?.destroy();
     this._waterfallChart = null;
   }
@@ -344,24 +375,36 @@ export class MaliAnalizPanel {
   // ── Özet sekme ─────────────────────────────────────────────────────────────
 
   private async loadSummary(): Promise<void> {
+    const sym = this.currentSymbol;
+    const seq = this._loadSeq;
     try {
       let cached = this.getCached<{ summary: unknown; alerts: Alert[] }>('summary');
       if (!cached) {
         const [sResp, aResp] = await Promise.all([
-          fetch(`${API}/${this.currentSymbol}/summary`),
+          fetch(`${API}/${sym}/summary`),
           fetch(`${API}/alerts?limit=30`),
         ]);
+        if (this._loadSeq !== seq) return; // symbol/tab changed while fetching
         const summary = await sResp.json();
         const alertsData = await aResp.json();
+        if (this._loadSeq !== seq) return;
         cached = { summary, alerts: alertsData.alerts || [] };
         this.setCache('summary', cached);
       }
 
+      if (this._loadSeq !== seq) return;
       const { summary, alerts: allAlerts } = cached as { summary: Record<string, unknown>; alerts: Alert[] };
-      const status = this.universe.find(s => s.symbol === this.currentSymbol)?.fetch_status;
-      this.updateStatusBadge(status);
 
+      // Only show error badge if data is actually absent; successful render clears stale errors
+      const fetchStatus = this.universe.find(s => s.symbol === sym)?.fetch_status;
       const keyRatios: RatioRow[] = ((summary.key_ratios as Record<string, unknown>[]) || []).map(toRatioRow);
+      if (keyRatios.length > 0) {
+        // Data loaded successfully — show green badge regardless of cached fetch_status
+        this.statusBadgeEl.className = 'ma-status-badge badge-success';
+        this.statusBadgeEl.textContent = `✓ ${fetchStatus?.last_period || 'Veri mevcut'} · ${fetchStatus?.periods_fetched ?? ''} dönem`.trim().replace(/· $/, '');
+      } else {
+        this.updateStatusBadge(fetchStatus);
+      }
 
       this.bodyEl.innerHTML = `
         ${this.renderKeyRatiosBar(keyRatios)}
@@ -375,7 +418,16 @@ export class MaliAnalizPanel {
           this.markRead(ids);
         });
       });
+      this.bodyEl.querySelectorAll<HTMLElement>('[data-disclosure-symbol]').forEach(row => {
+        row.addEventListener('click', () => {
+          const symbol = row.dataset.disclosureSymbol;
+          if (!symbol) return;
+          this.selectSymbol(symbol);
+          this.switchTab('balance');
+        });
+      });
     } catch (e) {
+      if (this._loadSeq !== seq) return;
       this.bodyEl.innerHTML = `<div class="ma-error">Özet yüklenemedi: ${e}</div>`;
     }
   }
@@ -416,7 +468,7 @@ export class MaliAnalizPanel {
       ? `<button class="btn-sm btn-ghost btn-mark-read" data-ids='${JSON.stringify(unreadIds)}'>Tümünü okundu işaretle</button>`
       : '';
     const rows = disc.map(a => `
-      <tr class="${a.is_read ? '' : 'row-unread'}">
+      <tr class="${a.is_read ? '' : 'row-unread'} ma-clickable-row" data-disclosure-symbol="${a.symbol}" title="${a.symbol} bilançosuna git">
         <td><strong>${a.symbol}</strong></td>
         <td>${a.period || '—'}</td>
         <td class="ma-alert-body-small">${a.body}</td>
@@ -436,15 +488,20 @@ export class MaliAnalizPanel {
   // ── BIST 30 Karşılaştırma ─────────────────────────────────────────────────
 
   private async loadComparison(): Promise<void> {
+    const seq = this._loadSeq;
     try {
       let data = this.getCached<ComparisonResponse>('comparison');
       if (!data) {
         const resp = await fetch(`${API}/comparison`);
+        if (this._loadSeq !== seq) return;
         data = await resp.json() as ComparisonResponse;
+        if (this._loadSeq !== seq) return;
         this.setCache('comparison', data);
       }
+      if (this._loadSeq !== seq) return;
       this.renderComparisonTable(data);
     } catch (e) {
+      if (this._loadSeq !== seq) return;
       this.bodyEl.innerHTML = `<div class="ma-error">Karşılaştırma yüklenemedi: ${e}</div>`;
     }
   }
@@ -567,14 +624,19 @@ export class MaliAnalizPanel {
   // ── Finansal tablolar (bilanço / gelir / nakit) ────────────────────────────
 
   private async loadStatement(endpoint: string, title: string): Promise<void> {
+    const sym = this.currentSymbol;
+    const seq = this._loadSeq;
     const tab = ({ 'balance-sheet': 'balance', 'income-stmt': 'income', 'cashflow': 'cashflow' } as Record<string, TabId>)[endpoint];
     try {
       let data = this.getCached<{ periods: string[]; rows: TableRow[] }>(tab);
       if (!data) {
-        const resp = await fetch(`${API}/${this.currentSymbol}/${endpoint}?limit=12`);
+        const resp = await fetch(`${API}/${sym}/${endpoint}?limit=12`);
+        if (this._loadSeq !== seq) return;
         data = await resp.json() as { periods: string[]; rows: TableRow[] };
+        if (this._loadSeq !== seq) return;
         this.setCache(tab, data);
       }
+      if (this._loadSeq !== seq) return;
 
       const periods = data.periods || [];
       const rows = data.rows || [];
@@ -618,6 +680,7 @@ export class MaliAnalizPanel {
           </table>
         </div>`;
     } catch (e) {
+      if (this._loadSeq !== seq) return;
       this.bodyEl.innerHTML = `<div class="ma-error">Veri yüklenemedi: ${e}</div>`;
     }
   }
@@ -625,13 +688,18 @@ export class MaliAnalizPanel {
   // ── Oranlar ────────────────────────────────────────────────────────────────
 
   private async loadRatios(): Promise<void> {
+    const sym = this.currentSymbol;
+    const seq = this._loadSeq;
     try {
       let data = this.getCached<{ ratios: Record<string, unknown>[]; periods: string[] }>('ratios');
       if (!data) {
-        const resp = await fetch(`${API}/${this.currentSymbol}/ratios?limit=8`);
+        const resp = await fetch(`${API}/${sym}/ratios?limit=8`);
+        if (this._loadSeq !== seq) return;
         data = await resp.json() as { ratios: Record<string, unknown>[]; periods: string[] };
+        if (this._loadSeq !== seq) return;
         this.setCache('ratios', data);
       }
+      if (this._loadSeq !== seq) return;
 
       const ratios: RatioRow[] = (data.ratios || []).map(toRatioRow);
       const periods: string[] = data.periods || [];
@@ -680,8 +748,10 @@ export class MaliAnalizPanel {
         }
       }
       html += '</tbody></table></div>';
+      if (this._loadSeq !== seq) return;
       this.bodyEl.innerHTML = html;
     } catch (e) {
+      if (this._loadSeq !== seq) return;
       this.bodyEl.innerHTML = `<div class="ma-error">Oranlar yüklenemedi: ${e}</div>`;
     }
   }
@@ -689,31 +759,36 @@ export class MaliAnalizPanel {
   // ── Grafikler ──────────────────────────────────────────────────────────────
 
   private async loadCharts(): Promise<void> {
+    const sym = this.currentSymbol;
+    const seq = this._loadSeq;
     try {
       let data = this.getCached<ChartDataResponse>('charts');
       if (!data) {
-        const resp = await fetch(`${API}/${this.currentSymbol}/chart-data?limit=20`);
+        const resp = await fetch(`${API}/${sym}/chart-data?limit=20`);
+        if (this._loadSeq !== seq) return;
         data = await resp.json() as ChartDataResponse;
+        if (this._loadSeq !== seq) return;
         this.setCache('charts', data);
       }
+      if (this._loadSeq !== seq) return;
 
       const m = data.metrics || {};
 
-      const CHART_DEFS: { key: string; title: string; unit: string; type: 'bar' | 'line' }[] = [
-        { key: 'revenue',         title: 'Ciro (Satış Gelirleri)',   unit: 'TRY', type: 'bar'  },
-        { key: 'net_income',      title: 'Net Kar',                  unit: 'TRY', type: 'bar'  },
-        { key: 'ebitda',          title: 'EBITDA',                   unit: 'TRY', type: 'bar'  },
-        { key: 'net_kar_marji',   title: 'Net Kar Marjı',            unit: '%',   type: 'line' },
-        { key: 'brut_kar_marji',  title: 'Brüt Kar Marjı',           unit: '%',   type: 'line' },
-        { key: 'ebitda_marji',    title: 'EBITDA Marjı',             unit: '%',   type: 'line' },
-        { key: 'roe',             title: 'ROE (Özkaynak Karlılığı)', unit: '%',   type: 'line' },
-        { key: 'roa',             title: 'ROA (Aktif Karlılık)',      unit: '%',   type: 'line' },
-        { key: 'ciro_buyume',     title: 'Ciro Büyümesi (YoY)',       unit: '%',   type: 'bar'  },
-        { key: 'net_kar_buyume',  title: 'Net Kar Büyümesi (YoY)',    unit: '%',   type: 'bar'  },
-        { key: 'net_borc_ebitda', title: 'Net Borç / EBITDA',         unit: 'x',   type: 'line' },
-        { key: 'borc_ozkaynak',   title: 'Borç / Özkaynak',          unit: 'x',   type: 'line' },
-        { key: 'cari_oran',       title: 'Cari Oran',                 unit: 'x',   type: 'line' },
-        { key: 'fcf_marji',       title: 'FCF Marjı',                 unit: '%',   type: 'line' },
+      const CHART_DEFS: FinancialChartDef[] = [
+        { key: 'revenue',         title: 'Ciro (Satış Gelirleri)',   unit: 'TRY', type: 'bar',  target: 'income'  },
+        { key: 'net_income',      title: 'Net Kar',                  unit: 'TRY', type: 'bar',  target: 'income'  },
+        { key: 'ebitda',          title: 'EBITDA',                   unit: 'TRY', type: 'bar',  target: 'income'  },
+        { key: 'net_kar_marji',   title: 'Net Kar Marjı',            unit: '%',   type: 'line', target: 'income'  },
+        { key: 'brut_kar_marji',  title: 'Brüt Kar Marjı',           unit: '%',   type: 'line', target: 'income'  },
+        { key: 'ebitda_marji',    title: 'EBITDA Marjı',             unit: '%',   type: 'line', target: 'income'  },
+        { key: 'roe',             title: 'ROE (Özkaynak Karlılığı)', unit: '%',   type: 'line', target: 'ratios'  },
+        { key: 'roa',             title: 'ROA (Aktif Karlılık)',      unit: '%',   type: 'line', target: 'ratios'  },
+        { key: 'ciro_buyume',     title: 'Ciro Büyümesi (YoY)',       unit: '%',   type: 'bar',  target: 'income'  },
+        { key: 'net_kar_buyume',  title: 'Net Kar Büyümesi (YoY)',    unit: '%',   type: 'bar',  target: 'income'  },
+        { key: 'net_borc_ebitda', title: 'Net Borç / EBITDA',         unit: 'x',   type: 'line', target: 'balance' },
+        { key: 'borc_ozkaynak',   title: 'Borç / Özkaynak',          unit: 'x',   type: 'line', target: 'balance' },
+        { key: 'cari_oran',       title: 'Cari Oran',                 unit: 'x',   type: 'line', target: 'balance' },
+        { key: 'fcf_marji',       title: 'FCF Marjı',                 unit: '%',   type: 'line', target: 'cashflow' },
       ];
 
       const active = CHART_DEFS.filter(d => (m[d.key] || []).length > 0);
@@ -726,11 +801,19 @@ export class MaliAnalizPanel {
       this.bodyEl.innerHTML = `
         <div class="ma-chart-grid">
           ${active.map(d => `
-            <div class="ma-chart-block">
-              <div class="ma-chart-title">${d.title}</div>
+            <div class="ma-chart-block${this._expandedCharts.has(d.key) ? ' is-expanded' : ''}" data-chart-key="${d.key}">
+              <div class="ma-chart-head">
+                <div class="ma-chart-title">${d.title}</div>
+                <div class="ma-chart-actions">
+                  <button class="ma-chart-action" data-chart-expand="${d.key}" title="${this._expandedCharts.has(d.key) ? 'Grafiği küçült' : 'Grafiği büyüt'}">${this._expandedCharts.has(d.key) ? '↙' : '↗'}</button>
+                  <button class="ma-chart-action" data-chart-target="${d.target}" title="${this.targetLabel(d.target)} sekmesine git">${this.targetLabel(d.target)}</button>
+                </div>
+              </div>
               <div class="ma-chart-canvas" id="ma-chart-${d.key}" style="position:relative"></div>
             </div>`).join('')}
         </div>`;
+
+      this.bindChartActions();
 
       const css = (v: string, fb: string) => getComputedStyle(document.documentElement).getPropertyValue(v).trim() || fb;
       const chartTheme = {
@@ -748,11 +831,12 @@ export class MaliAnalizPanel {
         const chart = createChart(el, {
           ...chartTheme,
           width: el.clientWidth || 340,
-          height: 160,
+          height: this.chartHeightFor(def.key),
           handleScroll: false,
           handleScale: false,
         });
         this._charts.push(chart);
+        this._chartByKey.set(def.key, chart);
 
         const points = (m[def.key] || [])
           .filter((p: ChartPoint) => p.value !== null && p.value !== undefined)
@@ -779,19 +863,81 @@ export class MaliAnalizPanel {
         }
 
         chart.timeScale().fitContent();
-
-        // TradingView logosu kapatma — logo sol alt köşede ~54x16px
-        const mask = document.createElement('div');
-        mask.style.cssText = `position:absolute;bottom:2px;left:2px;width:58px;height:18px;background:${bgColor};z-index:10;pointer-events:none`;
-        el.appendChild(mask);
+        this.hideChartAttribution(el, bgColor);
       }
+
+      this.observeChartResize();
 
       // ── Waterfall (Gelir Şelale) ─────────────────────────────────────────────
       this.renderWaterfall(m);
 
     } catch (e) {
+      if (this._loadSeq !== seq) return;
       this.bodyEl.innerHTML = `<div class="ma-error">Grafikler yüklenemedi: ${e}</div>`;
     }
+  }
+
+  private bindChartActions(): void {
+    this.bodyEl.querySelectorAll<HTMLButtonElement>('[data-chart-expand]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const key = btn.dataset.chartExpand;
+        if (!key) return;
+        if (this._expandedCharts.has(key)) this._expandedCharts.delete(key);
+        else this._expandedCharts.add(key);
+        this.loadCharts();
+      });
+    });
+
+    this.bodyEl.querySelectorAll<HTMLButtonElement>('[data-chart-target]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const tab = btn.dataset.chartTarget as FinancialChartTarget | undefined;
+        if (tab) this.switchTab(tab);
+      });
+    });
+  }
+
+  private chartHeightFor(key: string): number {
+    return this._expandedCharts.has(key) ? 340 : 220;
+  }
+
+  private targetLabel(target: FinancialChartTarget): string {
+    return ({ balance: 'Bilanço', income: 'Gelir', cashflow: 'Nakit', ratios: 'Oranlar' })[target];
+  }
+
+  private observeChartResize(): void {
+    this._chartResizeObserver?.disconnect();
+    this._chartResizeObserver = new ResizeObserver(entries => {
+      for (const entry of entries) {
+        const el = entry.target as HTMLElement;
+        const key = el.id.replace('ma-chart-', '');
+        const chart = this._chartByKey.get(key);
+        if (!chart) continue;
+        chart.resize(Math.max(260, Math.floor(entry.contentRect.width)), this.chartHeightFor(key));
+        chart.timeScale().fitContent();
+      }
+    });
+
+    this.bodyEl.querySelectorAll<HTMLElement>('.ma-chart-canvas').forEach(el => {
+      this._chartResizeObserver?.observe(el);
+    });
+  }
+
+  private hideChartAttribution(el: HTMLElement, bgColor: string): void {
+    const hide = () => {
+      el.querySelectorAll<HTMLElement>(
+        'a[href*="tradingview"], a[href*="lightweight-charts"], [aria-label*="TradingView"], a[class*="tv-"], div[class*="logo"], span[class*="logo"]'
+      ).forEach(node => {
+        node.style.display = 'none';
+        node.style.pointerEvents = 'none';
+      });
+    };
+    hide();
+    requestAnimationFrame(hide);
+
+    const mask = document.createElement('div');
+    mask.className = 'ma-chart-attribution-mask';
+    mask.style.background = bgColor;
+    el.appendChild(mask);
   }
 
   private renderWaterfall(m: Record<string, ChartPoint[]>): void {
@@ -820,11 +966,23 @@ export class MaliAnalizPanel {
     const niVals   = periods.map(p => niByPeriod[p] ?? 0);
 
     const wfSection = document.createElement('div');
-    wfSection.className = 'ma-chart-block';
+    wfSection.className = `ma-chart-block ma-chart-block-wide${this._expandedCharts.has('waterfall') ? ' is-expanded' : ''}`;
     wfSection.innerHTML = `
-      <div class="ma-chart-title">Gelir Şelalesi — Son ${periods.length} Dönem</div>
-      <div style="position:relative;height:180px"><canvas id="ma-waterfall-canvas"></canvas></div>`;
+      <div class="ma-chart-head">
+        <div class="ma-chart-title">Gelir Şelalesi — Son ${periods.length} Dönem</div>
+        <div class="ma-chart-actions">
+          <button class="ma-chart-action" id="ma-waterfall-expand" title="${this._expandedCharts.has('waterfall') ? 'Grafiği küçült' : 'Grafiği büyüt'}">${this._expandedCharts.has('waterfall') ? '↙' : '↗'}</button>
+          <button class="ma-chart-action" id="ma-waterfall-income" title="Gelir tablosu sekmesine git">Gelir</button>
+        </div>
+      </div>
+      <div class="ma-waterfall-canvas-wrap"><canvas id="ma-waterfall-canvas"></canvas></div>`;
     this.bodyEl.appendChild(wfSection);
+    wfSection.querySelector<HTMLButtonElement>('#ma-waterfall-expand')?.addEventListener('click', () => {
+      if (this._expandedCharts.has('waterfall')) this._expandedCharts.delete('waterfall');
+      else this._expandedCharts.add('waterfall');
+      this.loadCharts();
+    });
+    wfSection.querySelector<HTMLButtonElement>('#ma-waterfall-income')?.addEventListener('click', () => this.switchTab('income'));
 
     const canvas = wfSection.querySelector<HTMLCanvasElement>('#ma-waterfall-canvas')!;
     const wfCss = (v: string, fb: string) => getComputedStyle(document.documentElement).getPropertyValue(v).trim() || fb;
@@ -847,7 +1005,7 @@ export class MaliAnalizPanel {
         responsive: true,
         maintainAspectRatio: false,
         plugins: {
-          legend: { labels: { color: tickColor, boxWidth: 10, font: { size: 10 } } },
+          legend: { position: 'bottom', labels: { color: tickColor, boxWidth: 10, font: { size: 11 } } },
           tooltip: {
             callbacks: {
               label: (ctx) => {
@@ -858,14 +1016,111 @@ export class MaliAnalizPanel {
           },
         },
         scales: {
-          x: { ticks: { color: tickColor, font: { size: 9 } }, grid: { color: gridColor } },
+          x: { ticks: { color: tickColor, font: { size: 10 } }, grid: { color: gridColor } },
           y: {
-            ticks: { color: tickColor, font: { size: 9 }, callback: (v) => fmtBig(Number(v)) },
+            ticks: { color: tickColor, font: { size: 10 }, callback: (v) => fmtBig(Number(v)) },
             grid: { color: gridColor },
           },
         },
       },
     });
+  }
+
+  // ── Olaylar (Events) sekmesi ────────────────────────────────────────────────
+
+  private async loadEvents(): Promise<void> {
+    const sym = this.currentSymbol;
+    const seq = this._loadSeq;
+    try {
+      let data = this.getCached<{ events: Record<string, unknown>[]; source: string }>('events');
+      if (!data) {
+        const resp = await fetch(`${API}/${sym}/events`);
+        if (this._loadSeq !== seq) return;
+        data = await resp.json() as { events: Record<string, unknown>[]; source: string };
+        if (this._loadSeq !== seq) return;
+        this.setCache('events', data);
+      }
+      if (this._loadSeq !== seq) return;
+      const events = data.events || [];
+      if (!events.length) {
+        this.bodyEl.innerHTML = '<div class="ma-empty-block">Olay/uyarı kaydı bulunamadı.</div>';
+        return;
+      }
+      const rows = events.map(e => {
+        const title = String(e.title || e.alert_type || '');
+        const body = String(e.body || e.description || '');
+        const period = String(e.period || '');
+        const severity = String(e.severity || 'info');
+        const badge = SEVERITY_BADGE[severity] || 'badge-info';
+        const date = String(e.created_at || e.published_at || '');
+        const dateStr = date ? new Date(date).toLocaleDateString('tr-TR') : '';
+        return `<div class="ma-event-row">
+          <div class="ma-event-header">
+            <span class="badge ${badge}">${this.escHtml(severity.toUpperCase())}</span>
+            <span class="ma-event-title">${this.escHtml(title)}</span>
+            ${period ? `<span class="ma-event-period">${this.escHtml(period)}</span>` : ''}
+            ${dateStr ? `<span class="ma-event-date">${dateStr}</span>` : ''}
+          </div>
+          ${body ? `<div class="ma-event-body">${this.escHtml(body)}</div>` : ''}
+        </div>`;
+      }).join('');
+      if (this._loadSeq !== seq) return;
+      this.bodyEl.innerHTML = `<div class="ma-events-list">${rows}</div>`;
+    } catch (e) {
+      if (this._loadSeq !== seq) return;
+      this.bodyEl.innerHTML = `<div class="ma-error">Veri yüklenemedi: ${e}</div>`;
+    }
+  }
+
+  // ── KAP Raporlar sekmesi ────────────────────────────────────────────────────
+
+  private async loadMaliReports(): Promise<void> {
+    const sym = this.currentSymbol;
+    const seq = this._loadSeq;
+    try {
+      let data = this.getCached<{ reports: Record<string, unknown>[]; source: string }>('reports');
+      if (!data) {
+        const resp = await fetch(`${API}/${sym}/reports`);
+        if (this._loadSeq !== seq) return;
+        data = await resp.json() as { reports: Record<string, unknown>[]; source: string };
+        if (this._loadSeq !== seq) return;
+        this.setCache('reports', data);
+      }
+      if (this._loadSeq !== seq) return;
+      const reports = data.reports || [];
+      if (!reports.length) {
+        this.bodyEl.innerHTML = '<div class="ma-empty-block">KAP raporu bulunamadı.</div>';
+        return;
+      }
+      const rows = reports.map(r => {
+        const title = String(r.title || r.headline || '');
+        const url = String(r.url || r.link || '');
+        const date = String(r.published_at || r.date || '');
+        const dateStr = date ? new Date(date).toLocaleDateString('tr-TR') : '';
+        const linkHtml = url
+          ? `<a class="ma-report-link" href="${this.escAttr(url)}" target="_blank" rel="noopener">Görüntüle ↗</a>`
+          : '';
+        return `<div class="ma-report-row">
+          <div class="ma-report-meta">${dateStr ? `<span class="ma-event-date">${dateStr}</span>` : ''}</div>
+          <div class="ma-report-title">${this.escHtml(title)}</div>
+          ${linkHtml}
+        </div>`;
+      }).join('');
+      if (this._loadSeq !== seq) return;
+      this.bodyEl.innerHTML = `<div class="ma-reports-list">${rows}</div>`;
+    } catch (e) {
+      if (this._loadSeq !== seq) return;
+      this.bodyEl.innerHTML = `<div class="ma-error">Veri yüklenemedi: ${e}</div>`;
+    }
+  }
+
+  private escHtml(s: string): string {
+    return s.replace(/[&<>"']/g, c =>
+      ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c] ?? c);
+  }
+
+  private escAttr(s: string): string {
+    return s.replace(/[&"]/g, c => ({ '&': '&amp;', '"': '&quot;' })[c] ?? c);
   }
 
   // ── Refresh ─────────────────────────────────────────────────────────────────

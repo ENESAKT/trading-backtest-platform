@@ -776,6 +776,9 @@ export class StrategyPanel {
     const reportEl = this.container.querySelector('#report-content');
     if (reportEl) reportEl.innerHTML = `<div class="loading">${TR.RUNNING_BACKTEST}</div>`;
 
+    const runBtn = this.container.querySelector<HTMLButtonElement>('#run-backtest');
+    if (runBtn) { runBtn.disabled = true; runBtn.textContent = '⏳ Çalışıyor…'; }
+
     this.runInFlight = true;
     try {
       const result = await this.fetchBacktest();
@@ -785,16 +788,31 @@ export class StrategyPanel {
       this.renderSignals(result.signals);
       this.renderEquityCurve(result);
       this.emitSignals(result.signals);
+      this._showToast('✓ Backtest tamamlandı', 'success');
     } catch (err) {
       this.showError(err instanceof Error ? err.message : String(err));
+      this._showToast('✗ Backtest hatası', 'error');
     } finally {
       this.runInFlight = false;
+      if (runBtn) { runBtn.disabled = false; runBtn.textContent = 'Çalıştır'; }
       if (this.rerunRequested) {
         this.rerunRequested = false;
         this.lastRunKey = '';
         void this.runAnalysis();
       }
     }
+  }
+
+  private _showToast(message: string, type: 'success' | 'error' | 'info' = 'info'): void {
+    const existing = document.getElementById('pp-toast');
+    if (existing) existing.remove();
+    const toast = document.createElement('div');
+    toast.id = 'pp-toast';
+    toast.className = `pp-toast pp-toast-${type}`;
+    toast.textContent = message;
+    document.body.appendChild(toast);
+    requestAnimationFrame(() => toast.classList.add('pp-toast-show'));
+    setTimeout(() => { toast.classList.remove('pp-toast-show'); setTimeout(() => toast.remove(), 300); }, 3000);
   }
 
   private async fetchBacktest(): Promise<BacktestResult> {
@@ -1270,9 +1288,20 @@ export class StrategyPanel {
         <div class="compact-actions">
           <button class="btn-sm" data-load-report="${r.id}">Aç</button>
           <button class="btn-sm" data-rerun-report="${r.id}">Tekrar</button>
+          <button class="btn-sm btn-danger" data-delete-report="${r.id}" title="Raporu sil">🗑</button>
         </div>
       </div>
     `).join('');
+
+    el.querySelectorAll<HTMLButtonElement>('[data-delete-report]').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const id = btn.dataset['deleteReport']!;
+        if (!confirm('Bu backtest raporunu silmek istediğinizden emin misiniz?')) return;
+        void fetch(`/api/backtest/reports/${encodeURIComponent(id)}`, { method: 'DELETE' })
+          .then(r => { if (r.ok) void this.loadReports(); });
+      });
+    });
   }
 
   private renderOptimizerResults(): void {
