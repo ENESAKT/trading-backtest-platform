@@ -25,9 +25,14 @@ PiyasaPilot v2.0 finansal terminal uygulaması Vite ve TypeScript mimarisi üzer
   - *Mevcut:* "Sonuç yok" ibaresi yanıp sönüyor.
   - *Önem Derecesi:* Kritik.
 
+- **Asılı Kalan Hata (Error State) Mesajları:**
+  - *Açıklama:* Mali Analiz sekmesinde veriler başarıyla yüklense dahi, arka plandaki bir state hatasından ötürü "⚠ Veri çekilemedi" uyarısı ekranda kalmaya devam etmektedir.
+  - *Önem Derecesi:* Kritik.
+
 ## 4. Çalışmayan Butonlar ve Alanlar
 - Haberler sekmesindeki haber listesi içerikleri boştur.
 - Strateji test ve veri yenileme alanlarında bazı butonlara basıldığında hiçbir görsel geri bildirim (loading vb.) gelmemektedir.
+- **Strateji Çalıştır Butonu:** DOM yerleşimi/konumlandırması nedeniyle kullanıcı için (ve otomasyon testleri için) çok zor bulunmakta ve tıklanamama sorunları yaşatmaktadır. Belirgin bir yere taşınmalıdır.
 
 ## 5. Grafik Sorunları
 - **Render ve Bağlantı Sorunları:** Zaman aralığı (örn: 1 Günlükten 1 Saatliğe) değiştirildiğinde grafik tamamen siyah ekrana dönmekte veya uzun süre "Yükleniyor..."/"BAĞLANIYOR" durumunda takılı kalmaktadır. Bu durum WebSocket bağlantılarının tutarsız veya kopuk olmasından kaynaklı olabilir.
@@ -41,6 +46,7 @@ PiyasaPilot v2.0 finansal terminal uygulaması Vite ve TypeScript mimarisi üzer
 - Sadece Bilanço vs. yüklenmesi uzun sürdüğünde net bir bekleme barı/bildirimi çıkmamaktadır.
 
 ## 8. Veri Seti Problemleri
+- **Mükerrer Veri Basımı:** Özellikle Bilanço tablosunda "Diğer Alacaklar" gibi bazı finansal kalemlerin listeleme sırasında iki kez basıldığı (duplicate rendering) tespit edilmiştir. Key props eşleşmelerinden kaynaklanıyor olabilir.
 - Haberler bölümünde 99+ bildirim rozeti bulunmasına rağmen liste içerikleri "yfinance" modülünden geldiği varsayılan placeholder/dummy veriler veya tamamen boş ibareler içermektedir.
 
 ## 9. UI/UX Sorunları
@@ -76,9 +82,11 @@ PiyasaPilot v2.0 finansal terminal uygulaması Vite ve TypeScript mimarisi üzer
 ## 13. Sayfa Sayfa İnceleme
 - **Dashboard / Ana Ekran:** Genel tema ve layout şık, komponentler oturmuş ancak verilerdeki geçişler pürüzlü.
 - **Grafik (Chart):** Theme (Açık/Koyu) değişimlerinde iyi tepki veriyor. Ancak Timeframe (zaman dilimi) değiştirildiğinde ekran kararıyor, bağlantı takılıyor.
-- **Mali Analiz:** Veri yenileme deneyimi kopuk. Başlığın "BTCUSDT" kalması profesyonelliği kırıyor.
+- **Mali Analiz:** Veri yenileme deneyimi kopuk. Başlığın "BTCUSDT" kalması profesyonelliği kırıyor. Ayrıca veri geldiği halde "Veri çekilemedi" uyarısının asılı kalması ve bazı satırların (Örn: Diğer Alacaklar) mükerrer listelenmesi ciddi hatalardır.
 - **Haberler:** 99+ bildirimi olmasına rağmen detaylar boş ve kullanışsız.
-- **Sinyaller & Strateji:** Tıklama sonrası geri bildirim yok. İşlemin başlatılıp başlatılmadığı belli değil.
+- **Sinyaller & Strateji:** Tıklama sonrası geri bildirim yok. "Çalıştır" butonunun konumu tıklanabilirlik açısından problemli. İşlemin başlatılıp başlatılmadığı belli değil.
+- **Tarayıcı (Scanner):** RSI Aşırı Satım gibi filtreler ile "Tara" butonu çalışmakta ancak listeleme görünümü geliştirilebilir.
+- **Eğitimler:** Arama inputu ve listeleme anlık çalışmaktadır, modül aktiftir.
 
 ## 14. Sonuç
 PiyasaPilot v2.0 görsel altyapı olarak "premium" bir hedefle tasarlanmış; modern teknolojiler (Vite, TS, Tailwind) tercih edilmiştir. Ancak çekirdek yetenek olan "gerçek zamanlı ve senkronize hisse verisi sunma" hususunda ciddi state management sorunları bulunmaktadır. Öncelik; grafik ekranlarının çökmesini önlemek ve mali analiz gibi sekmelerdeki sembol senkronizasyonunu hatasız hale getirmektir. Görsel geri bildirimlerin (loading statüleri) artırılması ile terminal hissi hemen toparlanacaktır.
