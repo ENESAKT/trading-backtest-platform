@@ -82,4 +82,11 @@ export const tr = {
   PRICING_TRUST: 'Güvenli ödeme Stripe ile alınır. İstediğiniz zaman iptal edebilirsiniz.',
   PRICING_STRIPE_OPENING: 'Stripe açılıyor...',
   PRICING_CHECKOUT_ERROR: 'Stripe checkout şu an açılamıyor. Canlı ürün anahtarları tanımlandığında bu akış otomatik çalışır.',
+  WAITLIST_TITLE: 'PiyasaPilot çok yakında',
+  WAITLIST_COPY: "BIST'in gelişmiş algoritmik trading terminali için erken erişim listesine katılın. İlk 100 üyeye 3 ay ücretsiz Pro.",
+  WAITLIST_EMAIL: 'E-posta',
+  WAITLIST_CTA: 'Erken Erişim İstiyorum',
+  WAITLIST_SUCCESS: 'Listeye eklendiniz. Teşekkürler.',
+  WAITLIST_COUNT: 'kişi kaydoldu.',
+  WAITLIST_ERROR: 'Erken erişim servisi şu an hazır değil. E-posta listeniz canlı backend bağlandığında alınacak.',
 } as const;

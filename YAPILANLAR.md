@@ -206,6 +206,12 @@
 - [x] Login/register kartlarına kalıcı TR/EN dil anahtarı eklendi.
 - [x] `cd frontend && npm run typecheck`, `cd frontend && npm run build` ve `cd frontend && npm run e2e` başarılı; E2E sonucu: 24/24 geçti.
 
+## ✅ Waitlist i18n ve Offline-safe Hata Durumu (2026-05-16)
+
+- [x] Waitlist başlık, açıklama, form, başarı ve hata metinleri TR/EN sözlüğe taşındı.
+- [x] `/api/waitlist` kapalı veya erişilemez olduğunda form artık kontrolsüz hata yerine profesyonel inline mesaj gösteriyor.
+- [x] `cd frontend && npm run typecheck`, `cd frontend && npm run build` ve `cd frontend && npm run e2e` başarılı; E2E sonucu: 24/24 geçti.
+
 ---
 
 ## ✅ Güvenlik ve Deployment Altyapısı

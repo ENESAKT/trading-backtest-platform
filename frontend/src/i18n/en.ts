@@ -82,4 +82,11 @@ export const en = {
   PRICING_TRUST: 'Secure payments are handled by Stripe. You can cancel anytime.',
   PRICING_STRIPE_OPENING: 'Opening Stripe...',
   PRICING_CHECKOUT_ERROR: 'Stripe checkout is not available right now. This flow will work automatically after live product keys are configured.',
+  WAITLIST_TITLE: 'PiyasaPilot is coming soon',
+  WAITLIST_COPY: 'Join the early access list for the advanced algorithmic trading terminal for BIST. The first 100 members get 3 months of Pro for free.',
+  WAITLIST_EMAIL: 'Email',
+  WAITLIST_CTA: 'Request Early Access',
+  WAITLIST_SUCCESS: 'You are on the list. Thank you.',
+  WAITLIST_COUNT: 'people joined.',
+  WAITLIST_ERROR: 'The early access service is not ready right now. Your email can be collected after the live backend is connected.',
 } as const;
