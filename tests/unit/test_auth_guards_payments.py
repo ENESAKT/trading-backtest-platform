@@ -35,6 +35,13 @@ def test_current_user_requires_access_cookie() -> None:
     assert resp.json()["detail"]["en"] == "Login required."
 
 
+def test_current_user_accepts_bearer_token_for_mobile() -> None:
+    token = create_access_token(1, "mobile@example.com", "pro")
+    resp = _client().get("/private", headers={"Authorization": f"Bearer {token}"})
+    assert resp.status_code == 200
+    assert resp.json() == {"ok": True}
+
+
 def test_admin_guard_blocks_non_admin_user() -> None:
     resp = _client().get("/admin", cookies=_cookie("pro"))
     assert resp.status_code == 403

@@ -1,7 +1,7 @@
 # PiyasaPilot — Ultra Production Planı
 
 > Son güncelleme: 2026-05-16
-> Genel ilerleme: **%78 tamamlandı / %22 kaldı**
+> Genel ilerleme: **%84 tamamlandı / %16 kaldı**
 > Domain: `piyasapilotu.com` (METUnic'ten satın alındı — aktif, DNS yönetimi dahil)
 > Branch: `codex/financials-ui-api-v1`
 > Mobil: Flutter + Dart (MVVM / Clean Architecture)
@@ -22,22 +22,22 @@
 | [Bölüm 0 — Domain ve DNS](#bölüm-0--domain-ve-dns-yapılandırması) | [ ] | 35% | 65% | Domain/nginx hazır; gerçek sunucu IP, DNS ve TLS canlı doğrulama kaldı |
 | [Bölüm 1 — Marka ve Domain Tutarlılığı](#bölüm-1--marka-ve-domain-tutarlılığı) | [x] | 100% | 0% | SEO/meta/domain temizliği yapıldı |
 | [Bölüm 2 — Kullanıcı Rol ve Yetki Sistemi](#bölüm-2--kullanıcı-rol-ve-yetki-sistemi) | [x] | 100% | 0% | Migration 007 lokal DB'ye uygulandı; plan tabloları oluştu |
-| [Bölüm 3 — Backend Auth Modülü](#bölüm-3--backend-auth-modülü) | [ ] | 92% | 8% | Endpoint guard testleri, cookie auth, Pro/admin gate ve mobil Bearer token akışı tamamlandı; canlı Google OAuth secret/test kaldı |
-| [Bölüm 4 — Ekran Tasarımları](#bölüm-4--ekran-tasarımları-wireframe-düzeyinde) | [ ] | 96% | 4% | Public/auth/legal/admin/settings ve terminal rotaları desktop+390px QA edildi; canlı entegrasyon edge-case'leri kaldı |
-| [Bölüm 5 — Ödeme Sistemi](#bölüm-5--ödeme-sistemi-stripe) | [ ] | 75% | 25% | Checkout/portal/webhook kodu, webhook idempotency ve env kontratı hazır; canlı Stripe ürünleri ve dashboard testi kaldı |
-| [Bölüm 6 — Admin Yönetim Paneli](#bölüm-6--admin-yönetim-paneli) | [ ] | 88% | 12% | Admin guard, kullanıcı/audit/veri kalitesi empty state ve QA tamamlandı; canlı metrik ve destructive olmayan gerçek aksiyon doğrulaması kaldı |
-| [Bölüm 7 — Ödeme Sonrası ve Plan Yönetimi](#bölüm-7--ödeme-sonrası-ve-plan-yönetimi-frontend) | [ ] | 90% | 10% | Success/settings/billing portal UI, subscription state ve upgrade dili doğrulandı; canlı Stripe uçtan uca test kaldı |
+| [Bölüm 3 — Backend Auth Modülü](#bölüm-3--backend-auth-modülü) | [ ] | 96% | 4% | Cookie + Bearer auth guard, Pro/admin gate, mobil token ve hedefli testler tamamlandı; canlı Google OAuth secret/test kaldı |
+| [Bölüm 4 — Ekran Tasarımları](#bölüm-4--ekran-tasarımları-wireframe-düzeyinde) | [ ] | 98% | 2% | Public/protected route, admin/settings/legal ve terminal rotaları desktop+390px QA edildi; canlı entegrasyon edge-case'leri kaldı |
+| [Bölüm 5 — Ödeme Sistemi](#bölüm-5--ödeme-sistemi-stripe) | [ ] | 82% | 18% | Checkout/portal/webhook/idempotency kodu ve migration kontratı hazır; canlı Stripe ürünleri ve dashboard testi kaldı |
+| [Bölüm 6 — Admin Yönetim Paneli](#bölüm-6--admin-yönetim-paneli) | [ ] | 94% | 6% | Admin overview/subscription endpointleri, kullanıcı/audit/veri kalitesi empty state ve yetkisiz UX tamam; canlı veriyle son doğrulama kaldı |
+| [Bölüm 7 — Ödeme Sonrası ve Plan Yönetimi](#bölüm-7--ödeme-sonrası-ve-plan-yönetimi-frontend) | [ ] | 92% | 8% | Success/settings/billing portal UI, subscription state ve upgrade dili doğrulandı; canlı Stripe uçtan uca test kaldı |
 | [Bölüm 8 — i18n ve Hukuki Sayfalar](#bölüm-8--i18n-ve-hukuki-sayfalar) | [ ] | 93% | 7% | Public/auth/settings/payment/legal risk dili ve paper mode uyarıları tutarlı; terminal içi tüm mikro metinlerin taşınması kaldı |
 | [Bölüm 9 — Mevcut UI Hataları](#bölüm-9--mevcut-ui-hataları) | [x] | 100% | 0% | Web UX QA blocker paketi kapandı; code splitting sonrası build uyarısı yok |
-| [Bölüm 10 — Mobil Uygulama Planı](#bölüm-10--mobil-uygulama-planı-flutter) | [ ] | 55% | 45% | Flutter MVVM/Clean Architecture iskeleti, auth/terminal/portfolio/settings/onboarding ekranları ve analyze/test hazır |
-| [Bölüm 11 — ClickHouse + Veri Platformu](#bölüm-11--clickhouse--veri-platformu-tamamlama) | [ ] | 50% | 50% | Şema/facade/veri badge kontratı korunuyor; canlı veri backfill, retention ve lisanslı provider doğrulaması kaldı |
-| [Bölüm 12 — CI/CD ve Deployment](#bölüm-12--cicd-ve-deployment) | [ ] | 75% | 25% | GitHub Actions backend/frontend/e2e/docker/trivy işleri güncellendi; gerçek runner secrets ve deploy pratiği kaldı |
-| [Bölüm 13 — Error Tracking ve Monitoring](#bölüm-13--error-tracking-ve-monitoring) | [ ] | 70% | 30% | Sentry/Grafana/Prometheus iskeleti, frontend error boundary ve CI taraması hazır; canlı DSN/dashboard/alert kaldı |
-| [Bölüm 14 — Kabul Testi Checklist](#bölüm-14--kabul-testi-checklist) | [ ] | 82% | 18% | Frontend typecheck/build/e2e, backend hedefli pytest/py_compile, Flutter analyze/test ve desktop+390px QA geçti; canlı domain/Stripe/Sentry kaldı |
-| [Bölüm 15 — AWS Deployment](#bölüm-15--aws-deployment-eu-central-1-frankfurt) | [ ] | 45% | 55% | AWS Terraform EC2/EIP/security group/data disk scaffold ve checklist hazır; canlı AWS/DNS/TLS kurulumu yapılmadı |
-| [Bölüm 16 — Eksik / Atlanan Teknik Maddeler](#bölüm-16--eksik--atlanan-teknik-maddeler) | [ ] | 85% | 15% | Analytics/PWA/skeleton/code-splitting, auth guard testleri ve E2E kontratı stabilize edildi |
-| [Bölüm 17 — Proje Büyütme Yol Haritası](#bölüm-17--proje-büyütme-yol-haritası) | [ ] | 55% | 45% | Waitlist/referral/share kontratları ve UI dili hazır; canlı blog/topluluk/affiliate kanal işleri kaldı |
-| **GENEL TOPLAM** | [ ] | **78%** | **22%** | Auth/payment/admin/mobil/CI/AWS scaffold ve kabul test paketi güçlendirildi; canlı dış entegrasyon ve hesap/panel işleri kaldı |
+| [Bölüm 10 — Mobil Uygulama Planı](#bölüm-10--mobil-uygulama-planı-flutter) | [ ] | 65% | 35% | Flutter auth/terminal/portfolio/settings/onboarding + plan gate + analyze/test hazır; store/push/signing ve gerçek grafik derinliği kaldı |
+| [Bölüm 11 — ClickHouse + Veri Platformu](#bölüm-11--clickhouse--veri-platformu-tamamlama) | [ ] | 60% | 40% | Şema/facade/badge kontratı ve data/retention denetim scriptleri hazır; canlı backfill, retention ve provider doğrulaması kaldı |
+| [Bölüm 12 — CI/CD ve Deployment](#bölüm-12--cicd-ve-deployment) | [ ] | 82% | 18% | GitHub Actions test/build/e2e/docker/trivy ve production package denetimi hazır; gerçek secrets/deploy runner kaldı |
+| [Bölüm 13 — Error Tracking ve Monitoring](#bölüm-13--error-tracking-ve-monitoring) | [ ] | 75% | 25% | Sentry/Grafana/Prometheus iskeleti, frontend error boundary, repo/package denetimleri hazır; canlı DSN/dashboard/alert kaldı |
+| [Bölüm 14 — Kabul Testi Checklist](#bölüm-14--kabul-testi-checklist) | [ ] | 88% | 12% | Frontend typecheck/build/e2e, backend hedefli pytest/py_compile, Flutter analyze/test ve denetim scriptleri geçti; canlı domain/Stripe/Sentry kaldı |
+| [Bölüm 15 — AWS Deployment](#bölüm-15--aws-deployment-eu-central-1-frankfurt) | [ ] | 55% | 45% | AWS Terraform scaffold, Docker/package kontrolleri ve deployment checklist hazır; canlı AWS/DNS/TLS/S3/IAM yapılmadı |
+| [Bölüm 16 — Eksik / Atlanan Teknik Maddeler](#bölüm-16--eksik--atlanan-teknik-maddeler) | [ ] | 92% | 8% | Bearer auth, analytics/PWA/skeleton/code-splitting, repo/package/data/retention denetimleri ve test kontratı tamamlandı |
+| [Bölüm 17 — Proje Büyütme Yol Haritası](#bölüm-17--proje-büyütme-yol-haritası) | [ ] | 60% | 40% | Waitlist/referral/share kontratları ve UI dili hazır; blog/community/affiliate canlı kanal işleri kaldı |
+| **GENEL TOPLAM** | [ ] | **84%** | **16%** | Agent'ın yapabileceği kod/test/scaffold işleri büyük ölçüde tamamlandı; kalan ana işler canlı hesap, secret, domain, deploy ve lisans aksiyonları |
 
 ### Oturum Sonu Güncelleme Kuralları
 
@@ -67,6 +67,11 @@
 - [x] CI pipeline backend/frontend/e2e/docker build/Trivy taraması olarak güncellendi.
 - [x] AWS deployment için Terraform EC2/EIP/security group/data disk scaffold eklendi.
 - [x] Kabul testleri: frontend typecheck/build/e2e, backend hedefli pytest/py_compile, Flutter analyze/test ve desktop+390px route QA geçti.
+- [x] Mobil/API uyumu için Authorization Bearer guard eklendi ve test edildi.
+- [x] Admin panel overview/subscription endpointleri eklendi; frontend admin metrikleri gerçek endpointlerden beslenir hale geldi.
+- [x] Flutter plan gate widget'ı ve widget testi eklendi.
+- [x] Production package, repo weight, data inventory ve retention denetim scriptleri gerçek kontrol yapar hale getirildi.
+- [x] `cd frontend && npm run typecheck`, `npm run build`, `npm run e2e`, Flutter analyze/test ve backend hedefli pytest tekrar başarılı.
 
 ---
 
@@ -4150,12 +4155,19 @@ Sadece web MVP için sıkı öncelik:
 
 # KULLANICI AKSİYONU GEREKİR
 
-- Google OAuth için canlı `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` ve authorized redirect URI değerlerini Google Cloud Console'da oluşturup `.env.production` içine gir.
-- Stripe Dashboard'da Pro/Ultra aylık-yıllık product/price kayıtlarını oluştur; `STRIPE_*_PRICE_ID` ve `STRIPE_WEBHOOK_SECRET` değerlerini production env'e gir; webhook endpointini `https://piyasapilotu.com/api/payments/webhook` olarak doğrula.
-- AWS hesabında eski maliyet üreten kaynakları kontrol et; EC2/EIP/S3/IAM/Budget/CloudWatch kaynaklarını canlı hesapta oluştur veya Terraform `apply` için onaylı değerleri gir.
-- METUnic DNS panelinde `piyasapilotu.com`, `www`, `api` ve gerekirse `api-mobile` kayıtlarını canlı Elastic IP'ye yönlendir.
-- Sunucuda Certbot ile TLS sertifikasını al ve otomatik yenileme cron'unu kur.
-- Sentry DSN, Grafana/Prometheus dashboard ve alert kanalını canlı hesaplarda oluşturup production env'e bağla.
-- Gmail/Postmark/Resend gibi canlı email sağlayıcısı için SMTP/API secretlarını oluştur; doğrulama ve şifre sıfırlama email'lerini gerçek domainle test et.
-- App Store / Play Store yayın süreci için Apple Developer, Google Play Console, signing keystore, Firebase push ve uygulama ikon/splash varlıklarını canlı hesaplarda tamamla.
-- Lisanslı BIST/VIOP gerçek zamanlı veri sağlayıcısı anlaşmasını yap; Ultra plan metnini canlı lisans kapsamıyla uyumlu tut.
+- Google OAuth için canlı `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` ve authorized redirect URI değerlerini Google Cloud Console'da oluşturup `.env.production` içine gir. Tahmini süre: 30-60 dk.
+- Stripe Dashboard'da Pro/Ultra aylık-yıllık product/price kayıtlarını oluştur; `STRIPE_*_PRICE_ID` ve `STRIPE_WEBHOOK_SECRET` değerlerini production env'e gir; webhook endpointini `https://piyasapilotu.com/api/payments/webhook` olarak doğrula. Tahmini süre: 1-2 saat.
+- AWS hesabında eski maliyet üreten kaynakları kontrol et; EC2/EIP/S3/IAM/Budget/CloudWatch kaynaklarını canlı hesapta oluştur veya Terraform `apply` için onaylı değerleri gir. Tahmini süre: 3-6 saat.
+- METUnic DNS panelinde `piyasapilotu.com`, `www`, `api` ve gerekirse `api-mobile` kayıtlarını canlı Elastic IP'ye yönlendir. Tahmini süre: 15-45 dk + DNS yayılımı.
+- Sunucuda Certbot ile TLS sertifikasını al ve otomatik yenileme cron'unu kur. Tahmini süre: 30-60 dk.
+- Sentry DSN, Grafana/Prometheus dashboard ve alert kanalını canlı hesaplarda oluşturup production env'e bağla. Tahmini süre: 1-2 saat.
+- Gmail/Postmark/Resend gibi canlı email sağlayıcısı için SMTP/API secretlarını oluştur; doğrulama ve şifre sıfırlama email'lerini gerçek domainle test et. Tahmini süre: 1-2 saat.
+- App Store / Play Store yayın süreci için Apple Developer, Google Play Console, signing keystore, Firebase push ve uygulama ikon/splash varlıklarını canlı hesaplarda tamamla. Tahmini süre: 1-3 gün, mağaza onayı hariç.
+- Lisanslı BIST/VIOP gerçek zamanlı veri sağlayıcısı anlaşmasını yap; Ultra plan metnini canlı lisans kapsamıyla uyumlu tut. Tahmini süre: sağlayıcı yanıtına bağlı, genellikle 1-3 hafta.
+
+## Kalan Süre Tahmini
+
+- Web MVP canlıya çıkış için kritik kullanıcı aksiyonları: yaklaşık 1-2 iş günü.
+- Mobil mağaza ve push bildirim hazırlığı: yaklaşık 1-3 ek gün.
+- Lisanslı gerçek zamanlı BIST/VIOP veri anlaşması: dış sağlayıcıya bağlı olduğu için 1-3 hafta.
+- Kod tarafında agent'ın yapabileceği kalanlar: canlı secret/domain/deploy bilgileri geldikten sonra 2-4 saatlik son entegrasyon ve smoke test.

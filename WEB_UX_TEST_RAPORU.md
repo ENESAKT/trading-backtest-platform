@@ -274,6 +274,16 @@ Sonuç:
 - Page error yakalanmadı.
 - Build chunk uyarısı geri gelmedi.
 - `npm run e2e` sonucu 24/24 başarılı.
+
+## Regresyon QA Notu — 16 Mayıs 2026 Admin ve Mobil Guard Paketi
+
+Admin panelin özet/abonelik görünümleri gerçek backend endpointlerine bağlandıktan sonra frontend doğrulamaları tekrar çalıştırıldı.
+
+Sonuç:
+- `cd frontend && npm run typecheck` başarılı.
+- `cd frontend && npm run build` başarılı; 500 kB chunk uyarısı geri gelmedi.
+- `cd frontend && npm run e2e` başarılı; 24/24 test geçti.
+- Mobil Flutter `plan gate` widget testi geçti; web QA kapsamına regressyon olarak etkisi yok.
 - Public/terminal code-splitting yapıldı. Build çıktısında 500 kB chunk uyarısı kalktı; ana `index` chunk yaklaşık 23 kB seviyesine indi.
 - `npm run typecheck` ve `npm run build` başarılı.
 

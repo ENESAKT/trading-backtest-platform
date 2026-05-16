@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../shared/widgets/app_state_panel.dart';
+import '../../../shared/widgets/plan_gate_widget.dart';
 
 class TerminalShell extends StatefulWidget {
   const TerminalShell({super.key});
@@ -14,14 +15,20 @@ class _TerminalShellState extends State<TerminalShell> {
 
   @override
   Widget build(BuildContext context) {
+    const userPlan = String.fromEnvironment('DEMO_PLAN', defaultValue: 'free');
     final pages = [
       const AppStatePanel(
         title: 'Grafik',
         message: 'BTCUSDT / 1s mum grafiği için API client hazır. Gerçek barlar backend /api/v2/candles üzerinden yüklenecek.',
       ),
-      const AppStatePanel(
-        title: 'Sinyaller',
-        message: 'Pro+ sinyal ekranı plan gate ve güvenilir veri durumu ile bağlanacak.',
+      const PlanGateWidget(
+        userPlan: userPlan,
+        requiredPlan: 'pro',
+        featureName: 'Sinyaller',
+        child: AppStatePanel(
+          title: 'Sinyaller',
+          message: 'Pro+ sinyal ekranı plan gate ve güvenilir veri durumu ile bağlanacak.',
+        ),
       ),
       const AppStatePanel(
         title: 'Portföy',

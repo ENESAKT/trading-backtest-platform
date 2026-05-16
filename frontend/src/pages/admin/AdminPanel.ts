@@ -24,10 +24,10 @@ export async function renderAdminPanel(container: HTMLElement): Promise<void> {
     content.innerHTML = '<div class="skeleton-wrap"><div class="skeleton skeleton-title"></div><div class="skeleton skeleton-row"></div><div class="skeleton skeleton-row"></div></div>';
     try {
       if (tab === 'overview') {
-        const res = await fetch('/api/admin/users?limit=1', { credentials: 'include' });
+        const res = await fetch('/api/admin/overview', { credentials: 'include' });
         const data = await res.json();
-        const total = data.data?.total ?? '-';
-        content.innerHTML = `<h1>Özet</h1><div class="metric-grid"><span>Toplam kullanıcı<b>${total}</b></span><span>Pro<b>-</b><small>Stripe bekleniyor</small></span><span>Ultra<b>-</b></span><span>Aktif oturum<b>-</b></span></div>`;
+        const stats = data.data || {};
+        content.innerHTML = `<h1>Özet</h1><div class="metric-grid"><span>Toplam kullanıcı<b>${stats.users_total ?? '-'}</b></span><span>Pro<b>${stats.pro_users ?? '-'}</b></span><span>Ultra<b>${stats.ultra_users ?? '-'}</b></span><span>Aktif oturum<b>${stats.active_sessions ?? '-'}</b></span></div>`;
       } else if (tab === 'users') {
         const res = await fetch('/api/admin/users?limit=50', { credentials: 'include' });
         const data = await res.json();
@@ -45,7 +45,13 @@ export async function renderAdminPanel(container: HTMLElement): Promise<void> {
           : '<tr><td colspan="4">Denetim kaydı bulunamadı.</td></tr>';
         content.innerHTML = `<h1>Audit Log</h1><table><thead><tr><th>Tarih</th><th>User ID</th><th>Aksiyon</th><th>Kaynak</th></tr></thead><tbody>${rows}</tbody></table>`;
       } else if (tab === 'subscriptions') {
-        content.innerHTML = '<h1>Abonelikler</h1><div class="empty-panel"><strong>Stripe metrikleri beklemede</strong><small>MRR, churn ve fatura aksiyonları canlı Stripe ürünleri bağlandığında gösterilecek.</small></div><a class="btn btn-outline-warning" href="https://dashboard.stripe.com" target="_blank" rel="noreferrer">Stripe Dashboard</a>';
+        const res = await fetch('/api/admin/subscriptions?limit=50', { credentials: 'include' });
+        const data = await res.json();
+        const subs = data.data?.subscriptions || [];
+        const rows = subs.length
+          ? subs.map((s: any) => `<tr><td>${s.email}</td><td>${s.plan}</td><td>${s.billing_period}</td><td>${s.status}</td><td>${s.current_period_end || '-'}</td></tr>`).join('')
+          : '<tr><td colspan="5">Canlı veya trial abonelik kaydı bulunamadı.</td></tr>';
+        content.innerHTML = `<h1>Abonelikler</h1><table><thead><tr><th>E-posta</th><th>Plan</th><th>Dönem</th><th>Durum</th><th>Bitiş</th></tr></thead><tbody>${rows}</tbody></table><a class="btn btn-outline-warning" href="https://dashboard.stripe.com" target="_blank" rel="noreferrer">Stripe Dashboard</a>`;
       } else if (tab === 'data') {
         const res = await fetch('/api/health');
         const data = await res.json();

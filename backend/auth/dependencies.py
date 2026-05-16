@@ -24,10 +24,13 @@ from .redis_store import AuthRedisStore
 
 async def get_current_user(request: Request) -> dict:
     """
-    Cookie'den access token oku, doğrula, user payload döndür.
+    Cookie veya Authorization Bearer header'dan access token oku, doğrula, user payload döndür.
     Geçersiz / eksik token → 401
     """
     token = request.cookies.get("access_token")
+    auth_header = request.headers.get("authorization", "")
+    if not token and auth_header.lower().startswith("bearer "):
+        token = auth_header.split(" ", 1)[1].strip()
     if not token:
         raise HTTPException(
             status_code=401,
@@ -61,10 +64,13 @@ async def get_current_user(request: Request) -> dict:
 
 async def get_optional_user(request: Request) -> dict | None:
     """
-    Cookie varsa doğrula, yoksa None döndür.
+    Cookie veya Bearer token varsa doğrula, yoksa None döndür.
     Misafir sayfaları için kullanılır.
     """
     token = request.cookies.get("access_token")
+    auth_header = request.headers.get("authorization", "")
+    if not token and auth_header.lower().startswith("bearer "):
+        token = auth_header.split(" ", 1)[1].strip()
     if not token:
         return None
     try:

@@ -53,7 +53,7 @@ async def list_users(request: Request, q: str = "", role: str = "", active: str 
                 params,
             )
             rows = await cur.fetchall()
-    return _ok({"users": [
+    users = [
         {
             "id": r[0],
             "email": r[1],
@@ -63,6 +63,63 @@ async def list_users(request: Request, q: str = "", role: str = "", active: str 
             "is_active": bool(r[5]),
             "last_login_at": str(r[6]) if r[6] else None,
             "created_at": str(r[7]) if r[7] else None,
+        }
+        for r in rows
+    ]
+    return _ok({"users": users, "total": len(users), "limit": max(1, min(limit, 200)), "offset": max(0, offset)})
+
+
+@router.get("/overview")
+async def overview(request: Request):
+    pool = _get_pool(request)
+    async with pool.acquire() as conn:
+        async with conn.cursor() as cur:
+            await cur.execute("SELECT COUNT(*), SUM(role='pro'), SUM(role='ultra'), SUM(is_active=TRUE) FROM users")
+            user_row = await cur.fetchone()
+            await cur.execute("SELECT COUNT(*) FROM refresh_tokens WHERE revoked_at IS NULL AND expires_at > NOW()")
+            sessions = (await cur.fetchone())[0]
+            await cur.execute(
+                """SELECT COUNT(*), SUM(status IN ('trialing','active')), SUM(status='past_due')
+                   FROM user_subscriptions"""
+            )
+            sub_row = await cur.fetchone()
+    return _ok({
+        "users_total": int(user_row[0] or 0),
+        "pro_users": int(user_row[1] or 0),
+        "ultra_users": int(user_row[2] or 0),
+        "active_users": int(user_row[3] or 0),
+        "active_sessions": int(sessions or 0),
+        "subscriptions_total": int(sub_row[0] or 0),
+        "subscriptions_active": int(sub_row[1] or 0),
+        "subscriptions_past_due": int(sub_row[2] or 0),
+    })
+
+
+@router.get("/subscriptions")
+async def subscriptions(request: Request, limit: int = 50):
+    pool = _get_pool(request)
+    async with pool.acquire() as conn:
+        async with conn.cursor() as cur:
+            await cur.execute(
+                """SELECT us.id, u.email, sp.slug, us.billing_period, us.status,
+                          us.current_period_end, us.stripe_subscription_id
+                   FROM user_subscriptions us
+                   JOIN users u ON u.id = us.user_id
+                   JOIN subscription_plans sp ON sp.id = us.plan_id
+                   ORDER BY us.created_at DESC
+                   LIMIT %s""",
+                (max(1, min(limit, 200)),),
+            )
+            rows = await cur.fetchall()
+    return _ok({"subscriptions": [
+        {
+            "id": r[0],
+            "email": r[1],
+            "plan": r[2],
+            "billing_period": r[3],
+            "status": r[4],
+            "current_period_end": str(r[5]) if r[5] else None,
+            "stripe_subscription_id": r[6],
         }
         for r in rows
     ]})

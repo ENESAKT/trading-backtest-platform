@@ -10,6 +10,7 @@ data/bist
 data/viop
 data/runtime
 data/strategy_lab/*.sqlite3
+*.sqlite3
 logs
 piyasapilot-v2/node_modules
 piyasapilot-v2/test-results

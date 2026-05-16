@@ -228,6 +228,15 @@
 - [x] GitHub Actions pipeline backend/frontend/e2e/docker build/Trivy taraması olarak güncellendi.
 - [x] Kabul doğrulaması çalıştırıldı: frontend typecheck/build/e2e, backend py_compile + hedefli pytest, Flutter analyze/test ve desktop+390px route smoke QA.
 
+## ✅ Kalan Kod İşleri Sıkılaştırma Paketi (2026-05-16)
+
+- [x] Backend auth guard cookie yanında `Authorization: Bearer` token kabul edecek şekilde mobil API kontratıyla hizalandı.
+- [x] Admin API'ye `/api/admin/overview` ve `/api/admin/subscriptions` endpointleri eklendi; AdminPanel özet/abonelik görünümü gerçek endpointlerden besleniyor.
+- [x] Flutter mobil uygulamaya plan gate widget'ı eklendi; Free kullanıcı için Pro özellik kilidi widget testiyle doğrulandı.
+- [x] Production package, repo weight, data inventory ve retention denetim scriptleri placeholder olmaktan çıkarıldı.
+- [x] `.dockerignore` runtime SQLite artifact kaçaklarını production context dışında tutacak şekilde güçlendirildi.
+- [x] Doğrulamalar tekrar çalıştı: frontend typecheck/build/e2e, backend hedefli pytest/py_compile, Flutter analyze/test ve denetim scriptleri başarılı.
+
 ## ✅ Uygulama.md Planlama ve Sprint G Başlangıcı (2026-05-16)
 
 - [x] `uygulama.md` içindeki hata raporu Sprint G/H/I olarak `docs/YAPILACAKLAR.md` içine öncelik sırasıyla işlendi.
