@@ -6,6 +6,7 @@ import 'bootstrap/dist/css/bootstrap.min.css';
 import '../style.css';
 import { mountCookieBanner } from './components/CookieBanner.js';
 import { installErrorBoundary } from './core/ErrorBoundary.js';
+import { analytics } from './core/Analytics.js';
 import { i18n } from './i18n/index.js';
 import { auth } from './auth/AuthManager.js';
 // Error monitoring removed
@@ -13,10 +14,20 @@ import { auth } from './auth/AuthManager.js';
 i18n.init();
 installErrorBoundary();
 mountCookieBanner();
+const publicPath = window.location.pathname.replace(/\/+$/, '') || '/';
+analytics.track('page_view', { path: publicPath });
+
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch((err) => {
+      console.warn('Service worker kaydedilemedi:', err);
+    });
+  });
+}
 
 // ─── Public auth pages ───────────────────────────────────────────────────────
 
-const publicPath = window.location.pathname.replace(/\/+$/, '') || '/';
+
 type PublicRenderer = (container: HTMLElement) => void | Promise<void>;
 const publicRoutes: Record<string, () => Promise<PublicRenderer>> = {
   '/': async () => (await import('./pages/LandingPage.js')).renderLandingPage,
@@ -48,6 +59,7 @@ if (loadPublicRenderer || loadDynamicPublicRenderer) {
   const authRoot = document.createElement('main');
   authRoot.id = 'auth-root';
   document.body.appendChild(authRoot);
+  await auth.init(); // Initialize auth for public header logic
   const renderer = await (loadPublicRenderer || loadDynamicPublicRenderer)!();
   void renderer(authRoot);
 } else {

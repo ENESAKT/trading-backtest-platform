@@ -164,6 +164,16 @@ h3 { font-family: var(--font-sans); font-size: 14px; font-weight: 600; color: va
 .settings-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .sessions-list div { padding: 10px 0; border-bottom: 1px solid var(--border); color: var(--text); }
 .sessions-list small { display: block; color: var(--text-dim); }
+.empty-panel {
+  display: grid;
+  gap: 4px;
+  padding: 14px;
+  margin: 10px 0 14px;
+  color: var(--text);
+  background: var(--panel2);
+  border: 1px solid var(--border);
+}
+.empty-panel small { color: var(--text-dim); }
 .legal-page { width: min(820px, 100%); margin: 0 auto; }
 .legal-page h2 { margin-top: 18px; font-size: 18px; }
 
@@ -172,6 +182,9 @@ h3 { font-family: var(--font-sans); font-size: 14px; font-weight: 600; color: va
 .admin-panel aside button { text-align: left; padding: 10px; background: transparent; color: var(--text); }
 .admin-panel aside button.active { background: var(--amber-bg); color: var(--amber); }
 .admin-content { padding: 22px; overflow: auto; }
+.admin-toolbar { display: grid; grid-template-columns: minmax(220px, 1fr) 180px; gap: 10px; margin-bottom: 14px; }
+.admin-content table { width: 100%; color: var(--text); border-collapse: collapse; }
+.admin-content th, .admin-content td { padding: 10px; border-bottom: 1px solid var(--border); }
 .metric-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
 .metric-grid span { padding: 16px; background: var(--panel2); border: 1px solid var(--border); color: var(--text); }
 .metric-grid b { display: block; color: var(--text-bold); font-size: 24px; }

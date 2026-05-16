@@ -17,6 +17,7 @@ function makeCandles(base: number, step: number, count = 90) {
 }
 
 async function mockCandles(page: Page) {
+  await page.route('**/api/auth/me', (route) => route.fulfill({ status: 401, json: { ok: false } }));
   await page.route('**/api/v2/candles**', (route) =>
     route.fulfill({ json: { status: 'ok', bars: makeCandles(10, 0.1) } }),
   );
@@ -55,7 +56,7 @@ async function mockBacktest(page: Page) {
 
 test('Flow 1: page load → symbol select → chart ready', async ({ page }) => {
   await mockCandles(page);
-  await page.goto('/');
+  await page.goto('/app');
 
   // Chart tab is default
   await expect(page.locator('#panel-chart')).toBeVisible();
@@ -75,7 +76,7 @@ test('Flow 1: page load → symbol select → chart ready', async ({ page }) => 
 test('Flow 2: run backtest → equity curve canvas visible', async ({ page }) => {
   await mockCandles(page);
   await mockBacktest(page);
-  await page.goto('/');
+  await page.goto('/app');
 
   await page.locator('[data-tab="strategy"]').click();
   await expect(page.locator('#panel-strategy')).toBeVisible();
@@ -123,7 +124,7 @@ test('Flow 3: financials tab → ratios table visible', async ({ page }) => {
     }),
   );
 
-  await page.goto('/');
+  await page.goto('/app');
 
   // Navigate to financials via keyboard shortcut
   await page.keyboard.press('7');
@@ -159,7 +160,7 @@ test('Flow 4: screener → filter → results visible', async ({ page }) => {
     }),
   );
 
-  await page.goto('/');
+  await page.goto('/app');
   await page.locator('[data-tab="screener"]').click();
   await expect(page.locator('#panel-screener')).toBeVisible();
 
@@ -204,7 +205,7 @@ test('Flow 5: news panel loads via keyboard shortcut 8', async ({ page }) => {
     }),
   );
 
-  await page.goto('/');
+  await page.goto('/app');
 
   // Press 8 to open news tab
   await page.keyboard.press('8');
@@ -254,7 +255,7 @@ test('Flow 6: strategy walk-forward and monte-carlo tabs render', async ({ page 
   );
 
   await mockBacktest(page);
-  await page.goto('/');
+  await page.goto('/app');
   await page.locator('[data-tab="strategy"]').click();
 
   // Run backtest first so lastResult is populated

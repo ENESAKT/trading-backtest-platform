@@ -1,6 +1,8 @@
 import { pageShell } from './pageUtils.js';
+import { analytics } from '../core/Analytics.js';
 
 export function renderPaymentSuccessPage(container: HTMLElement): void {
+  analytics.track('payment_success_viewed');
   container.innerHTML = pageShell('Ödeme Başarılı', `
     <section class="public-state">
       <h1>Pro planına hoş geldiniz</h1>

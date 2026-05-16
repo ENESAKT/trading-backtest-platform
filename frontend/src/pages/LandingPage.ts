@@ -1,4 +1,5 @@
 import { pageShell } from './pageUtils.js';
+import { analytics } from '../core/Analytics.js';
 
 const demoBars = [18, 24, 21, 29, 34, 31, 38, 43, 39, 46, 52, 48, 57, 61, 58, 66, 70, 64, 73, 78, 75, 82, 88, 84, 91, 96, 93, 101, 108, 104];
 
@@ -11,8 +12,8 @@ export function renderLandingPage(container: HTMLElement): void {
         <h1>Algoritmik trading terminali</h1>
         <p>Strateji fikrini kurala çevir, gerçek veriyle test et, riski gör ve paper trading akışını tek ekrandan yönet.</p>
         <div class="hero-actions">
-          <a class="btn btn-warning" href="/register">Ücretsiz Başla</a>
-          <a class="btn btn-outline-warning" href="/pricing">Planları İncele</a>
+          <a class="btn btn-warning" href="/register" data-analytics="landing_signup_clicked">Ücretsiz Başla</a>
+          <a class="btn btn-outline-warning" href="/pricing" data-analytics="landing_pricing_clicked">Planları İncele</a>
         </div>
         <div class="hero-counters">
           <span><b>57</b> eğitim</span>
@@ -45,4 +46,8 @@ export function renderLandingPage(container: HTMLElement): void {
         <a href="/pricing"><b>Ultra</b><span>$49.99/ay</span></a>
       </div>
     </section>`);
+
+  container.querySelectorAll<HTMLElement>('[data-analytics]').forEach((el) => {
+    el.addEventListener('click', () => analytics.track(el.dataset['analytics'] || 'landing_click'));
+  });
 }

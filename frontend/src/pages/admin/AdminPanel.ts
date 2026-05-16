@@ -20,21 +20,46 @@ export async function renderAdminPanel(container: HTMLElement): Promise<void> {
       <div class="admin-content" id="admin-content"></div>
     </section>`);
   const content = container.querySelector<HTMLElement>('#admin-content')!;
-  const render = (tab: string) => {
-    const cards: Record<string, string> = {
-      overview: '<h1>Özet</h1><div class="metric-grid"><span>Toplam kullanıcı<b>0</b></span><span>Pro<b>0</b></span><span>Ultra<b>0</b></span><span>Aktif oturum<b>0</b></span></div>',
-      users: '<h1>Kullanıcı Yönetimi</h1><input class="form-control" placeholder="E-posta ara" /><table><thead><tr><th>ID</th><th>E-posta</th><th>Plan</th><th>Durum</th><th>İşlem</th></tr></thead><tbody><tr><td colspan="5">Admin API bağlandığında kullanıcılar listelenecek.</td></tr></tbody></table>',
-      subscriptions: '<h1>Abonelikler</h1><p>Stripe metrikleri ve MRR burada izlenecek.</p><a class="btn btn-outline-warning" href="https://dashboard.stripe.com" target="_blank">Stripe Dashboard</a>',
-      data: '<h1>Veri Kalitesi</h1><table><tbody><tr><td>ClickHouse</td><td>Bağlantı kontrolü API bağlandığında gösterilecek.</td></tr><tr><td>Redis</td><td>Cache durumu izlenecek.</td></tr></tbody></table>',
-      audit: '<h1>Audit Log</h1><p>Filtrelenebilir denetim kayıtları için backend admin endpointleri bekleniyor.</p>',
-    };
-    content.innerHTML = cards[tab] || cards.overview;
+  const render = async (tab: string) => {
+    content.innerHTML = '<div class="skeleton-wrap"><div class="skeleton skeleton-title"></div><div class="skeleton skeleton-row"></div><div class="skeleton skeleton-row"></div></div>';
+    try {
+      if (tab === 'overview') {
+        const res = await fetch('/api/admin/users?limit=1', { credentials: 'include' });
+        const data = await res.json();
+        const total = data.data?.total ?? '-';
+        content.innerHTML = `<h1>Özet</h1><div class="metric-grid"><span>Toplam kullanıcı<b>${total}</b></span><span>Pro<b>-</b><small>Stripe bekleniyor</small></span><span>Ultra<b>-</b></span><span>Aktif oturum<b>-</b></span></div>`;
+      } else if (tab === 'users') {
+        const res = await fetch('/api/admin/users?limit=50', { credentials: 'include' });
+        const data = await res.json();
+        const users = data.data?.users || [];
+        const rows = users.length
+          ? users.map((u: any) => `<tr><td>${u.id}</td><td>${u.email}</td><td><span class="badge ${u.role}">${u.role.toUpperCase()}</span></td><td>${u.is_active ? 'Aktif' : 'Pasif'}</td><td><button class="btn btn-sm btn-outline-secondary" onclick="alert('Detay yapım aşamasında')">Detay</button></td></tr>`).join('')
+          : '<tr><td colspan="5">Kullanıcı bulunamadı.</td></tr>';
+        content.innerHTML = `<h1>Kullanıcı Yönetimi</h1><div class="admin-toolbar"><input class="form-control" placeholder="E-posta ara" /><select class="form-select"><option>Tüm Planlar</option><option>Free</option><option>Pro</option><option>Ultra</option></select></div><table><thead><tr><th>ID</th><th>E-posta</th><th>Plan</th><th>Durum</th><th>İşlem</th></tr></thead><tbody>${rows}</tbody></table>`;
+      } else if (tab === 'audit') {
+        const res = await fetch('/api/admin/audit-log?limit=50', { credentials: 'include' });
+        const data = await res.json();
+        const events = data.data?.events || [];
+        const rows = events.length
+          ? events.map((e: any) => `<tr><td>${e.created_at}</td><td>${e.user_id || '-'}</td><td>${e.action}</td><td>${e.resource || '-'}</td></tr>`).join('')
+          : '<tr><td colspan="4">Denetim kaydı bulunamadı.</td></tr>';
+        content.innerHTML = `<h1>Audit Log</h1><table><thead><tr><th>Tarih</th><th>User ID</th><th>Aksiyon</th><th>Kaynak</th></tr></thead><tbody>${rows}</tbody></table>`;
+      } else if (tab === 'subscriptions') {
+        content.innerHTML = '<h1>Abonelikler</h1><div class="empty-panel"><strong>Stripe metrikleri beklemede</strong><small>MRR, churn ve fatura aksiyonları canlı Stripe ürünleri bağlandığında gösterilecek.</small></div><a class="btn btn-outline-warning" href="https://dashboard.stripe.com" target="_blank" rel="noreferrer">Stripe Dashboard</a>';
+      } else if (tab === 'data') {
+        const res = await fetch('/api/health');
+        const data = await res.json();
+        content.innerHTML = `<h1>Veri Kalitesi</h1><table><tbody><tr><td>API</td><td>${data.status || 'ok'}</td></tr><tr><td>Detay</td><td>Kaynak gecikmesi ve gap metrikleri admin kalite endpointi bağlandığında gösterilecek.</td></tr></tbody></table>`;
+      }
+    } catch (e) {
+      content.innerHTML = '<div class="empty-panel"><strong>Veri yüklenemedi</strong><small>Yetkiniz reddedilmiş olabilir veya ilgili admin endpointi henüz canlı değildir.</small></div>';
+    }
   };
-  render('overview');
+  void render('overview');
   container.querySelectorAll<HTMLButtonElement>('[data-admin-tab]').forEach((btn) => {
     btn.addEventListener('click', () => {
       container.querySelectorAll('[data-admin-tab]').forEach((b) => b.classList.toggle('active', b === btn));
-      render(btn.dataset['adminTab'] || 'overview');
+      void render(btn.dataset['adminTab'] || 'overview');
     });
   });
 }

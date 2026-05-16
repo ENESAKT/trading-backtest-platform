@@ -4,6 +4,7 @@
  */
 
 import { auth } from './AuthManager.js';
+import { analytics } from '../core/Analytics.js';
 
 export function renderLoginPage(container: HTMLElement): void {
   container.innerHTML = `
@@ -119,6 +120,7 @@ export function renderLoginPage(container: HTMLElement): void {
     const result = await auth.login(email, password, totp);
 
     if (result.ok) {
+      analytics.track('login_completed', { method: 'email' });
       const user = auth.user;
       const dest = user?.settings.onboarding_done === false ? '/onboarding' : '/app';
       window.location.href = dest;

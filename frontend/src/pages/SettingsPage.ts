@@ -1,4 +1,5 @@
 import { auth } from '../auth/AuthManager.js';
+import { analytics } from '../core/Analytics.js';
 import { pageShell, requireAuth, showInlineMessage } from './pageUtils.js';
 
 export async function renderSettingsPage(container: HTMLElement): Promise<void> {
@@ -24,6 +25,7 @@ export async function renderSettingsPage(container: HTMLElement): Promise<void> 
         <article>
           <h2>Abonelik</h2>
           <p>Plan: <strong>${user.role.toUpperCase()}</strong></p>
+          <div id="subscription-state" class="empty-panel">Abonelik durumu yükleniyor...</div>
           <button id="billing-portal" class="btn btn-outline-warning">Faturalar ve İptal</button>
           <a class="btn btn-warning" href="/pricing">Planı Yükselt</a>
         </article>
@@ -38,6 +40,7 @@ export async function renderSettingsPage(container: HTMLElement): Promise<void> 
     </section>`);
 
   const alert = container.querySelector<HTMLElement>('#settings-alert')!;
+  void loadSubscriptionState(container);
   container.querySelector('#settings-save')?.addEventListener('click', async () => {
     const ok = await auth.updateSettings({
       default_symbol: container.querySelector<HTMLInputElement>('#settings-symbol')!.value.trim(),
@@ -54,9 +57,26 @@ export async function renderSettingsPage(container: HTMLElement): Promise<void> 
   });
 
   container.querySelector('#billing-portal')?.addEventListener('click', async () => {
+    analytics.track('billing_portal_clicked', { plan: user.role });
     const res = await fetch('/api/payments/portal', { method: 'POST', credentials: 'include' });
     const body = await res.json();
     if (res.ok && body.data?.portal_url) window.location.href = body.data.portal_url;
-    else showInlineMessage(alert, body.detail?.tr || 'Faturalama portalı açılamadı.', 'danger');
+    else showInlineMessage(alert, body.detail?.tr || 'Faturalama portalı şu an bağlı değil. Stripe canlı portal ayarları tamamlandığında buradan faturalar ve iptal işlemleri açılır.', 'danger');
   });
+}
+
+async function loadSubscriptionState(container: HTMLElement): Promise<void> {
+  const target = container.querySelector<HTMLElement>('#subscription-state');
+  if (!target) return;
+  try {
+    const res = await fetch('/api/payments/subscription', { credentials: 'include' });
+    const body = await res.json();
+    if (!res.ok || !body.data) throw new Error('Abonelik bilgisi yok.');
+    const sub = body.data as Record<string, string | number | null>;
+    target.innerHTML = `
+      <strong>${String(sub['status'] || 'aktif değil')}</strong>
+      <small>${sub['current_period_end'] ? `Sonraki dönem: ${String(sub['current_period_end'])}` : 'Canlı Stripe aboneliği bulunamadı.'}</small>`;
+  } catch {
+    target.innerHTML = '<strong>Billing entegrasyonu beklemede</strong><small>Plan bilgisi hesabınızdan okunur; fatura portalı canlı Stripe ayarları sonrası açılır.</small>';
+  }
 }

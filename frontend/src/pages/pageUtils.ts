@@ -1,6 +1,13 @@
 import { auth } from '../auth/AuthManager.js';
 
 export function pageShell(title: string, body: string, active = ''): string {
+  const isLoggedIn = !!auth.user;
+  const navLinks = isLoggedIn
+    ? `<a href="/app">Terminale Git</a>
+       <a class="btn btn-outline-warning btn-sm" href="/settings">Ayarlar</a>`
+    : `<a href="/login">Giriş Yap</a>
+       <a class="btn btn-warning btn-sm" href="/register">Ücretsiz Başla</a>`;
+
   return `
     <div class="public-page">
       <header class="public-nav">
@@ -9,8 +16,7 @@ export function pageShell(title: string, body: string, active = ''): string {
         </a>
         <nav>
           <a class="${active === 'pricing' ? 'active' : ''}" href="/pricing">Fiyatlandırma</a>
-          <a href="/login">Giriş Yap</a>
-          <a class="btn btn-warning btn-sm" href="/register">Ücretsiz Başla</a>
+          ${navLinks}
         </nav>
       </header>
       <main class="public-main" aria-label="${escapeHtml(title)}">${body}</main>

@@ -151,6 +151,17 @@
 - [x] `POST /api/auth/register` server-side şifre gücü doğrulaması yapacak şekilde güncellendi.
 - [x] Hedefli backend doğrulama: `tests/unit/test_api_endpoints.py` → 11 passed.
 
+## ✅ Frontend Ürün Akışı ve Kabul QA Paketi (2026-05-16)
+
+- [x] Landing, pricing, login/register, payment success, waitlist, shared 404, settings ve admin ekranlarında kullanıcı-facing boş/hata durumları profesyonel dile çekildi.
+- [x] Admin panelde kullanıcı, abonelik, veri kalitesi ve audit log ekranları skeleton + empty state + yetki UX ile kullanılabilir hale getirildi.
+- [x] Settings abonelik alanı canlı Stripe bilgisi yokken net bekleme durumu gösteriyor; billing portal hatası kullanıcı aksiyonu gerektiren entegrasyon olarak mesajlanıyor.
+- [x] Analytics helper gerçek olaylara bağlandı: page view, signup/login, upgrade click, billing portal, waitlist ve shared 404.
+- [x] PWA statik service worker eklendi; API ve WebSocket istekleri cache kapsamı dışında bırakıldı.
+- [x] `cd frontend && npm run typecheck` başarılı.
+- [x] `cd frontend && npm run build` başarılı; build chunk uyarısı geri gelmedi.
+- [x] Playwright/Chromium smoke QA desktop ve 390px mobil viewportlarda `/`, `/pricing`, `/login`, `/register`, `/app` sekmeleri, `/settings`, `/admin`, `/shared/olmayan-slug`, legal sayfalar, waitlist ve payment success için çalıştırıldı.
+
 ---
 
 ## ✅ Güvenlik ve Deployment Altyapısı

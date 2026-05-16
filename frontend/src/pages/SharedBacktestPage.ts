@@ -1,4 +1,5 @@
 import { pageShell, escapeHtml } from './pageUtils.js';
+import { analytics } from '../core/Analytics.js';
 
 export async function renderSharedBacktestPage(container: HTMLElement): Promise<void> {
   const slug = window.location.pathname.split('/').pop() || '';
@@ -25,6 +26,7 @@ export async function renderSharedBacktestPage(container: HTMLElement): Promise<
     status.textContent = `Run ID: ${runId}`;
     out.textContent = escapeHtml(JSON.stringify(report, null, 2));
   } catch (err) {
+    analytics.track('shared_backtest_not_found', { slug });
     status.textContent = err instanceof Error
       ? 'Bu paylaşım bulunamadı veya süresi doldu.'
       : 'Paylaşım yüklenemedi.';

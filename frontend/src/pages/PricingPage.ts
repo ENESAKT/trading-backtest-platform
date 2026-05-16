@@ -1,4 +1,5 @@
 import { auth } from '../auth/AuthManager.js';
+import { analytics } from '../core/Analytics.js';
 import { pageShell, showInlineMessage } from './pageUtils.js';
 
 const plans = [
@@ -42,6 +43,7 @@ export function renderPricingPage(container: HTMLElement): void {
   container.querySelectorAll<HTMLButtonElement>('[data-plan]').forEach((btn) => {
     btn.addEventListener('click', async () => {
       const plan = btn.dataset['plan'] || 'free';
+      analytics.track('upgrade_clicked', { plan, billing });
       if (plan === 'free') {
         window.location.href = '/register';
         return;
@@ -65,7 +67,7 @@ export function renderPricingPage(container: HTMLElement): void {
         if (!res.ok || !body.data?.checkout_url) throw new Error(body.detail?.tr || 'Checkout başlatılamadı.');
         window.location.href = body.data.checkout_url;
       } catch (err) {
-        showInlineMessage(alert, err instanceof Error ? err.message : 'Checkout başlatılamadı.', 'danger');
+        showInlineMessage(alert, err instanceof Error ? err.message : 'Stripe checkout şu an açılamıyor. Canlı ürün anahtarları tanımlandığında bu akış otomatik çalışır.', 'danger');
         btn.disabled = false;
         btn.textContent = plan === 'pro' ? "Pro'ya Geç" : 'Ultra Ol';
       }

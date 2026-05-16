@@ -1,4 +1,5 @@
 import { pageShell, showInlineMessage } from './pageUtils.js';
+import { analytics } from '../core/Analytics.js';
 
 export function renderWaitlistPage(container: HTMLElement): void {
   container.innerHTML = pageShell('Waitlist', `
@@ -25,10 +26,11 @@ export function renderWaitlistPage(container: HTMLElement): void {
     });
     const body = await res.json();
     if (res.ok) {
+      analytics.track('waitlist_joined', { source: 'waitlist_page' });
       showInlineMessage(alert, 'Listeye eklendiniz. Teşekkürler.', 'success');
       container.querySelector('#waitlist-count')!.textContent = `${body.data?.count || 1} kişi kaydoldu.`;
     } else {
-      showInlineMessage(alert, 'Kayıt alınamadı.', 'danger');
+      showInlineMessage(alert, body.detail?.tr || 'Erken erişim servisi şu an hazır değil. E-posta listeniz canlı backend bağlandığında alınacak.', 'danger');
     }
   });
 }

@@ -212,6 +212,26 @@ GET http://127.0.0.1:8000/api/shared/demo-slug
 Sonuç: 404 Not Found, UI boş durum iyileştirilmeli
 ```
 
+## QA Sonrası Not — 2026-05-16 Frontend Ürün Akışı
+
+Yeni smoke QA `http://127.0.0.1:5173` üzerinde Playwright/Chromium ile desktop `1440x900` ve mobil `390x844` viewportlarda çalıştırıldı.
+
+Kontrol edilen rotalar:
+- `/`, `/pricing`, `/login`, `/register`
+- `/app?tab=chart`, `portfolio`, `strategy`, `screener`, `signals`, `education`, `financials`, `news`
+- `/settings`, `/admin`, `/shared/olmayan-slug`
+- `/legal/terms`, `/legal/privacy`, `/legal/cookies`
+- `/waitlist`, `/payment/success`
+
+Sonuç:
+- Public sayfalarda `#app-layout` veya `#topbar` terminal DOM sızıntısı görülmedi.
+- Desktop ve 390px mobilde yatay overflow bulunmadı.
+- `#app-error-banner` görünür kalmadı.
+- `/settings` ve `/admin` oturumsuz durumda net "Oturum gerekli" ekranı veriyor.
+- `/shared/olmayan-slug` ürün dilinde 404/empty state gösteriyor.
+- Konsoldaki `401 Unauthorized` ve `404 Not Found` kayıtları auth koruması ve olmayan shared slug için beklenen sonuçlar olarak değerlendirildi.
+- `npm run typecheck` ve `npm run build` başarılı; 500 kB chunk uyarısı geri gelmedi.
+
 ## Öncelikli İyileştirme Sırası
 
 1. Public route ve terminal app shell izolasyonunu düzelt.

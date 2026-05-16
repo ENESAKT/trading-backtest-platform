@@ -23,29 +23,29 @@
 | [Bölüm 1 — Marka ve Domain Tutarlılığı](#bölüm-1--marka-ve-domain-tutarlılığı) | [x] | 100% | 0% | SEO/meta/domain temizliği yapıldı |
 | [Bölüm 2 — Kullanıcı Rol ve Yetki Sistemi](#bölüm-2--kullanıcı-rol-ve-yetki-sistemi) | [x] | 100% | 0% | Migration 007 lokal DB'ye uygulandı; plan tabloları oluştu |
 | [Bölüm 3 — Backend Auth Modülü](#bölüm-3--backend-auth-modülü) | [ ] | 80% | 20% | Register/login/me çalışıyor; trial kararı net, şifre policy eklendi; endpoint guard kapsam testi kaldı |
-| [Bölüm 4 — Ekran Tasarımları](#bölüm-4--ekran-tasarımları-wireframe-düzeyinde) | [ ] | 75% | 25% | Public/auth/legal/admin/settings sayfaları var; son UX cilası kaldı |
+| [Bölüm 4 — Ekran Tasarımları](#bölüm-4--ekran-tasarımları-wireframe-düzeyinde) | [ ] | 90% | 10% | Public/auth/legal/admin/settings sayfaları QA edildi; dış entegrasyonlu uç akışlar kaldı |
 | [Bölüm 5 — Ödeme Sistemi](#bölüm-5--ödeme-sistemi-stripe) | [ ] | 40% | 60% | Backend/frontend iskeleti var; canlı Stripe ürünleri ve webhook doğrulaması kaldı |
-| [Bölüm 6 — Admin Yönetim Paneli](#bölüm-6--admin-yönetim-paneli) | [ ] | 40% | 60% | API ve panel iskeleti var; gerçek veri, filtre, detay aksiyonları test edilmeli |
-| [Bölüm 7 — Ödeme Sonrası ve Plan Yönetimi](#bölüm-7--ödeme-sonrası-ve-plan-yönetimi-frontend) | [ ] | 45% | 55% | Success/settings ekranları var; billing portal ve abonelik yaşam döngüsü kaldı |
-| [Bölüm 8 — i18n ve Hukuki Sayfalar](#bölüm-8--i18n-ve-hukuki-sayfalar) | [ ] | 65% | 35% | Legal/cookie/i18n iskeleti var; tüm metinlerin i18n'e taşınması kaldı |
+| [Bölüm 6 — Admin Yönetim Paneli](#bölüm-6--admin-yönetim-paneli) | [ ] | 75% | 25% | Panel kullanılabilir empty state, skeleton, yetki UX ve health veri kalitesiyle cilalandı; detay aksiyonları canlı API verisi bekliyor |
+| [Bölüm 7 — Ödeme Sonrası ve Plan Yönetimi](#bölüm-7--ödeme-sonrası-ve-plan-yönetimi-frontend) | [ ] | 75% | 25% | Success/settings/billing portal UI profesyonel bekleme durumlarıyla tamamlandı; canlı Stripe uçtan uca test kaldı |
+| [Bölüm 8 — i18n ve Hukuki Sayfalar](#bölüm-8--i18n-ve-hukuki-sayfalar) | [ ] | 78% | 22% | Legal/cookie/i18n risk dili tutarlı; en görünür CTA ve auth olayları düzenlendi; tüm terminal metinlerinin i18n'e taşınması kaldı |
 | [Bölüm 9 — Mevcut UI Hataları](#bölüm-9--mevcut-ui-hataları) | [x] | 100% | 0% | Web UX QA blocker paketi kapandı; code splitting sonrası build uyarısı yok |
 | [Bölüm 10 — Mobil Uygulama Planı](#bölüm-10--mobil-uygulama-planı-flutter) | [ ] | 10% | 90% | Mimari plan var; Flutter uygulama henüz başlamadı |
 | [Bölüm 11 — ClickHouse + Veri Platformu](#bölüm-11--clickhouse--veri-platformu-tamamlama) | [ ] | 35% | 65% | Şemalar var; facade bağlantısı ve veri badge üretim entegrasyonu kaldı |
 | [Bölüm 12 — CI/CD ve Deployment](#bölüm-12--cicd-ve-deployment) | [ ] | 55% | 45% | CI/migration/readiness iskeleti var; gerçek pipeline ve release pratiği kaldı |
 | [Bölüm 13 — Error Tracking ve Monitoring](#bölüm-13--error-tracking-ve-monitoring) | [ ] | 55% | 45% | Sentry/Grafana iskeleti var; canlı DSN/dashboard/alert kaldı |
-| [Bölüm 14 — Kabul Testi Checklist](#bölüm-14--kabul-testi-checklist) | [ ] | 30% | 70% | Browser QA başladı; tüm checklist henüz kapanmadı |
+| [Bölüm 14 — Kabul Testi Checklist](#bölüm-14--kabul-testi-checklist) | [ ] | 55% | 45% | Desktop ve 390px Playwright smoke QA yapıldı; canlı domain/Stripe/Sentry/Flutter ve backend uç kabul testleri kaldı |
 | [Bölüm 15 — AWS Deployment](#bölüm-15--aws-deployment-eu-central-1-frankfurt) | [ ] | 10% | 90% | Plan hazır; canlı AWS kurulum yapılmadı |
-| [Bölüm 16 — Eksik / Atlanan Teknik Maddeler](#bölüm-16--eksik--atlanan-teknik-maddeler) | [ ] | 62% | 38% | OAuth state, token blacklist, password policy, 2FA ve login brute-force maddeleri kapatıldı |
-| [Bölüm 17 — Proje Büyütme Yol Haritası](#bölüm-17--proje-büyütme-yol-haritası) | [ ] | 25% | 75% | Waitlist/referral/growth iskeleti var; pazarlama/komünite işleri kaldı |
-| **GENEL TOPLAM** | [ ] | **50%** | **50%** | Web UX blocker ve ilk auth güvenlik paketi kapandı; dış erişim ve production altyapı işleri kaldı |
+| [Bölüm 16 — Eksik / Atlanan Teknik Maddeler](#bölüm-16--eksik--atlanan-teknik-maddeler) | [ ] | 72% | 28% | Analytics eventleri, error boundary, skeleton ve PWA/offline statik asset desteği bağlandı |
+| [Bölüm 17 — Proje Büyütme Yol Haritası](#bölüm-17--proje-büyütme-yol-haritası) | [ ] | 40% | 60% | Waitlist/growth sayfaları gerçekçi bekleme dili ve analytics ile kullanılabilir hale geldi; kanal/blog/komünite işleri kaldı |
+| **GENEL TOPLAM** | [ ] | **56%** | **44%** | Frontend kullanıcı yüzeyi, smoke QA, analytics ve PWA paketi tamamlandı; canlı dış entegrasyon ve platform işleri kaldı |
 
 ### Oturum Sonu Güncelleme Kuralları
 
-- [ ] `YAPILACAKLAR.md` en üstündeki genel yüzde güncellendi.
-- [ ] İlgili bölümün ilerleme yüzdesi güncellendi.
-- [ ] Bitmiş görevlerin başındaki checkbox `[x]` yapıldı.
-- [ ] Bitmiş işler `YAPILANLAR.md` içine kısa ve tarihli şekilde yazıldı.
-- [ ] Test/QA sonucu varsa kabul kriterinin altına yazıldı.
+- [x] `YAPILACAKLAR.md` en üstündeki genel yüzde güncellendi.
+- [x] İlgili bölümün ilerleme yüzdesi güncellendi.
+- [x] Bitmiş görevlerin başındaki checkbox `[x]` yapıldı.
+- [x] Bitmiş işler `YAPILANLAR.md` içine kısa ve tarihli şekilde yazıldı.
+- [x] Test/QA sonucu varsa kabul kriterinin altına yazıldı.
 - [ ] Yeni hata bulunduysa ilgili bölümün altına açık görev olarak eklendi.
 
 ### Son Durum Notu — 2026-05-16
@@ -58,6 +58,9 @@
 - [x] Yeni kayıt olan kullanıcının otomatik `pro` trial alması ürün kararı netleştirildi: 14 günlük Pro trial kalacak; email ve OAuth kayıtlarında uygulanacak.
 - [ ] Stripe canlı ürün/price id ve webhook secret ile uçtan uca ödeme testi yapılacak.
 - [ ] AWS canlı deployment, DNS ve TLS doğrulaması yapılacak.
+- [x] Frontend ürün yüzeyi QA paketi tamamlandı: public/protected/legal/terminal route'larında desktop ve 390px mobil smoke test yapıldı.
+- [x] Analytics helper gerçek kullanıcı olaylarına bağlandı: page view, signup/login, upgrade, billing portal, waitlist ve shared 404.
+- [x] PWA statik service worker eklendi; API/WS istekleri cache dışı bırakıldı.
 
 ---
 
@@ -2193,7 +2196,7 @@ Bu kontroller tüm bölümler tamamlandıktan sonra çalıştırılır.
 ```
 [ ] piyasapilotu.com HTTPS üzerinden açılıyor (TLS geçerli)
 [ ] www.piyasapilotu.com → piyasapilotu.com'a yönleniyor (301)
-[ ] Misafir → landing page görüyor, terminale erişemiyor
+[x] Misafir → landing page görüyor, terminale erişemiyor
 [ ] Gmail ile kayıt → email doğrulama → onboarding → terminal
 [ ] Email/şifre ile kayıt → aynı akış
 [ ] Giriş yapılmış → /api/v2/candles 200, cookie Bearer ile
@@ -2202,15 +2205,15 @@ Bu kontroller tüm bölümler tamamlandıktan sonra çalıştırılır.
 [ ] Free kullanıcı 5 backtest yapar → 6.'da 429 alıyor
 [ ] Logout → cookie silindi, refresh token DB'de revoked
 [ ] Pro ödeme → Stripe checkout → success → plan değişti
-[ ] Admin paneli → /admin sadece admin rolüyle açılıyor
+[x] Admin paneli → /admin sadece admin rolüyle açılıyor
 [ ] Kullanıcı hesap sil → GDPR cascade temizliği
 [ ] BIST hisse yükle → 🟡 Gecikmeli badge
 [ ] Grafik timeframe değişiminde siyah ekran yok
-[ ] Koyu temada tablolar okunabilir
-[ ] /legal/terms açılıyor, risk uyarısı footer'da
-[ ] Cookie banner görünüyor
+[x] Koyu temada tablolar okunabilir
+[x] /legal/terms açılıyor, risk uyarısı footer'da
+[x] Cookie banner görünüyor
 [ ] python -m pytest -q → tüm yeşil
-[ ] cd frontend && npm run typecheck → sıfır hata
+[x] cd frontend && npm run typecheck → sıfır hata
 [ ] python scripts/check_deployment_readiness.py → tüm PASS
 [ ] Sentry'de test exception görünüyor
 [ ] Flutter app → login → BTCUSDT grafiği yükleniyor

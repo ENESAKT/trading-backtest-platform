@@ -3,6 +3,7 @@
  */
 
 import { auth } from './AuthManager.js';
+import { analytics } from '../core/Analytics.js';
 
 export function renderRegisterPage(container: HTMLElement): void {
   container.innerHTML = `
@@ -172,6 +173,7 @@ export function renderRegisterPage(container: HTMLElement): void {
 
     const result = await auth.register(email, pw1Val, name);
     if (result.ok) {
+      analytics.track('signup_completed', { method: 'email' });
       form.classList.add('d-none');
       success.textContent = '📬 E-posta kutunuzu kontrol edin. Doğrulama bağlantısı gönderildi.';
       success.classList.remove('d-none');

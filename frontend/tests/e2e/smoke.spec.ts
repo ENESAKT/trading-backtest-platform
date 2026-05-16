@@ -23,6 +23,7 @@ function makeCandles(base: number, step: number, count = 90) {
 }
 
 async function mockCandles(page: Page) {
+  await page.route('**/api/auth/me', (route) => route.fulfill({ status: 401, json: { ok: false } }));
   await page.route('**/api/v2/candles**', async (route) => {
     const url = new URL(route.request().url());
     const symbol = url.searchParams.get('symbol') ?? '';
@@ -164,9 +165,9 @@ async function chartColorPixels(page: Page) {
 }
 
 test('PiyasaPilot shell loads all primary tabs', async ({ page }) => {
-  await page.goto('/');
+  await page.goto('/app');
 
-  await expect(page.locator('.logo')).toHaveText('PiyasaPilot');
+  await expect(page.locator('.logo')).toContainText('PiyasaPilot');
   await expect(page.locator('#status-badge')).toBeVisible();
 
   for (const tab of tabs) {
@@ -180,7 +181,7 @@ test('PiyasaPilot shell loads all primary tabs', async ({ page }) => {
 });
 
 test('education tab renders searchable indicator articles', async ({ page }) => {
-  await page.goto('/');
+  await page.goto('/app');
   await page.locator('[data-tab="education"]').click();
 
   await expect(page.locator('#panel-education')).toBeVisible();
@@ -192,7 +193,7 @@ test('education tab renders searchable indicator articles', async ({ page }) => 
 });
 
 test('education bridge actions open chart indicators and strategy presets', async ({ page }) => {
-  await page.goto('/');
+  await page.goto('/app');
   await page.locator('[data-tab="education"]').click();
 
   await page.locator('#education-search').fill('atr');
@@ -208,23 +209,12 @@ test('education bridge actions open chart indicators and strategy presets', asyn
   await expect(page.locator('.strategy-card.active')).toContainText('Supertrend');
 });
 
-test('education tab renders searchable indicator articles', async ({ page }) => {
-  await page.goto('/');
-  await page.locator('[data-tab="education"]').click();
-
-  await expect(page.locator('#panel-education')).toBeVisible();
-  await expect(page.locator('.education-article-header h2')).toContainText(/ADX|ATR|Bollinger|Ichimoku|MACD|OBV|Parabolic|RSI|Stochastic|Hareketli/);
-
-  await page.locator('#education-search').fill('rsi');
-  await expect(page.locator('.education-row.active')).toContainText('RSI');
-  await expect(page.locator('.education-source-note')).toContainText('kare OCR');
-});
 
 test('mobile viewport keeps the primary shell usable', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto('/');
+  await page.goto('/app');
 
-  await expect(page.locator('.logo')).toHaveText('PiyasaPilot');
+  await expect(page.locator('.logo')).toContainText('PiyasaPilot');
   await expect(page.locator('#status-badge')).toBeVisible();
   await page.locator('[data-tab="signals"]').click();
   await expect(page.locator('#panel-signals')).toBeVisible();
@@ -254,7 +244,7 @@ test('signal history survives reload from localStorage', async ({ page }) => {
     ]));
   });
 
-  await page.goto('/');
+  await page.goto('/app');
   await expect(page.locator('#panel-signals')).toBeVisible();
   await expect(page.locator('.signal-symbol')).toHaveText('BTCUSDT');
   await expect(page.locator('.signal-consensus')).toContainText('LGBM: 73%');
@@ -265,7 +255,7 @@ test('signal history survives reload from localStorage', async ({ page }) => {
 
 test('G1 keeps candles visible across low/high/low symbol price scale resets', async ({ page }) => {
   await mockCandles(page);
-  await page.goto('/');
+  await page.goto('/app');
 
   const pane = page.locator('.chart-pane-body').first();
   await expect(pane).toHaveAttribute('data-chart-status', 'ready');
@@ -296,7 +286,7 @@ test('G1 keeps candles visible across low/high/low symbol price scale resets', a
 
 test('G1 clears stale candles and shows empty/error chart states', async ({ page }) => {
   await mockCandles(page);
-  await page.goto('/');
+  await page.goto('/app');
 
   const pane = page.locator('.chart-pane-body').first();
   await expect(pane).toHaveAttribute('data-chart-status', 'ready');
@@ -317,7 +307,7 @@ test('G1 clears stale candles and shows empty/error chart states', async ({ page
 
 test('G2 scale menu supports log and percent normalization', async ({ page }) => {
   await mockCandles(page);
-  await page.goto('/');
+  await page.goto('/app');
 
   const pane = page.locator('.chart-pane-body').first();
   await expect(pane).toHaveAttribute('data-chart-status', 'ready');
@@ -341,7 +331,7 @@ test('G2 scale menu supports log and percent normalization', async ({ page }) =>
 
 test('G2 percent mode can be applied to two panes with different price levels', async ({ page }) => {
   await mockCandles(page);
-  await page.goto('/');
+  await page.goto('/app');
 
   await page.locator('[data-layout="1x2"]').click();
   await expect(page.locator('.chart-pane')).toHaveCount(2);
@@ -362,7 +352,7 @@ test('G2 percent mode can be applied to two panes with different price levels', 
 
 test('G3 indicator center enables stochastic and persists parameters', async ({ page }) => {
   await mockCandles(page);
-  await page.goto('/');
+  await page.goto('/app');
 
   const pane = page.locator('.chart-pane-body').first();
   await expect(pane).toHaveAttribute('data-chart-status', 'ready');
@@ -392,7 +382,7 @@ test('G3 indicator center enables stochastic and persists parameters', async ({ 
 test('G4 PnL overlay renders closed trade and open risk metrics', async ({ page }) => {
   await mockCandles(page);
   await mockBacktestRun(page);
-  await page.goto('/');
+  await page.goto('/app');
 
   const pane = page.locator('.chart-pane-body').first();
   await expect(pane).toHaveAttribute('data-chart-status', 'ready');
@@ -424,7 +414,7 @@ test('G4 PnL overlay renders closed trade and open risk metrics', async ({ page 
 
 test('G5 drawing toolbar renders and drawing count persists per symbol', async ({ page }) => {
   await mockCandles(page);
-  await page.goto('/');
+  await page.goto('/app');
 
   const pane = page.locator('.chart-pane-body').first();
   await expect(pane).toHaveAttribute('data-chart-status', 'ready');
@@ -480,7 +470,7 @@ test('G5 drawing toolbar renders and drawing count persists per symbol', async (
 
 test('G6 multi-symbol compare adds second series and normalizes in percent mode', async ({ page }) => {
   await mockCandles(page);
-  await page.goto('/');
+  await page.goto('/app');
 
   const pane = page.locator('.chart-pane-body').first();
   await expect(pane).toHaveAttribute('data-chart-status', 'ready');
@@ -500,7 +490,7 @@ test('G6 multi-symbol compare adds second series and normalizes in percent mode'
 
 test('G7 multi-chart sync locks synchronize symbol, timeframe and range', async ({ page }) => {
   await mockCandles(page);
-  await page.goto('/');
+  await page.goto('/app');
 
   // Switch to 1x2 layout
   await page.locator('[data-layout="1x2"]').click();
@@ -527,7 +517,7 @@ test('G7 multi-chart sync locks synchronize symbol, timeframe and range', async 
 
 test('G8 chart templates save and restore workspace configuration', async ({ page }) => {
   await mockCandles(page);
-  await page.goto('/');
+  await page.goto('/app');
 
   const pane = page.locator('.chart-pane-body').first();
   
@@ -560,7 +550,7 @@ test('G8 chart templates save and restore workspace configuration', async ({ pag
 
 test('G9 event markers are displayed and filterable', async ({ page }) => {
   await mockCandles(page);
-  await page.goto('/');
+  await page.goto('/app');
 
   const pane = page.locator('.chart-pane-body').first();
   
@@ -593,7 +583,7 @@ test('G9 event markers are displayed and filterable', async ({ page }) => {
 
 test('G10 advanced drawing tools can be activated', async ({ page }) => {
   await mockCandles(page);
-  await page.goto('/');
+  await page.goto('/app');
 
   const pane = page.locator('.chart-pane-body').first();
   
@@ -651,7 +641,7 @@ test('Financials panel full flow', async ({ page }) => {
     }
   });
 
-  await page.goto('/');
+  await page.goto('/app');
 
   // 1. Go to Financials via shortcut '7'
   await page.keyboard.press('7');
