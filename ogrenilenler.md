@@ -16,3 +16,9 @@
 - Billing router (`/api/billing/*`) oluşturuldu. `STRIPE_SECRET_KEY` yokken tüm endpoint'ler 503 döndürür — graceful degradation. SQLite `stripe_events` tablosu ile webhook idempotency sağlanıyor.
 - Email template'leri Jinja2 + inline CSS ile yeniden tasarlandı. Marka renkleri: `#0f1117` (arka plan), `#ffb020` (accent), `#e2e8f0` (metin). `payment_success.html` yeni oluşturuldu.
 - `SQLitePool` thread-safe connection pool modülü (`backend/db/pool.py`) oluşturuldu. WAL modu, busy_timeout, cache_size pragmaları varsayılan. `/api/health` endpoint'i artık `db_pools` istatistiklerini döndürüyor.
+
+## Test / E2E
+- Playwright E2E testlerinde `selectOption` komutunun düzgün çalışması için öncesinde mutlaka `focus()` çağrılmalıdır, aksi takdirde testler timeout'a düşmektedir.
+- Lightweight-charts kütüphanesi DOM'a birden fazla canvas elementi eklediğinden, chart görünürlük testlerinde `locator('canvas')` yerine `locator('canvas').first()` kullanılarak Strict Mode ihlalleri önlenmiştir.
+- `/api/auth/me` endpoint'i mocklanırken FastAPI backend'inin standart payload yapısına uygun olarak kullanıcı objesi `user` anahtarı yerine `data` anahtarı içerisinde döndürülmelidir. Aksi takdirde frontend auth layer, kullanıcıyı `guest` olarak işaretleyip premium özellikleri (Plan Gate) kilitler.
+- Yeni client-side screener (DataEngine Cache tabanlı) mimarisinde, screener tablosunun taranıp gösterilebilmesi için ilgili sembollerin `/api/v2/candles` geçmiş verilerinin test ortamında `waitForResponse` ile önceden yüklendiğinden emin olunmalıdır.

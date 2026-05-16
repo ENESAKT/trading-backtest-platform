@@ -23,7 +23,10 @@ function makeCandles(base: number, step: number, count = 90) {
 }
 
 async function mockCandles(page: Page) {
-  await page.route('**/api/auth/me', (route) => route.fulfill({ status: 401, json: { ok: false } }));
+  await page.route('**/api/auth/me', (route) => route.fulfill({ 
+    status: 200, 
+    json: { ok: true, data: { id: 1, email: 'test@example.com', role: 'pro', display_name: 'Test' } } 
+  }));
   await page.route('**/api/v2/candles**', async (route) => {
     const url = new URL(route.request().url());
     const symbol = url.searchParams.get('symbol') ?? '';
@@ -260,6 +263,7 @@ test('G1 keeps candles visible across low/high/low symbol price scale resets', a
   const pane = page.locator('.chart-pane-body').first();
   await expect(pane).toHaveAttribute('data-chart-status', 'ready');
 
+  await page.locator('.pane-symbol-select').first().focus();
   await page.locator('.pane-symbol-select').first().selectOption('AKBNK.IS');
   await expect(pane).toHaveAttribute('data-chart-symbol', 'AKBNK.IS');
   await expect(pane).toHaveAttribute('data-chart-status', 'ready');
@@ -267,6 +271,7 @@ test('G1 keeps candles visible across low/high/low symbol price scale resets', a
   await expect(pane).toHaveAttribute('data-last-price', /1[67]\./);
   await expect.poll(() => chartColorPixels(page)).toBeGreaterThan(250);
 
+  await page.locator('.pane-symbol-select').first().focus();
   await page.locator('.pane-symbol-select').first().selectOption('BTCUSDT');
   await expect(pane).toHaveAttribute('data-chart-symbol', 'BTCUSDT');
   await expect(pane).toHaveAttribute('data-chart-status', 'ready');
@@ -275,6 +280,7 @@ test('G1 keeps candles visible across low/high/low symbol price scale resets', a
   expect(highReset).toBeGreaterThan(lowReset);
   await expect.poll(() => chartColorPixels(page)).toBeGreaterThan(250);
 
+  await page.locator('.pane-symbol-select').first().focus();
   await page.locator('.pane-symbol-select').first().selectOption('AKBNK.IS');
   await expect(pane).toHaveAttribute('data-chart-symbol', 'AKBNK.IS');
   await expect(pane).toHaveAttribute('data-chart-status', 'ready');
@@ -293,12 +299,14 @@ test('G1 clears stale candles and shows empty/error chart states', async ({ page
   await expect.poll(() => chartColorPixels(page)).toBeGreaterThan(250);
   const readyPixels = await chartColorPixels(page);
 
+  await page.locator('.pane-symbol-select').first().focus();
   await page.locator('.pane-symbol-select').first().selectOption('USDTRY=X');
   await expect(pane).toHaveAttribute('data-chart-status', 'empty');
   await expect(page.locator('.chart-state-overlay').first()).toContainText('Veri yok');
   await expect(pane).toHaveAttribute('data-last-price', '');
   expect(await chartColorPixels(page)).toBeLessThan(readyPixels);
 
+  await page.locator('.pane-symbol-select').first().focus();
   await page.locator('.pane-symbol-select').first().selectOption('VIOP:USDTRY');
   await expect(pane).toHaveAttribute('data-chart-status', 'error');
   await expect(page.locator('.chart-state-overlay').first()).toContainText('Bağlantı hatası');
@@ -336,8 +344,10 @@ test('G2 percent mode can be applied to two panes with different price levels', 
   await page.locator('[data-layout="1x2"]').click();
   await expect(page.locator('.chart-pane')).toHaveCount(2);
 
+  await page.locator('.pane-symbol-select').first().focus();
   await page.locator('.pane-symbol-select').first().selectOption('AKBNK.IS');
   await expect(page.locator('.chart-pane-body').first()).toHaveAttribute('data-chart-status', 'ready');
+  await page.locator('.pane-symbol-select').nth(1).focus();
   await page.locator('.pane-symbol-select').nth(1).selectOption('BTCUSDT');
   await expect(page.locator('.chart-pane-body').nth(1)).toHaveAttribute('data-chart-status', 'ready');
 
@@ -387,10 +397,12 @@ test('G4 PnL overlay renders closed trade and open risk metrics', async ({ page 
   const pane = page.locator('.chart-pane-body').first();
   await expect(pane).toHaveAttribute('data-chart-status', 'ready');
 
+  await page.locator('.pane-symbol-select').first().focus();
   await page.locator('.pane-symbol-select').first().selectOption('AKBNK.IS');
   await expect(pane).toHaveAttribute('data-chart-symbol', 'AKBNK.IS');
   await expect(pane).toHaveAttribute('data-bist-limit-status', 'active');
 
+  await page.locator('.pane-symbol-select').first().focus();
   await page.locator('.pane-symbol-select').first().selectOption('BTCUSDT');
   await expect(pane).toHaveAttribute('data-chart-symbol', 'BTCUSDT');
   await page.locator('[data-tab="strategy"]').click();
@@ -447,11 +459,13 @@ test('G5 drawing toolbar renders and drawing count persists per symbol', async (
   await expect(pane).toHaveAttribute('data-drawing-count', '1');
 
   // Switch symbol — drawing count should reset for new symbol
+  await page.locator('.pane-symbol-select').first().focus();
   await page.locator('.pane-symbol-select').first().selectOption('AKBNK.IS');
   await expect(pane).toHaveAttribute('data-chart-symbol', 'AKBNK.IS');
   await expect(pane).toHaveAttribute('data-drawing-count', '0');
 
   // Switch back — drawing should return
+  await page.locator('.pane-symbol-select').first().focus();
   await page.locator('.pane-symbol-select').first().selectOption('BTCUSDT');
   await expect(pane).toHaveAttribute('data-chart-symbol', 'BTCUSDT');
   await expect(pane).toHaveAttribute('data-drawing-count', '1');
@@ -497,6 +511,7 @@ test('G7 multi-chart sync locks synchronize symbol, timeframe and range', async 
   await expect(page.locator('.chart-pane')).toHaveCount(2);
 
   // Set symbol on first pane (locked by default)
+  await page.locator('.pane-symbol-select').first().focus();
   await page.locator('.pane-symbol-select').first().selectOption('AKBNK.IS');
   await expect(page.locator('.chart-pane-body').first()).toHaveAttribute('data-chart-symbol', 'AKBNK.IS');
   
@@ -508,6 +523,7 @@ test('G7 multi-chart sync locks synchronize symbol, timeframe and range', async 
   await expect(page.locator('.sync-lock-btn[data-lock="symbol"]')).not.toHaveClass(/active/);
 
   // Change symbol on first pane
+  await page.locator('.pane-symbol-select').first().focus();
   await page.locator('.pane-symbol-select').first().selectOption('BTCUSDT');
   await expect(page.locator('.chart-pane-body').first()).toHaveAttribute('data-chart-symbol', 'BTCUSDT');
   

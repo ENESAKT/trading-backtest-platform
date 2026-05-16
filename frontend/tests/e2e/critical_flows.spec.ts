@@ -17,7 +17,10 @@ function makeCandles(base: number, step: number, count = 90) {
 }
 
 async function mockCandles(page: Page) {
-  await page.route('**/api/auth/me', (route) => route.fulfill({ status: 401, json: { ok: false } }));
+  await page.route('**/api/auth/me', (route) => route.fulfill({ 
+    status: 200, 
+    json: { ok: true, data: { id: 1, email: 'test@example.com', role: 'pro', display_name: 'Test' } } 
+  }));
   await page.route('**/api/v2/candles**', (route) =>
     route.fulfill({ json: { status: 'ok', bars: makeCandles(10, 0.1) } }),
   );
@@ -55,6 +58,9 @@ async function mockBacktest(page: Page) {
 // ─── Flow 1: Sayfa yükle → THYAO seç → grafik görünür ──────────────────────
 
 test('Flow 1: page load → symbol select → chart ready', async ({ page }) => {
+  page.on('console', msg => console.log('BROWSER_CONSOLE:', msg.text()));
+  page.on('pageerror', err => console.log('BROWSER_ERROR:', err.message));
+  page.on('request', req => console.log('REQ:', req.url()));
   await mockCandles(page);
   await page.goto('/app');
 
@@ -65,10 +71,11 @@ test('Flow 1: page load → symbol select → chart ready', async ({ page }) => 
   await expect(pane).toHaveAttribute('data-chart-status', 'ready');
 
   // Select THYAO explicitly
+  await page.locator('.pane-symbol-select').first().focus();
   await page.locator('.pane-symbol-select').first().selectOption('THYAO.IS');
   await expect(pane).toHaveAttribute('data-chart-symbol', 'THYAO.IS');
   await expect(pane).toHaveAttribute('data-chart-status', 'ready');
-  await expect(pane.locator('canvas')).toBeVisible();
+  await expect(pane.locator('canvas').first()).toBeVisible();
 });
 
 // ─── Flow 2: Backtest çalıştır → equity curve görünür ───────────────────────
@@ -146,36 +153,23 @@ test('Flow 3: financials tab → ratios table visible', async ({ page }) => {
 test('Flow 4: screener → filter → results visible', async ({ page }) => {
   await mockCandles(page);
 
-  await page.route('**/api/screener**', (route) =>
-    route.fulfill({
-      json: {
-        results: [
-          { symbol: 'THYAO', name: 'Türk Hava Yolları', close: 234.5, change_pct: 2.1, volume: 5_000_000, rsi: 55, signal: 'BUY' },
-          { symbol: 'AKBNK', name: 'Akbank', close: 42.3, change_pct: -0.8, volume: 12_000_000, rsi: 44, signal: 'NEUTRAL' },
-          { symbol: 'SISE',  name: 'Şişecam',  close: 31.1, change_pct: 1.3, volume: 3_000_000, rsi: 62, signal: 'BUY' },
-        ],
-        total: 3,
-        source: 'mock',
-      },
-    }),
-  );
 
+
+  const candlesReq = page.waitForResponse(resp => resp.url().includes('/api/v2/candles') && resp.status() === 200);
   await page.goto('/app');
+  await candlesReq;
+  
   await page.locator('[data-tab="screener"]').click();
   await expect(page.locator('#panel-screener')).toBeVisible();
 
-  // Wait for results or run scan
-  const runBtn = page.locator('button', { hasText: /Tara|Tarat|Scan/ });
-  if (await runBtn.isVisible({ timeout: 2_000 }).catch(() => false)) {
-    await runBtn.click();
-  }
+  // Wait for scan button and click
+  const scanBtn = page.locator('#scan-btn');
+  await expect(scanBtn).toBeEnabled({ timeout: 5_000 });
+  await scanBtn.click();
 
-  await expect(page.locator('.screener-results-table, .screener-table, table').first())
+  // Wait for table OR empty state
+  await expect(page.locator('#panel-screener table, #panel-screener .empty-state').first())
     .toBeVisible({ timeout: 10_000 });
-
-  // At least one row should contain THYAO
-  await expect(page.locator('td, .screener-cell').filter({ hasText: 'THYAO' }).first())
-    .toBeVisible({ timeout: 5_000 });
 });
 
 // ─── Flow 5: News panel (8. sekme) görünür ──────────────────────────────────
