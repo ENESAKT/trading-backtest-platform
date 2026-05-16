@@ -1,12 +1,14 @@
 import { EMA } from './ema';
+import type { OHLCV } from '../types.js';
+import type { IndicatorPoint } from './kairi.js';
 
-export function calculateMOST(data: any[], period: number = 3, percent: number = 2.0): { most: any[], ema: any[] } {
+export function calculateMOST(data: OHLCV[], period: number = 3, percent: number = 2.0): { most: IndicatorPoint[], ema: IndicatorPoint[] } {
   if (data.length < period) return { most: [], ema: [] };
   
   const closes = data.map((d) => d.close);
   const emaArray = EMA(closes, period);
-  const mostResults: any[] = [];
-  const emaResults: any[] = [];
+  const mostResults: IndicatorPoint[] = [];
+  const emaResults: IndicatorPoint[] = [];
   const pct = percent / 100.0;
   
   let trend = 1;

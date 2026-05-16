@@ -9,7 +9,7 @@ import { VWAP } from './vwap.js';
 import { Stochastic } from './stochastic.js';
 import { calculateKairi } from './kairi.js';
 import { calculateMOST } from './most.js';
-import { calculateBBWidth, calculateGMMA } from './ma.js';
+import { calculateBBWidth, calculateGMMA, type GMMAResult } from './ma.js';
 
 export { EMA, SMA, RSI, MACD, BollingerBands, ATR, VWAP, Stochastic, calculateKairi, calculateMOST, calculateBBWidth, calculateGMMA };
 
@@ -65,20 +65,20 @@ export function computeIndicators(
   // Currently, `candles` has `close` field as well which is needed for most/kairi
   const kairiData = calculateKairi(candles, kairiPeriod);
   // Extact just the values to match the number[] signature if IndicatorSet uses number[]
-  const kairiArray = kairiData.map((d: any) => d.value ?? NaN);
+  const kairiArray = kairiData.map((d) => d.value ?? NaN);
 
   const mostData = calculateMOST(candles, mostPeriod, mostPercent);
-  const mostArray = mostData.most.map((d: any) => d.value ?? NaN);
-  const mostEmaArray = mostData.ema.map((d: any) => d.value ?? NaN);
+  const mostArray = mostData.most.map((d) => d.value ?? NaN);
+  const mostEmaArray = mostData.ema.map((d) => d.value ?? NaN);
 
   const bbWidthData = calculateBBWidth(candles, bbPeriod, bbStdDev);
-  const bbWidthArray = bbWidthData.map((d: any) => d.value ?? NaN);
+  const bbWidthArray = bbWidthData.map((d) => d.value ?? NaN);
 
   // GMMA requires an object returning multiple series.
   // We'll leave it out of standard IndicatorSet for now and let ChartPanel handle it manually if selected.
   // Although, if options.gmma is true, we should compute and attach it.
   
-  let gmmaData: any = undefined;
+  let gmmaData: GMMAResult | undefined = undefined;
   if (options.gmma) {
     gmmaData = calculateGMMA(candles);
   }

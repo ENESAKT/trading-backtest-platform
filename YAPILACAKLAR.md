@@ -1679,7 +1679,7 @@ Bu bölümdeki işler bitmeden production kabulü yapılmaz.
 
 **Dosya:** `frontend/src/components/StrategyPanel.ts` (`qw = w as any`) ve diğerleri
 
-- [ ] `any` cast'larını kaldır; uygun interface/type tanımla.
+- [x] `any` cast'larını kaldır; uygun interface/type tanımla.
 
 ---
 
@@ -1687,7 +1687,7 @@ Bu bölümdeki işler bitmeden production kabulü yapılmaz.
 
 **Dosya:** `frontend/src/components/Sidebar.ts`
 
-- [ ] `Sidebar` sınıfına `destroy()` ekle; tüm `IntersectionObserver`'ları `disconnect()` et.
+- [x] `Sidebar` sınıfına `destroy()` ekle; tüm `IntersectionObserver`'ları `disconnect()` et.
 
 ---
 
@@ -1695,7 +1695,7 @@ Bu bölümdeki işler bitmeden production kabulü yapılmaz.
 
 **Dosya:** `frontend/src/components/EgitimlerPanel.ts` — kategori tıklandığında `this.render()` çağrısı
 
-- [ ] Kategori tıklandığında `this.render()` yerine `this.renderResults()` çağır; article scroll pozisyonunu koru.
+- [x] Kategori tıklandığında `this.render()` yerine `this.renderResults()` çağır; article scroll pozisyonunu koru.
 
 ---
 

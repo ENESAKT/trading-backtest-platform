@@ -1801,8 +1801,7 @@ export class StrategyPanel {
         if (typeof w === 'string') {
           return `<div class="warning-item">${this.escape(w)}</div>`;
         }
-        const qw = w as any;
-        return `<div class="warning-item warning-${qw.severity}"><b>[${this.escape(qw.code)}]</b> ${this.escape(qw.message ?? '')}</div>`;
+        return `<div class="warning-item warning-${w.severity}"><b>[${this.escape(w.code)}]</b> ${this.escape(w.message ?? '')}</div>`;
       }).join('')
     }</div>`;
   }

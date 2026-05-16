@@ -1,4 +1,11 @@
-export function calculateKairi(data: any[], period: number = 14): any[] {
+import type { OHLCV } from '../types.js';
+
+export interface IndicatorPoint {
+  time: number;
+  value: number;
+}
+
+export function calculateKairi(data: OHLCV[], period: number = 14): IndicatorPoint[] {
   if (data.length < period) return [];
   
   const results = [];

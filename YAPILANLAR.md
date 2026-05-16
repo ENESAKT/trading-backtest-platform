@@ -174,6 +174,13 @@
 - [x] Daha önce uygulanmış açıklar dokümantasyonda kapatıldı: market ticker kaldırma, G 2×1 döngüsü, strategy mode active, slippage input gizleme, screener cache/timestamp, BIST 30 progress, legend ve Firefox scrollbar.
 - [x] `cd frontend && npm run typecheck` ve `cd frontend && npm run build` başarılı.
 
+## ✅ Frontend Teknik Temizlik 9.37–9.39 (2026-05-16)
+
+- [x] `StrategyPanel` uyarı render akışındaki `any` cast kaldırıldı.
+- [x] Kairi, MOST, BBWidth ve GMMA indikatör yardımcıları `OHLCV`, `IndicatorPoint` ve `GMMAResult` tipleriyle netleştirildi.
+- [x] Sidebar lazy-load `IntersectionObserver` temizliği ve Eğitimler kategori kısmi render davranışı doğrulandı; ilgili checklist maddeleri kapatıldı.
+- [x] `cd frontend && npm run typecheck` ve `cd frontend && npm run build` başarılı.
+
 ---
 
 ## ✅ Güvenlik ve Deployment Altyapısı

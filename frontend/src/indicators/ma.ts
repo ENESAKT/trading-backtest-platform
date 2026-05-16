@@ -1,7 +1,11 @@
 import { EMA } from './ema';
 import { BollingerBands } from './bollinger';
+import type { OHLCV } from '../types.js';
+import type { IndicatorPoint } from './kairi.js';
 
-export function calculateBBWidth(data: any[], period: number = 20, multiplier: number = 2): any[] {
+export type GMMAResult = Record<string, IndicatorPoint[]>;
+
+export function calculateBBWidth(data: OHLCV[], period: number = 20, multiplier: number = 2): IndicatorPoint[] {
   if (data.length < period) return [];
   
   const closes = data.map(d => d.close);
@@ -24,15 +28,12 @@ export function calculateBBWidth(data: any[], period: number = 20, multiplier: n
   return results;
 }
 
-export function calculateGMMA(data: any[]): { 
-  short_3: any[], short_5: any[], short_8: any[], short_10: any[], short_12: any[], short_15: any[],
-  long_30: any[], long_35: any[], long_40: any[], long_45: any[], long_50: any[], long_60: any[] 
-} {
+export function calculateGMMA(data: OHLCV[]): GMMAResult {
   const short_periods = [3, 5, 8, 10, 12, 15];
   const long_periods = [30, 35, 40, 45, 50, 60];
   
   const closes = data.map(d => d.close);
-  const result: any = {};
+  const result: GMMAResult = {};
   
   const all_periods = [...short_periods, ...long_periods];
   for (const p of all_periods) {
