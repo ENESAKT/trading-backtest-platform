@@ -84,7 +84,7 @@ def _fetch_yfinance(symbol: str, limit: int) -> list[dict[str, Any]]:
             pub_iso: str | None = None
             if pub:
                 try:
-                    pub_iso = dt.datetime.fromtimestamp(int(pub), tz=dt.UTC).isoformat()
+                    pub_iso = dt.datetime.fromtimestamp(int(pub), tz=dt.timezone.utc).isoformat()
                 except Exception:
                     pass
             results.append({

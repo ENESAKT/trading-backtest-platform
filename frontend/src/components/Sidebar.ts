@@ -175,7 +175,7 @@ export class Sidebar {
         if (info) favSymbols.push(info);
       });
       if (favSymbols.length > 0) {
-        this.renderGroup({ label: 'Favoriler', flag: '⭐', symbols: favSymbols });
+        this.renderGroup({ label: 'Favoriler', flag: '<svg class="icon-svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>', symbols: favSymbols });
       }
     }
 
@@ -191,10 +191,14 @@ export class Sidebar {
 
     const header = document.createElement('div');
     header.className = `sym-group-header${isLocked ? ' locked' : ''}`;
+    
+    // Check if flag is already an SVG string, otherwise wrap in span
+    const flagHtml = g.flag.includes('<svg') ? g.flag : `<span class="group-flag">${g.flag}</span>`;
+    
     header.innerHTML = `
-      <span class="group-flag">${g.flag}</span>
+      ${flagHtml}
       <span class="group-label">${g.label}</span>
-      ${isLocked ? '<span class="sym-group-lock">🔒 Yükselt</span>' : `<span class="group-chevron">${isCollapsed ? '▶' : '▼'}</span>`}
+      ${isLocked ? '<span class="sym-group-lock"><svg class="icon-svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg> Yükselt</span>' : `<span class="group-chevron">${isCollapsed ? '▶' : '▼'}</span>`}
     `;
 
     if (isLocked) {
@@ -261,8 +265,11 @@ export class Sidebar {
     const el = document.createElement('div');
     el.className = `sym-item${this.activeSymbol === s.symbol ? ' active' : ''}`;
     el.dataset['symbol'] = s.symbol;
+    const starFilled = '<svg class="icon-svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>';
+    const starEmpty = '<svg class="icon-svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>';
+
     el.innerHTML = `
-      <button class="sym-fav${isFav ? ' active' : ''}" type="button" title="${isFav ? 'Favorilerden çıkar' : 'Favorilere ekle'}" aria-label="${isFav ? 'Favorilerden çıkar' : 'Favorilere ekle'}">${isFav ? '★' : '☆'}</button>
+      <button class="sym-fav${isFav ? ' active' : ''}" type="button" title="${isFav ? 'Favorilerden çıkar' : 'Favorilere ekle'}" aria-label="${isFav ? 'Favorilerden çıkar' : 'Favorilere ekle'}">${isFav ? starFilled : starEmpty}</button>
       <div class="sym-main">
         <span class="sym-ticker">${s.symbol.replace('.IS', '').replace('=X', '').replace('=F', '')}</span>
         <span class="sym-name">${s.name}</span>

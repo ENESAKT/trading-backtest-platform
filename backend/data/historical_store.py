@@ -125,7 +125,7 @@ class HistoricalStore:
             "bars": result.bars,
             "quote": {
                 "last": result.bars[-1]["close"],
-                "timestamp": dt.datetime.now(dt.UTC).replace(microsecond=0).isoformat(),
+                "timestamp": dt.datetime.now(dt.timezone.utc).replace(microsecond=0).isoformat(),
             },
             "metadata": {
                 "read_only": True,

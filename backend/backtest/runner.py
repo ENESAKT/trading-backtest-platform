@@ -562,7 +562,7 @@ def _report_payload(
     )
     return {
         "title": f"{strategy_name} · {symbol} · {interval}",
-        "generated_at": dt.datetime.now(dt.UTC).replace(microsecond=0).isoformat(),
+        "generated_at": dt.datetime.now(dt.timezone.utc).replace(microsecond=0).isoformat(),
         "symbol": symbol,
         "interval": interval,
         "last_price": float(df.iloc[-1]["close"]) if not df.empty else 0.0,

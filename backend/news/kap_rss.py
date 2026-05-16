@@ -42,7 +42,7 @@ def fetch_kap_rss(symbol: str | None = None, limit: int = 40) -> list[dict[str, 
         published_at = None
         if pub_raw:
             try:
-                published_at = parsedate_to_datetime(pub_raw).astimezone(dt.UTC).isoformat()
+                published_at = parsedate_to_datetime(pub_raw).astimezone(dt.timezone.utc).isoformat()
             except Exception:
                 published_at = None
         items.append({

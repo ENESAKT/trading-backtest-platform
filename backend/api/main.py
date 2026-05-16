@@ -201,7 +201,7 @@ async def _create_async_redis_from_env() -> Any | None:
 
 
 def _utc_iso() -> str:
-    return dt.datetime.now(dt.UTC).replace(microsecond=0).isoformat()
+    return dt.datetime.now(dt.timezone.utc).replace(microsecond=0).isoformat()
 
 
 def _init_sentry() -> None:

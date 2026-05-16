@@ -132,7 +132,7 @@ async def notification_loop() -> None:
                         macos_notify("PiyasaPilot", f"{sig_type} — {symbol}")
 
                     if sent:
-                        now = dt.datetime.now(dt.UTC).isoformat()
+                        now = dt.datetime.now(dt.timezone.utc).isoformat()
                         _durum["son_bildirim"] = now
                         _durum["toplam_bildirim"] += 1
                         _publish_status()

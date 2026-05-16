@@ -186,10 +186,10 @@ export class MultiChartLayout {
 
   private layoutControlsHTML(): string {
     const locks = [
-      { key: 'symbol',    label: TR.SYNC_SYMBOL,    icon: '🔗' },
-      { key: 'timeframe', label: TR.SYNC_TIMEFRAME, icon: '⏳' },
-      { key: 'range',     label: TR.SYNC_RANGE,     icon: '↔️' },
-      { key: 'scale',     label: TR.SYNC_SCALE,     icon: '📏' },
+      { key: 'symbol',    label: TR.SYNC_SYMBOL,    icon: '<svg class="icon-svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>' },
+      { key: 'timeframe', label: TR.SYNC_TIMEFRAME, icon: '<svg class="icon-svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>' },
+      { key: 'range',     label: TR.SYNC_RANGE,     icon: '<svg class="icon-svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"></polyline><polyline points="9 21 3 21 3 15"></polyline><line x1="21" y1="3" x2="14" y2="10"></line><line x1="3" y1="21" x2="10" y2="14"></line></svg>' },
+      { key: 'scale',     label: TR.SYNC_SCALE,     icon: '<svg class="icon-svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>' },
     ];
 
     return `

@@ -104,7 +104,7 @@ class QuoteBus:
             "symbol": symbol.upper(),
             "interval": interval,
             "bars": bars,
-            "ts": dt.datetime.now(dt.UTC).replace(microsecond=0).isoformat(),
+            "ts": dt.datetime.now(dt.timezone.utc).replace(microsecond=0).isoformat(),
         }
         async with self._lock:
             targets = [

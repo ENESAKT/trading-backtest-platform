@@ -20,7 +20,7 @@ DEFAULT_STRATEGY_DB_PATH = Path("data/strategy_lab/strategies.sqlite3")
 
 
 def _utc_now_iso() -> str:
-    return dt.datetime.now(dt.UTC).replace(microsecond=0).isoformat()
+    return dt.datetime.now(dt.timezone.utc).replace(microsecond=0).isoformat()
 
 
 def _stable_json(value: Any) -> str:

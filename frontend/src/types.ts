@@ -509,8 +509,10 @@ export interface ShowToastFunction {
   (message: string, type?: 'success' | 'error' | 'warn' | 'info'): void;
 }
 
+export type NotificationType = 'success' | 'error' | 'warn' | 'info';
+
 declare global {
   interface Window {
-    showToast?: ShowToastFunction;
+    showToast?: (message: string, type?: NotificationType) => void;
   }
 }

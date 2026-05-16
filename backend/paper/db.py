@@ -137,7 +137,7 @@ class PaperDB:
             conn.execute(
                 "UPDATE paper_trades SET closed_at=?, pnl=0 "
                 "WHERE strategy_id=? AND closed_at IS NULL",
-                (dt.datetime.now(dt.UTC).isoformat(), strategy_id),
+                (dt.datetime.now(dt.timezone.utc).isoformat(), strategy_id),
             )
 
     def all_wallets(self) -> list[dict[str, Any]]:

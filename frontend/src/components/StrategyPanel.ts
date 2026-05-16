@@ -1250,7 +1250,7 @@ export class StrategyPanel {
       String(row.metrics.profit_factor),
       String(row.metrics.win_rate),
       String(row.metrics.total_trades),
-      (row.warnings || []).map(w => typeof w === 'string' ? w : (w as any).message).join(' | '),
+      (row.warnings || []).map(w => typeof w === 'string' ? w : (w as {message: string}).message).join(' | '),
     ]);
     const csv = [header, ...rows]
       .map(cols => cols.map(col => this.csvCell(col)).join(','))
@@ -1311,7 +1311,7 @@ export class StrategyPanel {
         </div>
         <div class="compact-actions">
           <button class="btn-sm" data-load-strategy="${s.id}">Aç</button>
-          <button class="btn-sm btn-danger" data-delete-strategy="${s.id}" title="Stratejiyi sil"><svg class="icon-svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M10 11v6M14 11v6"/></svg></button>
+          <button class="btn-sm btn-danger" data-delete-strategy="${s.id}" title="Stratejiyi sil"><svg class="icon-svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2M10 11v6M14 11v6"/></svg></button>
         </div>
       </div>
     `).join('');
@@ -1343,7 +1343,7 @@ export class StrategyPanel {
         <div class="compact-actions">
           <button class="btn-sm" data-load-report="${r.id}">Aç</button>
           <button class="btn-sm" data-rerun-report="${r.id}">Tekrar</button>
-          <button class="btn-sm btn-danger" data-delete-report="${r.id}" title="Raporu sil"><svg class="icon-svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M10 11v6M14 11v6"/></svg></button>
+          <button class="btn-sm btn-danger" data-delete-report="${r.id}" title="Raporu sil"><svg class="icon-svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2M10 11v6M14 11v6"/></svg></button>
         </div>
       </div>
     `).join('');
@@ -1398,7 +1398,7 @@ export class StrategyPanel {
               <td><button class="btn-sm" data-apply-optimizer="${idx}">Uygula</button></td>
             </tr>
             ${row.warnings.length ? `
-              <tr class="table-note"><td colspan="5">${this.escape(row.warnings.map(w => typeof w === 'string' ? w : (w as any).message).join(' · '))}</td></tr>
+              <tr class="table-note"><td colspan="5">${this.escape(row.warnings.map(w => typeof w === 'string' ? w : (w as {message: string}).message).join(' · '))}</td></tr>
             ` : ''}
           `).join('')}
         </tbody>
@@ -1715,7 +1715,7 @@ export class StrategyPanel {
     this.mcChart?.destroy();
     this.mcChart = new Chart(canvas, {
       type: 'line',
-      data: { labels, datasets: [...pathDatasets, ...bandDatasets] as any[] },
+      data: { labels, datasets: [...pathDatasets, ...bandDatasets] },
       options: {
         animation: false,
         plugins: { legend: { display: false } },
@@ -1787,7 +1787,7 @@ export class StrategyPanel {
           return `<div class="warning-item">${this.escape(w)}</div>`;
         }
         const qw = w as any;
-        return `<div class="warning-item warning-${qw.severity}"><b>[${this.escape(qw.code)}]</b> ${this.escape(qw.message)}</div>`;
+        return `<div class="warning-item warning-${qw.severity}"><b>[${this.escape(qw.code)}]</b> ${this.escape(qw.message ?? '')}</div>`;
       }).join('')
     }</div>`;
   }

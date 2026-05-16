@@ -28,7 +28,7 @@ logger = logging.getLogger(__name__)
 
 
 def _utc_iso() -> str:
-    return dt.datetime.now(dt.UTC).replace(microsecond=0).isoformat()
+    return dt.datetime.now(dt.timezone.utc).replace(microsecond=0).isoformat()
 
 
 @dataclass
