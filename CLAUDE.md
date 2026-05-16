@@ -13,7 +13,8 @@ Agent talimatları İngilizce. Enes ile sohbet Türkçe.
 ## Güvenli Varsayılanlar
 - Model: Sonnet. Opus/xhigh yalnızca Enes isterse.
 - İlk adım: `git status --short --branch` → max 3 dosya oku → plan yaz → onay al.
-- Kod yazma, test/build, commit/push/PR/merge için açık onay şart.
+- Kod yazma, test/build, push/PR/merge için açık onay şart.
+- Commit otomatiktir (aşağıdaki "Otonom Commit Kuralı" bölümüne bak).
 - Otomatik ilerleme, auto-merge yok.
 - Okuma yasağı: `node_modules .git dist build .next venv __pycache__ vendor .pytest_cache`
 
@@ -32,3 +33,12 @@ Agent talimatları İngilizce. Enes ile sohbet Türkçe.
 - `python -m pytest <hedef> -q`
 - `cd frontend && npm run typecheck`
 - `cd frontend && npm run build`
+
+## Otonom Commit Kuralı
+Her mantıksal iş birimi tamamlandığında (özellik ekleme, hata düzeltme, refactor, doküman güncelleme vb.) **onay beklemeden** otonom olarak:
+1. `git add .` ile tüm değişiklikleri sahneye al.
+2. `git commit -m "<prefix>: <Türkçe açıklama>"` ile commit at.
+   - Prefix örnekleri: `feat`, `fix`, `chore`, `refactor`, `docs`, `test`
+   - Açıklama Türkçe ve anlaşılır olmalı.
+3. **Push yapmadan** dur — push için açık onay gerekir.
+4. Cevabının sonuna kısa not düş: "✅ Commit edildi."
