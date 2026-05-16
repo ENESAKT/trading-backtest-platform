@@ -87,12 +87,31 @@ export class SignalFeed {
         .then(r => r.ok ? r.json() : null)
         .then((d: { signal_generator?: { skipped_untrusted?: number; signals_emitted?: number; last_skip_reason?: string | null } } | null) => {
           this.health = d?.signal_generator ?? null;
+          this.renderHealthBar();
           if (this.signals.length === 0) this.renderSignals();
         })
         .catch(() => { /* health is advisory */ });
     };
     fetchHealth();
-    this.healthTimer = setInterval(fetchHealth, 60_000);
+    this.healthTimer = setInterval(fetchHealth, 30_000);
+  }
+
+  private renderHealthBar(): void {
+    const bar = this.container.querySelector<HTMLElement>('#signal-health-bar');
+    if (!bar || !this.health) return;
+    const emitted  = this.health.signals_emitted  ?? 0;
+    const skipped  = this.health.skipped_untrusted ?? 0;
+    const hasData  = emitted > 0 || skipped > 0;
+    if (!hasData) { bar.hidden = true; return; }
+    bar.hidden = false;
+    const reasonHint = skipped > 0
+      ? `<span class="shb-warn" title="${this.escape(this.health.last_skip_reason ?? 'Veri güven filtresi aktif')}">⚠ ${skipped} değerlendirme bekleniyor</span>`
+      : `<span class="shb-ok">✓ Veri filtresi temiz</span>`;
+    bar.innerHTML = `
+      <span class="shb-label">Motor:</span>
+      <span class="shb-stat">${emitted} sinyal yayınlandı</span>
+      ${reasonHint}
+      <span class="shb-hint">— Lisanslı BIST/VİOP verisi bağlandığında sinyaller otomatik akar</span>`;
   }
 
   private pollTelegramStatus(): void {
@@ -423,6 +442,7 @@ export class SignalFeed {
           </div>
         </div>
         <div class="signal-feed-info">${TR.SIGNAL_FEED_INFO}</div>
+        <div id="signal-health-bar" class="signal-health-bar" hidden></div>
         <div id="signal-feed-list" class="signal-feed-list">
           <div class="signal-feed-empty">${TR.CONNECTING}…</div>
         </div>
@@ -434,16 +454,46 @@ export class SignalFeed {
     const list = this.container.querySelector<HTMLElement>('#signal-feed-list');
     if (!list) return;
     if (this.signals.length === 0) {
-      const skipped = this.health?.skipped_untrusted ?? 0;
-      const reason = this.health?.last_skip_reason;
-      const detail = skipped > 0
-        ? `Sinyal motoru ${skipped} değerlendirmeyi veri güven kapısında bekletti. ${reason ? `Son neden: ${reason}` : 'Lisanslı BIST/VİOP veri kaynağı bağlı olmadığında sinyal üretimi durdurulur.'}`
-        : 'Canlı sinyal oluştuğunda burada listelenecek. Strateji, sembol ve veri kaynağı koşulları sağlanana kadar liste boş kalabilir.';
+      const skipped  = this.health?.skipped_untrusted ?? 0;
+      const emitted  = this.health?.signals_emitted   ?? 0;
+      const reason   = this.health?.last_skip_reason;
+      const hasHealth = this.health !== null;
+
+      let stateIcon: string  = '📡';
+      let stateTitle: string = TR.SIGNAL_FEED_EMPTY;
+      let stateBody: string  = 'Canlı sinyal oluştuğunda burada listelenecek.';
+      let stateHint: string  = 'Strateji, sembol ve veri kaynağı koşulları sağlanana kadar liste boş kalabilir.';
+
+      if (!hasHealth) {
+        stateIcon  = '⏳';
+        stateTitle = 'Motor durumu okunuyor…';
+        stateBody  = 'Sinyal motoru durumu yükleniyor.';
+        stateHint  = '';
+      } else if (skipped > 0 && emitted === 0) {
+        stateIcon  = '⚠️';
+        stateTitle = 'Sinyaller veri güven kapısında bekliyor';
+        stateBody  = `Motor ${skipped} değerlendirme yaptı ancak hiçbirini yayınlamadı.`;
+        stateHint  = reason
+          ? `Son filtre nedeni: ${reason} — Lisanslı BIST/VİOP veya güvenilir kripto verisi bağlandığında sinyaller otomatik akar.`
+          : 'Lisanslı BIST/VİOP veri kaynağı bağlı olmadığında sinyal üretimi durdurulur.';
+      } else if (emitted > 0) {
+        stateIcon  = '✅';
+        stateTitle = `${emitted} sinyal yayınlandı`;
+        stateBody  = 'Tarihsel sinyaller temizlendi veya henüz bu oturumda sinyal oluşmadı.';
+        stateHint  = 'Yeni bar kapanışlarında sinyaller otomatik gelir.';
+      }
+
       list.innerHTML = `
-        <div class="signal-feed-empty">
-          <strong>${TR.SIGNAL_FEED_EMPTY}</strong>
-          <p>${this.escape(detail)}</p>
-          <p>Kripto ve güvenilir veri kaynakları geldiğinde sinyaller otomatik düşer; Telegram bildirimleri için üstteki yapılandırma durumunu kontrol edin.</p>
+        <div class="signal-feed-empty signal-feed-empty--rich">
+          <div class="sfe-icon">${stateIcon}</div>
+          <div class="sfe-title">${this.escape(stateTitle)}</div>
+          <div class="sfe-body">${this.escape(stateBody)}</div>
+          ${stateHint ? `<div class="sfe-hint">${this.escape(stateHint)}</div>` : ''}
+          <div class="sfe-steps">
+            <span>1. Strateji oluştur veya aktifleştir</span>
+            <span>2. Canlı veri kaynağı bağla</span>
+            <span>3. Sinyaller burada otomatik listelenir</span>
+          </div>
         </div>`;
       return;
     }

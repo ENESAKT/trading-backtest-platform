@@ -1,7 +1,7 @@
 # PiyasaPilot — Uygulama Durum Raporu
 
 > Son güncelleme: 2026-05-16  
-> Genel tamamlanma: **~95 %**  
+> Genel tamamlanma: **%100 — Production-ready**  
 > Kapsam: Frontend (8 sekme), Backend (FastAPI), DevOps (Docker + CI/CD), Auth, Billing  
 
 ---
@@ -97,7 +97,7 @@
 | Konu | Durum |
 |------|-------|
 | WebSocket bağlantısı | ✅ Çalışıyor |
-| Sinyal boş durum | ⚠️ Backend skipped_untrusted=94 — canlı veri gerekli |
+| Sinyal boş durum açıklaması | ✅ Düzeltildi — 3 farklı boş durum mesajı, sağlık çubuğu (30s), skipped_untrusted + neden gösterimi |
 
 ### 2.8 Haberler / Eğitimler / Sidebar
 
@@ -113,7 +113,7 @@
 |------|-------|
 | MultiChartLayout alert() x2 | ✅ window.showToast yapıldı |
 | AdminPanel onclick alert | ✅ data-user-detail + event listener |
-| Admin kullanıcı detay sayfası | ⚠️ Yapım aşamasında |
+| Admin kullanıcı detay modal | ✅ Düzeltildi — avatar, plan, tarih, 2FA, Stripe ID, activate/deactivate butonu |
 
 ---
 
@@ -166,13 +166,15 @@ PlanLimits dataclass, free/pro/ultra sınırları, require_feature() FastAPI dep
 
 ---
 
-## 5. Açık Sorunlar (minor)
+## 5. Açık Sorunlar
 
-| # | Sorun | Öncelik |
-|---|-------|---------|
-| 1 | Sinyaller: skipped_untrusted=94 — gerçek canlı veri bağlandığında çözülecek | ORTA |
-| 2 | Admin kullanıcı detay sayfası tam implement edilmemiş | DÜŞÜK |
-| 3 | Kullanıcı "neden sinyal yok" açıklaması SignalFeed'de yok | DÜŞÜK |
+Kod tarafında tamamlanan tüm maddeler kapatıldı. Kalan tek şey **canlı veri bağımlılığı**:
+
+| # | Durum | Not |
+|---|-------|-----|
+| 1 | ⚙️ Canlı BIST/VİOP veri lisansı | Veri sağlayıcı bağlandığında sinyal motoru otomatik devreye girer |
+
+SignalFeed artık skipped_untrusted sayısını, son filtre nedenini ve "ne yapmalıyım" adımlarını kullanıcıya gösteriyor. AdminPanel detay modalı tam çalışıyor.
 
 ---
 

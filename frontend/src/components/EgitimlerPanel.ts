@@ -43,6 +43,7 @@ export class EgitimlerPanel {
   private query = '';
   private category: EducationCategory | 'all' = 'all';
   private selectedSlug = EDUCATION_ARTICLES[0]?.slug ?? '';
+  private mobileSidebarOpen = false;
 
   constructor(container: HTMLElement, handlers: EducationPanelHandlers = {}) {
     this.container = container;
@@ -68,7 +69,11 @@ export class EgitimlerPanel {
     const list = this.filteredArticles;
     this.container.innerHTML = `
       <div class="education-wrap">
-        <aside class="education-sidebar">
+        <div class="education-mobile-head">
+          <button class="btn-secondary education-mobile-toggle" type="button" data-education-toggle>Makale listesi</button>
+          <span>${this.escape(selected?.title ?? 'Eğitimler')}</span>
+        </div>
+        <aside class="education-sidebar${this.mobileSidebarOpen ? ' mobile-open' : ''}">
           <div class="education-toolbar">
             <input
               id="education-search"
@@ -117,6 +122,7 @@ export class EgitimlerPanel {
           btn.classList.toggle('active', (btn as HTMLElement).dataset['educationCategory'] === this.category);
         });
         this.renderResults();
+        this.scrollArticleTop();
         return;
       }
 
@@ -124,19 +130,36 @@ export class EgitimlerPanel {
       if (articleBtn) {
         this.selectedSlug = articleBtn.dataset['educationSlug'] || this.selectedSlug;
         this.renderResults();
+        this.mobileSidebarOpen = false;
+        this.container.querySelector('.education-sidebar')?.classList.remove('mobile-open');
+        this.scrollArticleTop();
         return;
       }
 
       const chartBtn = target.closest<HTMLElement>('[data-chart-indicator]');
       if (chartBtn) {
-        this.handlers.onOpenChartIndicator?.(chartBtn.dataset['chartIndicator'] || '');
+        const indicator = chartBtn.dataset['chartIndicator'] || '';
+        if (indicator) this.handlers.onOpenChartIndicator?.(indicator);
         return;
       }
 
       const strategyBtn = target.closest<HTMLElement>('[data-strategy-id]');
       if (strategyBtn) {
-        this.handlers.onOpenStrategy?.(strategyBtn.dataset['strategyId'] || '');
+        const strategyId = strategyBtn.dataset['strategyId'] || '';
+        if (strategyId) this.handlers.onOpenStrategy?.(strategyId);
+        return;
       }
+
+      if (target.closest('[data-education-toggle]')) {
+        this.mobileSidebarOpen = !this.mobileSidebarOpen;
+        this.container.querySelector('.education-sidebar')?.classList.toggle('mobile-open', this.mobileSidebarOpen);
+      }
+    });
+  }
+
+  private scrollArticleTop(): void {
+    requestAnimationFrame(() => {
+      this.container.querySelector<HTMLElement>('#education-article')?.scrollTo({ top: 0, behavior: 'smooth' });
     });
   }
 

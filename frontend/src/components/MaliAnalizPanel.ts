@@ -30,6 +30,8 @@ interface FinancialChartDef {
 }
 
 const API = '/api/mali-analiz';
+const ICON_CHART = '<svg class="icon-svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg>';
+const ICON_REFRESH = '<svg class="icon-svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 1-15.5 6.3L3 16"/><path d="M3 21v-5h5"/><path d="M3 12A9 9 0 0 1 18.5 5.7L21 8"/><path d="M21 3v5h-5"/></svg>';
 
 const SEVERITY_BADGE: Record<string, string> = {
   danger: 'badge-danger', warning: 'badge-warning', success: 'badge-success', info: 'badge-info',
@@ -165,9 +167,9 @@ export class MaliAnalizPanel {
             </div>
             <div class="ma-topbar-actions">
               <span class="ma-status-badge" id="ma-status-badge"></span>
-              <button class="btn-sm btn-ghost" id="ma-chart-btn" title="Bu sembolü grafik panelinde aç">📈 Grafik</button>
-              <button class="btn-sm btn-primary" id="ma-refresh-btn" title="Seçili sembolü güncelle">⟳ Yenile</button>
-              <button class="btn-sm btn-ghost" id="ma-refresh-all-btn" title="Tüm BIST 30'u güncelle">⟳ BIST 30</button>
+              <button class="btn-sm btn-ghost" id="ma-chart-btn" title="Bu sembolü grafik panelinde aç">${ICON_CHART} Grafik</button>
+              <button class="btn-sm btn-primary" id="ma-refresh-btn" title="Seçili sembolü güncelle">${ICON_REFRESH} Yenile</button>
+              <button class="btn-sm btn-ghost" id="ma-refresh-all-btn" title="Tüm BIST 30'u güncelle">${ICON_REFRESH} BIST 30</button>
             </div>
           </div>
           <div class="ma-tabs" id="ma-tabs">
@@ -282,7 +284,7 @@ export class MaliAnalizPanel {
         </div>
         <div class="ma-sym-right">
           <span class="ma-sym-period">${fs.last_period || '—'}</span>
-          <button class="ma-sym-chart-btn" data-chart-sym="${s.symbol}" title="Grafikte aç">📈</button>
+          <button class="ma-sym-chart-btn" data-chart-sym="${s.symbol}" title="Grafikte aç">${ICON_CHART}</button>
         </div>
       </div>`;
     }).join('');
@@ -601,7 +603,7 @@ export class MaliAnalizPanel {
         <td class="ma-cmp-symbol">
           <strong>${s.symbol}</strong>
           <span class="ma-cmp-name">${s.name}</span>
-          <button class="ma-cmp-chart-btn" data-chart-sym="${s.symbol}" title="Grafikte aç">📈</button>
+          <button class="ma-cmp-chart-btn" data-chart-sym="${s.symbol}" title="Grafikte aç">${ICON_CHART}</button>
         </td>
         <td class="ma-cmp-period">${s.period}</td>
         ${cells}
@@ -1197,12 +1199,12 @@ export class MaliAnalizPanel {
     if (this.refreshing) return;
     this.refreshing = true;
     this.refreshBtnEl.disabled = true;
-    this.refreshBtnEl.textContent = '⟳ İndiriliyor…';
+    this.refreshBtnEl.innerHTML = `${ICON_REFRESH} İndiriliyor...`;
     this.invalidateSymbol(this.currentSymbol);
     await this.doRefreshSymbol(this.currentSymbol, true);
     this.refreshing = false;
     this.refreshBtnEl.disabled = false;
-    this.refreshBtnEl.textContent = '⟳ Yenile';
+    this.refreshBtnEl.innerHTML = `${ICON_REFRESH} Yenile`;
   }
 
   private async doRefreshSymbol(symbol: string, updateBadge: boolean): Promise<void> {
@@ -1282,7 +1284,7 @@ export class MaliAnalizPanel {
     let progress = 0;
     const progressInterval = setInterval(() => {
       progress = Math.min(progress + 3, 90);
-      this.refreshAllBtnEl.textContent = `⟳ BIST 30 %${progress}`;
+      this.refreshAllBtnEl.innerHTML = `${ICON_REFRESH} BIST 30 %${progress}`;
     }, 2000);
 
     try {
@@ -1298,7 +1300,7 @@ export class MaliAnalizPanel {
       clearInterval(progressInterval);
       this.refreshing = false;
       this.refreshAllBtnEl.disabled = false;
-      this.refreshAllBtnEl.textContent = '⟳ BIST 30';
+      this.refreshAllBtnEl.innerHTML = `${ICON_REFRESH} BIST 30`;
     }
   }
 

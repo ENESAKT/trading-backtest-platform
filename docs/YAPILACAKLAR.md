@@ -340,7 +340,7 @@
 
 ### G.1 Public Sayfa Shell İzolasyonu
 - [x] Public route yüklenmeden önce terminal shell görünmesini CSS/HTML seviyesinde engelle
-- [ ] `/`, `/login`, `/register`, `/pricing`, `/shared/*` sayfalarında terminal DOM sızıntısını doğrula
+- [x] `/`, `/login`, `/register`, `/pricing`, `/shared/*` sayfalarında terminal DOM sızıntısını doğrula
 - **Dosya:** `frontend/index.html`, `frontend/style.css`, `frontend/src/app.ts`
 
 ### G.2 Market Ticker Kararı ve Görsel Boşluk Kontrolü
@@ -366,9 +366,9 @@
 - **Dosya:** `frontend/src/app.ts`, `frontend/src/components/ChartPanel.ts`
 
 ### G.6 Strateji Paneli Akış Açıklıkları
-- [ ] İlk açılışta mode segmented control aktif görünmeli
-- [ ] WF/MC sekmelerinde backtest yoksa "önce backtest çalıştır" yönlendirmesi göster
-- [ ] Paper aktivasyonu hatasını daha görünür yap
+- [x] İlk açılışta mode segmented control aktif görünmeli
+- [x] WF/MC sekmelerinde backtest yoksa "önce backtest çalıştır" yönlendirmesi göster
+- [x] Paper aktivasyonu hatasını daha görünür yap
 - **Dosya:** `frontend/src/components/StrategyPanel.ts`
 
 ### G.7 Admin/Auth Route Koruması
@@ -381,37 +381,37 @@
 ## Sprint H — Mobil ve Orta Seviye UX Düzeltmeleri
 
 ### H.1 Mobil Sembol Seçimi
-- [ ] 768px altında sidebar gizlenince sembol değiştirme için drawer/bottom-sheet ekle
-- [ ] Aktif sembol mobilde görünür kalsın
+- [x] 768px altında sidebar gizlenince sembol değiştirme için drawer/bottom-sheet ekle
+- [x] Aktif sembol mobilde görünür kalsın
 - **Dosya:** `frontend/style.css`, `frontend/src/app.ts`, `frontend/src/components/Sidebar.ts`
 
 ### H.2 Mobil Kontrol Boyutları
-- [ ] Grafik toolbar butonlarını mobilde dokunulabilir boyuta getir
-- [ ] Topbar sekmelerinde taşma/keşfedilebilirlik iyileştir
+- [x] Grafik toolbar butonlarını mobilde dokunulabilir boyuta getir
+- [x] Topbar sekmelerinde taşma/keşfedilebilirlik iyileştir
 - **Dosya:** `frontend/style.css`
 
 ### H.3 Mali Analiz Kullanıcı Yönlendirmeleri
-- [ ] Non-BIST sembollerde desteklenen BIST evrenine yönlendirme ekle
-- [ ] Universe nokta renkleri için legend ekle
-- [ ] BIST 30 yenileme için daha görünür loading/progress mesajı ekle
+- [x] Non-BIST sembollerde desteklenen BIST evrenine yönlendirme ekle
+- [x] Universe nokta renkleri için legend ekle
+- [x] BIST 30 yenileme için daha görünür loading/progress mesajı ekle
 - **Dosya:** `frontend/src/components/MaliAnalizPanel.ts`
 
 ### H.4 Haberler Paneli Küçük UX
-- [ ] Yenile sırasında butonda/metinde loading durumu göster
-- [ ] Keyword input için Enter ile yenile davranışını sembol input ile eşitle
-- [ ] URL olmayan haber kartlarının görsel durumunu ayır
+- [x] Yenile sırasında butonda/metinde loading durumu göster
+- [x] Keyword input için Enter ile yenile davranışını sembol input ile eşitle
+- [x] URL olmayan haber kartlarının görsel durumunu ayır
 - **Dosya:** `frontend/src/components/NewsPanel.ts`
 
 ### H.5 Screener Durum ve Zaman Bilgisi
-- [ ] Cache boşken kullanıcıya açıklayıcı empty-state göster
-- [ ] "Son tarama" timestamp'i ekle
-- [ ] İşlem sütunu başlığını daha açık hale getir
+- [x] Cache boşken kullanıcıya açıklayıcı empty-state göster
+- [x] "Son tarama" timestamp'i ekle
+- [x] İşlem sütunu başlığını daha açık hale getir
 - **Dosya:** `frontend/src/components/Screener.ts`
 
 ### H.6 Eğitim Paneli Okuma Deneyimi
-- [ ] Kategori/makale değişiminde içerik scroll'unu başa al
-- [ ] Boş indicator bridge çağrılarını engelle
-- [ ] Mobilde eğitim sidebar toggle davranışı ekle
+- [x] Kategori/makale değişiminde içerik scroll'unu başa al
+- [x] Boş indicator bridge çağrılarını engelle
+- [x] Mobilde eğitim sidebar toggle davranışı ekle
 - **Dosya:** `frontend/src/components/EgitimlerPanel.ts`, `frontend/style.css`
 
 ---
@@ -419,28 +419,28 @@
 ## Sprint I — Tasarım Cilası, Performans ve Teknik Borç
 
 ### I.1 Marka ve Topbar Tutarlılığı
-- [ ] "Tema" adını "Görünüm" yap
-- [ ] PiyasaPilot marka adının tüm shell/public sayfalarda tutarlı olduğunu doğrula
-- [ ] Status badge mobilde kesilmeyecek şekilde düzenle
+- [x] "Tema" adını "Görünüm" yap
+- [x] PiyasaPilot marka adının tüm shell/public sayfalarda tutarlı olduğunu doğrula
+- [x] Status badge mobilde kesilmeyecek şekilde düzenle
 - **Dosya:** `frontend/index.html`, `frontend/style.css`
 
 ### I.2 Tema Dışı Dialog ve Scrollbar
-- [ ] Kalan `window.alert()`/`window.confirm()` kullanımlarını tema uyumlu UI ile değiştir
-- [ ] Firefox için genel scrollbar stilleri ekle
+- [x] Kalan `window.alert()`/`window.confirm()` kullanımlarını tema uyumlu UI ile değiştir
+- [x] Firefox için genel scrollbar stilleri ekle
 - **Dosya:** `frontend/src/**/*.ts`, `frontend/style.css`
 
 ### I.3 Emoji İkon Temizliği
-- [ ] Sık kullanılan toolbar/action emoji ikonlarını inline SVG/lucide eşdeğerleriyle değiştir
-- [ ] MultiChart sync lock ikonlarını platform bağımsız hale getir
+- [x] Sık kullanılan toolbar/action emoji ikonlarını inline SVG/lucide eşdeğerleriyle değiştir
+- [x] MultiChart sync lock ikonlarını platform bağımsız hale getir
 - **Dosya:** `frontend/src/components/*.ts`
 
 ### I.4 Light Mode Kontrast QA
-- [ ] Paper banner, wallet kartları, grafik paneli ve haber kartlarının light mode kontrastını kontrol et
-- [ ] Gerekli CSS tokenlarını düzelt
+- [x] Paper banner, wallet kartları, grafik paneli ve haber kartlarının light mode kontrastını kontrol et
+- [x] Gerekli CSS tokenlarını düzelt
 - **Dosya:** `frontend/style.css`
 
 ### I.5 Performans ve Test Sertleştirme
-- [ ] Ana bundle/chunk boyutunu ölç; gerekirse public/terminal chunk ayrımını iyileştir
-- [ ] Python API testlerinde auth kaynaklı 401 uyumsuzluğunu test fixture veya header ile düzelt
-- [ ] Playwright smoke ile kritik terminal/public rotaları doğrula
+- [x] Ana bundle/chunk boyutunu ölç; gerekirse public/terminal chunk ayrımını iyileştir
+- [x] Python API testlerinde auth kaynaklı 401 uyumsuzluğunu test fixture veya header ile düzelt
+- [x] Playwright smoke ile kritik terminal/public rotaları doğrula
 - **Dosya:** `frontend/src/app.ts`, `tests/`, `frontend/tests/e2e/`

@@ -205,6 +205,32 @@ export class StrategyPanel {
     }
   };
 
+  private confirmAction(title: string, body: string, confirmLabel = 'Sil'): Promise<boolean> {
+    const existing = document.getElementById('strategy-confirm-dialog');
+    if (existing) existing.remove();
+    const dialog = document.createElement('dialog');
+    dialog.id = 'strategy-confirm-dialog';
+    dialog.className = 'app-confirm-dialog';
+    dialog.innerHTML = `
+      <form method="dialog" class="app-confirm-inner">
+        <h3>${this.escape(title)}</h3>
+        <p>${this.escape(body)}</p>
+        <div class="app-confirm-actions">
+          <button class="btn-secondary" value="cancel">Vazgeç</button>
+          <button class="btn-danger" value="confirm">${this.escape(confirmLabel)}</button>
+        </div>
+      </form>`;
+    document.body.appendChild(dialog);
+    dialog.showModal();
+    return new Promise(resolve => {
+      dialog.addEventListener('close', () => {
+        const ok = dialog.returnValue === 'confirm';
+        dialog.remove();
+        resolve(ok);
+      }, { once: true });
+    });
+  }
+
   constructor(container: HTMLElement) {
     this.container = container;
     this.render();
@@ -1319,10 +1345,11 @@ export class StrategyPanel {
     `).join('');
 
     el.querySelectorAll<HTMLButtonElement>('[data-delete-strategy]').forEach(btn => {
-      btn.addEventListener('click', (e) => {
+      btn.addEventListener('click', async (e) => {
         e.stopPropagation();
         const id = Number(btn.dataset['deleteStrategy']);
-        if (!confirm('Bu kayıtlı stratejiyi silmek istediğinizden emin misiniz?')) return;
+        const ok = await this.confirmAction('Kayıtlı strateji silinsin mi?', 'Bu strateji arşivden kaldırılacak. Çalışan raporlar etkilenmez.');
+        if (!ok) return;
         void fetch(`${STRATEGY_STORE_ENDPOINT}/${id}`, { method: 'DELETE' })
           .then(r => { if (r.ok) void this.loadSavedStrategies(); });
       });
@@ -1351,10 +1378,11 @@ export class StrategyPanel {
     `).join('');
 
     el.querySelectorAll<HTMLButtonElement>('[data-delete-report]').forEach(btn => {
-      btn.addEventListener('click', (e) => {
+      btn.addEventListener('click', async (e) => {
         e.stopPropagation();
         const id = btn.dataset['deleteReport']!;
-        if (!confirm('Bu backtest raporunu silmek istediğinizden emin misiniz?')) return;
+        const ok = await this.confirmAction('Backtest raporu silinsin mi?', 'Rapor arşivden kaldırılacak; strateji tanımı ve kayıtlı şablonlar kalır.');
+        if (!ok) return;
         void fetch(`/api/backtest/reports/${encodeURIComponent(id)}`, { method: 'DELETE' })
           .then(r => { if (r.ok) void this.loadReports(); });
       });

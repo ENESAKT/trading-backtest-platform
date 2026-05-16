@@ -246,6 +246,17 @@
 - [x] ChartPanel karşılaştırma limiti sessizce eski sembolü atmak yerine kullanıcıya uyarı gösteriyor.
 - [x] `cd frontend && npm run typecheck` ve `cd frontend && npm run build` başarılı.
 
+## ✅ Sprint G/H/I Kapanış Paketi (2026-05-16)
+
+- [x] SignalFeed boş durumları health verisiyle zenginleştirildi; skipped/untrusted nedeni, yayınlanan sinyal sayısı ve kullanıcı adımları görünür hale geldi.
+- [x] Admin kullanıcı detayları modal içinde açılır hale getirildi; kullanıcı durumu, 2FA, Stripe/API bilgisi ve aktif/pasif aksiyonu eklendi.
+- [x] NewsPanel yenileme loading durumu, Enter ile arama yenileme ve URL olmayan haber kartı ayrımı tamamlandı.
+- [x] Eğitim panelinde mobil makale listesi toggle'ı, makale/kategori değişiminde scroll reset ve boş bridge çağrı engeli eklendi.
+- [x] StrategyPanel silme onayları native confirm yerine tema uyumlu dialog ile değiştirildi.
+- [x] Mobil topbar aktif sembol ve status badge kesilmesi düzeltildi; dokunmatik grafik toolbar hedefleri büyütüldü.
+- [x] Screener ve Mali Analiz sık kullanılan aksiyon ikonları SVG'ye taşındı; Mali Analiz yenileme butonları SVG loading/progress metniyle hizalandı.
+- [x] `cd frontend && npm run typecheck` ve `cd frontend && npm run build` başarılı.
+
 ---
 
 ## ✅ Güvenlik ve Deployment Altyapısı

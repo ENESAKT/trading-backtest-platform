@@ -66,7 +66,7 @@ export class NewsPanel {
         <div class="news-toolbar">
           <input type="text" id="news-keyword" class="news-filter-input" placeholder="Anahtar kelime ara…" />
           <input type="text" id="news-symbol" class="news-filter-input" style="max-width:110px" placeholder="Sembol (THYAO)" />
-          <button class="btn-sm news-refresh-btn" id="news-refresh-btn">⟳ Yenile</button>
+          <button class="btn-sm news-refresh-btn" id="news-refresh-btn" aria-live="polite">Yenile</button>
         </div>
         <div class="news-list" id="news-list">
           <div class="skeleton-wrap">
@@ -88,6 +88,9 @@ export class NewsPanel {
       this.filterText = kwInput.value.toLowerCase();
       this.renderList();
     });
+    kwInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') void this.load(true);
+    });
     symInput.addEventListener('input', () => {
       this.filterSymbol = symInput.value.toUpperCase().trim();
       this.renderList();
@@ -104,7 +107,10 @@ export class NewsPanel {
     if (this.loading) return;
     this.loading = true;
     const btn = this.container.querySelector<HTMLButtonElement>('#news-refresh-btn');
-    if (btn) btn.disabled = true;
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = 'Yenileniyor...';
+    }
 
     try {
       const sym = this.filterSymbol || '';
@@ -121,7 +127,10 @@ export class NewsPanel {
       // network error — show cached
     } finally {
       this.loading = false;
-      if (btn) btn.disabled = false;
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = 'Yenile';
+      }
     }
   }
 
@@ -195,12 +204,17 @@ export class NewsPanel {
     const url = n.url ? ` data-url="${this.esc(n.url)}"` : '';
     const isRead = n.is_read || this.readIds.has(n.id);
     const readCls = isRead ? ' news-read' : '';
+    const linkCls = n.url ? ' news-card--linked' : ' news-card--offline';
+    const linkState = n.url
+      ? '<span class="news-link-state">Kaynağı aç</span>'
+      : '<span class="news-link-state news-link-state--muted">Kaynak linki yok</span>';
     return `
-      <div class="news-card${readCls}" data-id="${n.id}" data-symbol="${sym}"${url}>
+      <div class="news-card${readCls}${linkCls}" data-id="${n.id}" data-symbol="${sym}"${url}>
         <div class="news-card-header">
           <span class="news-source">${src}</span>
           ${ago ? `<span class="news-time">${ago} önce</span>` : ''}
           <span class="news-sym-tag">${sym}</span>
+          ${linkState}
         </div>
         <div class="news-headline">${this.esc(n.headline)}</div>
         ${n.body ? `<div class="news-body">${this.esc(n.body)}</div>` : ''}

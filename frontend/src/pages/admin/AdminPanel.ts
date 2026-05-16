@@ -1,6 +1,88 @@
 import { auth } from '../../auth/AuthManager.js';
 import { pageShell, requireAuth } from '../pageUtils.js';
 
+// ─── Kullanıcı Detay Modal ────────────────────────────────────────────────────
+function showUserDetailModal(userId: string, users: any[]): void {
+  const u = users.find((x: any) => String(x.id) === String(userId));
+  if (!u) { window.showToast?.('Kullanıcı verisi bulunamadı.', 'warn'); return; }
+
+  const existing = document.getElementById('admin-user-modal');
+  if (existing) existing.remove();
+
+  const modal = document.createElement('dialog');
+  modal.id = 'admin-user-modal';
+  modal.className = 'admin-modal';
+
+  const created = u.created_at
+    ? new Date(u.created_at).toLocaleDateString('tr-TR', { day: '2-digit', month: '2-digit', year: 'numeric' })
+    : '—';
+  const lastLogin = u.last_login_at
+    ? new Date(u.last_login_at).toLocaleString('tr-TR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+    : '—';
+  const planBadge = `<span class="badge ${u.role}">${(u.role ?? 'free').toUpperCase()}</span>`;
+  const statusBadge = u.is_active
+    ? `<span style="color:var(--pos);font-weight:600">● Aktif</span>`
+    : `<span style="color:var(--neg);font-weight:600">● Pasif</span>`;
+
+  modal.innerHTML = `
+    <div class="admin-modal-inner">
+      <div class="admin-modal-header">
+        <div class="admin-modal-avatar">${(u.email?.[0] ?? '?').toUpperCase()}</div>
+        <div>
+          <div class="admin-modal-email">${u.email ?? '—'}</div>
+          <div class="admin-modal-meta">${planBadge} ${statusBadge}</div>
+        </div>
+        <button class="admin-modal-close" type="button" aria-label="Kapat">✕</button>
+      </div>
+      <table class="admin-modal-table">
+        <tr><td>Kullanıcı ID</td><td>${u.id}</td></tr>
+        <tr><td>Ad Soyad</td><td>${u.full_name ?? '—'}</td></tr>
+        <tr><td>Kayıt tarihi</td><td>${created}</td></tr>
+        <tr><td>Son giriş</td><td>${lastLogin}</td></tr>
+        <tr><td>E-posta doğrulama</td><td>${u.email_verified ? '✓ Doğrulandı' : '✗ Bekliyor'}</td></tr>
+        <tr><td>2FA</td><td>${u.totp_enabled ? '✓ Aktif' : '—'}</td></tr>
+        <tr><td>Stripe ID</td><td>${u.stripe_customer_id ?? '—'}</td></tr>
+        <tr><td>API erişimi</td><td>${u.api_access ? '✓ Açık' : '—'}</td></tr>
+      </table>
+      <div class="admin-modal-actions">
+        ${u.is_active
+          ? `<button class="btn btn-sm btn-outline-secondary" data-action="deactivate" data-uid="${u.id}">Pasifleştir</button>`
+          : `<button class="btn btn-sm btn-warning" data-action="activate" data-uid="${u.id}">Aktifleştir</button>`}
+        <button class="btn btn-sm btn-outline-secondary" data-action="close">Kapat</button>
+      </div>
+    </div>`;
+
+  document.body.appendChild(modal);
+  modal.showModal();
+
+  modal.addEventListener('click', (e) => {
+    const target = e.target as HTMLElement;
+    const btn = target.closest<HTMLButtonElement>('button[data-action]');
+    if (!btn) { if (e.target === modal) modal.close(); return; }
+
+    const action = btn.dataset['action'];
+    if (action === 'close') { modal.close(); return; }
+
+    if (action === 'activate' || action === 'deactivate') {
+      const uid = btn.dataset['uid'];
+      const body = JSON.stringify({ is_active: action === 'activate' });
+      fetch(`/api/admin/users/${uid}/status`, {
+        method: 'PATCH', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body,
+      })
+        .then(r => r.ok ? r.json() : Promise.reject(r.status))
+        .then(() => {
+          window.showToast?.(`Kullanıcı ${action === 'activate' ? 'aktifleştirildi' : 'pasifleştirildi'}.`, 'success');
+          modal.close();
+        })
+        .catch(() => window.showToast?.('İşlem başarısız. Endpoint canlı olmayabilir.', 'error'));
+    }
+  });
+
+  modal.addEventListener('close', () => modal.remove());
+}
+
 export async function renderAdminPanel(container: HTMLElement): Promise<void> {
   if (!(await requireAuth(container))) return;
   if (!auth.isAdmin()) {
@@ -31,14 +113,14 @@ export async function renderAdminPanel(container: HTMLElement): Promise<void> {
       } else if (tab === 'users') {
         const res = await fetch('/api/admin/users?limit=50', { credentials: 'include' });
         const data = await res.json();
-        const users = data.data?.users || [];
+        const users: any[] = data.data?.users || [];
         const rows = users.length
-          ? users.map((u: any) => `<tr><td>${u.id}</td><td>${u.email}</td><td><span class="badge ${u.role}">${u.role.toUpperCase()}</span></td><td>${u.is_active ? 'Aktif' : 'Pasif'}</td><td><button class="btn btn-sm btn-outline-secondary" data-user-detail="${u.id}" title="Kullanıcı detay sayfası yapım aşamasındadır">Detay</button></td></tr>`).join('')
+          ? users.map((u: any) => `<tr><td>${u.id}</td><td>${u.email}</td><td><span class="badge ${u.role}">${u.role.toUpperCase()}</span></td><td>${u.is_active ? 'Aktif' : 'Pasif'}</td><td><button class="btn btn-sm btn-outline-secondary" data-user-detail="${u.id}">Detay</button></td></tr>`).join('')
           : '<tr><td colspan="5">Kullanıcı bulunamadı.</td></tr>';
         content.innerHTML = `<h1>Kullanıcı Yönetimi</h1><div class="admin-toolbar"><input class="form-control" placeholder="E-posta ara" /><select class="form-select"><option>Tüm Planlar</option><option>Free</option><option>Pro</option><option>Ultra</option></select></div><table><thead><tr><th>ID</th><th>E-posta</th><th>Plan</th><th>Durum</th><th>İşlem</th></tr></thead><tbody>${rows}</tbody></table>`;
         content.querySelectorAll<HTMLButtonElement>('[data-user-detail]').forEach((btn) => {
           btn.addEventListener('click', () => {
-            window.showToast?.('Kullanıcı detay sayfası yapım aşamasındadır.', 'info');
+            showUserDetailModal(btn.dataset['userDetail'] ?? '', users);
           });
         });
       } else if (tab === 'audit') {

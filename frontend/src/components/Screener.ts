@@ -4,6 +4,10 @@ import { TR, formatNumber, formatPct } from '../constants/tr.js';
 import { ALL_SYMBOLS } from '../constants/symbols.js';
 import { SMA } from '../indicators/index.js';
 
+const ICON_CHART = '<svg class="icon-svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg>';
+const ICON_NEWS = '<svg class="icon-svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 22h16a2 2 0 0 0 2-2V4H2v16a2 2 0 0 0 2 2z"/><path d="M8 8h8"/><path d="M8 12h8"/><path d="M8 16h5"/></svg>';
+const ICON_PLAY = '<svg class="icon-svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>';
+
 // ─── Screener ─────────────────────────────────────────────────────────────────
 
 type SortCol = 'symbol' | 'price' | 'changePct' | 'rsi' | 'emaSignal' | 'bbPosition';
@@ -316,9 +320,9 @@ export class Screener {
         <td>${r.volumeAlert ? '⚡' : '—'}</td>
         <td class="alerts-cell">${r.alerts.slice(0, 3).map(a => `<span class="alert-tag">${a}</span>`).join('')}</td>
         <td class="screener-actions">
-          <button class="btn-sm screener-chart" data-chart="${r.symbol}" title="Grafikte aç">📈</button>
-          <button class="btn-sm screener-backtest" data-backtest="${r.symbol}" title="Bu sembolü backtest için aç">▶ BT</button>
-          <button class="btn-sm screener-news" data-news="${r.symbol}" title="Bu sembolün haberlerini aç">📰</button>
+          <button class="btn-sm screener-chart" data-chart="${r.symbol}" title="Grafikte aç">${ICON_CHART}</button>
+          <button class="btn-sm screener-backtest" data-backtest="${r.symbol}" title="Bu sembolü backtest için aç">${ICON_PLAY} BT</button>
+          <button class="btn-sm screener-news" data-news="${r.symbol}" title="Bu sembolün haberlerini aç">${ICON_NEWS}</button>
         </td>
       </tr>
     `;
