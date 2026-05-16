@@ -6,7 +6,7 @@ export const TR = {
   CHART: 'Grafik',
   PORTFOLIO: 'Portföy',
   STRATEGY: 'Strateji',
-  SCREENER: 'Tarayıcı',
+  SCREENER: 'Tarama',
 
   // ── Connection Status ────────────────────────────────────────────────────────
   LIVE: 'CANLI',
@@ -240,8 +240,10 @@ export function formatCurrency(value: number, currency = '₺', decimals = 2): s
 }
 
 export function formatPct(value: number, decimals = 2): string {
-  const sign = value >= 0 ? '+' : '';
-  return `${sign}${formatNumber(value, decimals)}%`;
+  const rounded = Number(value.toFixed(decimals));
+  if (Object.is(rounded, -0) || rounded === 0) return `${formatNumber(0, decimals)}%`;
+  const sign = rounded > 0 ? '+' : '';
+  return `${sign}${formatNumber(rounded, decimals)}%`;
 }
 
 export function formatDate(timestamp: number): string {

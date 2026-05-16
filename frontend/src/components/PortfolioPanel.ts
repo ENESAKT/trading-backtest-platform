@@ -109,14 +109,50 @@ export class PortfolioPanel {
     }
   }
 
+  /** Tema uyumlu onay diyaloğu — window.confirm() yerine kullanılır */
+  private showConfirm(message: string, onConfirm: () => void): void {
+    let dlg = document.getElementById('portfolio-confirm-dialog') as HTMLDialogElement | null;
+    if (!dlg) {
+      dlg = document.createElement('dialog');
+      dlg.id = 'portfolio-confirm-dialog';
+      dlg.innerHTML = `
+        <div class="confirm-dialog-body">
+          <p class="confirm-msg"></p>
+          <div class="confirm-actions">
+            <button class="btn-sm btn-secondary confirm-cancel">Vazgeç</button>
+            <button class="btn-sm btn-danger confirm-ok">Onayla</button>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(dlg);
+      dlg.querySelector('.confirm-cancel')?.addEventListener('click', () => dlg!.close());
+    }
+    (dlg.querySelector('.confirm-msg') as HTMLElement).textContent = message;
+    const okBtn = dlg.querySelector('.confirm-ok') as HTMLElement;
+    const newOk = okBtn.cloneNode(true) as HTMLElement;
+    okBtn.parentNode!.replaceChild(newOk, okBtn);
+    newOk.addEventListener('click', () => { dlg!.close(); onConfirm(); }, { once: true });
+    dlg.showModal();
+  }
+
   private async resetWallet(strategyId: string): Promise<void> {
-    await fetch(`/api/paper/reset/${encodeURIComponent(strategyId)}`, { method: 'POST' });
-    void this.fetchAndRender();
+    this.showConfirm(
+      `${strategyId} paper cüzdanı sıfırlansın mı? Bu işlem sadece sanal/paper kayıtlarını etkiler, gerçek piyasaya emir göndermez.`,
+      async () => {
+        await fetch(`/api/paper/reset/${encodeURIComponent(strategyId)}`, { method: 'POST' });
+        void this.fetchAndRender();
+      }
+    );
   }
 
   private async haltWallet(strategyId: string): Promise<void> {
-    await fetch(`/api/paper/halt/${encodeURIComponent(strategyId)}`, { method: 'POST' });
-    void this.fetchAndRender();
+    this.showConfirm(
+      `${strategyId} paper cüzdanı dondurulsun mu? Yeni sanal emir üretimi durur.`,
+      async () => {
+        await fetch(`/api/paper/halt/${encodeURIComponent(strategyId)}`, { method: 'POST' });
+        void this.fetchAndRender();
+      }
+    );
   }
 
   private async resumeWallet(strategyId: string): Promise<void> {
@@ -172,7 +208,7 @@ export class PortfolioPanel {
   private render(): void {
     this.container.innerHTML = `
       <div class="portfolio-wrap">
-        <div class="paper-mode-banner">KAĞIT İŞLEM MODU - Bu emirler gerçek piyasaya gönderilmemektedir.</div>
+        <div class="paper-mode-banner">KAĞIT İŞLEM MODU - Bu emirler gerçek piyasaya gönderilmemektedir. Cüzdan sonuçları test/paper işlem kayıtlarından hesaplanır.</div>
 
         <!-- Metrics Summary -->
         <div class="paper-metrics-summary" id="paper-metrics-summary"></div>
@@ -284,7 +320,8 @@ export class PortfolioPanel {
       ? `<span class="wallet-halted-badge">${TR.WALLET_HALTED}</span>`
       : '';
     const dailyLoss = w.daily_loss;
-    const dailyLossPct = (Math.abs(dailyLoss) / w.initial_capital) * 100;
+    // Yüzde hesabı yönlü olmalı: negatif kayıp, pozitif kazanç
+    const dailyLossPct = (dailyLoss / w.initial_capital) * 100;
     const isSelected = w.strategy_id === this.selectedStrategy;
 
     return `
@@ -304,7 +341,7 @@ export class PortfolioPanel {
           </div>
           <div class="wm-item">
             <span class="wm-label">${TR.DAILY_PNL}</span>
-            <span class="wm-value ${dailyLoss >= 0 ? '' : 'neg'}">${formatCurrency(dailyLoss)} (${formatPct(-dailyLossPct)})</span>
+            <span class="wm-value ${dailyLoss >= 0 ? 'pos' : 'neg'}">${formatCurrency(dailyLoss)} (${formatPct(dailyLossPct)})</span>
           </div>
         </div>
         <div class="wallet-actions">

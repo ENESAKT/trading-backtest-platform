@@ -65,7 +65,7 @@ pip install -r requirements.txt
 uvicorn backend.api.main:app --port 8000 --reload
 
 # 3. Frontend'i başlat (geliştirme)
-cd piyasapilot-v2 && npm install && npm run dev
+cd frontend && npm install && npm run dev
 
 # 4. Veya Docker ile
 make up
@@ -137,7 +137,7 @@ make up
 │   ├── signals/             # SignalGenerator v2 (konsensüs)
 │   ├── notifier/            # Telegram + email + macOS
 │   └── workers/             # Binance WS + Yahoo/BIST pollers
-├── piyasapilot-v2/          # TypeScript SPA
+├── frontend/                # TypeScript SPA
 │   └── src/
 │       ├── components/      # 9 UI bileşeni (Chart, Strategy, Portfolio, vb.)
 │       ├── core/            # DataEngine, QuoteStream, HistoricalLoader

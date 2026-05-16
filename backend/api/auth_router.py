@@ -34,7 +34,7 @@ from backend.auth.jwt_utils import (
     decode_access_token,
     hash_token,
 )
-from backend.auth.password import verify_password
+from backend.auth.password import validate_password_strength, verify_password
 from backend.auth.redis_store import AuthRedisStore
 from backend.auth.repository import (
     consume_email_verification_token,
@@ -135,6 +135,13 @@ async def _build_me_response(pool, user_id: int) -> dict:
 @router.post("/register")
 async def register(req: RegisterRequest, request: Request):
     pool = _get_pool(request)
+
+    password_errors = validate_password_strength(req.password)
+    if password_errors:
+        raise HTTPException(
+            422,
+            detail={"tr": " ".join(password_errors), "en": "Password does not meet security requirements."},
+        )
 
     # Duplicate email kontrolü
     existing = await get_user_by_email(pool, req.email)

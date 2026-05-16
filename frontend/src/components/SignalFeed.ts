@@ -53,9 +53,11 @@ export class SignalFeed {
   private ws: WebSocket | null = null;
   private signals: LiveSignal[] = [];
   private preferences: TelegramPreferences | null = null;
+  private health: { skipped_untrusted?: number; signals_emitted?: number; last_skip_reason?: string | null } | null = null;
   private reconnectDelay = RECONNECT_BASE_MS;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private statusTimer: ReturnType<typeof setInterval> | null = null;
+  private healthTimer: ReturnType<typeof setInterval> | null = null;
   private destroyed = false;
 
   constructor(container: HTMLElement) {
@@ -66,6 +68,7 @@ export class SignalFeed {
     this.bindPreferenceControls();
     this.connect();
     this.pollTelegramStatus();
+    this.pollSignalHealth();
     void this.loadTelegramPreferences();
   }
 
@@ -73,7 +76,23 @@ export class SignalFeed {
     this.destroyed = true;
     if (this.reconnectTimer !== null) clearTimeout(this.reconnectTimer);
     if (this.statusTimer !== null) clearInterval(this.statusTimer);
+    if (this.healthTimer !== null) clearInterval(this.healthTimer);
     this.ws?.close();
+  }
+
+  private pollSignalHealth(): void {
+    const fetchHealth = () => {
+      if (this.destroyed) return;
+      fetch(`${this.httpBase()}/api/health`)
+        .then(r => r.ok ? r.json() : null)
+        .then((d: { signal_generator?: { skipped_untrusted?: number; signals_emitted?: number; last_skip_reason?: string | null } } | null) => {
+          this.health = d?.signal_generator ?? null;
+          if (this.signals.length === 0) this.renderSignals();
+        })
+        .catch(() => { /* health is advisory */ });
+    };
+    fetchHealth();
+    this.healthTimer = setInterval(fetchHealth, 60_000);
   }
 
   private pollTelegramStatus(): void {
@@ -98,8 +117,8 @@ export class SignalFeed {
     }
     const yapilandirildi = d['telegram_yapilandirildi'] as boolean;
     if (!yapilandirildi) {
-      el.innerHTML = `<span class="tg-dot tg-off"></span> Telegram: yapılandırılmamış`;
-      el.title = '.env dosyasında TELEGRAM_BOT_TOKEN eksik';
+      el.innerHTML = `<span class="tg-dot tg-off"></span> Telegram: yapılandırılmamış · .env içinde TELEGRAM_BOT_TOKEN ve TELEGRAM_CHAT_ID gerekir`;
+      el.title = 'Bildirim göndermek için Telegram bot token ve yetkili chat id tanımlanmalı';
       return;
     }
     const sonBildirim = d['son_bildirim'] as string | null;
@@ -415,7 +434,17 @@ export class SignalFeed {
     const list = this.container.querySelector<HTMLElement>('#signal-feed-list');
     if (!list) return;
     if (this.signals.length === 0) {
-      list.innerHTML = `<div class="signal-feed-empty">${TR.SIGNAL_FEED_EMPTY}</div>`;
+      const skipped = this.health?.skipped_untrusted ?? 0;
+      const reason = this.health?.last_skip_reason;
+      const detail = skipped > 0
+        ? `Sinyal motoru ${skipped} değerlendirmeyi veri güven kapısında bekletti. ${reason ? `Son neden: ${reason}` : 'Lisanslı BIST/VİOP veri kaynağı bağlı olmadığında sinyal üretimi durdurulur.'}`
+        : 'Canlı sinyal oluştuğunda burada listelenecek. Strateji, sembol ve veri kaynağı koşulları sağlanana kadar liste boş kalabilir.';
+      list.innerHTML = `
+        <div class="signal-feed-empty">
+          <strong>${TR.SIGNAL_FEED_EMPTY}</strong>
+          <p>${this.escape(detail)}</p>
+          <p>Kripto ve güvenilir veri kaynakları geldiğinde sinyaller otomatik düşer; Telegram bildirimleri için üstteki yapılandırma durumunu kontrol edin.</p>
+        </div>`;
       return;
     }
     list.innerHTML = this.signals.map(sig => this.signalHTML(sig)).join('');
@@ -487,5 +516,14 @@ export class SignalFeed {
         ${metadataHTML}
       </div>
     `;
+  }
+
+  private escape(value: unknown): string {
+    return String(value ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
   }
 }

@@ -6,3 +6,6 @@
 
 ## Mimari / Agent Sistemi
 - "Browser QA Tester" (Tarayıcı Kalite Güvence Test Uzmanı) adında yeni bir agent workflow (iş akışı) yeteneği oluşturuldu ve `.agents/skills/browser-qa-tester/SKILL.md` dizinine eklendi. Bu yetenek, sistemin gelecekte de derinlemesine ve otonom frontend QA testleri yapabilmesini standartlaştırmaktadır.
+
+## Altyapı / DevOps
+- CI/CD ve DevOps kurguları kapsamında, AWS EC2 deploy ve yedekleme scriptleri (idempotent bash) başarıyla hazırlandı. Sentry ve SQLite yedekleme-restore drill testleri için betikler eklendi; `nginx.prod.conf` içerisinde `/status` endpoint'i doğrudan fastapi `health` dönüşüne proxy'lenerek monitoring yetenekleri iyileştirildi.

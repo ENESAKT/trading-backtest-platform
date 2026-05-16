@@ -112,7 +112,11 @@ export class EgitimlerPanel {
       const categoryBtn = target.closest<HTMLElement>('[data-education-category]');
       if (categoryBtn) {
         this.category = categoryBtn.dataset['educationCategory'] as EducationCategory | 'all';
-        this.render();
+        // Sadece aktif kategori butonunu güncelle (scroll konumu korunur)
+        this.container.querySelectorAll('[data-education-category]').forEach(btn => {
+          btn.classList.toggle('active', (btn as HTMLElement).dataset['educationCategory'] === this.category);
+        });
+        this.renderResults();
         return;
       }
 

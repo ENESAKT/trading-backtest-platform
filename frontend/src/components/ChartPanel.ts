@@ -449,10 +449,10 @@ export class ChartPanel {
             <span class="unit-badge" id="chart-unit-badge"></span>
             <button class="ctrl-btn scale-auto-btn active" id="auto-price-btn" title="Oto Ölçek">Oto</button>
             <button class="ctrl-btn scale-reset-btn" id="price-reset-btn" title="Sıfırla">⟲</button>
-            <button class="ctrl-btn prev-close-btn active" id="prev-close-btn" title="Önceki Kapanış">ÖK</button>
-            <button class="ctrl-btn pnl-toggle-btn active" id="pnl-overlay-btn" title="Trade PnL">PnL</button>
-            <button class="ctrl-btn pnl-toggle-btn active" id="risk-line-btn" title="Stop/Hedef">Risk</button>
-            <button class="ctrl-btn pnl-toggle-btn active" id="bist-limit-btn" title="Tavan/Taban">T/T</button>
+            <button class="ctrl-btn prev-close-btn active" id="prev-close-btn" title="Önceki Kapanış — Son kapanış fiyatını grafik üzerinde yatay çizgi olarak gösterir">ÖK</button>
+            <button class="ctrl-btn pnl-toggle-btn active" id="pnl-overlay-btn" title="Kâr/Zarar Katmanı — Açık pozisyon veya backtest trade'lerinin PnL alanını grafik üzerinde gösterir">PnL</button>
+            <button class="ctrl-btn pnl-toggle-btn active" id="risk-line-btn" title="Stop/Hedef Çizgileri — Strateji veya sinyalden gelen stop-loss ve take-profit seviyelerini gösterir">Risk</button>
+            <button class="ctrl-btn pnl-toggle-btn active" id="bist-limit-btn" title="BIST Tavan/Taban — Gün içi fiyat limitlerini (±%10 ve ±%20) grafik üzerinde gösterir">T/T</button>
         </div>
       </div>
 
@@ -501,12 +501,12 @@ export class ChartPanel {
           <div class="template-dropdown" id="export-dropdown">
           <button class="ctrl-btn" id="export-btn" title="${TR.EXPORT_CHART}">⤓ Dışa Aktar</button>
           <div class="export-menu" id="export-menu">
-            <div class="template-item" id="export-png-btn">📸 ${TR.EXPORT_PNG}</div>
-            <div class="template-item" id="export-csv-btn">📊 ${TR.EXPORT_CSV}</div>
+            <div class="template-item" id="export-png-btn"><svg class="icon-svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg> ${TR.EXPORT_PNG}</div>
+            <div class="template-item" id="export-csv-btn"><svg class="icon-svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 20V10M12 20V4M6 20v-4"/><path d="M2 20h20"/></svg> ${TR.EXPORT_CSV}</div>
           </div>
           </div>
           <button class="ctrl-btn" id="price-alert-btn" title="Fiyat uyarısı kur">🔔 Uyarı</button>
-          <button class="ctrl-btn" id="fullscreen-btn" title="${TR.FULLSCREEN} (F)">⛶ Tam Ekran</button>
+          <button class="ctrl-btn" id="fullscreen-btn" title="${TR.FULLSCREEN} (F)"><svg class="icon-svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg> Tam Ekran</button>
         </div>
       </div>
     `;
@@ -520,12 +520,11 @@ export class ChartPanel {
           <button class="ctrl-btn drawing-tool-btn" data-drawing-tool="trendline" title="Trend Çizgisi">⟋</button>
           <button class="ctrl-btn drawing-tool-btn" data-drawing-tool="hline" title="Yatay Çizgi">―</button>
           <button class="ctrl-btn drawing-tool-btn" data-drawing-tool="vline" title="Dikey Çizgi">│</button>
-          <button class="ctrl-btn drawing-tool-btn" data-drawing-tool="measure" title="Ölçüm Aracı">📏</button>
-          <button class="ctrl-btn drawing-clear-btn" id="drawing-clear-btn" title="Tüm çizimleri sil">🗑</button>
+          <button class="ctrl-btn drawing-tool-btn" data-drawing-tool="measure" title="Ölçüm Aracı"><svg class="icon-svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.3 15.3a2.4 2.4 0 0 1 0 3.4l-2.6 2.6a2.4 2.4 0 0 1-3.4 0L2.7 8.7a2.41 2.41 0 0 1 0-3.4l2.6-2.6a2.41 2.41 0 0 1 3.4 0Z"/><path d="m14.5 12.5 2-2"/><path d="m11.5 9.5 2-2"/><path d="m8.5 6.5 2-2"/><path d="m17.5 15.5 2-2"/></svg></button>
+          <button class="ctrl-btn drawing-clear-btn" id="drawing-clear-btn" title="Tüm çizimleri sil"><svg class="icon-svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M10 11v6M14 11v6"/></svg></button>
           <button class="ctrl-btn drawing-tool-btn" data-drawing-tool="fibonacci" title="Fibonacci Düzeltme">Fib</button>
           <button class="ctrl-btn drawing-tool-btn" data-drawing-tool="fibonacci_ext" title="Fibonacci Uzantı">FibX</button>
           <button class="ctrl-btn drawing-tool-btn" data-drawing-tool="regression" title="Regresyon Kanalı">Reg</button>
-          <button class="ctrl-btn drawing-tool-btn" data-drawing-tool-disabled title="Renko — Yakında" disabled style="opacity:0.4;cursor:not-allowed">Rnk</button>
         </div>
       </div>
     `;
@@ -665,10 +664,16 @@ export class ChartPanel {
 
       if (btn.id === 'save-template-btn') {
         const input = this.container.querySelector<HTMLInputElement>('#new-template-name');
-        if (input && input.value.trim()) {
-          this.saveTemplate(input.value.trim());
-          input.value = '';
-          this.container.querySelector('#template-menu')?.classList.remove('show');
+        if (input) {
+          const name = input.value.trim();
+          if (!name) {
+            (window as any).showToast?.('Şablon adı boş bırakılamaz.', 'warn');
+            input.focus();
+          } else {
+            this.saveTemplate(name);
+            input.value = '';
+            this.container.querySelector('#template-menu')?.classList.remove('show');
+          }
         }
       }
 
@@ -683,12 +688,22 @@ export class ChartPanel {
       }
 
       if (btn.id === 'export-png-btn') {
-        this.exportToPNG();
+        try {
+          this.exportToPNG();
+          (window as any).showToast?.('Grafik PNG olarak indirildi.', 'success');
+        } catch (e) {
+          (window as any).showToast?.('PNG dışa aktarımı başarısız.', 'error');
+        }
         this.container.querySelector('#export-menu')?.classList.remove('show');
       }
 
       if (btn.id === 'export-csv-btn') {
-        this.exportToCSV();
+        try {
+          this.exportToCSV();
+          (window as any).showToast?.('Veri CSV olarak indirildi.', 'success');
+        } catch (e) {
+          (window as any).showToast?.('CSV dışa aktarımı başarısız.', 'error');
+        }
         this.container.querySelector('#export-menu')?.classList.remove('show');
       }
 

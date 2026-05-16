@@ -147,7 +147,7 @@ export class NewsPanel {
           }).then(r => r.ok && r.json()).then((res: unknown) => {
             const d = res as { unread?: number } | null;
             if (d) this.updateBadge(d.unread ?? 0);
-          }).catch(() => { /* ignore */ });
+          }).catch((err: unknown) => { console.warn('[NewsPanel] mark-read failed:', err); });
         }
         const sym = card.dataset['symbol'];
         if (sym) window.dispatchEvent(new CustomEvent('openSymbolOnChart', { detail: { symbol: sym } }));

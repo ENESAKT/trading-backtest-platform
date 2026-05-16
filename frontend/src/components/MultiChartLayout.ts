@@ -408,20 +408,26 @@ export class MultiChartLayout {
   // ─── Pane header ──────────────────────────────────────────────────────
 
   private paneHeaderHTML(id: number, symbol: SymbolInfo): string {
-    const groups = this.groupSymbols();
     return `
-      <select class="pane-symbol-select" data-pane-id="${id}" title="Sembol seç">
-        ${groups.map(([group, symbols]) => `
-          <optgroup label="${group}">
-            ${symbols.map(s =>
-              `<option value="${s.symbol}"${s.symbol === symbol.symbol ? ' selected' : ''}>${s.symbol.replace('.IS', '')} — ${s.name}</option>`
-            ).join('')}
-          </optgroup>
-        `).join('')}
+      <select class="pane-symbol-select" data-pane-id="${id}" data-loaded="false" title="Sembol seç">
+        <option value="${symbol.symbol}" selected>${symbol.symbol.replace('.IS', '')} — ${symbol.name}</option>
       </select>
       <span class="pane-symbol-name">${symbol.name}</span>
       <span class="pane-badge" id="pane-badge-${id}"></span>
     `;
+  }
+
+  private populateSymbolSelect(select: HTMLSelectElement, selectedSymbol: string): void {
+    if (select.dataset['loaded'] === 'true') return;
+    const groups = this.groupSymbols();
+    select.innerHTML = groups.map(([group, symbols]) => `
+      <optgroup label="${group}">
+        ${symbols.map(s =>
+          `<option value="${s.symbol}"${s.symbol === selectedSymbol ? ' selected' : ''}>${s.symbol.replace('.IS', '')} — ${s.name}</option>`
+        ).join('')}
+      </optgroup>
+    `).join('');
+    select.dataset['loaded'] = 'true';
   }
 
   private groupSymbols(): [string, SymbolInfo[]][] {
@@ -436,6 +442,10 @@ export class MultiChartLayout {
   private bindPaneHeader(pane: ChartPaneState, headerEl: HTMLElement): void {
     const select = headerEl.querySelector<HTMLSelectElement>('.pane-symbol-select');
     if (!select) return;
+
+    const ensureLoaded = () => this.populateSymbolSelect(select, pane.symbol.symbol);
+    select.addEventListener('pointerdown', ensureLoaded);
+    select.addEventListener('focus', ensureLoaded);
 
     select.addEventListener('change', () => {
       const sym = ALL_SYMBOLS.find(s => s.symbol === select.value);
@@ -455,7 +465,12 @@ export class MultiChartLayout {
     if (nameEl) nameEl.textContent = info.name;
 
     const selectEl = pane.containerEl.querySelector<HTMLSelectElement>('.pane-symbol-select');
-    if (selectEl) selectEl.value = info.symbol;
+    if (selectEl) {
+      if (selectEl.dataset['loaded'] !== 'true') {
+        selectEl.innerHTML = `<option value="${info.symbol}" selected>${info.symbol.replace('.IS', '')} — ${info.name}</option>`;
+      }
+      selectEl.value = info.symbol;
+    }
 
     this.symbolChangeListeners.forEach(l => l(pane.id, info));
 

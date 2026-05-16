@@ -271,6 +271,19 @@ class StrategyStore:
             )
         return bool(cursor.rowcount)
 
+    def delete_strategy(self, record_id: int) -> bool:
+        """Delete a strategy record and its related paper activations."""
+        with self._connect() as conn:
+            conn.execute(
+                "DELETE FROM paper_strategy_activations WHERE strategy_record_id = ?",
+                [int(record_id)],
+            )
+            cursor = conn.execute(
+                "DELETE FROM strategy_records WHERE id = ?",
+                [int(record_id)],
+            )
+        return bool(cursor.rowcount)
+
     def list_paper_activations(self, active_only: bool = False) -> list[PaperActivation]:
         sql = "SELECT * FROM paper_strategy_activations"
         args: list[Any] = []

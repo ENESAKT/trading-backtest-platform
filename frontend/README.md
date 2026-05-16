@@ -28,7 +28,7 @@ Professional trading terminal for Turkish retail traders and investors. Real-tim
 
 - Node.js 18+ (for `fetch`, `AbortSignal.timeout`)
 - Modern browser (Chrome 80+, Firefox 80+, Safari 14+)
-- Internet connection (all data is fetched from external APIs)
+- Backend server running on `http://127.0.0.1:8000`
 
 ---
 
@@ -36,7 +36,7 @@ Professional trading terminal for Turkish retail traders and investors. Real-tim
 
 ```bash
 # Navigate to the project directory
-cd piyasapilot-v2
+cd frontend
 
 # Install dependencies
 npm install
@@ -66,9 +66,9 @@ The app will be available at `http://localhost:5173` (dev) or `http://localhost:
 | Yahoo Finance | `https://query1.finance.yahoo.com/v8/finance/chart/` | Via CORS proxy |
 | CORS Proxy | `https://corsproxy.io/?` | Free proxy, rate limited |
 
-### No environment variables required.
+### Backend Required
 
-All API calls are made directly from the browser. No backend server is needed.
+The frontend follows the zero-demo policy: market data, paper trading, signals, news, auth, and billing flows are requested through the local FastAPI backend under `/api/*` and `/ws/*`. The browser should not call market data providers directly.
 
 ---
 

@@ -390,6 +390,8 @@ async def get_or_create_oauth_user(
                 user_id = (await cur.fetchone())["LAST_INSERT_ID()"]
                 is_new = True
                 await _create_user_settings(pool, user_id)
+                await _assign_referral_code(pool, user_id)
+                await _start_pro_trial(pool, user_id)
 
             # OAuth kaydı ekle
             await cur.execute(

@@ -1,7 +1,7 @@
 # PiyasaPilot — YAPILANLAR
 
 > Son güncelleme: 2026-05-16 · Branch: `codex/financials-ui-api-v1`
-> Toplam: 132 görev tamamlandı
+> Toplam: 151 görev tamamlandı
 
 ---
 
@@ -128,6 +128,28 @@
 - [x] Production compose log rotation ve container healthcheck ayarları eklendi
 - [x] Browser QA sırasında `#app-error-banner` görünmez katman hatası giderildi; `.hidden` artık gerçekten `display:none` uyguluyor
 - [x] Lokal MySQL migration runner ile `001-009` migration dosyaları uygulandı; register/login/me auth akışı 200 OK doğrulandı
+
+## ✅ Web UX QA Düzeltme Paketi (2026-05-16)
+
+- [x] Public route izolasyonu düzeltildi: landing/pricing/auth/legal/shared route'larında terminal shell, websocket, polling ve toast akışı artık başlamıyor.
+- [x] `/`, `/pricing`, `/register` public sayfalarında terminal artığı olmadığı Playwright/Chromium QA ile doğrulandı.
+- [x] `/login` ve `/register` Google OAuth butonları canlı anahtarlar hazır olmadığı için disabled + "yakında" durumuna alındı.
+- [x] `/shared/{slug}` 404 durumunda ürün dilinde empty state ve aksiyon butonları eklendi.
+- [x] Mobil `/app` ilk render'da yüzlerce sembol option metni basma sorunu giderildi; sembol listesi select odaklanınca yükleniyor.
+- [x] Mobil layout'ta sidebar gizli, yatay overflow yok ve ana grafik içeriği ilk ekranda görünüyor.
+- [x] Sinyaller ekranında veri güven kapısı ve Telegram yapılandırma eksikleri kullanıcıya açıklanır hale getirildi.
+- [x] Portföy yüzdesinde `+-0,00%` formatı giderildi; paper cüzdan aksiyonlarına onay eklendi.
+- [x] Haberler sekmesi ana nav'a net 8. sekme olarak eklendi; okunmamış haber rozeti açıklama taşıyor.
+- [x] Mali analiz kapsam dışı semboller için BIST finansalları bağlamı gösteriliyor.
+- [x] `Tarayıcı` sekme adı `Tarama`, tema butonu `Tema` olarak güncellendi.
+- [x] README ve frontend README kurulum/veri politikası mevcut `frontend/` + backend proxy mimarisiyle uyumlu hale getirildi.
+- [x] `cd frontend && npm run typecheck` ve `cd frontend && npm run build` başarılı; build chunk uyarısı ayrı code-splitting işi olarak açık kaldı.
+- [x] Public/terminal code splitting tamamlandı; public sayfalar terminal/chart/backtest/education bundle'ını yüklemiyor.
+- [x] Build çıktısında 500 kB chunk uyarısı kalktı; ana `index` chunk yaklaşık 23 kB seviyesine indi.
+- [x] `WEB_UX_TEST_RAPORU.md` içine çözüm sonrası QA notu eklendi.
+- [x] Yeni kullanıcı ürün kararı netleştirildi: 14 günlük Pro trial korunacak; OAuth ile yeni gelen kullanıcılar da referral code + trial alacak.
+- [x] `POST /api/auth/register` server-side şifre gücü doğrulaması yapacak şekilde güncellendi.
+- [x] Hedefli backend doğrulama: `tests/unit/test_api_endpoints.py` → 11 passed.
 
 ---
 

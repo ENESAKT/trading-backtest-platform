@@ -6,10 +6,15 @@ export async function renderSharedBacktestPage(container: HTMLElement): Promise<
     <section class="public-state">
       <h1>Paylaşılan Backtest</h1>
       <p id="shared-status">Yükleniyor...</p>
+      <div id="shared-actions" class="public-actions" hidden>
+        <a class="btn btn-warning" href="/app">Terminale Git</a>
+        <a class="btn btn-outline-warning" href="/pricing">Planları İncele</a>
+      </div>
       <pre id="shared-data" class="shared-json"></pre>
     </section>`);
   const status = container.querySelector<HTMLElement>('#shared-status')!;
   const out = container.querySelector<HTMLElement>('#shared-data')!;
+  const actions = container.querySelector<HTMLElement>('#shared-actions')!;
   try {
     const shareRes = await fetch(`/api/shared/${encodeURIComponent(slug)}`);
     const shareBody = await shareRes.json();
@@ -20,6 +25,10 @@ export async function renderSharedBacktestPage(container: HTMLElement): Promise<
     status.textContent = `Run ID: ${runId}`;
     out.textContent = escapeHtml(JSON.stringify(report, null, 2));
   } catch (err) {
-    status.textContent = err instanceof Error ? err.message : 'Paylaşım yüklenemedi.';
+    status.textContent = err instanceof Error
+      ? 'Bu paylaşım bulunamadı veya süresi doldu.'
+      : 'Paylaşım yüklenemedi.';
+    actions.hidden = false;
+    out.textContent = '';
   }
 }

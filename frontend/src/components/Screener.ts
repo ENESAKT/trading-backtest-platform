@@ -90,6 +90,28 @@ export class Screener {
       const cache = this.getCache();
       this.results = [];
 
+      const totalSymbols = ALL_SYMBOLS.length;
+      let cachedCount = 0;
+      for (const symInfo of ALL_SYMBOLS) {
+        const candles = cache.get(symInfo.symbol);
+        if (candles && candles.length >= 30) cachedCount++;
+      }
+
+      if (cachedCount === 0) {
+        resultsEl.innerHTML = `
+          <div class="empty-state">
+            <div class="empty-icon">⚠️</div>
+            <div class="empty-title">Veri henüz hazır değil</div>
+            <div class="empty-desc">Cache boş görünüyor. Uygulama arka planda veri yüklüyor olabilir. Birkaç saniye bekleyip tekrar deneyin. Sembol grafikleri ziyaret etmek cache'i hızlandırır.</div>
+          </div>
+        `;
+        return;
+      }
+
+      if (cachedCount < totalSymbols * 0.5) {
+        resultsEl.innerHTML = `<div class="screener-cache-warn">⚠️ ${cachedCount}/${totalSymbols} sembol cache'de — bazı sonuçlar eksik olabilir. Sonuçlar kısmi gösteriliyor.</div>`;
+      }
+
       for (const symInfo of ALL_SYMBOLS) {
         const candles = cache.get(symInfo.symbol);
         if (!candles || candles.length < 30) continue;
@@ -216,8 +238,9 @@ export class Screener {
 
     const sorted = this.sortResults();
 
+    const nowStr = new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
     el.innerHTML = `
-      <div class="screener-count">${this.results.length} sembol bulundu</div>
+      <div class="screener-count">${this.results.length} sembol bulundu <span class="screener-scan-time">— Son tarama: ${nowStr}</span></div>
       <table class="data-table screener-table">
         <thead>
           <tr>
