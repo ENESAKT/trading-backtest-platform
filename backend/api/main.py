@@ -613,7 +613,31 @@ def create_app(
     app = FastAPI(
         title="PiyasaPilot API",
         version="1.0.0",
-        description="Gerçek zamanlı piyasa verisi, sinyal ve backtest API'si. Emir motoru kapalı.",
+        description=(
+            "PiyasaPilot — Gerçek zamanlı piyasa verisi, sinyal üretimi, backtest motoru "
+            "ve paper trading simülasyonu API'si.\n\n"
+            "**Not:** Emir motoru pasiftir. Gerçek emir gönderimi desteklenmez.\n\n"
+            "## Kimlik Doğrulama\n"
+            "Korumalı endpoint'ler `access_token` HTTP-only cookie gerektirir. "
+            "`POST /api/auth/login` ile oturum açın."
+        ),
+        contact={
+            "name": "PiyasaPilot Destek",
+            "url": "https://piyasapilotu.com",
+            "email": "destek@piyasapilotu.com",
+        },
+        openapi_tags=[
+            {"name": "auth", "description": "Kimlik doğrulama — kayıt, giriş, OAuth, 2FA"},
+            {"name": "backtest", "description": "Backtest motoru — strateji çalıştırma, optimizasyon, tarama"},
+            {"name": "paper-trading", "description": "Paper trading simülasyonu — sanal portföy yönetimi"},
+            {"name": "strategy-lab", "description": "Strateji laboratuvarı — kaydetme, dışa/içe aktarma"},
+            {"name": "billing", "description": "Ödeme sistemi — Stripe checkout, portal, webhook"},
+            {"name": "payments", "description": "Ödeme yönetimi — abonelik durumu, iptal"},
+            {"name": "news", "description": "Haber akışı — KAP, RSS kaynakları"},
+            {"name": "financials", "description": "Mali analiz — bilanço, gelir tablosu, oranlar"},
+            {"name": "alerts", "description": "Fiyat uyarıları"},
+            {"name": "admin", "description": "Yönetici paneli"},
+        ],
         docs_url="/api/docs",
         redoc_url="/api/redoc",
         openapi_url="/api/openapi.json",
