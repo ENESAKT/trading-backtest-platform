@@ -143,6 +143,8 @@ h3 { font-family: var(--font-sans); font-size: 14px; font-weight: 600; color: va
   padding: 22px;
 }
 .feature-shot { height: 84px; background: var(--panel2); border: 1px solid var(--border); margin-bottom: 14px; }
+.input-error { border-color: var(--red) !important; box-shadow: 0 0 0 1px rgba(248, 81, 73, 0.25); }
+.field-error { color: var(--red); font-size: 11px; margin-top: 6px; }
 .feature-card h2, .pricing-card h2, .settings-grid h2 { font-family: var(--font-sans); font-size: 18px; }
 .feature-card p, .pricing-card li, .trust-line, .plan-note, .legal-page p, .public-state p { color: var(--text); }
 .pricing-strip { margin-top: 32px; }
@@ -3943,6 +3945,7 @@ kbd {
   overflow: hidden;
 }
 .news-empty { padding: 40px; text-align: center; color: var(--text-dim, #5a6273); font-size: 13px; }
+.news-inline-error { margin-top: 8px; color: var(--red, #f85149); font-size: 11px; }
 
 /* ─── Simple action toast ─────────────────────────────────────────────────── */
 .pp-toast {

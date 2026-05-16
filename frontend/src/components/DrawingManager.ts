@@ -822,7 +822,6 @@ export class DrawingManager {
         <button class="ctrl-btn drawing-tool-btn" data-drawing-tool="fibonacci" title="Fibonacci Düzeltme (iki nokta)">Fib</button>
         <button class="ctrl-btn drawing-tool-btn" data-drawing-tool="fibonacci_ext" title="Fibonacci Uzantı (iki nokta)">FibX</button>
         <button class="ctrl-btn drawing-tool-btn" data-drawing-tool="regression" title="Regresyon Kanalı (iki nokta)">Reg</button>
-        <button class="ctrl-btn drawing-tool-btn" data-drawing-tool-disabled title="Renko — Yakında" disabled style="opacity:0.4;cursor:not-allowed">Rnk</button>
       </div>
     `;
   }

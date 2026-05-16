@@ -449,10 +449,10 @@ export class ChartPanel {
             <span class="unit-badge" id="chart-unit-badge"></span>
             <button class="ctrl-btn scale-auto-btn active" id="auto-price-btn" title="Oto Ölçek">Oto</button>
             <button class="ctrl-btn scale-reset-btn" id="price-reset-btn" title="Sıfırla">⟲</button>
-            <button class="ctrl-btn prev-close-btn active" id="prev-close-btn" title="Önceki Kapanış — Son kapanış fiyatını grafik üzerinde yatay çizgi olarak gösterir">ÖK</button>
-            <button class="ctrl-btn pnl-toggle-btn active" id="pnl-overlay-btn" title="Kâr/Zarar Katmanı — Açık pozisyon veya backtest trade'lerinin PnL alanını grafik üzerinde gösterir">PnL</button>
-            <button class="ctrl-btn pnl-toggle-btn active" id="risk-line-btn" title="Stop/Hedef Çizgileri — Strateji veya sinyalden gelen stop-loss ve take-profit seviyelerini gösterir">Risk</button>
-            <button class="ctrl-btn pnl-toggle-btn active" id="bist-limit-btn" title="BIST Tavan/Taban — Gün içi fiyat limitlerini (±%10 ve ±%20) grafik üzerinde gösterir">T/T</button>
+            <button class="ctrl-btn prev-close-btn active" id="prev-close-btn" title="Önceki Kapanış: Dünün kapanış fiyatını yatay çizgiyle gösterir">ÖK</button>
+            <button class="ctrl-btn pnl-toggle-btn active" id="pnl-overlay-btn" title="Trade K/Z Overlay: İşlem giriş/çıkış ve kâr/zarar alanlarını gösterir">PnL</button>
+            <button class="ctrl-btn pnl-toggle-btn active" id="risk-line-btn" title="Stop/Hedef Çizgileri: Stop-loss ve take-profit seviyelerini gösterir">Risk</button>
+            <button class="ctrl-btn pnl-toggle-btn active" id="bist-limit-btn" title="Tavan/Taban: BIST günlük limit seviyelerini gösterir">T/T</button>
         </div>
       </div>
 
@@ -488,9 +488,10 @@ export class ChartPanel {
           <button class="ctrl-btn" id="template-btn" title="${TR.TEMPLATES}">⚙ Şablonlar</button>
           <div class="template-menu" id="template-menu">
             <div class="template-input-group">
-              <input type="text" id="new-template-name" placeholder="${TR.TEMPLATE_NAME}">
+              <input type="text" id="new-template-name" placeholder="${TR.TEMPLATE_NAME}" aria-describedby="template-name-error">
               <button class="btn-primary" id="save-template-btn" style="padding: 4px; font-size: 10px;">${TR.SAVE_TEMPLATE}</button>
             </div>
+            <div id="template-name-error" class="field-error" hidden>Şablon adı boş olamaz.</div>
             <div class="template-divider"></div>
             <div id="template-list"></div>
             <div class="template-divider"></div>
@@ -668,8 +669,14 @@ export class ChartPanel {
           const name = input.value.trim();
           if (!name) {
             window.showToast?.('Şablon adı boş bırakılamaz.', 'warn');
+            input.classList.add('input-error');
+            const error = this.container.querySelector<HTMLElement>('#template-name-error');
+            if (error) error.hidden = false;
             input.focus();
           } else {
+            input.classList.remove('input-error');
+            const error = this.container.querySelector<HTMLElement>('#template-name-error');
+            if (error) error.hidden = true;
             this.saveTemplate(name);
             input.value = '';
             this.container.querySelector('#template-menu')?.classList.remove('show');
@@ -2323,7 +2330,7 @@ export class ChartPanel {
   }
 
   exportToCSV(): void {
-    if (!this.candles.length) return;
+    if (!this.candles.length) throw new Error('CSV için veri yok.');
     const inds = computeIndicators(this.candles, this.indicatorParams);
     
     let csv = 'Time,Open,High,Low,Close,Volume';
@@ -2352,8 +2359,7 @@ export class ChartPanel {
   exportToPNG(): void {
     const canvas = this.mainChart.takeScreenshot();
     if (!canvas) {
-      alert('PNG Export çalışmıyor: Canvas snapshot alınamadı.');
-      return;
+      throw new Error('Canvas snapshot alınamadı.');
     }
     const a = document.createElement('a');
     a.href = canvas.toDataURL('image/png');

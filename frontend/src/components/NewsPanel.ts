@@ -144,10 +144,18 @@ export class NewsPanel {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ ids: [id] }),
-          }).then(r => r.ok && r.json()).then((res: unknown) => {
+          }).then((r) => {
+            if (!r.ok) throw new Error(`mark-read ${r.status}`);
+            return r.json();
+          }).then((res: unknown) => {
             const d = res as { unread?: number } | null;
             if (d) this.updateBadge(d.unread ?? 0);
-          }).catch((err: unknown) => { console.warn('[NewsPanel] mark-read failed:', err); });
+          }).catch((err: unknown) => {
+            this.readIds.delete(id);
+            card.classList.remove('news-read');
+            card.insertAdjacentHTML('beforeend', '<div class="news-inline-error">Okundu bilgisi kaydedilemedi.</div>');
+            console.warn('[NewsPanel] mark-read failed:', err);
+          });
         }
         const sym = card.dataset['symbol'];
         if (sym) window.dispatchEvent(new CustomEvent('openSymbolOnChart', { detail: { symbol: sym } }));

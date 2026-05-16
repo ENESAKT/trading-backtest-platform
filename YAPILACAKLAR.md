@@ -1507,7 +1507,7 @@ Bu bölümdeki işler bitmeden production kabulü yapılmaz.
 **Sorun:** `#market-ticker` ve `#ticker-track` div'leri HTML'de var, CSS `--ticker-h: 30px` ile 30px yükseklik ayrılıyor. `app.ts` içinde `#ticker-track`'i dolduran hiçbir kod yok. Terminal açıldığında "Canlı Piyasa" yazısıyla boş karanlık şerit görünüyor; içerik 30px gereksiz aşağı itiyor.
 
 - [ ] **Seçenek A (Doldur):** `DataEngine.onPriceUpdate` akışından gelen fiyatları `#ticker-track` içine `<span>` olarak ekle (sembol, fiyat, % değişim). CSS animasyonu için şerit zaten hazır.
-- [ ] **Seçenek B (Hızlı Düzeltme):** `#market-ticker`'ı `display:none` yap; `--ticker-h: 0px` olarak sıfırla; padding hesabını güncelle.
+- [x] **Seçenek B (Hızlı Düzeltme):** `#market-ticker`'ı `display:none` yap; `--ticker-h: 0px` olarak sıfırla; padding hesabını güncelle.
 
 **Kabul:** Terminal açıldığında boş şerit görünmüyor.
 
@@ -1517,7 +1517,7 @@ Bu bölümdeki işler bitmeden production kabulü yapılmaz.
 
 **Dosya:** `frontend/src/components/ChartPanel.ts` satır 528
 
-- [ ] `Rnk` (Renko) butonu disabled + soluk olarak görünüyor, "bozuk buton" izlenimi veriyor. Tamamen kaldır ya da toolbar dışında ayrı "Yakında" bölümüne taşı.
+- [x] `Rnk` (Renko) butonu disabled + soluk olarak görünüyor, "bozuk buton" izlenimi veriyor. Tamamen kaldır ya da toolbar dışında ayrı "Yakında" bölümüne taşı.
 
 ---
 
@@ -1525,8 +1525,8 @@ Bu bölümdeki işler bitmeden production kabulü yapılmaz.
 
 **Dosya:** `frontend/src/app.ts` — klavye kısayolları bölümü
 
-- [ ] G tuşu döngüsünü `['1x1', '1x2', '2x2']`'dan `['1x1', '1x2', '2x1', '2x2']`'ye güncelle.
-- [ ] Klavye kısayol overlay'indeki açıklamayı da güncelle.
+- [x] G tuşu döngüsünü `['1x1', '1x2', '2x2']`'dan `['1x1', '1x2', '2x1', '2x2']`'ye güncelle.
+- [x] Klavye kısayol overlay'indeki açıklamayı da güncelle.
 
 ---
 
@@ -1534,7 +1534,7 @@ Bu bölümdeki işler bitmeden production kabulü yapılmaz.
 
 **Dosya:** `frontend/src/components/ChartPanel.ts` — `#save-template-btn` click handler
 
-- [ ] `#new-template-name` boşken kaydet tıklanırsa kayıt yapma; input'a hata stili + "Şablon adı boş olamaz" mesajı göster.
+- [x] `#new-template-name` boşken kaydet tıklanırsa kayıt yapma; input'a hata stili + "Şablon adı boş olamaz" mesajı göster.
 
 ---
 
@@ -1542,8 +1542,8 @@ Bu bölümdeki işler bitmeden production kabulü yapılmaz.
 
 **Dosya:** `frontend/src/components/ChartPanel.ts` — export buton handler'ları
 
-- [ ] Export başarılıysa `✓ Grafik indirildi` toast göster.
-- [ ] Export başarısızsa `✗ Dışa aktarım başarısız` hata toast göster.
+- [x] Export başarılıysa `✓ Grafik indirildi` toast göster.
+- [x] Export başarısızsa `✗ Dışa aktarım başarısız` hata toast göster.
 
 ---
 
@@ -1551,10 +1551,10 @@ Bu bölümdeki işler bitmeden production kabulü yapılmaz.
 
 **Dosya:** `frontend/src/components/ChartPanel.ts` satır 452–455
 
-- [ ] `ÖK` → title: `"Önceki Kapanış: Dünün kapanış fiyatını yatay çizgiyle gösterir"`
-- [ ] `PnL` → title: `"Trade K/Z Overlay: İşlem giriş/çıkış ve kâr/zarar alanlarını gösterir"`
-- [ ] `Risk` → title: `"Stop/Hedef Çizgileri: Stop-loss ve take-profit seviyelerini gösterir"`
-- [ ] `T/T` → title: `"Tavan/Taban: BIST günlük limit seviyelerini gösterir"`
+- [x] `ÖK` → title: `"Önceki Kapanış: Dünün kapanış fiyatını yatay çizgiyle gösterir"`
+- [x] `PnL` → title: `"Trade K/Z Overlay: İşlem giriş/çıkış ve kâr/zarar alanlarını gösterir"`
+- [x] `Risk` → title: `"Stop/Hedef Çizgileri: Stop-loss ve take-profit seviyelerini gösterir"`
+- [x] `T/T` → title: `"Tavan/Taban: BIST günlük limit seviyelerini gösterir"`
 
 ---
 
@@ -1562,8 +1562,8 @@ Bu bölümdeki işler bitmeden production kabulü yapılmaz.
 
 **Dosya:** `frontend/src/components/StrategyPanel.ts` — `render()` ve `syncControls()` çağrı sırası
 
-- [ ] `render()` içinde HTML yazılırken `seg-btn` butonuna `this.mode === btn.dataset.mode` koşuluyla `active` sınıfını inline ekle.
-- [ ] `syncControls()` çağrısını DOM hazır olduktan sonraya al.
+- [x] `render()` içinde HTML yazılırken `seg-btn` butonuna `this.mode === btn.dataset.mode` koşuluyla `active` sınıfını inline ekle.
+- [x] `syncControls()` çağrısını DOM hazır olduktan sonraya al.
 
 ---
 
@@ -1571,7 +1571,7 @@ Bu bölümdeki işler bitmeden production kabulü yapılmaz.
 
 **Dosya:** `frontend/src/components/StrategyPanel.ts`
 
-- [ ] `#bt-slippage-model` change event'inde: "Fixed BPS" seçiliyken `#bt-slippage-tick` gizle; "Fixed Tick" seçiliyken `#bt-slippage` (bps) gizle. Başlangıç durumu da buna göre set et.
+- [x] `#bt-slippage-model` change event'inde: "Fixed BPS" seçiliyken `#bt-slippage-tick` gizle; "Fixed Tick" seçiliyken `#bt-slippage` (bps) gizle. Başlangıç durumu da buna göre set et.
 
 ---
 
@@ -1579,7 +1579,7 @@ Bu bölümdeki işler bitmeden production kabulü yapılmaz.
 
 **Dosya:** `frontend/src/components/StrategyPanel.ts` — `renderReport()` içinde `walk-forward` ve `monte-carlo` dalları
 
-- [ ] `lastResult === null` iken bu sekmelerde: `"Walk-Forward analizi için önce 'Çalıştır' butonuna basın."` mesajı + Çalıştır butonuna işaret eden ok/link göster.
+- [x] `lastResult === null` iken bu sekmelerde: `"Walk-Forward analizi için önce 'Çalıştır' butonuna basın."` mesajı + Çalıştır butonuna işaret eden ok/link göster.
 
 ---
 
@@ -1587,8 +1587,8 @@ Bu bölümdeki işler bitmeden production kabulü yapılmaz.
 
 **Dosyalar:** `frontend/src/components/StrategyPanel.ts`, backend `DELETE /api/backtest/reports/{run_id}` (mevcut)
 
-- [ ] `#report-archive` listesindeki her kayda 🗑 silme butonu ekle.
-- [ ] Tıklanınca `DELETE /api/backtest/reports/{run_id}` çağır, başarılıysa listeden kaldır, toast göster.
+- [x] `#report-archive` listesindeki her kayda 🗑 silme butonu ekle.
+- [x] Tıklanınca `DELETE /api/backtest/reports/{run_id}` çağır, başarılıysa listeden kaldır, toast göster.
 
 ---
 
@@ -1596,7 +1596,7 @@ Bu bölümdeki işler bitmeden production kabulü yapılmaz.
 
 **Dosya:** `frontend/src/components/StrategyPanel.ts`
 
-- [ ] `#saved-strategies` listesindeki her kayda 🗑 silme butonu ekle; kayıtlı stratejiler birikmesin.
+- [x] `#saved-strategies` listesindeki her kayda 🗑 silme butonu ekle; kayıtlı stratejiler birikmesin.
 
 ---
 
@@ -1604,7 +1604,7 @@ Bu bölümdeki işler bitmeden production kabulü yapılmaz.
 
 **Dosya:** `frontend/src/components/PortfolioPanel.ts` — `walletCardHTML()`
 
-- [ ] `dailyLoss >= 0 ? dailyLossPct : -dailyLossPct` ifadesini kaldır; `formatPct(Math.abs(dailyLoss) / w.initial_capital * 100)` kullan, sign ayrı CSS rengiyle göster.
+- [x] `dailyLoss >= 0 ? dailyLossPct : -dailyLossPct` ifadesini kaldır; `formatPct(Math.abs(dailyLoss) / w.initial_capital * 100)` kullan, sign ayrı CSS rengiyle göster.
 
 ---
 
@@ -1612,8 +1612,8 @@ Bu bölümdeki işler bitmeden production kabulü yapılmaz.
 
 **Dosya:** `frontend/src/components/PortfolioPanel.ts` — `resetWallet()`, `haltWallet()`
 
-- [ ] `window.confirm()` yerine uygulamanın tema'sına uygun onay modal/dialog bileşeni kullan.
-- [ ] Onay metninde işlemin sadece paper kayıtlarını etkilediğini belirt.
+- [x] `window.confirm()` yerine uygulamanın tema'sına uygun onay modal/dialog bileşeni kullan.
+- [x] Onay metninde işlemin sadece paper kayıtlarını etkilediğini belirt.
 
 ---
 
@@ -1621,8 +1621,8 @@ Bu bölümdeki işler bitmeden production kabulü yapılmaz.
 
 **Dosya:** `frontend/src/components/Screener.ts` — `scan()`
 
-- [ ] Cache'deki veri sayısı çok azsa tarama başlamadan uyarı göster: `"Veri yükleniyor. Bir sembol seçip birkaç saniye bekledikten sonra tekrar deneyin."`
-- [ ] Tarama sonucuna `"X sembol tarandı, Y sonuç bulundu"` bilgisi ekle.
+- [x] Cache'deki veri sayısı çok azsa tarama başlamadan uyarı göster: `"Veri yükleniyor. Bir sembol seçip birkaç saniye bekledikten sonra tekrar deneyin."`
+- [x] Tarama sonucuna `"X sembol tarandı, Y sonuç bulundu"` bilgisi ekle.
 
 ---
 
@@ -1630,7 +1630,7 @@ Bu bölümdeki işler bitmeden production kabulü yapılmaz.
 
 **Dosya:** `frontend/src/components/Screener.ts`
 
-- [ ] Tarama tamamlandığında başlık yanına `"Son tarama: HH:MM"` timestamp'i göster.
+- [x] Tarama tamamlandığında başlık yanına `"Son tarama: HH:MM"` timestamp'i göster.
 
 ---
 
@@ -1638,7 +1638,7 @@ Bu bölümdeki işler bitmeden production kabulü yapılmaz.
 
 **Dosya:** `frontend/src/components/NewsPanel.ts` — mark-read POST `catch`
 
-- [ ] Hata oluşursa kart `news-read` sınıfını geri al; kısa inline mesaj veya toast göster.
+- [x] Hata oluşursa kart `news-read` sınıfını geri al; kısa inline mesaj veya toast göster.
 
 ---
 
@@ -1646,8 +1646,8 @@ Bu bölümdeki işler bitmeden production kabulü yapılmaz.
 
 **Dosya:** `frontend/src/components/MaliAnalizPanel.ts` — `refreshAllBtnEl` click handler
 
-- [ ] Buton metnini yenileme süreci boyunca `"⟳ Yenileniyor…"` olarak güncelle veya en azından spinner göster.
-- [ ] Tamamlandığında `"✓ BIST 30 güncellendi"` toast göster.
+- [x] Buton metnini yenileme süreci boyunca `"⟳ Yenileniyor…"` olarak güncelle veya en azından spinner göster.
+- [x] Tamamlandığında `"✓ BIST 30 güncellendi"` toast göster.
 
 ---
 
@@ -1655,7 +1655,7 @@ Bu bölümdeki işler bitmeden production kabulü yapılmaz.
 
 **Dosya:** `frontend/src/components/MaliAnalizPanel.ts` — universe list render
 
-- [ ] Sembol listesi sidebar'ının üstüne küçük legend ekle: `● Veri var  ● Kısmi  ● Veri yok`
+- [x] Sembol listesi sidebar'ının üstüne küçük legend ekle: `● Veri var  ● Kısmi  ● Veri yok`
 
 ---
 
@@ -1663,7 +1663,7 @@ Bu bölümdeki işler bitmeden production kabulü yapılmaz.
 
 **Dosya:** `frontend/style.css` — scrollbar bölümü (satır 2318–2321)
 
-- [ ] Şunu ekle: `* { scrollbar-width: thin; scrollbar-color: var(--border2) var(--bg); }`
+- [x] Şunu ekle: `* { scrollbar-width: thin; scrollbar-color: var(--border2) var(--bg); }`
 
 ---
 
@@ -1703,19 +1703,19 @@ Bu bölümdeki işler bitmeden production kabulü yapılmaz.
 
 Bu bölümdeki yeni maddeler (9.17–9.39) kapanmadan production kabulü yapılmamalı.
 
-- [ ] Market Ticker: ya dolduruluyor ya da kaldırılıyor (9.17)
-- [ ] Renko butonu kaldırıldı veya taşındı (9.18)
-- [ ] G klavye döngüsü 2×1 dahil çalışıyor (9.19)
-- [ ] Şablon boş isimle kaydedilemiyor (9.20)
-- [ ] Export PNG/CSV toast bildirimi var (9.21)
-- [ ] Mode butonu ilk açılışta aktif görünüyor (9.23)
-- [ ] Slippage Tick input model'e göre gizleniyor (9.24)
-- [ ] Walk-Forward/Monte Carlo boş durumda yönlendirme var (9.25)
-- [ ] Rapor arşivinde silme butonu çalışıyor (9.26)
-- [ ] Screener ilk taramada cache boş uyarısı var (9.30)
-- [ ] Portföy formatPct `+-` üretmiyor (9.28)
-- [ ] BIST 30 yenile progress göstergesi var (9.33)
-- [ ] Firefox scrollbar stillenmiş (9.35)
+- [x] Market Ticker: ya dolduruluyor ya da kaldırılıyor (9.17)
+- [x] Renko butonu kaldırıldı veya taşındı (9.18)
+- [x] G klavye döngüsü 2×1 dahil çalışıyor (9.19)
+- [x] Şablon boş isimle kaydedilemiyor (9.20)
+- [x] Export PNG/CSV toast bildirimi var (9.21)
+- [x] Mode butonu ilk açılışta aktif görünüyor (9.23)
+- [x] Slippage Tick input model'e göre gizleniyor (9.24)
+- [x] Walk-Forward/Monte Carlo boş durumda yönlendirme var (9.25)
+- [x] Rapor arşivinde silme butonu çalışıyor (9.26)
+- [x] Screener ilk taramada cache boş uyarısı var (9.30)
+- [x] Portföy formatPct `+-` üretmiyor (9.28)
+- [x] BIST 30 yenile progress göstergesi var (9.33)
+- [x] Firefox scrollbar stillenmiş (9.35)
 
 ---
 

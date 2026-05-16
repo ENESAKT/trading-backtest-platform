@@ -162,6 +162,18 @@
 - [x] `cd frontend && npm run build` başarılı; build chunk uyarısı geri gelmedi.
 - [x] Playwright/Chromium smoke QA desktop ve 390px mobil viewportlarda `/`, `/pricing`, `/login`, `/register`, `/app` sekmeleri, `/settings`, `/admin`, `/shared/olmayan-slug`, legal sayfalar, waitlist ve payment success için çalıştırıldı.
 
+## ✅ Frontend Regresyon UX Paketi 9.17–9.35 (2026-05-16)
+
+- [x] Renko/Rnk disabled butonu çizim toolbar'ından kaldırıldı; kullanıcıya bozuk kontrol gibi görünmüyor.
+- [x] Grafik şablonu boş isimle kaydedilemiyor; input hata stili ve inline mesaj gösteriyor.
+- [x] PNG/CSV export başarı ve hata durumları toast ile kullanıcıya dönüyor.
+- [x] ÖK/PnL/Risk/Tavan-Taban tooltipleri anlaşılır ürün diliyle güncellendi.
+- [x] Walk-Forward ve Monte Carlo sekmelerinde sonuç yokken "Çalıştır" yönlendirmesi eklendi.
+- [x] Haber okundu işaretleme başarısızsa kart eski durumuna dönüyor ve inline hata veriyor.
+- [x] Portföy günlük K/Z yüzdesinde işaret ayrı hesaplanıyor; `+-` formatı üretmiyor.
+- [x] Daha önce uygulanmış açıklar dokümantasyonda kapatıldı: market ticker kaldırma, G 2×1 döngüsü, strategy mode active, slippage input gizleme, screener cache/timestamp, BIST 30 progress, legend ve Firefox scrollbar.
+- [x] `cd frontend && npm run typecheck` ve `cd frontend && npm run build` başarılı.
+
 ---
 
 ## ✅ Güvenlik ve Deployment Altyapısı

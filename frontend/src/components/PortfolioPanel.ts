@@ -321,7 +321,7 @@ export class PortfolioPanel {
       : '';
     const dailyLoss = w.daily_loss;
     // Yüzde hesabı yönlü olmalı: negatif kayıp, pozitif kazanç
-    const dailyLossPct = (dailyLoss / w.initial_capital) * 100;
+    const dailyLossPct = (Math.abs(dailyLoss) / w.initial_capital) * 100;
     const isSelected = w.strategy_id === this.selectedStrategy;
 
     return `
@@ -341,7 +341,7 @@ export class PortfolioPanel {
           </div>
           <div class="wm-item">
             <span class="wm-label">${TR.DAILY_PNL}</span>
-            <span class="wm-value ${dailyLoss >= 0 ? 'pos' : 'neg'}">${formatCurrency(dailyLoss)} (${formatPct(dailyLossPct)})</span>
+            <span class="wm-value ${dailyLoss >= 0 ? 'pos' : 'neg'}">${formatCurrency(dailyLoss)} (${dailyLoss > 0 ? '+' : dailyLoss < 0 ? '-' : ''}${formatPct(dailyLossPct).replace(/^[+-]/, '')})</span>
           </div>
         </div>
         <div class="wallet-actions">

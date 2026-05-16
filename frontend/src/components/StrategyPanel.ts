@@ -1528,7 +1528,22 @@ export class StrategyPanel {
     this.syncControls();
     const el = this.container.querySelector('#report-content');
     const r = this.lastResult;
-    if (!el || !r) return;
+    if (!el) return;
+    if (!r) {
+      if (this.reportTab === 'walk-forward' || this.reportTab === 'monte-carlo') {
+        const title = this.reportTab === 'walk-forward' ? 'Walk-Forward analizi' : 'Monte Carlo simülasyonu';
+        el.innerHTML = `
+          <div class="empty-state">
+            <div class="empty-title">${title} için önce "Çalıştır" butonuna basın.</div>
+            <div class="empty-desc">Backtest sonucu oluştuğunda bu sekme risk ve dayanıklılık analizini gösterecek.</div>
+            <button class="btn-primary" id="empty-run-backtest">Çalıştır</button>
+          </div>`;
+        el.querySelector('#empty-run-backtest')?.addEventListener('click', () => {
+          this.container.querySelector<HTMLButtonElement>('#run-backtest')?.click();
+        });
+      }
+      return;
+    }
     if (this.reportTab === 'summary') el.innerHTML = this.summaryHTML(r);
     if (this.reportTab === 'trades') el.innerHTML = this.tradesHTML(r.trades);
     if (this.reportTab === 'performance') {

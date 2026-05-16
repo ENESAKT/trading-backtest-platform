@@ -202,7 +202,7 @@ function buildShortcutOverlay(): void {
         </div>
         <div class="shortcut-section">
           <h4>Grafik</h4>
-          <div class="shortcut-row"><kbd>G</kbd><span>Layout döngüsü (1×1 → 1×2 → 2×2)</span></div>
+          <div class="shortcut-row"><kbd>G</kbd><span>Layout döngüsü (1×1 → 1×2 → 2×1 → 2×2)</span></div>
           <div class="shortcut-row"><kbd>F</kbd><span>Tam ekran</span></div>
           <div class="shortcut-row"><kbd>B</kbd><span>Bollinger Bantları</span></div>
           <div class="shortcut-row"><kbd>R</kbd><span>RSI</span></div>
