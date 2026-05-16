@@ -302,3 +302,11 @@ Waitlist sayfası TR/EN sözlüğe bağlandı ve backend kapalıyken inline hata
 - `npm run typecheck` başarılı.
 - `npm run build` başarılı; 500 kB chunk uyarısı yok.
 - `npm run e2e` başarılı; Playwright/Chromium sonucu: 24/24 test geçti.
+
+## QA Sonrası Not — 2026-05-16 Payment/Settings i18n
+
+Payment success ve settings abonelik/profil/güvenlik metinleri TR/EN sözlüğe bağlandı. Stripe canlı portalı yokken görünen hata/empty state dili aktif dile göre veriliyor.
+
+- `npm run typecheck` başarılı.
+- `npm run build` başarılı; 500 kB chunk uyarısı yok.
+- `npm run e2e` başarılı; Playwright/Chromium sonucu: 24/24 test geçti.

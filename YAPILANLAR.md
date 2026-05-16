@@ -212,6 +212,12 @@
 - [x] `/api/waitlist` kapalı veya erişilemez olduğunda form artık kontrolsüz hata yerine profesyonel inline mesaj gösteriyor.
 - [x] `cd frontend && npm run typecheck`, `cd frontend && npm run build` ve `cd frontend && npm run e2e` başarılı; E2E sonucu: 24/24 geçti.
 
+## ✅ Payment Success ve Settings i18n (2026-05-16)
+
+- [x] Payment success ve settings abonelik/profil/güvenlik metinleri TR/EN sözlüğe taşındı.
+- [x] Billing portal ve abonelik boş/hata durumları aktif dile göre profesyonel mesaj gösteriyor; canlı Stripe gerektiren adımlar kullanıcı aksiyonu olarak kalıyor.
+- [x] `cd frontend && npm run typecheck`, `cd frontend && npm run build` ve `cd frontend && npm run e2e` başarılı; E2E sonucu: 24/24 geçti.
+
 ---
 
 ## ✅ Güvenlik ve Deployment Altyapısı
