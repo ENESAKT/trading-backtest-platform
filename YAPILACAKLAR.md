@@ -1671,7 +1671,7 @@ Bu bölümdeki işler bitmeden production kabulü yapılmaz.
 
 **Dosyalar:** `ChartPanel.ts`, `MultiChartLayout.ts`, `PortfolioPanel.ts`
 
-- [ ] `🗑`, `📏`, `⛶`, `📸`, `📊`, `🔗`, `⏳`, `↔️` gibi emoji'leri SVG ikon setine taşı (topbar'da zaten SVG kullanılıyor).
+- [x] `🗑`, `📏`, `⛶`, `📸`, `📊`, `🔗`, `⏳`, `↔️` gibi emoji'leri SVG ikon setine taşı (topbar'da zaten SVG kullanılıyor).
 
 ---
 

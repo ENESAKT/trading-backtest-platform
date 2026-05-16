@@ -28,6 +28,8 @@ const BACKTEST_SCAN_ENDPOINT = '/api/backtest/scan';
 const STRATEGY_STORE_ENDPOINT = '/api/strategy-lab/strategies';
 const BACKTEST_TIMEOUT_MS = 30_000;
 const MIN_BARS_FOR_RUN = 50;
+const ICON_CHART = '<svg class="icon-svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg>';
+const ICON_FINANCIALS = '<svg class="icon-svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>';
 
 type SignalsListener = (signals: Signal[]) => void;
 type FocusListener = (timestamp: number) => void;
@@ -445,8 +447,8 @@ export class StrategyPanel {
               <div class="panel-title-row">
                 <h3>${TR.EQUITY_CURVE}</h3>
                 <div class="export-actions">
-                  <button class="btn-sm" id="bt-open-chart" title="Sembolü grafikte aç">📈 Grafik</button>
-                  <button class="btn-sm" id="bt-open-financials" title="Mali analizi aç">💰 Mali</button>
+                  <button class="btn-sm" id="bt-open-chart" title="Sembolü grafikte aç">${ICON_CHART} Grafik</button>
+                  <button class="btn-sm" id="bt-open-financials" title="Mali analizi aç">${ICON_FINANCIALS} Mali</button>
                   <button class="btn-sm" id="share-backtest" title="Public paylaşım bağlantısı üret">Paylaş</button>
                   <button class="btn-sm" data-export="json">JSON</button>
                   <button class="btn-sm" data-export="trades_csv">İşlem CSV</button>

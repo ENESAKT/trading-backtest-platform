@@ -41,6 +41,10 @@ const C = {
 
 const COMPARE_COLOR = '#F2B84B';
 const COMPARE_DOWN_COLOR = '#C084FC';
+const ICON_PIN = '<svg class="icon-svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 17-5 5"/><path d="m15 4 5 5-4 4v3l-2 2-8-8 2-2h3z"/></svg>';
+const ICON_SETTINGS = '<svg class="icon-svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6V21a2 2 0 1 1-4 0v-.2a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-1.6-1H3a2 2 0 1 1 0-4h.2a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1A1.7 1.7 0 0 0 9 4.6 1.7 1.7 0 0 0 10 3V3a2 2 0 1 1 4 0v.2a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.6 1H21a2 2 0 1 1 0 4h-.2a1.7 1.7 0 0 0-1.4 1z"/></svg>';
+const ICON_BELL = '<svg class="icon-svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>';
+const ICON_DOWNLOAD = '<svg class="icon-svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>';
 
 function cssVar(name: string, fallback: string): string {
   if (typeof window === 'undefined') return fallback;
@@ -435,7 +439,7 @@ export class ChartPanel {
         <div class="tool-inline" id="indicator-inline">
           ${this.quickIndicatorButtonsHTML()}
           ${this.favoritePinsHTML()}
-          <button class="pin-btn" id="pin-indicators-btn" title="Açık tut (Pin)">📌</button>
+          <button class="pin-btn" id="pin-indicators-btn" title="Açık tut (Pin)">${ICON_PIN}</button>
         </div>
       </div>
 
@@ -485,7 +489,7 @@ export class ChartPanel {
         <button class="tool-trigger" type="button"><span>Çıktı</span><b>Şablon</b></button>
         <div class="tool-inline output-inline">
           <div class="template-dropdown" id="template-dropdown">
-          <button class="ctrl-btn" id="template-btn" title="${TR.TEMPLATES}">⚙ Şablonlar</button>
+          <button class="ctrl-btn" id="template-btn" title="${TR.TEMPLATES}">${ICON_SETTINGS} Şablonlar</button>
           <div class="template-menu" id="template-menu">
             <div class="template-input-group">
               <input type="text" id="new-template-name" placeholder="${TR.TEMPLATE_NAME}" aria-describedby="template-name-error">
@@ -500,13 +504,13 @@ export class ChartPanel {
         </div>
 
           <div class="template-dropdown" id="export-dropdown">
-          <button class="ctrl-btn" id="export-btn" title="${TR.EXPORT_CHART}">⤓ Dışa Aktar</button>
+          <button class="ctrl-btn" id="export-btn" title="${TR.EXPORT_CHART}">${ICON_DOWNLOAD} Dışa Aktar</button>
           <div class="export-menu" id="export-menu">
             <div class="template-item" id="export-png-btn"><svg class="icon-svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg> ${TR.EXPORT_PNG}</div>
             <div class="template-item" id="export-csv-btn"><svg class="icon-svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 20V10M12 20V4M6 20v-4"/><path d="M2 20h20"/></svg> ${TR.EXPORT_CSV}</div>
           </div>
           </div>
-          <button class="ctrl-btn" id="price-alert-btn" title="Fiyat uyarısı kur">🔔 Uyarı</button>
+          <button class="ctrl-btn" id="price-alert-btn" title="Fiyat uyarısı kur">${ICON_BELL} Uyarı</button>
           <button class="ctrl-btn" id="fullscreen-btn" title="${TR.FULLSCREEN} (F)"><svg class="icon-svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg> Tam Ekran</button>
         </div>
       </div>
@@ -2380,7 +2384,7 @@ export class ChartPanel {
     modal.innerHTML = `
       <div class="modal-box" style="max-width:340px">
         <div class="modal-header">
-          <span>🔔 Fiyat Uyarısı — ${this.lastSymbol}</span>
+          <span>${ICON_BELL} Fiyat Uyarısı — ${this.lastSymbol}</span>
           <button class="modal-close" id="pa-close">✕</button>
         </div>
         <div class="modal-body" style="display:flex;flex-direction:column;gap:12px;padding:16px">

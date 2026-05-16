@@ -2,6 +2,7 @@ import Chart from 'chart.js/auto';
 import { TR, formatNumber, formatCurrency, formatPct, formatDateTime } from '../constants/tr.js';
 
 const POLL_INTERVAL_MS = 5_000;
+const ICON_DOWNLOAD = '<svg class="icon-svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>';
 
 interface PaperWallet {
   strategy_id: string;
@@ -235,7 +236,7 @@ export class PortfolioPanel {
         <div class="paper-section">
           <div class="panel-title-row">
             <h2 class="paper-title">${TR.TRADE_HISTORY}</h2>
-            <button class="btn-sm" id="export-trades-btn" title="İşlemleri CSV olarak indir">⤓ CSV</button>
+            <button class="btn-sm" id="export-trades-btn" title="İşlemleri CSV olarak indir">${ICON_DOWNLOAD} CSV</button>
           </div>
           <div id="paper-trades"></div>
         </div>

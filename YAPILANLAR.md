@@ -181,6 +181,13 @@
 - [x] Sidebar lazy-load `IntersectionObserver` temizliği ve Eğitimler kategori kısmi render davranışı doğrulandı; ilgili checklist maddeleri kapatıldı.
 - [x] `cd frontend && npm run typecheck` ve `cd frontend && npm run build` başarılı.
 
+## ✅ Frontend İkon Tutarlılığı 9.36 (2026-05-16)
+
+- [x] Grafik panelindeki pin, şablon, dışa aktar ve fiyat uyarısı kontrolleri emoji yerine inline SVG ikonlara taşındı.
+- [x] Portföy CSV export ve Strateji panelindeki grafik/mali analiz aksiyonları SVG ikonlarla güncellendi.
+- [x] `rg` ile hedef emoji setinin ChartPanel/MultiChartLayout/PortfolioPanel/StrategyPanel görünür kontrollerinde kalmadığı doğrulandı.
+- [x] `cd frontend && npm run typecheck && npm run build` başarılı.
+
 ---
 
 ## ✅ Güvenlik ve Deployment Altyapısı
