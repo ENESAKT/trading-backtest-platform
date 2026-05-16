@@ -1841,8 +1841,8 @@ def create_app(
             raise HTTPException(status_code=404, detail="Uyarı bulunamadı.")
         return {"deleted": alert_id}
 
-    @app.post("/api/paper/signal")
-    async def paper_signal(request: Request) -> dict[str, Any]:
+    @app.post("/api/paper/signal", tags=["paper-trading"])
+    async def paper_signal(request: Request, user: dict = Depends(get_current_user)) -> dict[str, Any]:
         try:
             payload = await request.json()
         except Exception:

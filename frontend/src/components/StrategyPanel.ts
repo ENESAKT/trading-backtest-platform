@@ -819,7 +819,7 @@ export class StrategyPanel {
     if (reportEl) reportEl.innerHTML = `<div class="loading">${TR.RUNNING_BACKTEST}</div>`;
 
     const runBtn = this.container.querySelector<HTMLButtonElement>('#run-backtest');
-    if (runBtn) { runBtn.disabled = true; runBtn.textContent = '⏳ Çalışıyor…'; }
+    if (runBtn) { runBtn.disabled = true; runBtn.innerHTML = '<svg class="icon-svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> Çalışıyor…'; }
 
     this.runInFlight = true;
     try {
@@ -1311,7 +1311,7 @@ export class StrategyPanel {
         </div>
         <div class="compact-actions">
           <button class="btn-sm" data-load-strategy="${s.id}">Aç</button>
-          <button class="btn-sm btn-danger" data-delete-strategy="${s.id}" title="Stratejiyi sil">🗑</button>
+          <button class="btn-sm btn-danger" data-delete-strategy="${s.id}" title="Stratejiyi sil"><svg class="icon-svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M10 11v6M14 11v6"/></svg></button>
         </div>
       </div>
     `).join('');
@@ -1343,7 +1343,7 @@ export class StrategyPanel {
         <div class="compact-actions">
           <button class="btn-sm" data-load-report="${r.id}">Aç</button>
           <button class="btn-sm" data-rerun-report="${r.id}">Tekrar</button>
-          <button class="btn-sm btn-danger" data-delete-report="${r.id}" title="Raporu sil">🗑</button>
+          <button class="btn-sm btn-danger" data-delete-report="${r.id}" title="Raporu sil"><svg class="icon-svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M10 11v6M14 11v6"/></svg></button>
         </div>
       </div>
     `).join('');
@@ -1592,7 +1592,7 @@ export class StrategyPanel {
     const report = r.walk_forward_report;
     if (!report) return `
       <div class="empty-state">
-        <div class="empty-icon">📊</div>
+        <div class="empty-icon"><svg class="icon-svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 20V10M12 20V4M6 20v-4"/><path d="M2 20h20"/></svg></div>
         <div class="empty-title">Walk-Forward sonucu yok</div>
         <div class="empty-desc">Walk-Forward analizi yapabilmek için backtest ayarlarında <strong>Walk-Forward Penceresi</strong> değerini 2 veya üzeri girin ve backtest'i yeniden çalıştırın.</div>
       </div>
