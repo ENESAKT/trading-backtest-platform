@@ -131,7 +131,7 @@ export class Sidebar {
     this.container.innerHTML = `
       <div class="sidebar-header">
         <span class="sidebar-title">${TR.APP_NAME}</span>
-        <button class="sidebar-toggle-btn" id="sidebar-toggle-btn" title="Paneli aç/kapat">«</button>
+        <button class="sidebar-toggle-btn" id="sidebar-toggle-btn" title="Paneli aç/kapat"><svg class="icon-svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg></button>
       </div>
       <div class="sidebar-search">
         <input type="text" placeholder="${TR.SEARCH_PLACEHOLDER}" class="search-input" />
@@ -158,7 +158,9 @@ export class Sidebar {
   private applyCollapsedState(): void {
     this.container.classList.toggle('collapsed', this.isCollapsed);
     if (this.toggleBtn) {
-      this.toggleBtn.textContent = this.isCollapsed ? '»' : '«';
+      this.toggleBtn.innerHTML = this.isCollapsed 
+        ? '<svg class="icon-svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>'
+        : '<svg class="icon-svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>';
     }
   }
 

@@ -53,7 +53,7 @@ except ImportError:  # pragma: no cover - dependency bootstrap fallback
     get_remote_address = None  # type: ignore[assignment]
 
 from backend.api.quote_bus import QuoteBus
-from backend.auth.dependencies import get_current_user, require_feature, require_quota
+from backend.auth.dependencies import get_current_user, require_feature, require_quota, require_paper_trading
 from backend.signals.signal_bus import SignalBus
 from backend.backtest import (
     BacktestArchive,
@@ -1646,17 +1646,17 @@ def create_app(
     def paper_equity(strategy_id: str, limit: int = 200, user: dict = Depends(get_current_user)) -> dict[str, Any]:
         return {"equity_curve": paper_db.get_equity_curve(strategy_id, limit=limit)}
 
-    @app.post("/api/paper/reset/{strategy_id}", tags=["paper-trading"])
+    @app.post("/api/paper/reset/{strategy_id}", tags=["paper-trading"], dependencies=[Depends(require_paper_trading)])
     def paper_reset(strategy_id: str, user: dict = Depends(get_current_user)) -> dict[str, Any]:
         paper_db.reset_wallet(strategy_id)
         return {"status": "ok", "strategy_id": strategy_id}
 
-    @app.post("/api/paper/halt/{strategy_id}", tags=["paper-trading"])
+    @app.post("/api/paper/halt/{strategy_id}", tags=["paper-trading"], dependencies=[Depends(require_paper_trading)])
     def paper_halt(strategy_id: str, user: dict = Depends(get_current_user)) -> dict[str, Any]:
         paper_db.halt_strategy(strategy_id)
         return {"status": "ok", "strategy_id": strategy_id, "halted": True}
 
-    @app.post("/api/paper/resume/{strategy_id}", tags=["paper-trading"])
+    @app.post("/api/paper/resume/{strategy_id}", tags=["paper-trading"], dependencies=[Depends(require_paper_trading)])
     def paper_resume(strategy_id: str, user: dict = Depends(get_current_user)) -> dict[str, Any]:
         paper_db.resume_strategy(strategy_id)
         return {"status": "ok", "strategy_id": strategy_id, "halted": False}
@@ -1841,7 +1841,7 @@ def create_app(
             raise HTTPException(status_code=404, detail="Uyarı bulunamadı.")
         return {"deleted": alert_id}
 
-    @app.post("/api/paper/signal", tags=["paper-trading"])
+    @app.post("/api/paper/signal", tags=["paper-trading"], dependencies=[Depends(require_paper_trading)])
     async def paper_signal(request: Request, user: dict = Depends(get_current_user)) -> dict[str, Any]:
         try:
             payload = await request.json()

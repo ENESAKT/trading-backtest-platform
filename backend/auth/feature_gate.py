@@ -20,10 +20,12 @@ class PlanLimits:
     max_watchlist_symbols: int      # -1 = sınırsız
     max_paper_accounts: int         # -1 = sınırsız
     max_chart_templates: int        # -1 = sınırsız
+    max_saved_strategies: int       # -1 = sınırsız (free: 3)
     signals_per_day: int            # -1 = sınırsız
     real_time_data: bool
     backtest_pro: bool              # WFA, Monte Carlo, Heatmap, Portfolio Lab
     scanner: bool
+    paper_trading: bool             # Paper trading erişimi
     mali_analiz_scope: str          # 'none' | 'bist30' | 'bist100' | 'all'
     education_full: bool
     telegram_bot: bool
@@ -35,14 +37,16 @@ class PlanLimits:
 PLAN_LIMITS: dict[str, PlanLimits] = {
     "free": PlanLimits(
         api_calls_per_day=500,
-        backtest_runs_per_day=5,
+        backtest_runs_per_day=10,
         max_watchlist_symbols=10,
-        max_paper_accounts=1,
+        max_paper_accounts=0,
         max_chart_templates=1,
+        max_saved_strategies=3,
         signals_per_day=3,
         real_time_data=False,
         backtest_pro=False,
         scanner=False,
+        paper_trading=False,
         mali_analiz_scope="bist30",
         education_full=False,
         telegram_bot=False,
@@ -52,14 +56,16 @@ PLAN_LIMITS: dict[str, PlanLimits] = {
     ),
     "pro": PlanLimits(
         api_calls_per_day=5000,
-        backtest_runs_per_day=50,
+        backtest_runs_per_day=-1,
         max_watchlist_symbols=50,
         max_paper_accounts=5,
         max_chart_templates=10,
+        max_saved_strategies=-1,
         signals_per_day=-1,
         real_time_data=False,
         backtest_pro=True,
         scanner=True,
+        paper_trading=True,
         mali_analiz_scope="bist100",
         education_full=True,
         telegram_bot=True,
@@ -73,10 +79,12 @@ PLAN_LIMITS: dict[str, PlanLimits] = {
         max_watchlist_symbols=-1,
         max_paper_accounts=-1,
         max_chart_templates=-1,
+        max_saved_strategies=-1,
         signals_per_day=-1,
         real_time_data=True,
         backtest_pro=True,
         scanner=True,
+        paper_trading=True,
         mali_analiz_scope="all",
         education_full=True,
         telegram_bot=True,
@@ -90,10 +98,12 @@ PLAN_LIMITS: dict[str, PlanLimits] = {
         max_watchlist_symbols=-1,
         max_paper_accounts=-1,
         max_chart_templates=-1,
+        max_saved_strategies=-1,
         signals_per_day=-1,
         real_time_data=True,
         backtest_pro=True,
         scanner=True,
+        paper_trading=True,
         mali_analiz_scope="all",
         education_full=True,
         telegram_bot=True,
