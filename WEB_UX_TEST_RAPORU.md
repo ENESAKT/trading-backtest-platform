@@ -262,3 +262,18 @@ Bu rapordaki Bölüm 9 kapsamındaki web UX blocker maddeleri uygulandı ve tekr
 - `npm run typecheck` ve `npm run build` başarılı.
 
 Kalanlar bu raporun blocker kapsamından çıktı; canlı Stripe/AWS/DNS/Sentry gibi dış erişim gerektiren production işleri ana `YAPILACAKLAR.md` listesindeki ilgili bölümlerde takip ediliyor.
+
+## QA Sonrası Not — 2026-05-16 E2E Kabul Stabilizasyonu
+
+Frontend kabul suite'i tekrar çalıştırıldı ve güncel ürün davranışına göre stabilize edildi.
+
+- `npm run typecheck` başarılı.
+- `npm run build` başarılı; 500 kB chunk uyarısı geri gelmedi.
+- `npm run e2e` başarılı; Playwright/Chromium sonucu: 24/24 test geçti.
+- Doğrulanan ek akışlar: grafik toolbar hover kontrolleri, şablon kaydet/sıfırla/geri yükle, event marker çoklu filtreleme, çizim araçları, mali analiz THYAO → ASELS arama ve grafikte aç bridge'i.
+- Mali analiz özet ekranı API'den gelen uyarıları kullanıcıya görünür biçimde gösteriyor; canlı veri gecikmesi/eksikliği mesajı kaybolmuyor.
+
+KULLANICI AKSİYONU GEREKİR:
+- Canlı Stripe ürün/price id, billing portal ve webhook uçtan uca doğrulaması.
+- Gerçek domain/DNS/TLS ve AWS deploy doğrulaması.
+- Canlı Sentry DSN, Grafana dashboard ve alert kanallarının bağlanması.

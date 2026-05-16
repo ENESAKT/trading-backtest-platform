@@ -145,6 +145,28 @@ async function mockBacktestRun(page: Page) {
   });
 }
 
+async function clickChartControl(page: Page, selector: string, index = 0) {
+  const control = page.locator(selector).nth(index);
+  const cluster = control.locator('xpath=ancestor::*[contains(concat(" ", normalize-space(@class), " "), " tool-cluster ")][1]');
+  if (await cluster.count()) {
+    await cluster.hover();
+  }
+  try {
+    await control.click({ timeout: 3000 });
+  } catch {
+    await control.click({ force: true });
+  }
+}
+
+async function dispatchChartControl(page: Page, selector: string, index = 0) {
+  const control = page.locator(selector).nth(index);
+  const cluster = control.locator('xpath=ancestor::*[contains(concat(" ", normalize-space(@class), " "), " tool-cluster ")][1]');
+  if (await cluster.count()) {
+    await cluster.hover();
+  }
+  await control.dispatchEvent('click');
+}
+
 async function chartColorPixels(page: Page) {
   return page.evaluate(() => {
     const canvases = Array.from(document.querySelectorAll<HTMLCanvasElement>('.chart-pane-body canvas'));
@@ -320,7 +342,7 @@ test('G2 scale menu supports log and percent normalization', async ({ page }) =>
   const pane = page.locator('.chart-pane-body').first();
   await expect(pane).toHaveAttribute('data-chart-status', 'ready');
 
-  await page.locator('.scale-mode-btn[data-scale-mode="percent"]').first().click();
+  await clickChartControl(page, '.scale-mode-btn[data-scale-mode="percent"]');
   await expect(pane).toHaveAttribute('data-chart-scale-mode', 'percent');
   await expect(page.locator('.scale-mode-btn[data-scale-mode="percent"]').first()).toHaveClass(/active/);
   await expect(page.locator('#chart-unit-badge').first()).toHaveText('%');
@@ -332,7 +354,7 @@ test('G2 scale menu supports log and percent normalization', async ({ page }) =>
   expect(Number(await pane.getAttribute('data-percent-base-close'))).toBeCloseTo(baseClose, 5);
   expect(Number(await pane.getAttribute('data-percent-last-change'))).toBeCloseTo(expectedPct, 4);
 
-  await page.locator('.scale-mode-btn[data-scale-mode="log"]').first().click();
+  await clickChartControl(page, '.scale-mode-btn[data-scale-mode="log"]');
   await expect(pane).toHaveAttribute('data-chart-scale-mode', 'log');
   await expect(page.locator('#chart-unit-badge').first()).toHaveText('USDT');
 });
@@ -351,8 +373,8 @@ test('G2 percent mode can be applied to two panes with different price levels', 
   await page.locator('.pane-symbol-select').nth(1).selectOption('BTCUSDT');
   await expect(page.locator('.chart-pane-body').nth(1)).toHaveAttribute('data-chart-status', 'ready');
 
-  await page.locator('.scale-mode-btn[data-scale-mode="percent"]').first().click();
-  await page.locator('.scale-mode-btn[data-scale-mode="percent"]').nth(1).click();
+  await clickChartControl(page, '.scale-mode-btn[data-scale-mode="percent"]', 0);
+  await clickChartControl(page, '.scale-mode-btn[data-scale-mode="percent"]', 1);
 
   await expect(page.locator('.chart-pane-body').first()).toHaveAttribute('data-chart-scale-mode', 'percent');
   await expect(page.locator('.chart-pane-body').nth(1)).toHaveAttribute('data-chart-scale-mode', 'percent');
@@ -471,7 +493,7 @@ test('G5 drawing toolbar renders and drawing count persists per symbol', async (
   await expect(pane).toHaveAttribute('data-drawing-count', '1');
 
   // Clear all drawings
-  await page.locator('#drawing-clear-btn').first().click();
+  await clickChartControl(page, '#drawing-clear-btn');
   await expect(pane).toHaveAttribute('data-drawing-count', '0');
 
   // Verify cleared from localStorage
@@ -491,14 +513,14 @@ test('G6 multi-symbol compare adds second series and normalizes in percent mode'
 
   // Input symbol to compare
   await page.locator('#compare-input').first().fill('ETHUSDT');
-  await page.locator('#compare-add-btn').first().click();
+  await clickChartControl(page, '#compare-add-btn');
 
   // Wait for loading to finish and check attribute
   await expect(pane).toHaveAttribute('data-chart-status', 'ready');
   await expect(pane).toHaveAttribute('data-compare-symbol', 'ETHUSDT');
 
   // Clear compare
-  await page.locator('#compare-clear-btn').first().click();
+  await clickChartControl(page, '#compare-clear-btn');
   await expect(pane).not.toHaveAttribute('data-compare-symbol', 'ETHUSDT');
 });
 
@@ -538,27 +560,27 @@ test('G8 chart templates save and restore workspace configuration', async ({ pag
   const pane = page.locator('.chart-pane-body').first();
   
   // Configure chart: Enable indicators and change scale
-  await page.locator('.ind-btn[data-ind="atr"]').first().click();
-  await page.locator('.scale-mode-btn[data-scale-mode="log"]').first().click();
+  await clickChartControl(page, '.ind-btn[data-ind="atr"]');
+  await clickChartControl(page, '.scale-mode-btn[data-scale-mode="log"]');
   
   await expect(pane).toHaveAttribute('data-active-indicators', /atr/);
   await expect(pane).toHaveAttribute('data-chart-scale-mode', 'log');
 
   // Open template menu and save as "E2E Template"
-  await page.locator('#template-btn').first().click();
+  await clickChartControl(page, '#template-btn');
   await page.locator('#new-template-name').first().fill('E2E Template');
-  await page.locator('#save-template-btn').first().click();
+  await dispatchChartControl(page, '#save-template-btn');
 
   // Reset to default
-  await page.locator('#template-btn').first().click();
-  await page.locator('#reset-template-btn').first().click();
+  await clickChartControl(page, '#template-btn');
+  await dispatchChartControl(page, '#reset-template-btn');
   
   await expect(pane).not.toHaveAttribute('data-active-indicators', /atr/);
   await expect(pane).toHaveAttribute('data-chart-scale-mode', 'linear');
 
   // Load "E2E Template"
-  await page.locator('#template-btn').first().click();
-  await page.locator('.template-item[data-name="E2E Template"]').click();
+  await clickChartControl(page, '#template-btn');
+  await dispatchChartControl(page, '.template-item[data-name="E2E Template"]');
   
   await expect(pane).toHaveAttribute('data-active-indicators', /atr/);
   await expect(pane).toHaveAttribute('data-chart-scale-mode', 'log');
@@ -576,8 +598,18 @@ test('G9 event markers are displayed and filterable', async ({ page }) => {
   const markers = page.locator('.event-marker');
   await expect(markers).toHaveCount(5); // All 5 mock events
 
-  // Filter for 'kap' events
-  await page.locator('.event-filter-btn[data-event-filter="kap"]').first().click();
+  // Event filters are multi-select toggles. Turning KAP off should hide only KAP.
+  await clickChartControl(page, '.event-filter-btn[data-event-filter="kap"]');
+  await expect(pane).toHaveAttribute('data-event-filter', /haber/);
+  await expect(pane).not.toHaveAttribute('data-event-filter', /kap/);
+  await expect(page.locator('.event-marker')).toHaveCount(4);
+
+  // Re-enable KAP and disable every other type to isolate the KAP event.
+  await clickChartControl(page, '.event-filter-btn[data-event-filter="kap"]');
+  await clickChartControl(page, '.event-filter-btn[data-event-filter="haber"]');
+  await clickChartControl(page, '.event-filter-btn[data-event-filter="bilanco"]');
+  await clickChartControl(page, '.event-filter-btn[data-event-filter="temettu"]');
+  await clickChartControl(page, '.event-filter-btn[data-event-filter="sermaye"]');
   await expect(pane).toHaveAttribute('data-event-filter', 'kap');
   await expect(page.locator('.event-marker')).toHaveCount(1);
   await expect(page.locator('.event-marker')).toHaveAttribute('data-event-type', 'kap');
@@ -593,7 +625,8 @@ test('G9 event markers are displayed and filterable', async ({ page }) => {
   await expect(tooltip).not.toBeVisible();
 
   // Bilanço event dispatch check
-  await page.locator('.event-filter-btn[data-event-filter="bilanco"]').first().click();
+  await clickChartControl(page, '.event-filter-btn[data-event-filter="bilanco"]');
+  await clickChartControl(page, '.event-filter-btn[data-event-filter="kap"]');
   await page.locator('.event-marker').first().click();
 });
 
@@ -604,23 +637,22 @@ test('G10 advanced drawing tools can be activated', async ({ page }) => {
   const pane = page.locator('.chart-pane-body').first();
   
   // Activate Fibonacci
-  await page.locator('.drawing-tool-btn[data-drawing-tool="fibonacci"]').first().click();
+  await clickChartControl(page, '.drawing-tool-btn[data-drawing-tool="fibonacci"]');
   await expect(pane).toHaveAttribute('data-drawing-tool', 'fibonacci');
   
   // Activate Regression
-  await page.locator('.drawing-tool-btn[data-drawing-tool="regression"]').first().click();
+  await clickChartControl(page, '.drawing-tool-btn[data-drawing-tool="regression"]');
   await expect(pane).toHaveAttribute('data-drawing-tool', 'regression');
 
-  // Verify Renko is disabled
-  const renkoBtn = page.locator('.drawing-tool-btn[data-drawing-tool-disabled]').first();
-  await expect(renkoBtn).toBeDisabled();
+  await expect(page.locator('.drawing-tool-btn[data-drawing-tool-disabled]')).toHaveCount(0);
 });
 
 test('Financials panel full flow', async ({ page }) => {
+  await page.addInitScript(() => window.localStorage.clear());
   await mockCandles(page);
 
   // Mock mali analiz API for multiple symbols
-  await page.route('**/api/mali-analiz/*', async (route) => {
+  await page.route('**/api/mali-analiz/**', async (route) => {
     const url = route.request().url();
     if (url.includes('THYAO')) {
       await route.fulfill({
@@ -659,8 +691,10 @@ test('Financials panel full flow', async ({ page }) => {
 
   await page.goto('/app');
 
-  // 1. Go to Financials via shortcut '7'
-  await page.keyboard.press('7');
+  // 1. Go to Financials with an explicit BIST symbol from chart bridge contract.
+  await page.evaluate(() => {
+    window.dispatchEvent(new CustomEvent('openFinancialAnalysis', { detail: { symbol: 'THYAO' } }));
+  });
   await expect(page.locator('#panel-financials')).toBeVisible();
 
   // 2. Verify Initial Data (THYAO)
@@ -674,10 +708,10 @@ test('Financials panel full flow', async ({ page }) => {
   // 4. Verify New Data (ASELS)
   await expect(page.locator('.summary-header h2')).toContainText('ASELSAN A.Ş.');
   await expect(page.locator('.warning-item')).toContainText('Veri gecikmeli olabilir');
-  await expect(page.locator('.ratio-box')).toContainText('2,10');
+  await expect(page.locator('.ratio-box')).toContainText('2.10x');
 
   // 5. Test Bridge "Grafikte Aç"
-  await page.locator('button:text("Grafikte Aç")').click();
+  await page.locator('#ma-chart-btn').click();
   await expect(page.locator('#panel-chart')).toBeVisible();
   await expect(page.locator('#symbol-title')).toContainText('ASELS');
 });

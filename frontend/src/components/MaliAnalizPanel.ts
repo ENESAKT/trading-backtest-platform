@@ -146,7 +146,7 @@ export class MaliAnalizPanel {
       <div class="ma-root">
         <div class="ma-sidebar" id="ma-sidebar">
           <div class="ma-sidebar-search">
-            <input type="text" placeholder="Sembol ara…" id="ma-sym-search" />
+            <input type="text" placeholder="Sembol ara…" id="ma-sym-search" class="mali-search-input" />
           </div>
           <div class="ma-dot-legend" title="Veri durumu göstergesi">
             <span class="ma-sym-dot dot-ok">●</span> Tam veri
@@ -210,6 +210,15 @@ export class MaliAnalizPanel {
     searchInput.addEventListener('input', () => {
       this.universeQuery = searchInput.value.toLowerCase();
       this.renderUniverseList();
+    });
+    searchInput.addEventListener('keydown', (e) => {
+      if (e.key !== 'Enter') return;
+      const query = searchInput.value.trim().toUpperCase();
+      if (!query) return;
+      const match = this.universe.find(s => s.symbol.toUpperCase() === query)
+        || this.universe.find(s => s.symbol.toUpperCase().startsWith(query))
+        || this.universe.find(s => s.name.toUpperCase().includes(query));
+      this.selectSymbol(match?.symbol || query);
     });
   }
 
@@ -404,7 +413,10 @@ export class MaliAnalizPanel {
           fetch(`${API}/alerts?limit=30`),
         ]);
         if (this._loadSeq !== seq) return; // symbol/tab changed while fetching
-        const summary = await sResp.json();
+        const rawSummary = await sResp.json() as Record<string, unknown>;
+        const summary = (rawSummary.summary && typeof rawSummary.summary === 'object')
+          ? rawSummary.summary
+          : rawSummary;
         const alertsData = await aResp.json();
         if (this._loadSeq !== seq) return;
         cached = { summary, alerts: alertsData.alerts || [] };
@@ -416,7 +428,10 @@ export class MaliAnalizPanel {
 
       // Only show error badge if data is actually absent; successful render clears stale errors
       const fetchStatus = this.universe.find(s => s.symbol === sym)?.fetch_status;
-      const keyRatios: RatioRow[] = ((summary.key_ratios as Record<string, unknown>[]) || []).map(toRatioRow);
+      const keyRatiosSource = (summary.key_ratios as Record<string, unknown>[] | undefined)
+        ?? (summary.ratios as Record<string, unknown>[] | undefined)
+        ?? [];
+      const keyRatios: RatioRow[] = keyRatiosSource.map(toRatioRow);
       if (keyRatios.length > 0) {
         // Data loaded successfully — show green badge regardless of cached fetch_status
         this.statusBadgeEl.className = 'ma-status-badge badge-success';
@@ -426,7 +441,14 @@ export class MaliAnalizPanel {
       }
 
       this.bodyEl.innerHTML = `
+        <div class="summary-header">
+          <div class="summary-title-row">
+            <h2>${String(summary.company_name || sym)}</h2>
+            <span class="mali-symbol-badge">${sym}</span>
+          </div>
+        </div>
         ${this.renderKeyRatiosBar(keyRatios)}
+        ${this.renderSummaryWarnings((summary.warnings as unknown[]) || [])}
         ${this.renderAlertsSection((summary.alerts as Alert[]) || [], 'Bu Sembol Direktifleri')}
         ${this.renderDisclosuresTable(allAlerts)}
       `;
@@ -455,13 +477,21 @@ export class MaliAnalizPanel {
     if (!ratios.length) return '<div class="ma-empty-block">Oran verisi yok. BIST şirketleri için "Yenile" ile kaynak kontrolü yapılabilir; kripto/FX sembollerinde mali oran beklenmez.</div>';
     const cards = ratios.map(r => {
       const cls = colorClass(r.value, r.unit, r.key);
-      return `<div class="ma-kpi-card">
+      return `<div class="ma-kpi-card ratio-box">
         <div class="ma-kpi-name">${r.name}</div>
         <div class="ma-kpi-val ${cls}">${fmt(r.value, r.unit)}</div>
         <div class="ma-kpi-period">${r.period}</div>
       </div>`;
     }).join('');
     return `<div class="ma-kpi-bar">${cards}</div>`;
+  }
+
+  private renderSummaryWarnings(warnings: unknown[]): string {
+    if (!warnings.length) return '';
+    const items = warnings
+      .map(w => `<div class="warning-item">${String(w)}</div>`)
+      .join('');
+    return `<div class="warning-list">${items}</div>`;
   }
 
   private renderAlertsSection(alerts: Alert[], title: string): string {

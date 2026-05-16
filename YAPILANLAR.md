@@ -188,6 +188,12 @@
 - [x] `rg` ile hedef emoji setinin ChartPanel/MultiChartLayout/PortfolioPanel/StrategyPanel görünür kontrollerinde kalmadığı doğrulandı.
 - [x] `cd frontend && npm run typecheck && npm run build` başarılı.
 
+## ✅ Frontend E2E Kabul Stabilizasyonu (2026-05-16)
+
+- [x] Playwright smoke testleri güncel hover toolbar, çoklu event filtresi ve mali analiz bridge davranışıyla uyumlu hale getirildi.
+- [x] Mali analiz panelinde Enter ile sembol seçimi, düz/sarmallı summary API toleransı, oran kart selector'ı ve veri uyarısı görünümü tamamlandı.
+- [x] `cd frontend && npm run typecheck`, `cd frontend && npm run build` ve `cd frontend && npm run e2e` başarılı; E2E sonucu: 24/24 geçti.
+
 ---
 
 ## ✅ Güvenlik ve Deployment Altyapısı
