@@ -815,6 +815,16 @@ def create_app(
     @app.get("/api/health")
     def health() -> dict[str, Any]:
         stats = cache.stats()
+        # SQLite pool istatistikleri
+        db_pools = {}
+        try:
+            from backend.db.pool import SQLitePool
+            for attr_name in ("paper_db",):
+                obj = getattr(app.state, attr_name, None)
+                if obj and hasattr(obj, "db") and hasattr(obj.db, "stats_dict"):
+                    db_pools[attr_name] = obj.db.stats_dict()
+        except Exception:
+            pass
         return {
             "status": "ok",
             "read_only": True,
@@ -829,6 +839,7 @@ def create_app(
             "signal_bus": signal_bus.stats(),
             "signal_generator": signal_generator.stats(),
             "paper_executor": paper_executor.stats(),
+            "db_pools": db_pools,
             "fetched_at": _utc_iso(),
             "message": "PiyasaPilot gateway çalışıyor. Emir motoru pasif.",
         }
