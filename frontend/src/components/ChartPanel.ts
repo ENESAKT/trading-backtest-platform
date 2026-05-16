@@ -2691,9 +2691,8 @@ export class ChartPanel {
     if (!isPrimary) {
       // Route to extra slot (up to 2 extras = 3 total)
       if (this._extraEntries.length >= 2) {
-        // Replace oldest extra
-        try { this.mainChart.removeSeries(this._extraEntries[0].series); } catch { /* ignored */ }
-        this._extraEntries.shift();
+        window.showToast?.('Karşılaştırmada en fazla 3 sembol gösterilebilir. Önce bir sembolü kaldırın.', 'warn');
+        return;
       }
       const color = this._extraColors[this._extraEntries.length] ?? '#aaa';
       const series = this.mainChart.addLineSeries({

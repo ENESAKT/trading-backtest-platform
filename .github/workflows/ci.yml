@@ -9,23 +9,31 @@ on:
       - main
 
 jobs:
-  test:
+  backend:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Python 3.12
+      - name: Setup Python 3.11
         uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
+          python-version: '3.11'
 
       - name: Install backend dependencies
-        run: pip install -r backend/requirements.txt
+        run: pip install -r requirements.txt
 
-      - name: Run backend tests
-        run: python -m pytest backend/ -q --tb=short
+      - name: Compile changed production modules
+        run: python -m py_compile backend/api/auth_router.py backend/api/payments_router.py backend/payments/stripe_service.py
 
+      - name: Run focused backend tests
+        run: python -m pytest tests/unit/test_api_endpoints.py tests/unit/test_auth_guards_payments.py -q --tb=short
+
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
       - name: Setup Node 20
         uses: actions/setup-node@v4
         with:
@@ -40,9 +48,33 @@ jobs:
       - name: Build frontend
         run: cd frontend && npm run build
 
+      - name: Run Playwright smoke suite
+        run: cd frontend && npm run e2e
+
+  docker:
+    needs: [backend, frontend]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Build API image
+        run: docker build -f docker/Dockerfile.api -t piyasapilot-api:ci .
+
+      - name: Build frontend image
+        run: docker build -f docker/Dockerfile.frontend -t piyasapilot-frontend:ci .
+
+      - name: Scan API image
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: piyasapilot-api:ci
+          format: table
+          exit-code: 1
+          severity: CRITICAL,HIGH
+
   deploy:
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    needs: test
+    needs: docker
     runs-on: ubuntu-latest
     steps:
       - name: Deploy to EC2

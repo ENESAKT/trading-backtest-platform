@@ -258,6 +258,22 @@ Bu rapordaki Bölüm 9 kapsamındaki web UX blocker maddeleri uygulandı ve tekr
 - Shared backtest 404 durumunda ürün dilinde empty state gösteriyor.
 - Sinyaller, Telegram, mali analiz ve paper trading boş/uyarı durumları daha açıklayıcı hale getirildi.
 - Haberler 8. sekme olarak ana nav'a alındı; `Tarayıcı` → `Tarama`, `Ayar` → `Tema`.
+
+## Kabul QA Notu — 16 Mayıs 2026 Production Tamamlama Paketi
+
+Ek Playwright smoke taraması `http://127.0.0.1:5173` üzerinde desktop `1440x900` ve mobil `390x844` viewportlarda çalıştırıldı.
+
+Kontrol edilen rotalar:
+- `/`, `/pricing`, `/login`, `/register`
+- `/app?tab=chart`, `portfolio`, `strategy`, `screener`, `signals`, `education`, `financials`, `news`
+- `/settings`, `/admin`, `/shared/olmayan-slug`
+- `/legal/terms`, `/legal/privacy`, `/legal/cookies`
+
+Sonuç:
+- Tüm rotalarda `documentElement.scrollWidth` viewport genişliğini aşmadı.
+- Page error yakalanmadı.
+- Build chunk uyarısı geri gelmedi.
+- `npm run e2e` sonucu 24/24 başarılı.
 - Public/terminal code-splitting yapıldı. Build çıktısında 500 kB chunk uyarısı kalktı; ana `index` chunk yaklaşık 23 kB seviyesine indi.
 - `npm run typecheck` ve `npm run build` başarılı.
 

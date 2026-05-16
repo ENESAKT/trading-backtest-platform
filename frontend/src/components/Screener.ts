@@ -290,6 +290,14 @@ export class Screener {
         window.dispatchEvent(new CustomEvent('openSymbolOnChart', { detail: { symbol } }));
       });
     });
+
+    el.querySelectorAll<HTMLButtonElement>('.screener-news').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const symbol = btn.dataset['news']!;
+        window.dispatchEvent(new CustomEvent('openNewsForSymbol', { detail: { symbol } }));
+      });
+    });
   }
 
   private rowHTML(r: ScreenerResult): string {
@@ -310,6 +318,7 @@ export class Screener {
         <td class="screener-actions">
           <button class="btn-sm screener-chart" data-chart="${r.symbol}" title="Grafikte aç">📈</button>
           <button class="btn-sm screener-backtest" data-backtest="${r.symbol}" title="Bu sembolü backtest için aç">▶ BT</button>
+          <button class="btn-sm screener-news" data-news="${r.symbol}" title="Bu sembolün haberlerini aç">📰</button>
         </td>
       </tr>
     `;

@@ -38,6 +38,15 @@ class LoginRequest(BaseModel):
     totp_code: str | None = None
 
 
+class MobileLoginRequest(LoginRequest):
+    device_name: str | None = None
+
+
+class MobileRefreshRequest(BaseModel):
+    refresh_token: str
+    device_name: str | None = None
+
+
 class ForgotPasswordRequest(BaseModel):
     email: EmailStr
 

@@ -1864,8 +1864,14 @@ export class StrategyPanel {
     const maxDD = m.max_drawdown_pct ?? 0;
     const annRet = m.annualized_return_pct ?? 0;
     const calmar = maxDD !== 0 ? annRet / Math.abs(maxDD) : 0;
+    const explanations: Record<string, string> = {
+      Sharpe: 'Risk başına getiri: 1 üzeri güçlü, 0 altı zayıf kabul edilir.',
+      'Max DD': 'Test boyunca görülen en yüksek tepeden dibe sermaye kaybı.',
+      'Yıllık': 'Backtest getirisinin yıllıklandırılmış yaklaşık karşılığı.',
+      Calmar: 'Yıllık getiri / maksimum düşüş; düşüşe göre getiriyi ölçer.',
+    };
     const item = (label: string, val: string, cls = '') =>
-      `<div class="eq-metric"><span class="eq-metric-label">${label}</span><span class="eq-metric-val ${cls}">${val}</span></div>`;
+      `<div class="eq-metric" title="${explanations[label] ?? ''}"><span class="eq-metric-label">${label}</span><span class="eq-metric-val ${cls}">${val}</span></div>`;
     el.innerHTML =
       item('Sharpe', formatNumber(sharpe, 2), sharpe >= 1 ? 'pos' : sharpe < 0 ? 'neg' : '') +
       item('Max DD', formatPct(-maxDD), 'neg') +

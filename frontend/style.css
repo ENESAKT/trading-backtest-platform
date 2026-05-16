@@ -90,6 +90,23 @@ h3 { font-family: var(--font-sans); font-size: 14px; font-weight: 600; color: va
   overflow-y: auto;
   background: var(--bg);
 }
+.auth-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+.auth-exit-link,
+.auth-secondary-link {
+  color: var(--text);
+  text-decoration: none;
+  font-weight: 700;
+}
+.auth-exit-link:hover,
+.auth-secondary-link:hover {
+  color: var(--amber);
+}
 
 .public-page {
   min-height: 100vh;
@@ -1266,6 +1283,7 @@ h3 { font-family: var(--font-sans); font-size: 14px; font-weight: 600; color: va
 .wallet-header { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
 .wallet-strategy { font-family: var(--font-sans); font-size: 12px; font-weight: 600; color: var(--text-bold); }
 .wallet-halted-badge { font-size: 8px; font-weight: 700; padding: 1px 5px; border-radius: 3px; background: #f8514933; color: var(--red); border: 1px solid var(--red); }
+.wallet-paper-badge { font-size: 8px; font-weight: 700; padding: 1px 5px; border-radius: 3px; background: var(--amber-bg); color: var(--amber); border: 1px solid rgba(255, 176, 32, 0.45); }
 .wallet-metrics { display: flex; flex-direction: column; gap: 3px; margin-bottom: 6px; }
 .wm-item { display: flex; justify-content: space-between; align-items: center; }
 .wm-label { font-size: 10px; color: var(--text-dim); }

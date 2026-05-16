@@ -59,6 +59,8 @@ from backend.auth.schemas import (
     ApiKeyCreateRequest,
     ForgotPasswordRequest,
     LoginRequest,
+    MobileLoginRequest,
+    MobileRefreshRequest,
     RegisterRequest,
     ResetPasswordRequest,
     TotpVerifyRequest,
@@ -232,6 +234,46 @@ async def login(req: LoginRequest, request: Request, response: Response):
     return _ok(me)
 
 
+@router.post("/mobile/login")
+async def mobile_login(req: MobileLoginRequest, request: Request):
+    """Mobil istemciler için cookie yerine Bearer access + refresh token döndür."""
+    pool = _get_pool(request)
+
+    user = await get_user_by_email(pool, req.email)
+    if not user or not user.get("password_hash") or not verify_password(req.password, user["password_hash"]):
+        raise HTTPException(
+            401,
+            detail={"tr": "E-posta veya şifre hatalı.", "en": "Invalid email or password."},
+        )
+
+    if user.get("totp_enabled"):
+        try:
+            import pyotp
+            valid_totp = bool(req.totp_code and pyotp.TOTP(user["totp_secret"]).verify(req.totp_code, valid_window=1))
+        except Exception:
+            valid_totp = False
+        if not valid_totp:
+            raise HTTPException(
+                202,
+                detail={"requires_2fa": True, "tr": "İki adımlı doğrulama kodu gerekli.", "en": "Two-factor code required."},
+            )
+
+    access_token = create_access_token(user["id"], user["email"], user["role"])
+    raw_refresh, refresh_hash = create_refresh_token()
+    ua = request.headers.get("user-agent", "")
+    ip = request.client.host if request.client else ""
+    await store_refresh_token(pool, user["id"], refresh_hash, ua, ip, req.device_name or "mobile")
+    await update_last_login(pool, user["id"])
+
+    return _ok({
+        "access_token": access_token,
+        "refresh_token": raw_refresh,
+        "token_type": "Bearer",
+        "expires_in": ACCESS_TTL,
+        "user": await _build_me_response(pool, user["id"]),
+    })
+
+
 # ── Çıkış ────────────────────────────────────────────────────────────────────
 
 @router.post("/logout")
@@ -282,6 +324,34 @@ async def refresh_token(request: Request, response: Response):
 
     set_auth_cookies(response, new_access, new_raw, ACCESS_TTL, REFRESH_TTL)
     return _ok({"message": "Token yenilendi."})
+
+
+@router.post("/mobile/refresh")
+async def mobile_refresh(req: MobileRefreshRequest, request: Request):
+    """Mobil refresh token rotation. Cookie kullanmaz, JSON body ile çalışır."""
+    pool = _get_pool(request)
+    token_hash = hash_token(req.refresh_token)
+    rt = await get_refresh_token(pool, token_hash)
+    if not rt:
+        raise HTTPException(401, detail={"tr": "Oturum süresi doldu.", "en": "Session expired."})
+
+    user = await get_user_by_id(pool, rt["user_id"])
+    if not user:
+        raise HTTPException(401, detail={"tr": "Kullanıcı bulunamadı.", "en": "User not found."})
+
+    await revoke_refresh_token(pool, token_hash)
+    access_token = create_access_token(user["id"], user["email"], user["role"])
+    raw_refresh, refresh_hash = create_refresh_token()
+    ua = request.headers.get("user-agent", "")
+    ip = request.client.host if request.client else ""
+    await store_refresh_token(pool, user["id"], refresh_hash, ua, ip, req.device_name or "mobile")
+
+    return _ok({
+        "access_token": access_token,
+        "refresh_token": raw_refresh,
+        "token_type": "Bearer",
+        "expires_in": ACCESS_TTL,
+    })
 
 
 # ── Mevcut Kullanıcı ─────────────────────────────────────────────────────────

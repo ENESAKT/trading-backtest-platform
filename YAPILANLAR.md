@@ -218,6 +218,25 @@
 - [x] Billing portal ve abonelik boş/hata durumları aktif dile göre profesyonel mesaj gösteriyor; canlı Stripe gerektiren adımlar kullanıcı aksiyonu olarak kalıyor.
 - [x] `cd frontend && npm run typecheck`, `cd frontend && npm run build` ve `cd frontend && npm run e2e` başarılı; E2E sonucu: 24/24 geçti.
 
+## ✅ Production Tamamlama Paketi — Auth, Payment, Mobil, CI (2026-05-16)
+
+- [x] Backend auth guard testleri eklendi: access cookie zorunluluğu, admin rol koruması ve Pro feature gate doğrulandı.
+- [x] Mobil istemciler için `/api/auth/mobile/login` ve `/api/auth/mobile/refresh` Bearer token akışı eklendi.
+- [x] Stripe webhook idempotency kodu migration'daki `webhook_events` tablosuyla hizalandı.
+- [x] Flutter mobil uygulama iskeleti oluşturuldu: API client, WS client, theme, routing, onboarding, auth, terminal, portfolio ve settings ekranları.
+- [x] AWS deployment scaffold eklendi: Terraform EC2, EIP, security group, data disk ve manuel aksiyon README'si.
+- [x] GitHub Actions pipeline backend/frontend/e2e/docker build/Trivy taraması olarak güncellendi.
+- [x] Kabul doğrulaması çalıştırıldı: frontend typecheck/build/e2e, backend py_compile + hedefli pytest, Flutter analyze/test ve desktop+390px route smoke QA.
+
+## ✅ Uygulama.md Planlama ve Sprint G Başlangıcı (2026-05-16)
+
+- [x] `uygulama.md` içindeki hata raporu Sprint G/H/I olarak `docs/YAPILACAKLAR.md` içine öncelik sırasıyla işlendi.
+- [x] Kök `YAPILACAKLAR.md` içindeki kapanmış blocker notları güncellendi; public shell, market ticker, admin/auth ve portföy format maddeleri gerçek durumla uyumlu hale getirildi.
+- [x] Public route terminal shell sızıntısı için HTML/CSS seviyesinde erken gizleme eklendi.
+- [x] PortfolioPanel günlük K/Z yüzde hesabı yönlü hale getirildi ve paper cüzdanlara açıklayıcı `PAPER` rozeti eklendi.
+- [x] ChartPanel karşılaştırma limiti sessizce eski sembolü atmak yerine kullanıcıya uyarı gösteriyor.
+- [x] `cd frontend && npm run typecheck` ve `cd frontend && npm run build` başarılı.
+
 ---
 
 ## ✅ Güvenlik ve Deployment Altyapısı

@@ -16,6 +16,28 @@
     href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap"
     rel="stylesheet"
   />
+  <script>
+    (() => {
+      const path = window.location.pathname.replace(/\/+$/, '') || '/';
+      const publicRoutes = new Set([
+        '/', '/login', '/register', '/pricing', '/waitlist', '/changelog',
+        '/forgot-password', '/reset-password', '/verify-email', '/onboarding',
+        '/payment/success', '/settings', '/admin', '/legal/terms',
+        '/legal/privacy', '/legal/cookies',
+      ]);
+      if (publicRoutes.has(path) || path.startsWith('/shared/')) {
+        document.documentElement.dataset.route = 'public';
+      }
+    })();
+  </script>
+  <style>
+    html[data-route="public"] #topbar,
+    html[data-route="public"] #theme-panel,
+    html[data-route="public"] #app-layout,
+    html[data-route="public"] #market-ticker {
+      display: none !important;
+    }
+  </style>
 </head>
 <body>
   <div id="app-error-banner" class="hidden app-error">

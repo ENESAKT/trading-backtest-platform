@@ -181,7 +181,7 @@ async def stripe_webhook(request: Request):
         async with pool.acquire() as conn:
             async with conn.cursor() as cur:
                 await cur.execute(
-                    "INSERT IGNORE INTO stripe_events (id, type) VALUES (%s, %s)",
+                    "INSERT IGNORE INTO webhook_events (provider, event_id, event_type) VALUES ('stripe', %s, %s)",
                     (event_id, event["type"]),
                 )
                 if cur.rowcount == 0:

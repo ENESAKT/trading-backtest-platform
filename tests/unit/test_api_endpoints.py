@@ -23,6 +23,7 @@ from fastapi.testclient import TestClient
 
 from backend.api.main import create_app
 from backend.api.quote_bus import QuoteBus
+from backend.auth.jwt_utils import create_access_token
 from backend.backtest.archive import BacktestArchive
 from backend.data.cache import OHLCVCache
 from backend.workers import WorkerSupervisor
@@ -78,7 +79,9 @@ def _build_client(tmp_path: Path) -> tuple[TestClient, OHLCVCache, BacktestArchi
         backtest_archive=archive,
         strategy_store=strategy_store,
     )
-    return TestClient(app, raise_server_exceptions=False), cache, archive
+    client = TestClient(app, raise_server_exceptions=False)
+    client.cookies.set("access_token", create_access_token(1, "unit@example.com", "pro"))
+    return client, cache, archive
 
 
 # ── Fixture ──────────────────────────────────────────────────────────────────

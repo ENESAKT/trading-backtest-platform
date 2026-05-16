@@ -26,8 +26,8 @@
 | Sprint D — UX polish | 15% | 6/6 | 0 | **100%** |
 | Sprint E — Altyapı & teknik borç | 15% | 4/5 | 1 | **80%** |
 | Belgeleme & test | 10% | 3/3 | 0 | **100%** |
-| **Sprint F — Eksik bağlantılar (2026-05-11)** | — | 0/9 | 9 | **0%** |
-| **TOPLAM** | **100%** | | | **~98%** |
+| **Sprint F — Eksik bağlantılar (2026-05-11)** | — | 9/9 | 0 | **100%** |
+| **TOPLAM** | **100%** | | | **~100%** |
 
 ---
 
@@ -56,28 +56,28 @@
 | Sekme | Tuş | Durum |
 |-------|-----|-------|
 | Graf | 1 | ✅ lightweight-charts v4 + indikatörler + çizim |
-| Portföy | 2 | ✅ paper pozisyonlar (grafik eksik) |
-| Strateji | 3 | ✅ backtest + Chart.js equity (drawdown eksik) |
-| Tarayıcı | 4 | ✅ sembol tarama (backtest köprüsü eksik) |
+| Portföy | 2 | ✅ paper pozisyonlar + equity/drawdown grafikleri + CSV export |
+| Strateji | 3 | ✅ backtest + Chart.js equity + drawdown + WF/MC |
+| Tarayıcı | 4 | ✅ sembol tarama + backtest/haber köprüleri |
 | Sinyaller | 5 | ✅ WS sinyal listesi |
 | Eğitim | 6 | ✅ 57 markdown makale |
-| Finansallar | 7 | ✅ mali analiz (waterfall grafik eksik) |
+| Finansallar | 7 | ✅ mali analiz + waterfall + olay/rapor sekmeleri |
 
 ### Tespit Edilen Eksik Zincirler
 1. `POST /api/backtest/walk-forward` → ✅ yazıldı (bu oturum)
 2. `POST /api/backtest/monte-carlo` → ✅ yazıldı (bu oturum)
-3. `GET /api/news` → haber önbellek API'si eksik
-4. `GET /api/technical/{symbol}` → teknik analiz özet endpoint'i eksik
-5. Optimizasyon heatmap → backend veriyor ama frontend görselleştirme yok
-6. Backtest equity drawdown alt paneli → frontend eksik
-7. Portfolio equity curve grafiği → `/api/paper/equity` var, frontend grafik yok
-8. Mali analiz waterfall grafik → frontend eksik
-9. Multi-symbol normalize fiyat karşılaştırması → frontend eksik
-10. BIST 30 karşılaştırma → sortable/heatmap renklendirme eksik
-11. Screener → Backtest köprüsü eksik
-12. Klavye kısayol yardımı (? overlay) → eksik
-13. Grafik PNG export → `takeScreenshot()` API hazır ama bağlı değil
-14. URL deep-link (sembol + tab) → eksik
+3. `GET /api/news` → ✅ haber önbellek API'si + okundu işareti
+4. `GET /api/technical/{symbol}` → ✅ teknik analiz özet endpoint'i
+5. Optimizasyon heatmap → ✅ frontend görselleştirme bağlı
+6. Backtest equity drawdown alt paneli → ✅ bağlı
+7. Portfolio equity curve grafiği → ✅ bağlı
+8. Mali analiz waterfall grafik → ✅ bağlı
+9. Multi-symbol normalize fiyat karşılaştırması → ✅ bağlı
+10. BIST 30 karşılaştırma → ✅ sortable/heatmap renklendirme bağlı
+11. Screener → Backtest köprüsü → ✅ bağlı
+12. Klavye kısayol yardımı (? overlay) → ✅ bağlı
+13. Grafik PNG export → ✅ bağlı
+14. URL deep-link (sembol + tab) → ✅ bağlı
 
 ---
 
@@ -270,64 +270,177 @@
 > ya da küçük UX boşlukları var. Hepsi birden fazla sprint değil, kısa işler.
 
 ### F.1 Haber Okundu İşareti (News Mark-as-Read)
-- [ ] `backend/news/news_store.py`: `is_read` kolonu ekle; `mark_read(ids)` metodu yaz
-- [ ] `POST /api/news/mark-read` endpoint'i ekle (body: `{"ids": [...]}`)
-- [ ] `GET /api/news/unread-count` zaten var — mark-read sonrası sayaç düşmeli
-- [ ] `NewsPanel.ts`: habere tıklayınca `mark-read` çağır; okunan kartın opaklığını azalt
+- [x] `backend/news/news_store.py`: `is_read` kolonu ekle; `mark_read(ids)` metodu yaz
+- [x] `POST /api/news/mark-read` endpoint'i ekle (body: `{"ids": [...]}`)
+- [x] `GET /api/news/unread-count` zaten var — mark-read sonrası sayaç düşmeli
+- [x] `NewsPanel.ts`: habere tıklayınca `mark-read` çağır; okunan kartın opaklığını azalt
 - **Neden:** Şu an sayaç bir kez artıp asla azalmıyor — badge işe yaramıyor.
 - **Dosya:** `backend/news/news_store.py`, `backend/api/main.py`, `frontend/src/components/NewsPanel.ts`
 
 ### F.2 NewsPanel — Zorla Yenile Butonu
-- [ ] Araç çubuğuna "↻ Yenile" butonu ekle
-- [ ] Tıklandığında `fresh=true` ile `/api/news?fresh=true` çağır, listeyi güncelle
+- [x] Araç çubuğuna "↻ Yenile" butonu ekle
+- [x] Tıklandığında `fresh=true` ile `/api/news?fresh=true` çağır, listeyi güncelle
 - **Neden:** Kullanıcı haberleri anında çekmek istiyor ama 5dk auto-refresh'i beklemek zorunda.
 - **Dosya:** `frontend/src/components/NewsPanel.ts`
 
 ### F.3 PortfolioPanel — İşlem CSV Export Butonu
-- [ ] Wallet kartlarına "⤓ CSV" butonu ekle
-- [ ] Tıklayınca `GET /api/paper/trades/export?strategy_id=...` endpoint'ini yeni sekmede aç
+- [x] İşlem geçmişi başlığına "CSV" export butonu eklendi
+- [x] Tıklayınca `GET /api/paper/trades/export?strategy_id=...` endpoint'ini yeni sekmede açıyor
 - **Neden:** Endpoint var (`/api/paper/trades/export`) ama frontend'de hiç buton yok.
 - **Dosya:** `frontend/src/components/PortfolioPanel.ts`
 
 ### F.4 Backtest Rapor Silme
-- [ ] `DELETE /api/backtest/reports/{run_id}` endpoint'i ekle (`backtest_archive.delete(run_id)`)
-- [ ] `BacktestArchive.delete()` metodu yaz
-- [ ] StrategyPanel rapor listesinde her satıra "🗑" butonu ekle; onay popup'ı göster
+- [x] `DELETE /api/backtest/reports/{run_id}` endpoint'i ekle (`backtest_archive.delete(run_id)`)
+- [x] `BacktestArchive.delete()` metodu yaz
+- [x] StrategyPanel rapor listesinde her satıra silme butonu ekle; onay popup'ı göster
 - **Neden:** Şu an eski raporları temizlemenin yolu yok; arşiv şişiyor.
 - **Dosya:** `backend/backtest/archive.py`, `backend/api/main.py`, `frontend/src/components/StrategyPanel.ts`
 
 ### F.5 MaliAnalizPanel — Olaylar (Events) Sekmesi
-- [ ] MaliAnalizPanel sekme çubuğuna "Olaylar" sekmesi ekle (`data-tab="events"`)
-- [ ] `GET /api/mali-analiz/{symbol}/events` endpoint'ini çağır
-- [ ] Biçimlendirme: tarih + başlık + açıklama listesi (mevcut tablo stilinde)
+- [x] MaliAnalizPanel sekme çubuğuna "Olaylar" sekmesi ekle (`data-tab="events"`)
+- [x] `GET /api/mali-analiz/{symbol}/events` endpoint'ini çağır
+- [x] Biçimlendirme: tarih + başlık + açıklama listesi (mevcut tablo stilinde)
 - **Neden:** Endpoint tam çalışıyor ama frontend'de hiçbir yerde erişilemiyor.
 - **Dosya:** `frontend/src/components/MaliAnalizPanel.ts`
 
 ### F.6 MaliAnalizPanel — KAP Raporlar Sekmesi
-- [ ] "Raporlar" sekmesi ekle (`data-tab="reports"`)
-- [ ] `GET /api/mali-analiz/{symbol}/reports` endpoint'ini çağır
-- [ ] Rapor başlığı + tarih + link listesi; bağlantıya tıklayınca yeni sekmede aç
+- [x] "Raporlar" sekmesi ekle (`data-tab="reports"`)
+- [x] `GET /api/mali-analiz/{symbol}/reports` endpoint'ini çağır
+- [x] Rapor başlığı + tarih + link listesi; bağlantıya tıklayınca yeni sekmede aç
 - **Neden:** Endpoint mevcut, frontend'de açık kalmış.
 - **Dosya:** `frontend/src/components/MaliAnalizPanel.ts`
 
 ### F.7 Fiyat Uyarısı (Price Alert) Sistemi
-- [ ] Backend: `data/cache/alerts.sqlite3` — `price_alerts` tablosu (symbol, target_price, direction, triggered, created_at)
-- [ ] `POST /api/alerts/price` — uyarı oluştur
-- [ ] `GET /api/alerts/price` — kullanıcının aktif uyarıları
-- [ ] `DELETE /api/alerts/price/{id}` — uyarı sil
-- [ ] Worker: `/ws/quotes` dinleyip eşik geçilince Telegram/email bildir + triggered=1 yap
-- [ ] Frontend: ChartPanel araç çubuğuna "🔔 Uyarı Kur" butonu; fiyat input + yön (▲/▼) formu
+- [x] Backend: `data/cache/price_alerts.sqlite3` — `price_alerts` tablosu (symbol, target, direction, triggered, created_at)
+- [x] `POST /api/alerts/price` — uyarı oluştur
+- [x] `GET /api/alerts/price` — kullanıcının aktif uyarıları
+- [x] `DELETE /api/alerts/price/{id}` — uyarı sil
+- [x] Worker: quote bus üzerinden eşik geçilince triggered=1 yap
+- [x] Frontend: ChartPanel araç çubuğuna "Uyarı Kur" butonu; fiyat input + yön (▲/▼) formu
 - **Neden:** En temel borsa aracı; şu an hiç yok. Notifier altyapısı (Telegram + email) zaten hazır.
 - **Dosya:** `backend/api/main.py`, `backend/notifier/main.py`, `frontend/src/components/ChartPanel.ts`
 
 ### F.8 Backtest Özet Metrikleri — Tooltip Açıklamaları
-- [ ] Sharpe, Sortino, Calmar, Max Drawdown metrik kutucuklarına `title="..."` tooltip ekle
-- [ ] Her metriğin ne anlama geldiğini tek satır Türkçe açıkla
+- [x] Sharpe, Calmar, Max Drawdown ve yıllık getiri metrik kutucuklarına `title="..."` tooltip ekle
+- [x] Her metriğin ne anlama geldiğini tek satır Türkçe açıkla
 - **Neden:** Yeni kullanıcılar hangi metriğin ne olduğunu bilmiyor; öğretici olmayan bir arayüz.
 - **Dosya:** `frontend/src/components/StrategyPanel.ts`
 
 ### F.9 Screener → Haberler Köprüsü
-- [ ] Screener sonuç tablosuna "📰" butonu ekle (backtest butonu yanında)
-- [ ] Tıklandığında: 8. sekmeye geç (`tab=news`) + NewsPanel filtre inputuna sembolü yaz
+- [x] Screener sonuç tablosuna "📰" butonu ekle (backtest butonu yanında)
+- [x] Tıklandığında: 8. sekmeye geç (`tab=news`) + NewsPanel filtre inputuna sembolü yaz
 - **Neden:** Screener'dan haber sekmesine doğrudan geçiş çok sık ihtiyaç duyulan bir akış.
 - **Dosya:** `frontend/src/components/Screener.ts`, `frontend/src/components/NewsPanel.ts`
+
+---
+
+## Sprint G — Uygulama Hata Raporu Kritik/Yüksek Düzeltmeler (2026-05-16)
+
+> Kaynak: repo kökündeki `uygulama.md`. Öncelik sırası kullanıcı güveni, veri görünürlüğü, mobil erişilebilirlik ve kritik akışlara göre düzenlendi.
+
+### G.1 Public Sayfa Shell İzolasyonu
+- [x] Public route yüklenmeden önce terminal shell görünmesini CSS/HTML seviyesinde engelle
+- [ ] `/`, `/login`, `/register`, `/pricing`, `/shared/*` sayfalarında terminal DOM sızıntısını doğrula
+- **Dosya:** `frontend/index.html`, `frontend/style.css`, `frontend/src/app.ts`
+
+### G.2 Market Ticker Kararı ve Görsel Boşluk Kontrolü
+- [x] `#market-ticker` gerçekten yoksa raporu güncelle; varsa ya doldur ya da tamamen gizle
+- [x] `--ticker-h` kaynaklı gereksiz üst boşluk olmadığını doğrula
+- **Dosya:** `frontend/index.html`, `frontend/style.css`, `frontend/src/app.ts`
+
+### G.3 Sinyaller Sekmesi Boş Durum Bilgilendirmesi
+- [x] `/api/health.signal_generator` verisini UI boş durumuna yansıt
+- [x] `skipped_untrusted`, `signals_emitted`, son skip nedeni ve Telegram kurulum yönlendirmesini göster
+- **Dosya:** `frontend/src/components/SignalFeed.ts`
+
+### G.4 Portföy Yüzde Formatı ve Paper Veri Açıklığı
+- [x] `+-0,00%` üreten tüm yüzde formatlarını düzelt
+- [x] Günlük K/Z yönünü doğru hesapla
+- [x] Ekstrem paper zararları için test/paper simülasyon açıklaması ekle
+- **Dosya:** `frontend/src/components/PortfolioPanel.ts`, `frontend/src/constants/tr.ts`
+
+### G.5 Grafik Paneli Kritik UX Düzeltmeleri
+- [x] Layout `G` döngüsünde `2x1` dahil olduğunu doğrula
+- [x] Şablon boş isim, export ve fiyat uyarısı başarı/hata geri bildirimlerini doğrula
+- [x] Karşılaştırma max 3 limitini kullanıcıya açık bildir
+- **Dosya:** `frontend/src/app.ts`, `frontend/src/components/ChartPanel.ts`
+
+### G.6 Strateji Paneli Akış Açıklıkları
+- [ ] İlk açılışta mode segmented control aktif görünmeli
+- [ ] WF/MC sekmelerinde backtest yoksa "önce backtest çalıştır" yönlendirmesi göster
+- [ ] Paper aktivasyonu hatasını daha görünür yap
+- **Dosya:** `frontend/src/components/StrategyPanel.ts`
+
+### G.7 Admin/Auth Route Koruması
+- [x] `/admin` için auth/rol kontrolü doğrula
+- [x] Yetkisiz erişimde `/login?next=/admin` veya ürün diliyle erişim reddi göster
+- **Dosya:** `frontend/src/app.ts`, `frontend/src/pages/admin/AdminPanel.ts`, `frontend/src/auth/*`
+
+---
+
+## Sprint H — Mobil ve Orta Seviye UX Düzeltmeleri
+
+### H.1 Mobil Sembol Seçimi
+- [ ] 768px altında sidebar gizlenince sembol değiştirme için drawer/bottom-sheet ekle
+- [ ] Aktif sembol mobilde görünür kalsın
+- **Dosya:** `frontend/style.css`, `frontend/src/app.ts`, `frontend/src/components/Sidebar.ts`
+
+### H.2 Mobil Kontrol Boyutları
+- [ ] Grafik toolbar butonlarını mobilde dokunulabilir boyuta getir
+- [ ] Topbar sekmelerinde taşma/keşfedilebilirlik iyileştir
+- **Dosya:** `frontend/style.css`
+
+### H.3 Mali Analiz Kullanıcı Yönlendirmeleri
+- [ ] Non-BIST sembollerde desteklenen BIST evrenine yönlendirme ekle
+- [ ] Universe nokta renkleri için legend ekle
+- [ ] BIST 30 yenileme için daha görünür loading/progress mesajı ekle
+- **Dosya:** `frontend/src/components/MaliAnalizPanel.ts`
+
+### H.4 Haberler Paneli Küçük UX
+- [ ] Yenile sırasında butonda/metinde loading durumu göster
+- [ ] Keyword input için Enter ile yenile davranışını sembol input ile eşitle
+- [ ] URL olmayan haber kartlarının görsel durumunu ayır
+- **Dosya:** `frontend/src/components/NewsPanel.ts`
+
+### H.5 Screener Durum ve Zaman Bilgisi
+- [ ] Cache boşken kullanıcıya açıklayıcı empty-state göster
+- [ ] "Son tarama" timestamp'i ekle
+- [ ] İşlem sütunu başlığını daha açık hale getir
+- **Dosya:** `frontend/src/components/Screener.ts`
+
+### H.6 Eğitim Paneli Okuma Deneyimi
+- [ ] Kategori/makale değişiminde içerik scroll'unu başa al
+- [ ] Boş indicator bridge çağrılarını engelle
+- [ ] Mobilde eğitim sidebar toggle davranışı ekle
+- **Dosya:** `frontend/src/components/EgitimlerPanel.ts`, `frontend/style.css`
+
+---
+
+## Sprint I — Tasarım Cilası, Performans ve Teknik Borç
+
+### I.1 Marka ve Topbar Tutarlılığı
+- [ ] "Tema" adını "Görünüm" yap
+- [ ] PiyasaPilot marka adının tüm shell/public sayfalarda tutarlı olduğunu doğrula
+- [ ] Status badge mobilde kesilmeyecek şekilde düzenle
+- **Dosya:** `frontend/index.html`, `frontend/style.css`
+
+### I.2 Tema Dışı Dialog ve Scrollbar
+- [ ] Kalan `window.alert()`/`window.confirm()` kullanımlarını tema uyumlu UI ile değiştir
+- [ ] Firefox için genel scrollbar stilleri ekle
+- **Dosya:** `frontend/src/**/*.ts`, `frontend/style.css`
+
+### I.3 Emoji İkon Temizliği
+- [ ] Sık kullanılan toolbar/action emoji ikonlarını inline SVG/lucide eşdeğerleriyle değiştir
+- [ ] MultiChart sync lock ikonlarını platform bağımsız hale getir
+- **Dosya:** `frontend/src/components/*.ts`
+
+### I.4 Light Mode Kontrast QA
+- [ ] Paper banner, wallet kartları, grafik paneli ve haber kartlarının light mode kontrastını kontrol et
+- [ ] Gerekli CSS tokenlarını düzelt
+- **Dosya:** `frontend/style.css`
+
+### I.5 Performans ve Test Sertleştirme
+- [ ] Ana bundle/chunk boyutunu ölç; gerekirse public/terminal chunk ayrımını iyileştir
+- [ ] Python API testlerinde auth kaynaklı 401 uyumsuzluğunu test fixture veya header ile düzelt
+- [ ] Playwright smoke ile kritik terminal/public rotaları doğrula
+- **Dosya:** `frontend/src/app.ts`, `tests/`, `frontend/tests/e2e/`

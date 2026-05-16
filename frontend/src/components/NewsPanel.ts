@@ -38,13 +38,25 @@ export class NewsPanel {
   constructor(container: HTMLElement) {
     this.container = container;
     this.render();
+    window.addEventListener('piyasapilot:news-filter-symbol', this.handleSymbolFilter);
     void this.load(false);
     this.refreshTimer = setInterval(() => void this.load(true), REFRESH_MS);
   }
 
   destroy(): void {
     if (this.refreshTimer !== null) clearInterval(this.refreshTimer);
+    window.removeEventListener('piyasapilot:news-filter-symbol', this.handleSymbolFilter);
   }
+
+  private handleSymbolFilter = (event: Event): void => {
+    const detail = (event as CustomEvent<{ symbol?: string }>).detail;
+    const symbol = detail?.symbol?.toUpperCase().trim();
+    if (!symbol) return;
+    this.filterSymbol = symbol;
+    const input = this.container.querySelector<HTMLInputElement>('#news-symbol');
+    if (input) input.value = symbol;
+    void this.load(true);
+  };
 
   // ── Layout ──────────────────────────────────────────────────────────────────
 

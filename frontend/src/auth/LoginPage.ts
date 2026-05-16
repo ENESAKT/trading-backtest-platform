@@ -12,7 +12,10 @@ export function renderLoginPage(container: HTMLElement): void {
   container.innerHTML = `
 <div class="auth-page d-flex align-items-center justify-content-center min-vh-100">
   <div class="auth-card card shadow-lg p-4" style="width:100%;max-width:440px">
-    <button class="lang-switch align-self-end mb-2" type="button" id="auth-lang-switch" aria-label="Change language">${nextLang.toUpperCase()}</button>
+    <div class="auth-card-top">
+      <a class="auth-exit-link" href="/app">← Terminale dön</a>
+      <button class="lang-switch" type="button" id="auth-lang-switch" aria-label="Change language">${nextLang.toUpperCase()}</button>
+    </div>
 
     <div class="text-center mb-4">
       <div class="auth-logo mb-2">
@@ -88,6 +91,9 @@ export function renderLoginPage(container: HTMLElement): void {
     <p class="text-center small text-muted mb-0">
       ${i18n.t('AUTH_NO_ACCOUNT')}
       <a href="/register" class="text-warning text-decoration-none fw-semibold">${i18n.t('AUTH_SIGNUP_LINK')}</a>
+    </p>
+    <p class="text-center small mt-2 mb-0">
+      <a href="/" class="auth-secondary-link">Ana sayfaya git</a>
     </p>
   </div>
 </div>`;

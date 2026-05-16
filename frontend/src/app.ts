@@ -594,6 +594,14 @@ window.addEventListener('addSymbolToBacktest', async (e: Event) => {
   }
 });
 
+window.addEventListener('openNewsForSymbol', (e: Event) => {
+  const customE = e as CustomEvent<{symbol: string}>;
+  const symbol = customE.detail?.symbol;
+  if (!symbol) return;
+  showTab('news');
+  window.dispatchEvent(new CustomEvent('piyasapilot:news-filter-symbol', { detail: { symbol } }));
+});
+
 window.addEventListener('openFinancialAnalysis', async (e: Event) => {
   const customE = e as CustomEvent<{symbol: string, date?: string}>;
   if (customE.detail && customE.detail.symbol) {

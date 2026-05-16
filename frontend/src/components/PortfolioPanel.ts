@@ -321,14 +321,14 @@ export class PortfolioPanel {
       ? `<span class="wallet-halted-badge">${TR.WALLET_HALTED}</span>`
       : '';
     const dailyLoss = w.daily_loss;
-    // Yüzde hesabı yönlü olmalı: negatif kayıp, pozitif kazanç
-    const dailyLossPct = (Math.abs(dailyLoss) / w.initial_capital) * 100;
+    const dailyLossPct = w.initial_capital > 0 ? (dailyLoss / w.initial_capital) * 100 : 0;
     const isSelected = w.strategy_id === this.selectedStrategy;
 
     return `
       <div class="wallet-card ${w.is_halted ? 'wallet-halted' : ''} ${isSelected ? 'selected' : ''}" data-strategy-id="${w.strategy_id}">
         <div class="wallet-header">
           <span class="wallet-strategy">${w.strategy_id}</span>
+          <span class="wallet-paper-badge" title="Bu cüzdan yalnızca paper/simülasyon kayıtlarından hesaplanır; gerçek emir içermez.">PAPER</span>
           ${haltedBadge}
         </div>
         <div class="wallet-metrics">
@@ -342,7 +342,7 @@ export class PortfolioPanel {
           </div>
           <div class="wm-item">
             <span class="wm-label">${TR.DAILY_PNL}</span>
-            <span class="wm-value ${dailyLoss >= 0 ? 'pos' : 'neg'}">${formatCurrency(dailyLoss)} (${dailyLoss > 0 ? '+' : dailyLoss < 0 ? '-' : ''}${formatPct(dailyLossPct).replace(/^[+-]/, '')})</span>
+            <span class="wm-value ${dailyLoss >= 0 ? 'pos' : 'neg'}">${formatCurrency(dailyLoss)} (${formatPct(dailyLossPct)})</span>
           </div>
         </div>
         <div class="wallet-actions">
