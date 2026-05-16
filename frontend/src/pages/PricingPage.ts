@@ -1,5 +1,6 @@
 import { auth } from '../auth/AuthManager.js';
 import { analytics } from '../core/Analytics.js';
+import { i18n } from '../i18n/index.js';
 import { pageShell, showInlineMessage } from './pageUtils.js';
 
 const plans = [
@@ -11,10 +12,10 @@ const plans = [
 export function renderPricingPage(container: HTMLElement): void {
   container.innerHTML = pageShell('Fiyatlandırma', `
     <section class="pricing-page">
-      <h1>Planınızı seçin</h1>
-      <div class="billing-toggle" role="group" aria-label="Faturalama dönemi">
-        <button class="active" data-billing="monthly">Aylık</button>
-        <button data-billing="yearly">Yıllık - 2 ay bedava</button>
+      <h1>${i18n.t('PRICING_TITLE')}</h1>
+      <div class="billing-toggle" role="group" aria-label="${i18n.t('PRICING_BILLING_LABEL')}">
+        <button class="active" data-billing="monthly">${i18n.t('PRICING_MONTHLY')}</button>
+        <button data-billing="yearly">${i18n.t('PRICING_YEARLY')}</button>
       </div>
       <div id="pricing-alert" hidden></div>
       <div class="pricing-grid">
@@ -26,7 +27,7 @@ export function renderPricingPage(container: HTMLElement): void {
             <button class="btn ${plan.slug === 'free' ? 'btn-outline-warning' : 'btn-warning'} w-100" data-plan="${plan.slug}">${plan.cta}</button>
           </article>`).join('')}
       </div>
-      <p class="trust-line">Güvenli ödeme Stripe ile alınır. İstediğiniz zaman iptal edebilirsiniz.</p>
+      <p class="trust-line">${i18n.t('PRICING_TRUST')}</p>
     </section>`, 'pricing');
 
   let billing = 'monthly';
@@ -54,7 +55,7 @@ export function renderPricingPage(container: HTMLElement): void {
         return;
       }
       btn.disabled = true;
-      btn.textContent = 'Stripe açılıyor...';
+      btn.textContent = i18n.t('PRICING_STRIPE_OPENING');
       const alert = container.querySelector<HTMLElement>('#pricing-alert')!;
       try {
         const res = await fetch('/api/payments/checkout', {
@@ -64,10 +65,11 @@ export function renderPricingPage(container: HTMLElement): void {
           body: JSON.stringify({ plan, billing_period: billing }),
         });
         const body = await res.json();
-        if (!res.ok || !body.data?.checkout_url) throw new Error(body.detail?.tr || 'Checkout başlatılamadı.');
+        const detail = i18n.current() === 'en' ? body.detail?.en : body.detail?.tr;
+        if (!res.ok || !body.data?.checkout_url) throw new Error(detail || i18n.t('PRICING_CHECKOUT_ERROR'));
         window.location.href = body.data.checkout_url;
       } catch (err) {
-        showInlineMessage(alert, err instanceof Error ? err.message : 'Stripe checkout şu an açılamıyor. Canlı ürün anahtarları tanımlandığında bu akış otomatik çalışır.', 'danger');
+        showInlineMessage(alert, err instanceof Error ? err.message : i18n.t('PRICING_CHECKOUT_ERROR'), 'danger');
         btn.disabled = false;
         btn.textContent = plan === 'pro' ? "Pro'ya Geç" : 'Ultra Ol';
       }

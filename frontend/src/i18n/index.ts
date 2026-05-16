@@ -20,6 +20,7 @@ class I18nManager {
     this.dict = lang === 'en' ? { ...tr, ...en } : tr;
     localStorage.setItem('pp_lang', lang);
     document.documentElement.dataset['lang'] = lang;
+    document.documentElement.lang = lang;
   }
 
   t(key: Key): string {

@@ -61,7 +61,9 @@ if (loadPublicRenderer || loadDynamicPublicRenderer) {
   document.body.appendChild(authRoot);
   await auth.init(); // Initialize auth for public header logic
   const renderer = await (loadPublicRenderer || loadDynamicPublicRenderer)!();
-  void renderer(authRoot);
+  await renderer(authRoot);
+  const { bindPublicPageControls } = await import('./pages/pageUtils.js');
+  bindPublicPageControls(authRoot);
 } else {
 
 const [

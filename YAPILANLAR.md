@@ -194,6 +194,12 @@
 - [x] Mali analiz panelinde Enter ile sembol seçimi, düz/sarmallı summary API toleransı, oran kart selector'ı ve veri uyarısı görünümü tamamlandı.
 - [x] `cd frontend && npm run typecheck`, `cd frontend && npm run build` ve `cd frontend && npm run e2e` başarılı; E2E sonucu: 24/24 geçti.
 
+## ✅ Public i18n ve Dil Anahtarı (2026-05-16)
+
+- [x] Public shell navigasyon/footer risk dili, landing hero/CTA ve pricing metinleri TR/EN sözlüğe taşındı.
+- [x] Public sayfalara kalıcı TR/EN dil anahtarı eklendi; `document.documentElement.lang` aktif dil ile senkron tutuluyor.
+- [x] `cd frontend && npm run typecheck`, `cd frontend && npm run build` ve `cd frontend && npm run e2e` başarılı; E2E sonucu: 24/24 geçti.
+
 ---
 
 ## ✅ Güvenlik ve Deployment Altyapısı

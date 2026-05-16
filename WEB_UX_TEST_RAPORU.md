@@ -277,3 +277,12 @@ KULLANICI AKSİYONU GEREKİR:
 - Canlı Stripe ürün/price id, billing portal ve webhook uçtan uca doğrulaması.
 - Gerçek domain/DNS/TLS ve AWS deploy doğrulaması.
 - Canlı Sentry DSN, Grafana dashboard ve alert kanallarının bağlanması.
+
+## QA Sonrası Not — 2026-05-16 Public i18n
+
+Public shell, landing ve pricing görünür metinleri TR/EN sözlüğe bağlandı; header'a kalıcı dil anahtarı eklendi.
+
+- `npm run typecheck` başarılı.
+- `npm run build` başarılı; 500 kB chunk uyarısı yok.
+- `npm run e2e` başarılı; Playwright/Chromium sonucu: 24/24 test geçti.
+- `html lang` aktif dil ile senkron tutuluyor; public route izolasyonu korunuyor.

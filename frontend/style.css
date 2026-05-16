@@ -115,6 +115,18 @@ h3 { font-family: var(--font-sans); font-size: 14px; font-weight: 600; color: va
 .public-nav nav { display: flex; align-items: center; gap: 12px; }
 .public-nav nav a { color: var(--text); font-family: var(--font-sans); }
 .public-nav nav a.active { color: var(--amber); }
+.lang-switch {
+  min-width: 38px;
+  min-height: 32px;
+  border: 1px solid var(--border2);
+  border-radius: 6px;
+  background: var(--panel);
+  color: var(--text-bold);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 700;
+}
+.lang-switch:hover { border-color: var(--amber); color: var(--amber); }
 .public-main { flex: 1; width: min(1180px, calc(100% - 32px)); margin: 0 auto; padding: 36px 0; }
 .public-footer { display: flex; flex-wrap: wrap; gap: 14px; align-items: center; padding: 20px 32px; border-top: 1px solid var(--border2); color: var(--text); }
 .risk-disclaimer { flex-basis: 100%; color: var(--text-dim); margin: 0; font-size: 11px; }
