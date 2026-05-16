@@ -9,3 +9,10 @@
 
 ## Altyapı / DevOps
 - CI/CD ve DevOps kurguları kapsamında, AWS EC2 deploy ve yedekleme scriptleri (idempotent bash) başarıyla hazırlandı. Sentry ve SQLite yedekleme-restore drill testleri için betikler eklendi; `nginx.prod.conf` içerisinde `/status` endpoint'i doğrudan fastapi `health` dönüşüne proxy'lenerek monitoring yetenekleri iyileştirildi.
+
+## Backend / Güvenlik
+- Tüm korumalı API endpoint'lerine `Depends(get_current_user)` JWT auth guard'ı eklendi (backtest, paper, strategy-lab, news, mali-analiz, alerts). `/api/health` ve auth endpoint'leri herkese açık kaldı. Test: 54 parametrize senaryosu ile `test_auth_guards.py` oluşturuldu.
+- `PlanLimits` dataclass'ına `max_saved_strategies` ve `paper_trading` bool alanları eklendi. Free plan: max 3 strateji, paper trading kapalı (0 paper account). Paper trading POST endpoint'leri `dependencies=[Depends(require_paper_trading)]` ile korundu.
+- Billing router (`/api/billing/*`) oluşturuldu. `STRIPE_SECRET_KEY` yokken tüm endpoint'ler 503 döndürür — graceful degradation. SQLite `stripe_events` tablosu ile webhook idempotency sağlanıyor.
+- Email template'leri Jinja2 + inline CSS ile yeniden tasarlandı. Marka renkleri: `#0f1117` (arka plan), `#ffb020` (accent), `#e2e8f0` (metin). `payment_success.html` yeni oluşturuldu.
+- `SQLitePool` thread-safe connection pool modülü (`backend/db/pool.py`) oluşturuldu. WAL modu, busy_timeout, cache_size pragmaları varsayılan. `/api/health` endpoint'i artık `db_pools` istatistiklerini döndürüyor.
