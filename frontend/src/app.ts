@@ -330,6 +330,46 @@ function initThemePanel(): void {
 
 initThemePanel();
 
+// ─── Mobile sidebar drawer ────────────────────────────────────────────────────
+function initMobileSidebar(): void {
+  const btn      = document.getElementById('mobile-sidebar-btn') as HTMLButtonElement | null;
+  const sidebar  = document.getElementById('sidebar');
+  const backdrop = document.getElementById('sidebar-backdrop');
+  if (!btn || !sidebar || !backdrop) return;
+
+  const open = (): void => {
+    sidebar.classList.add('mobile-open');
+    backdrop.classList.add('visible');
+    btn.setAttribute('aria-expanded', 'true');
+    document.body.style.overflow = 'hidden';
+  };
+  const close = (): void => {
+    sidebar.classList.remove('mobile-open');
+    backdrop.classList.remove('visible');
+    btn.setAttribute('aria-expanded', 'false');
+    document.body.style.overflow = '';
+  };
+
+  btn.addEventListener('click', () => {
+    sidebar.classList.contains('mobile-open') ? close() : open();
+  });
+  backdrop.addEventListener('click', close);
+
+  // Sembol seçilince drawer'ı kapat (mobilde)
+  sidebar.addEventListener('click', (e) => {
+    const target = e.target as HTMLElement;
+    if (target.closest('.sym-row, .sym-item, [data-symbol]')) {
+      close();
+    }
+  });
+
+  // Ekran genişlediğinde otomatik kapat
+  const mq = window.matchMedia('(max-width: 768px)');
+  mq.addEventListener('change', (ev) => { if (!ev.matches) close(); });
+}
+
+initMobileSidebar();
+
 // ─── Panel containers ─────────────────────────────────────────────────────────
 
 function createPanel(id: string): HTMLElement {

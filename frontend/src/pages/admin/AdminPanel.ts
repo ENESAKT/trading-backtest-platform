@@ -33,9 +33,14 @@ export async function renderAdminPanel(container: HTMLElement): Promise<void> {
         const data = await res.json();
         const users = data.data?.users || [];
         const rows = users.length
-          ? users.map((u: any) => `<tr><td>${u.id}</td><td>${u.email}</td><td><span class="badge ${u.role}">${u.role.toUpperCase()}</span></td><td>${u.is_active ? 'Aktif' : 'Pasif'}</td><td><button class="btn btn-sm btn-outline-secondary" onclick="alert('Detay yapım aşamasında')">Detay</button></td></tr>`).join('')
+          ? users.map((u: any) => `<tr><td>${u.id}</td><td>${u.email}</td><td><span class="badge ${u.role}">${u.role.toUpperCase()}</span></td><td>${u.is_active ? 'Aktif' : 'Pasif'}</td><td><button class="btn btn-sm btn-outline-secondary" data-user-detail="${u.id}" title="Kullanıcı detay sayfası yapım aşamasındadır">Detay</button></td></tr>`).join('')
           : '<tr><td colspan="5">Kullanıcı bulunamadı.</td></tr>';
         content.innerHTML = `<h1>Kullanıcı Yönetimi</h1><div class="admin-toolbar"><input class="form-control" placeholder="E-posta ara" /><select class="form-select"><option>Tüm Planlar</option><option>Free</option><option>Pro</option><option>Ultra</option></select></div><table><thead><tr><th>ID</th><th>E-posta</th><th>Plan</th><th>Durum</th><th>İşlem</th></tr></thead><tbody>${rows}</tbody></table>`;
+        content.querySelectorAll<HTMLButtonElement>('[data-user-detail]').forEach((btn) => {
+          btn.addEventListener('click', () => {
+            window.showToast?.('Kullanıcı detay sayfası yapım aşamasındadır.', 'info');
+          });
+        });
       } else if (tab === 'audit') {
         const res = await fetch('/api/admin/audit-log?limit=50', { credentials: 'include' });
         const data = await res.json();

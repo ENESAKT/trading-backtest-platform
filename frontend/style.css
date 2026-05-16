@@ -4104,3 +4104,88 @@ kbd {
 .sym-group-header.locked { opacity: .55; cursor: pointer; }
 .sym-group-header.locked:hover { opacity: .85; }
 .sym-group-lock { font-size: 10px; margin-left: auto; padding: 1px 5px; border-radius: 3px; background: var(--border2); color: var(--text-dim); font-weight: 600; }
+
+/* ─── Mobile hamburger butonu ────────────────────────────────────────────── */
+.mobile-sidebar-btn {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  background: transparent;
+  border: 1px solid var(--border2);
+  border-radius: 4px;
+  color: var(--text);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.15s;
+}
+.mobile-sidebar-btn:hover { background: var(--bg2); }
+.mobile-sidebar-btn:active { background: var(--border2); }
+
+/* ─── Mobile sidebar backdrop ───────────────────────────────────────────── */
+.sidebar-backdrop {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  z-index: 199;
+  backdrop-filter: blur(1px);
+}
+
+/* ─── Mobile: hamburger göster, sidebar drawer yap ──────────────────────── */
+@media (max-width: 768px) {
+  .mobile-sidebar-btn {
+    display: flex;
+  }
+
+  /* Sidebar normalde gizli — transform ile sol'dan kayar */
+  #sidebar {
+    display: flex !important;
+    position: fixed;
+    top: var(--topbar-h, 40px);
+    left: 0;
+    bottom: 0;
+    width: 260px;
+    z-index: 200;
+    transform: translateX(-100%);
+    transition: transform 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 4px 0 16px rgba(0, 0, 0, 0.4);
+    overflow-y: auto;
+    background: var(--bg);
+    border-right: 1px solid var(--border);
+  }
+
+  #sidebar.mobile-open {
+    transform: translateX(0);
+  }
+
+  .sidebar-backdrop.visible {
+    display: block;
+  }
+
+  /* App layout tam genişlik */
+  #app-layout {
+    padding-left: 0 !important;
+  }
+}
+
+/* ─── Touch: min dokunma hedefi 44px ────────────────────────────────────── */
+@media (max-width: 768px) and (pointer: coarse) {
+  .tab-btn {
+    min-height: 36px;
+    min-width: 36px;
+  }
+  .ctrl-btn {
+    min-height: 32px;
+    padding: 4px 6px;
+  }
+  .btn-sm {
+    min-height: 32px;
+  }
+  .mobile-sidebar-btn {
+    width: 36px;
+    height: 36px;
+  }
+}

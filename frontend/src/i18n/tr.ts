@@ -116,4 +116,6 @@ export const tr = {
   SETTINGS_NO_LIVE_SUB: 'Canlı Stripe aboneliği bulunamadı.',
   SETTINGS_BILLING_WAITING: 'Billing entegrasyonu beklemede',
   SETTINGS_BILLING_WAITING_COPY: 'Plan bilgisi hesabınızdan okunur; fatura portalı canlı Stripe ayarları sonrası açılır.',
+  NAV_HOME: 'Ana sayfaya git',
+  AUTH_BACK_TO_TERMINAL: '← Terminale dön',
 } as const;

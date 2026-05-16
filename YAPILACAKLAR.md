@@ -4155,15 +4155,215 @@ Sadece web MVP için sıkı öncelik:
 
 # KULLANICI AKSİYONU GEREKİR
 
-- Google OAuth için canlı `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` ve authorized redirect URI değerlerini Google Cloud Console'da oluşturup `.env.production` içine gir. Tahmini süre: 30-60 dk.
-- Stripe Dashboard'da Pro/Ultra aylık-yıllık product/price kayıtlarını oluştur; `STRIPE_*_PRICE_ID` ve `STRIPE_WEBHOOK_SECRET` değerlerini production env'e gir; webhook endpointini `https://piyasapilotu.com/api/payments/webhook` olarak doğrula. Tahmini süre: 1-2 saat.
-- AWS hesabında eski maliyet üreten kaynakları kontrol et; EC2/EIP/S3/IAM/Budget/CloudWatch kaynaklarını canlı hesapta oluştur veya Terraform `apply` için onaylı değerleri gir. Tahmini süre: 3-6 saat.
-- METUnic DNS panelinde `piyasapilotu.com`, `www`, `api` ve gerekirse `api-mobile` kayıtlarını canlı Elastic IP'ye yönlendir. Tahmini süre: 15-45 dk + DNS yayılımı.
-- Sunucuda Certbot ile TLS sertifikasını al ve otomatik yenileme cron'unu kur. Tahmini süre: 30-60 dk.
-- Sentry DSN, Grafana/Prometheus dashboard ve alert kanalını canlı hesaplarda oluşturup production env'e bağla. Tahmini süre: 1-2 saat.
-- Gmail/Postmark/Resend gibi canlı email sağlayıcısı için SMTP/API secretlarını oluştur; doğrulama ve şifre sıfırlama email'lerini gerçek domainle test et. Tahmini süre: 1-2 saat.
-- App Store / Play Store yayın süreci için Apple Developer, Google Play Console, signing keystore, Firebase push ve uygulama ikon/splash varlıklarını canlı hesaplarda tamamla. Tahmini süre: 1-3 gün, mağaza onayı hariç.
-- Lisanslı BIST/VIOP gerçek zamanlı veri sağlayıcısı anlaşmasını yap; Ultra plan metnini canlı lisans kapsamıyla uyumlu tut. Tahmini süre: sağlayıcı yanıtına bağlı, genellikle 1-3 hafta.
+Bu başlık altında yalnızca canlı hesap, panel, secret, domain, ödeme, deploy veya üçüncü taraf onayı gerektiren işler bırakılır. Kod/scaffold/test tarafı hazır olduğu için aşağıdaki maddeler tamamlanmadan proje üretime çıkmış sayılmaz.
+
+## 1 · Google OAuth Canlı Kurulum
+
+Tahmini süre: 30-60 dk.
+
+- [ ] Google Cloud Console'da production proje seç veya oluştur.
+- [ ] OAuth consent screen'i `External` olarak yapılandır.
+- [ ] App name: `PiyasaPilot`.
+- [ ] Authorized domain: `piyasapilotu.com`.
+- [ ] Support/developer email alanlarını gerçek destek e-postasıyla doldur.
+- [ ] OAuth Client oluştur: `Web application`.
+- [ ] Authorized JavaScript origins:
+  - `https://piyasapilotu.com`
+  - `https://www.piyasapilotu.com`
+- [ ] Authorized redirect URI:
+  - `https://piyasapilotu.com/api/auth/google/callback`
+- [ ] `GOOGLE_CLIENT_ID` ve `GOOGLE_CLIENT_SECRET` değerlerini `.env.production` içine gir.
+- [ ] Sunucuda API container restart sonrası `/api/auth/google` yönlendirmesini test et.
+- [ ] Callback sonrası yeni kullanıcı onboarding'e, mevcut kullanıcı `/app` rotasına gidiyor mu doğrula.
+- [ ] Hata durumunda login/register Google butonları disabled kalmıyor mu kontrol et.
+
+## 2 · Stripe Canlı Ödeme Kurulumu
+
+Tahmini süre: 1-2 saat.
+
+- [ ] Stripe hesabında canlı moda geç.
+- [ ] Business profile, vergi/ödeme alma ve payout bilgilerini tamamla.
+- [ ] Product oluştur: `PiyasaPilot Pro`.
+- [ ] Price oluştur: Pro Monthly `$19.99`.
+- [ ] Price oluştur: Pro Yearly `$199.99`.
+- [ ] Product oluştur: `PiyasaPilot Ultra`.
+- [ ] Price oluştur: Ultra Monthly `$49.99`.
+- [ ] Price oluştur: Ultra Yearly `$499.99`.
+- [ ] `.env.production` içine değerleri gir:
+  - `STRIPE_SECRET_KEY`
+  - `STRIPE_PRO_PRICE_ID`
+  - `STRIPE_PRO_YEARLY_PRICE_ID`
+  - `STRIPE_ULTRA_PRICE_ID`
+  - `STRIPE_ULTRA_YEARLY_PRICE_ID`
+- [ ] Stripe webhook endpoint oluştur:
+  - `https://piyasapilotu.com/api/payments/webhook`
+- [ ] Webhook event listesi:
+  - `checkout.session.completed`
+  - `customer.subscription.updated`
+  - `customer.subscription.deleted`
+  - `invoice.payment_failed`
+- [ ] `STRIPE_WEBHOOK_SECRET` değerini `.env.production` içine gir.
+- [ ] Billing Portal ayarlarını Stripe Dashboard'da etkinleştir.
+- [ ] Checkout success sonrası kullanıcının planı Pro/Ultra oluyor mu doğrula.
+- [ ] Duplicate webhook tekrar gönderildiğinde idempotency çalışıyor mu doğrula.
+- [ ] Cancel portal aksiyonunda abonelik dönem sonunda iptale düşüyor mu doğrula.
+- [ ] Başarısız ödeme durumunda `past_due` UI dili doğru mu kontrol et.
+
+## 3 · AWS Production Kurulum
+
+Tahmini süre: 3-6 saat.
+
+- [ ] AWS Billing / Cost Explorer üzerinden eski maliyet üreten kaynakları kontrol et.
+- [ ] Gereksiz NAT Gateway varsa sil.
+- [ ] Eski RDS/Aurora/App Runner/EC2/EBS/EIP/S3/ECR/CloudWatch kaynaklarını temizle.
+- [ ] Budget oluştur: aylık limit önerisi `$100`.
+- [ ] SSH public key üret: `piyasapilot-key`.
+- [ ] Terraform için `infra/aws/variables.tf` değerlerini hazırla:
+  - `ami_id`
+  - `ssh_cidr`
+  - `public_key_path`
+- [ ] `terraform init` çalıştır.
+- [ ] `terraform plan` çıktısını kontrol et.
+- [ ] Onay sonrası `terraform apply` ile EC2/EIP/Security Group/Data disk oluştur.
+- [ ] EC2'ye SSH ile bağlan.
+- [ ] Docker ve Docker Compose kur.
+- [ ] `/data` disk mount işlemini yap.
+- [ ] `/data/mysql`, `/data/clickhouse`, `/data/redis`, `/data/app/cache`, `/data/app/parquet`, `/data/backups` klasörlerini oluştur.
+- [ ] Repo'yu `/home/ubuntu/app` altına clone et.
+- [ ] `.env.production` dosyasını doldur.
+- [ ] `docker compose -f infra/docker-compose.prod.yml build` çalıştır.
+- [ ] `docker compose -f infra/docker-compose.prod.yml up -d` çalıştır.
+- [ ] MySQL migration'ları production DB'ye uygula.
+- [ ] `/api/health` lokal ve domain üzerinden 200 dönüyor mu doğrula.
+- [ ] Container healthcheck durumlarını kontrol et.
+
+## 4 · DNS ve TLS
+
+Tahmini süre: 45-90 dk + DNS yayılımı.
+
+- [ ] METUnic panelinde `piyasapilotu.com` DNS yönetimini aç.
+- [ ] `@` A kaydı: Elastic IP.
+- [ ] `www` A kaydı: Elastic IP.
+- [ ] `api` CNAME veya A kaydı: production host.
+- [ ] Gerekiyorsa `api-mobile` A kaydı: Elastic IP.
+- [ ] `dig piyasapilotu.com A +short` ile IP doğrula.
+- [ ] `dig www.piyasapilotu.com A +short` ile IP doğrula.
+- [ ] Sunucuda 80 portunun açık olduğundan emin ol.
+- [ ] Certbot ile sertifika al:
+  - `piyasapilotu.com`
+  - `www.piyasapilotu.com`
+- [ ] Nginx TLS cert path'lerini doğrula.
+- [ ] HTTP -> HTTPS redirect çalışıyor mu kontrol et.
+- [ ] `www.piyasapilotu.com` -> `piyasapilotu.com` 301 yönlendirmesi çalışıyor mu kontrol et.
+- [ ] Certbot renew cron kur.
+- [ ] `sudo certbot renew --dry-run` ile yenilemeyi test et.
+
+## 5 · Email Sağlayıcı ve Transactional Mail
+
+Tahmini süre: 1-2 saat.
+
+- [ ] Gmail App Password, Postmark veya Resend sağlayıcısından biri seç.
+- [ ] SPF/DKIM/DMARC DNS kayıtlarını sağlayıcı talimatlarına göre ekle.
+- [ ] `.env.production` içine SMTP/API bilgilerini gir:
+  - `SMTP_HOST`
+  - `SMTP_PORT`
+  - `SMTP_USER`
+  - `SMTP_PASS`
+  - `NOTIFY_EMAIL_TO`
+- [ ] Email doğrulama maili gerçek kullanıcıya ulaşıyor mu test et.
+- [ ] Şifre sıfırlama maili gerçek kullanıcıya ulaşıyor mu test et.
+- [ ] Spam klasörüne düşme durumunu kontrol et.
+- [ ] Email linklerinin `https://piyasapilotu.com` domainiyle açıldığını doğrula.
+
+## 6 · Sentry, Grafana, Prometheus ve Alert Kanalları
+
+Tahmini süre: 1-2 saat.
+
+- [ ] Sentry'de backend projesi oluştur.
+- [ ] Sentry'de frontend projesi oluştur.
+- [ ] `SENTRY_DSN`, `SENTRY_ENVIRONMENT=production` env değerlerini gir.
+- [ ] Backend test exception'ı Sentry'ye düşüyor mu doğrula.
+- [ ] Frontend unhandled error testinin Sentry'ye düştüğünü doğrula.
+- [ ] Grafana admin şifresini production secret olarak değiştir.
+- [ ] Prometheus scrape target'larını production servis adlarıyla doğrula.
+- [ ] Dashboard import et veya production dashboard oluştur.
+- [ ] Alert kanalı seç: email, Telegram, Slack veya Discord.
+- [ ] Kritik alarmlar:
+  - API down
+  - CPU > 80%
+  - Disk > 80%
+  - Container unhealthy
+  - Stripe webhook error spike
+  - Data freshness delay
+- [ ] UptimeRobot veya benzeri status monitor kur.
+- [ ] Public status page kararı ver: `status.piyasapilotu.com`.
+
+## 7 · Backup ve Restore Kabulü
+
+Tahmini süre: 1-2 saat.
+
+- [ ] S3 bucket oluştur: `piyasapilot-backups-prod`.
+- [ ] Bucket region: `eu-central-1`.
+- [ ] Public access block açık olsun.
+- [ ] Versioning etkin olsun.
+- [ ] Lifecycle: 30 günden eski yedekleri sil.
+- [ ] Sadece backup bucket'a erişebilen IAM user veya role oluştur.
+- [ ] `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_BACKUP_BUCKET`, `AWS_REGION` değerlerini production env'e gir.
+- [ ] Backup cron kur.
+- [ ] İlk backup'ı manuel çalıştır.
+- [ ] `scripts/restore_drill.sh` ile restore drill yap.
+- [ ] Restore drill sonucu logunu sakla.
+
+## 8 · Lisanslı BIST/VIOP Veri Sağlayıcı
+
+Tahmini süre: 1-3 hafta, sağlayıcı yanıtına bağlı.
+
+- [ ] Matriks ile API/veri lisansı için görüş.
+- [ ] Foreks ile API/veri lisansı için görüş.
+- [ ] Borsa Istanbul resmi veri kanallarını değerlendir.
+- [ ] VIOP için uygun sağlayıcıdan teklif al.
+- [ ] Lisans kapsamını yazılı netleştir:
+  - Gerçek zamanlı mı?
+  - Gecikmeli mi?
+  - Redistribution hakkı var mı?
+  - Mobil kullanım dahil mi?
+  - Ücretli abonelere sunulabilir mi?
+- [ ] Test ortamı al.
+- [ ] Provider endpoint bilgilerini production secret olarak hazırla.
+- [ ] Ultra plan metnini gerçek lisans kapsamıyla uyumlu hale getir.
+- [ ] Lisans yoksa Ultra'daki "canlı veri" iddiasını "öncelikli/hızlandırılmış veri" olarak güncelle.
+
+## 9 · Mobil Yayın Hazırlığı
+
+Tahmini süre: 1-3 gün, mağaza onayı hariç.
+
+- [ ] Apple Developer Program hesabı hazırla.
+- [ ] Google Play Console hesabı hazırla.
+- [ ] Android package id: `com.piyasapilot.app`.
+- [ ] iOS bundle id: `com.piyasapilot.app`.
+- [ ] Android signing keystore oluştur ve güvenli sakla.
+- [ ] iOS signing certificate/provisioning profile oluştur.
+- [ ] Firebase projesi oluştur.
+- [ ] Firebase Android/iOS app kayıtlarını oluştur.
+- [ ] Push notification için Firebase Cloud Messaging yapılandır.
+- [ ] App icon ve splash görsellerini üret.
+- [ ] Privacy label / data safety formlarını doldur.
+- [ ] Store açıklaması ve ekran görüntülerini hazırla.
+- [ ] Production API URL ile release build al.
+- [ ] TestFlight / Internal testing üzerinden smoke test yap.
+
+## 10 · Growth ve Destek Kanalları
+
+Tahmini süre: 1-2 gün.
+
+- [ ] Destek e-postası oluştur: örn. `destek@piyasapilotu.com`.
+- [ ] Crisp/Intercom/alternatif chat aracı seç.
+- [ ] Telegram kanal adı ve bot kullanıcı adı kararlaştır.
+- [ ] Discord topluluğu açılacaksa kanal yapısını oluştur.
+- [ ] Blog altyapısı seç: Astro, Ghost veya mevcut statik yapı.
+- [ ] Product Hunt lansman materyallerini hazırla.
+- [ ] Affiliate partner kurallarını yazılı hale getir.
+- [ ] Referral kampanya şartlarını hukuki metinle uyumlu hale getir.
 
 ## Kalan Süre Tahmini
 

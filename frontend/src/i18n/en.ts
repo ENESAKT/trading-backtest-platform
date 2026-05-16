@@ -116,4 +116,6 @@ export const en = {
   SETTINGS_NO_LIVE_SUB: 'No live Stripe subscription found.',
   SETTINGS_BILLING_WAITING: 'Billing integration pending',
   SETTINGS_BILLING_WAITING_COPY: 'Plan information is read from your account; the invoice portal opens after live Stripe settings are complete.',
+  NAV_HOME: 'Go to homepage',
+  AUTH_BACK_TO_TERMINAL: '← Back to terminal',
 } as const;

@@ -601,7 +601,7 @@ export class MultiChartLayout {
   private async loadCompareData(pane: ChartPaneState, symbolStr: string): Promise<void> {
     const symbolInfo = ALL_SYMBOLS.find(s => s.symbol === symbolStr || s.symbol.replace('.IS', '') === symbolStr);
     if (!symbolInfo) {
-      alert(TR.NO_DATA + ': ' + symbolStr);
+      window.showToast?.(TR.NO_DATA + ': ' + symbolStr, 'warn');
       pane.chartPanel.clearCompare();
       return;
     }
@@ -610,7 +610,7 @@ export class MultiChartLayout {
       const candles = await loadHistorical(symbolInfo.symbol, pane.timeframe, { assetType: symbolInfo.assetType });
       pane.chartPanel.setCompareData(symbolInfo.symbol, candles);
     } catch (e) {
-      alert('Hata: ' + (e as Error).message);
+      window.showToast?.('Hata: ' + (e as Error).message, 'error');
       pane.chartPanel.clearCompare();
     }
   }

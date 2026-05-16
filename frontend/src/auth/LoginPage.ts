@@ -13,7 +13,7 @@ export function renderLoginPage(container: HTMLElement): void {
 <div class="auth-page d-flex align-items-center justify-content-center min-vh-100">
   <div class="auth-card card shadow-lg p-4" style="width:100%;max-width:440px">
     <div class="auth-card-top">
-      <a class="auth-exit-link" href="/app">← Terminale dön</a>
+      <a class="auth-exit-link" href="/app">${i18n.t('AUTH_BACK_TO_TERMINAL')}</a>
       <button class="lang-switch" type="button" id="auth-lang-switch" aria-label="Change language">${nextLang.toUpperCase()}</button>
     </div>
 
@@ -41,7 +41,7 @@ export function renderLoginPage(container: HTMLElement): void {
 
       <div class="mb-3">
         <label for="login-password" class="form-label d-flex justify-content-between">
-          <span>Şifre</span>
+          <span>${i18n.t('AUTH_PASSWORD')}</span>
           <a href="/forgot-password" class="small text-muted">${i18n.t('AUTH_FORGOT_PASSWORD')}</a>
         </label>
         <div class="input-group">
@@ -93,7 +93,7 @@ export function renderLoginPage(container: HTMLElement): void {
       <a href="/register" class="text-warning text-decoration-none fw-semibold">${i18n.t('AUTH_SIGNUP_LINK')}</a>
     </p>
     <p class="text-center small mt-2 mb-0">
-      <a href="/" class="auth-secondary-link">Ana sayfaya git</a>
+      <a href="/" class="auth-secondary-link">${i18n.t('NAV_HOME')}</a>
     </p>
   </div>
 </div>`;

@@ -2424,7 +2424,7 @@ export class ChartPanel {
       const dir = (modal.querySelector('#pa-dir') as HTMLSelectElement).value;
       const note = (modal.querySelector('#pa-note') as HTMLInputElement).value;
       const target = parseFloat(priceInput);
-      if (isNaN(target) || target <= 0) { alert('Geçerli bir fiyat girin.'); return; }
+      if (isNaN(target) || target <= 0) { window.showToast?.('Geçerli bir fiyat girin.', 'warn'); return; }
       void fetch('/api/alerts/price', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
