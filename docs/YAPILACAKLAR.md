@@ -26,7 +26,8 @@
 | Sprint D — UX polish | 15% | 6/6 | 0 | **100%** |
 | Sprint E — Altyapı & teknik borç | 15% | 4/5 | 1 | **80%** |
 | Belgeleme & test | 10% | 3/3 | 0 | **100%** |
-| **TOPLAM** | **100%** | | | **~97%** |
+| **Sprint F — Eksik bağlantılar (2026-05-11)** | — | 0/9 | 9 | **0%** |
+| **TOPLAM** | **100%** | | | **~98%** |
 
 ---
 
@@ -116,17 +117,11 @@
 - [x] `MonteCarloRequest` Pydantic modeli
 - **Dosya:** `backend/api/main.py`
 
-### B.3 Haber Akışı — Önbellek Destekli API
-- [ ] Yeni modül: `backend/news/news_store.py` — SQLite haber deposu
-  - `news` tablosu: id, symbol, headline, body, source, published_at, fetched_at, url
-  - Aynı URL/başlık ikinci kez indirilmez (unique constraint)
-- [ ] Yeni modül: `backend/news/news_fetcher.py` — borsa MCP + tradingview MCP adaptörü
-  - Her iki kaynak desteklensin; biri hata verirse diğeriyle devam et
-  - Sonuçları `news_store`'a kaydet
-- [ ] Endpoint: `GET /api/news?symbol=THYAO&limit=20&fresh=false`
-  - `fresh=false` → SQLite'tan oku
-  - `fresh=true` → MCP'den çek + kaydet + döndür
-- [ ] Worker: Her 30 dakikada bir aktif sembollerin haberleri arka planda güncellenir
+### B.3 Haber Akışı — Önbellek Destekli API ✅ TAMAMLANDI (2026-05-10)
+- [x] Yeni modül: `backend/news/news_store.py` — SQLite haber deposu
+- [x] Yeni modül: `backend/news/news_fetcher.py` — yfinance adaptörü
+- [x] Endpoint: `GET /api/news?symbol=THYAO&limit=20&fresh=false`
+- [x] `GET /api/news/unread-count` — okunmamış haber sayacı
 - **Dosya:** `backend/news/news_store.py`, `backend/news/news_fetcher.py`, `backend/api/main.py`
 
 ### B.4 Teknik Analiz Özet Endpoint ✅ TAMAMLANDI (2026-05-10)
@@ -266,3 +261,73 @@
 | E.1 Tema sync: MaliAnalizPanel + StrategyPanel CSS var chart renkler | 2026-05-10 |
 | E.2 CSS skeleton animasyonlar (shimmer) | 2026-05-10 |
 | E.3 BIST 100 sembol genişlemesi + scope=bist100 param | 2026-05-10 |
+
+---
+
+## Sprint F — Eksik Bağlantılar & Küçük Tamamlanmamışlar (2026-05-11)
+
+> Kaynak: Derinlemesine app incelemesi — backend endpoint'leri var ama frontend bağlantısı yok,
+> ya da küçük UX boşlukları var. Hepsi birden fazla sprint değil, kısa işler.
+
+### F.1 Haber Okundu İşareti (News Mark-as-Read)
+- [ ] `backend/news/news_store.py`: `is_read` kolonu ekle; `mark_read(ids)` metodu yaz
+- [ ] `POST /api/news/mark-read` endpoint'i ekle (body: `{"ids": [...]}`)
+- [ ] `GET /api/news/unread-count` zaten var — mark-read sonrası sayaç düşmeli
+- [ ] `NewsPanel.ts`: habere tıklayınca `mark-read` çağır; okunan kartın opaklığını azalt
+- **Neden:** Şu an sayaç bir kez artıp asla azalmıyor — badge işe yaramıyor.
+- **Dosya:** `backend/news/news_store.py`, `backend/api/main.py`, `frontend/src/components/NewsPanel.ts`
+
+### F.2 NewsPanel — Zorla Yenile Butonu
+- [ ] Araç çubuğuna "↻ Yenile" butonu ekle
+- [ ] Tıklandığında `fresh=true` ile `/api/news?fresh=true` çağır, listeyi güncelle
+- **Neden:** Kullanıcı haberleri anında çekmek istiyor ama 5dk auto-refresh'i beklemek zorunda.
+- **Dosya:** `frontend/src/components/NewsPanel.ts`
+
+### F.3 PortfolioPanel — İşlem CSV Export Butonu
+- [ ] Wallet kartlarına "⤓ CSV" butonu ekle
+- [ ] Tıklayınca `GET /api/paper/trades/export?strategy_id=...` endpoint'ini yeni sekmede aç
+- **Neden:** Endpoint var (`/api/paper/trades/export`) ama frontend'de hiç buton yok.
+- **Dosya:** `frontend/src/components/PortfolioPanel.ts`
+
+### F.4 Backtest Rapor Silme
+- [ ] `DELETE /api/backtest/reports/{run_id}` endpoint'i ekle (`backtest_archive.delete(run_id)`)
+- [ ] `BacktestArchive.delete()` metodu yaz
+- [ ] StrategyPanel rapor listesinde her satıra "🗑" butonu ekle; onay popup'ı göster
+- **Neden:** Şu an eski raporları temizlemenin yolu yok; arşiv şişiyor.
+- **Dosya:** `backend/backtest/archive.py`, `backend/api/main.py`, `frontend/src/components/StrategyPanel.ts`
+
+### F.5 MaliAnalizPanel — Olaylar (Events) Sekmesi
+- [ ] MaliAnalizPanel sekme çubuğuna "Olaylar" sekmesi ekle (`data-tab="events"`)
+- [ ] `GET /api/mali-analiz/{symbol}/events` endpoint'ini çağır
+- [ ] Biçimlendirme: tarih + başlık + açıklama listesi (mevcut tablo stilinde)
+- **Neden:** Endpoint tam çalışıyor ama frontend'de hiçbir yerde erişilemiyor.
+- **Dosya:** `frontend/src/components/MaliAnalizPanel.ts`
+
+### F.6 MaliAnalizPanel — KAP Raporlar Sekmesi
+- [ ] "Raporlar" sekmesi ekle (`data-tab="reports"`)
+- [ ] `GET /api/mali-analiz/{symbol}/reports` endpoint'ini çağır
+- [ ] Rapor başlığı + tarih + link listesi; bağlantıya tıklayınca yeni sekmede aç
+- **Neden:** Endpoint mevcut, frontend'de açık kalmış.
+- **Dosya:** `frontend/src/components/MaliAnalizPanel.ts`
+
+### F.7 Fiyat Uyarısı (Price Alert) Sistemi
+- [ ] Backend: `data/cache/alerts.sqlite3` — `price_alerts` tablosu (symbol, target_price, direction, triggered, created_at)
+- [ ] `POST /api/alerts/price` — uyarı oluştur
+- [ ] `GET /api/alerts/price` — kullanıcının aktif uyarıları
+- [ ] `DELETE /api/alerts/price/{id}` — uyarı sil
+- [ ] Worker: `/ws/quotes` dinleyip eşik geçilince Telegram/email bildir + triggered=1 yap
+- [ ] Frontend: ChartPanel araç çubuğuna "🔔 Uyarı Kur" butonu; fiyat input + yön (▲/▼) formu
+- **Neden:** En temel borsa aracı; şu an hiç yok. Notifier altyapısı (Telegram + email) zaten hazır.
+- **Dosya:** `backend/api/main.py`, `backend/notifier/main.py`, `frontend/src/components/ChartPanel.ts`
+
+### F.8 Backtest Özet Metrikleri — Tooltip Açıklamaları
+- [ ] Sharpe, Sortino, Calmar, Max Drawdown metrik kutucuklarına `title="..."` tooltip ekle
+- [ ] Her metriğin ne anlama geldiğini tek satır Türkçe açıkla
+- **Neden:** Yeni kullanıcılar hangi metriğin ne olduğunu bilmiyor; öğretici olmayan bir arayüz.
+- **Dosya:** `frontend/src/components/StrategyPanel.ts`
+
+### F.9 Screener → Haberler Köprüsü
+- [ ] Screener sonuç tablosuna "📰" butonu ekle (backtest butonu yanında)
+- [ ] Tıklandığında: 8. sekmeye geç (`tab=news`) + NewsPanel filtre inputuna sembolü yaz
+- **Neden:** Screener'dan haber sekmesine doğrudan geçiş çok sık ihtiyaç duyulan bir akış.
+- **Dosya:** `frontend/src/components/Screener.ts`, `frontend/src/components/NewsPanel.ts`

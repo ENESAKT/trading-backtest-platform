@@ -295,6 +295,8 @@ async function openSymbol(info: SymbolInfo): Promise<void> {
   multiChart.clearSignals();
   await multiChart.setActivePaneSymbol(info);
   await dataEngine.setActiveSymbol(info);
+  // Mali Analiz senkronizasyonu — loadData non-BIST sembolleri zaten yoksayar
+  if (maliAnalizPanel) maliAnalizPanel.loadData(info.symbol);
 }
 
 async function warmFavoriteTickers(skipSymbol?: string): Promise<void> {
