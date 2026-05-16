@@ -75,6 +75,954 @@
 
 ---
 
+# BÖLÜM 18 — TradingView İncelemesi Sonrası Kurumsal Terminal Yol Haritası
+
+> Not: Bu bölüm 2026-05-16 oturumunda Chrome ile `https://tr.tradingview.com/#stocks`,
+> BIST sembol sayfası, teknik özet, finansallar ve screener akışları incelendikten sonra
+> eklendi. Amaç TradingView'i kopyalamak değildir; oradaki başarılı ürün fikirlerini
+> PiyasaPilot'un kendi veri mimarisi, backtest motoru, risk dili ve Türkiye piyasası
+> gerçekleriyle yeniden düşünmektir.
+>
+> Bu bölüm mevcut `%84` canlıya alma yüzdesine dahil edilmemiş yeni ürün/kurumsallaşma
+> borcudur. Uygulanırken ayrı yüzdelendirilmeli, sonra ana tabloya taşınmalıdır.
+
+## 18.0 · İnceleme Özeti ve Ürün İlkesi
+
+- [ ] PiyasaPilot'un hedef konumunu netleştir:
+  - Kullanıcıya "al/sat tavsiyesi veren uygulama" değil, hesaplama izini gösteren
+    algoritmik araştırma ve risk terminali olarak sunulacak.
+  - Her sinyal, backtest, screener sonucu ve finansal oran kendi veri kaynağı,
+    gecikme durumu, hesaplama zamanı, varsayımları ve kalite uyarısıyla birlikte gösterilecek.
+  - Paper trading ile gerçek emir dünyası kesin çizgiyle ayrılacak; gerçek broker emri
+    modülü eklenene kadar ürün "read-only araştırma + paper yürütme" olarak davranacak.
+  - Canlı para dönebilecek her yüzeyde "veri lisansı", "gecikmeli/canlı veri",
+    "yatırım tavsiyesi değildir", "hesaplama varsayımları" ve "son güncelleme" görünür olacak.
+
+- [ ] TradingView'den fikir alınan ama birebir kopyalanmayacak ana desenleri belgeye ekle:
+  - Piyasa genel görünümü: BIST, global endeksler, kripto toplam piyasa değeri,
+    dominans, döviz, emtia, faiz, enflasyon ve ekonomik takvim tek pano içinde.
+  - Sembol 360 sayfası: fiyat başlığı, dönem performansı, temel istatistikler,
+    finansallar, teknikler, haber/KAP, analist tahmini, benzer hisseler ve takvim.
+  - Teknik özet: timeframe sekmeleri, osilatör puanı, hareketli ortalama puanı,
+    pivot seviyeleri ve gösterge tablosu.
+  - Screener: hazır filtreler, kolon setleri, sıralanabilir tablo, relative volume,
+    değerleme, karlılık, büyüme, temettü, bilanço, nakit akımı ve teknik kolonları.
+  - Yan panel: izleme listesi, alarm, takvim, haber akışı, bildirim ve hızlı sembol arama.
+
+- [ ] Kopyalama yasağını ürün standardı yap:
+  - Tasarım, metin, ikon dizilimi ve sayfa kompozisyonu birebir alınmayacak.
+  - Yalnızca ürün fikri, bilgi mimarisi ve kullanıcı beklentisi seviyesinde ilham alınacak.
+  - PiyasaPilot dili daha kurumsal, daha sade, daha açıklayıcı ve Türkiye piyasasına özel olacak.
+
+## 18.1 · İncelemede Bulunan Kritik Ürün ve Güvenilirlik Açıkları
+
+- [ ] Haber paneli auth/empty-state hatasını düzelt:
+  - Chrome QA'da `/terminal?tab=news&symbol=BTCUSDT` ekranında haber kartları skeleton
+    halinde kalıyor.
+  - Backend `/api/news?limit=5` yanıtı auth yokken `401 Login required`.
+  - `frontend/src/components/NewsPanel.tsx` başarısız yanıtı kullanıcıya açıklamıyor;
+    listeyi skeleton durumunda bırakıyor.
+  - Kabul kriteri:
+    - 401 geldiğinde skeleton kapanmalı.
+    - Kullanıcıya "haber akışı giriş gerektirir" veya "bu plan için kapalı" mesajı gösterilmeli.
+    - Eğer ürün kararı haberlerin guest açık olmasıysa backend auth guard buna göre hizalanmalı.
+    - Frontend plan gate ile backend route gerçeği aynı olmalı.
+
+- [ ] Frontend plan gate ile backend feature gate uyuşmazlıklarını tek kaynağa indir:
+  - `frontend/src/auth/PlanGate.ts` free kullanıcı için backtest limitini 5/gün gösteriyor.
+  - `backend/auth/feature_gate.py` free plan için `backtest_runs_per_day=10` tanımlıyor.
+  - Frontend `news` özelliğini guest için açık gösterebiliyor, backend `/api/news`
+    auth istiyor.
+  - Frontend market grup adları `Döviz & Emtia`, `ABD Hisseleri` gibi geçiyor;
+    sembol sabitlerinde `Döviz / Emtia`, `ABD Piyasaları` kullanılıyor.
+  - Kabul kriteri:
+    - Plan limitleri backend'de tek kaynak olsun.
+    - Frontend `/api/me/limits` veya benzeri endpointten gerçek limitleri okusun.
+    - LocalStorage quota yalnızca geçici UX göstergesi olsun, yetki kararı backend'de verilsin.
+
+- [ ] Örnek olay verisini üretimden ayır:
+  - `frontend/src/components/ChartPanel.tsx` içinde `loadSampleEvents(symbol)` sahte
+    haber/KAP/bilanço/temettü/sermaye olayları üretiyor.
+  - Ciddi finans ürünü için grafik üzerinde sahte olay görünmesi güven kırar.
+  - Kabul kriteri:
+    - Production build'de sample event varsayılan kapalı olsun.
+    - Demo mod gerekiyorsa açık "Demo veri" rozeti ve ayrı route ile çalışsın.
+    - Gerçek olay endpointi gelmeden grafik üstünde KAP/bilanço/temettü etiketi gösterilmesin.
+
+- [ ] MySQL veri envanteri şema uyuşmazlığını düzelt:
+  - `backend/data/repositories/mysql_metadata_repository.py` `data_inventory`
+    güncellemesinde `first_timestamp`, `last_timestamp`, `record_count`,
+    `table_name`, `last_updated` kolonlarını kullanıyor.
+  - `infra/mysql/migrations/003_inventory.sql` ise `first_ts`, `last_ts`,
+    `row_count`, `last_checked_at` kolonlarını oluşturuyor; `table_name` yok.
+  - Kabul kriteri:
+    - Repository ile migration birebir aynı kolon adlarını kullansın.
+    - Lokal MySQL migration sonrası inventory upsert entegrasyon testi geçsin.
+    - Data inventory denetim scripti bu tabloyu okuyup hatasız raporlasın.
+
+- [ ] Paper executor durumunu kalıcı hale getir:
+  - `backend/paper/executor.py` açık pozisyonları `_open_positions`, `_entry_prices`,
+    `_quantities` içinde memory'de tutuyor.
+  - Restart sonrası açık pozisyon kaybolabilir.
+  - `update_prices()` şu an pass; portföy mark-to-market yapılmıyor.
+  - `backend/paper/db.py` içinde kalıcı `paper_positions` ve emir/fill yaşam döngüsü yok.
+  - Kabul kriteri:
+    - Açık pozisyon, gerçekleşen işlem, emir, fill ve equity curve kalıcı tabloda tutulmalı.
+    - Restart sonrası paper durum replay edilebilmeli.
+    - Realized PnL ile unrealized PnL ayrı hesaplanmalı.
+    - Günlük zarar limiti son kapalı PnL değil, mark-to-market equity üzerinden çalışmalı.
+
+- [ ] BIST güvenilir veri engelini kullanıcıya açık göster:
+  - Lokal health durumunda sinyal motoru `signals_emitted=1`, `skipped_untrusted=1596`
+    gösteriyor.
+  - Son skip sebebi: Yahoo Finance BIST public verisi gerçek veri olarak işaretlenmedi.
+  - Bu iyi bir koruma ama kullanıcıya "neden sinyal yok" açıklaması ürün yüzeyinde net olmalı.
+  - Kabul kriteri:
+    - Terminalde "Sinyaller veri güven kapısı nedeniyle bloklandı" kartı görünsün.
+    - Kart hangi provider, hangi sembol, hangi metadata alanı yüzünden bloklandığını söylesin.
+    - Kullanıcı bu uyarıyı kapatınca veri güven rozetleri yine görünür kalsın.
+
+- [ ] Frontend veri metadata kaybını düzelt:
+  - `frontend/src/core/DataEngine.ts` ve `HistoricalLoader.ts` yalnızca fiyat barlarını
+    kullanıyor; `X-Data-Source` gibi sınırlı bilgi taşıyor.
+  - Backend daha zengin metadata üretebiliyor ama UI'da `is_real`, `quality_status`,
+    `coverage_pct`, `provider`, `fetched_at`, `derived/raw` görünmüyor.
+  - Kabul kriteri:
+    - Candle response kontratı `bars + metadata + quality + lineage` döndürsün.
+    - Chart, backtest, screener ve signal ekranları aynı metadata tipini kullansın.
+    - Metadata yoksa sistem "bilinmiyor" değil, riskli durum olarak uyarı versin.
+
+- [ ] Statik/sembol evreni yaklaşımını provider kaynaklı evrene taşı:
+  - `frontend/src/constants/symbols.ts` içindeki BIST100 listesi temsili ve tarihe duyarlı.
+  - Gerçek finans ürününde sembol evreni manuel sabit listeden değil, veri platformundan gelmeli.
+  - Kabul kriteri:
+    - Sembol evreni backend metadata tablosundan servis edilsin.
+    - Endeks üyeliği, sektör, piyasa, aktif/pasif durum ve son doğrulama tarihi saklansın.
+    - Eski/delisted/seans dışı semboller UI'da yanlış aktif gibi görünmesin.
+
+## 18.2 · Data Truth Layer: Gerçek Veri, Kalite ve Soy Ağacı
+
+- [ ] Tüm veri cevapları için ortak `DataTruth` kontratı tasarla:
+  - Alanlar:
+    - `symbol`, `market`, `timeframe`
+    - `provider`
+    - `source_type`: licensed, exchange_public, broker, cache, imported_csv, sample, unknown
+    - `is_real`
+    - `is_live`
+    - `is_delayed`
+    - `delay_minutes`
+    - `fetched_at`
+    - `first_bar_ts`
+    - `last_bar_ts`
+    - `last_provider_ts`
+    - `staleness_seconds`
+    - `quality_status`: ok, warning, blocked, unknown
+    - `coverage_pct`
+    - `gap_count`
+    - `duplicate_count`
+    - `outlier_count`
+    - `adjusted_for_splits`
+    - `adjusted_for_dividends`
+    - `is_derived`
+    - `source_timeframe`
+    - `derivation_method`
+    - `license_note`
+    - `warnings[]`
+  - Kabul kriteri:
+    - `/api/v2/candles` bu yapıyı döndürür.
+    - Backtest runner aynı metadata'yı rapora gömer.
+    - Sinyal motoru metadata yoksa işlem üretmez.
+    - UI her önemli ekranda kısa rozet, detay panelinde tam metadata gösterir.
+
+- [ ] Veri kalite skorunu ayrı bir ürün bileşeni yap:
+  - `DataQualityBadge`: OK, Uyarı, Bloklu, Demo, Gecikmeli, Cache, Lisanslı.
+  - `DataQualityDrawer`: gap listesi, son bar zamanı, provider, türetim bilgisi,
+    en son kalite olayı ve veri lisansı.
+  - `DataQualityDashboard`: sembol/timeframe bazında kapsam, gecikme, hata ve provider durumu.
+  - Kabul kriteri:
+    - Kullanıcı "bu sonuç hangi veriye dayanıyor" sorusunun cevabını tek tıkla görür.
+    - Demo veya CSV verisi hiçbir zaman gerçek veri gibi renklendirilmez.
+
+- [ ] ClickHouse/MySQL/Redis ayrımını uygulama kodunda zorunlu kıl:
+  - ClickHouse: OHLCV, tick/bar, büyük zaman serisi, kalite olayları.
+  - MySQL: sembol metadata, kullanıcı, plan, alarm, envanter, lisans, provider sözleşmesi.
+  - Redis: sıcak cache, pub/sub, distributed lock, kısa ömürlü snapshot.
+  - Kabul kriteri:
+    - Yeni feature PR'ında zaman serisi MySQL'e yazılmamalı.
+    - Kullanıcı/plan bilgisi ClickHouse'a yazılmamalı.
+    - Redis kalıcı truth source gibi kullanılmamalı.
+
+- [ ] Timeframe türetme motorunu tamamla:
+  - `backend/data/ingest/derive_timeframes.py` pass durumundan çıkarılmalı.
+  - 1m ham veriden 5m, 15m, 30m, 1h, 4h, 1d, 1w, 1mo, 1y türetilecek.
+  - 1d'den 1m veya 5m gibi geriye dönük türetme kesin yasak olacak.
+  - Her türetilmiş bar `is_derived=true`, `source_timeframe=1m`, `derivation_version`
+    bilgisiyle saklanacak.
+  - Kabul kriteri:
+    - OHLC birleşimi doğru: open ilk, high max, low min, close son, volume toplam.
+    - Seans boşlukları doğru korunur; gece/saat dışı bar üretilmez.
+    - Türetilmiş veride eksik kaynak bar varsa kalite warning üretilir.
+    - Reverse derivation testleri özellikle başarısız olmalı.
+
+- [ ] Retention motorunu gerçek silme/raporlama işine bağla:
+  - `backend/data/ingest/retention.py` pass durumundan çıkarılmalı.
+  - Dry-run modu: kaç satır silinecek, hangi sembol/timeframe, ilk/son tarih raporlar.
+  - Execute modu: audit kaydı oluşturarak uygular.
+  - VIOP için 15m, 30m, 1h, 4h, 1d, 1w, 1mo, 1y retention policy seed'leri eklenmeli.
+  - Kabul kriteri:
+    - Yanlışlıkla tüm tabloyu silebilecek sorgu engellenir.
+    - Her retention çalışması audit id ile izlenir.
+    - Production'da önce dry-run raporu onaylanmadan execute çalışmaz.
+
+- [ ] Provider karşılaştırma ve failover sistemi ekle:
+  - Aynı sembol/timeframe için iki provider varsa son bar, hacim, close farkı ve timestamp
+    farkı ölçülsün.
+  - Fark eşik üstündeyse kalite olayı üret.
+  - Bir provider bozulursa fallback kullan ama UI'da provider değişimini göster.
+  - Kabul kriteri:
+    - Provider sessizce değişmez.
+    - Farklı provider verisiyle üretilen backtest raporları aynı rapor gibi sunulmaz.
+
+## 18.3 · Screener v2: TradingView Benzeri Ama PiyasaPilot'a Özgü Tarayıcı
+
+- [ ] Client-cache screener yerine backend destekli tarayıcı endpointi ekle:
+  - Yeni endpoint önerisi: `POST /api/screener/run`
+  - Input:
+    - market
+    - universe
+    - filters[]
+    - columns[]
+    - sort
+    - limit
+    - snapshot_time
+  - Output:
+    - `run_id`
+    - `created_at`
+    - `filters_hash`
+    - `data_snapshot_hash`
+    - `rows[]`
+    - `metadata`
+  - Kabul kriteri:
+    - Aynı filtre aynı snapshot ile tekrar üretilebilir.
+    - Kullanıcı sonuç tablosunu dışa aktarırken hangi veri anına ait olduğu görünür.
+
+- [ ] Screener kolon setlerini tasarla:
+  - Genel:
+    - sembol
+    - son fiyat
+    - günlük değişim
+    - haftalık/aylık/yıllık performans
+    - hacim
+    - relative volume
+    - piyasa değeri
+    - sektör
+    - veri kalite rozeti
+  - Performans:
+    - 1g, 5g, 1ay, 3ay, 6ay, yılbaşından beri, 1y, 3y, 5y
+    - maksimum düşüş
+    - 52 haftalık zirve/dip uzaklığı
+    - ATR yüzdesi
+  - Değerleme:
+    - F/K
+    - PD/DD
+    - FD/FAVÖK
+    - F/S
+    - PEG
+    - piyasa değeri
+    - şirket değeri
+  - Temettü:
+    - temettü verimi
+    - ödeme oranı
+    - son temettü tarihi
+    - temettü büyümesi
+    - temettü sürdürülebilirlik uyarısı
+  - Karlılık:
+    - ROE
+    - ROA
+    - brüt marj
+    - faaliyet marjı
+    - net marj
+    - FAVÖK marjı
+  - Gelir tablosu:
+    - ciro TTM
+    - ciro büyümesi
+    - net kar TTM
+    - EPS TTM
+    - EPS büyümesi
+  - Bilanço:
+    - toplam varlık
+    - nakit
+    - kısa vadeli borç
+    - toplam borç
+    - net borç/FAVÖK
+    - cari oran
+  - Nakit akımı:
+    - operasyonel nakit akımı
+    - serbest nakit akımı
+    - capex
+    - FCF marjı
+  - Teknik:
+    - RSI
+    - MACD sinyali
+    - ADX
+    - EMA20/50/200 konumu
+    - Bollinger bant konumu
+    - pivot yakınlığı
+    - trend skoru
+  - Kabul kriteri:
+    - Kolon setleri sekmeli veya menülü seçilir.
+    - Kullanıcı kendi kolon görünümünü kaydedebilir.
+
+- [ ] Hazır screener presetleri ekle:
+  - En yüksek hacim
+  - Relative volume patlaması
+  - Günün en çok yükselenleri
+  - Günün en çok düşenleri
+  - Trend gücü yüksek
+  - RSI aşırı satım + hacim artışı
+  - EMA200 üstünde momentum
+  - Bollinger sıkışması
+  - Değerleme ucuz ama karlılık pozitif
+  - Yüksek temettü ama ödeme oranı makul
+  - Borç riski yüksek
+  - Bilanço tarihi yaklaşanlar
+  - KAP/haber yoğunluğu artanlar
+  - Veri kalitesi sorunlu semboller
+  - Kabul kriteri:
+    - Her preset açıklaması ve filtre JSON'u görünür.
+    - Preset sonuçları yatırım tavsiyesi diliyle değil, tarama sonucu diliyle sunulur.
+
+- [ ] Screener UI davranışlarını profesyonelleştir:
+  - Her filtre çipi tıklanıp düzenlenebilir.
+  - Tablo kolonları pinlenebilir, sıralanabilir, gizlenebilir.
+  - Çok büyük veri setinde sanal listeleme kullanılmalı.
+  - Boş sonuçta "filtre çok dar" ve "veri yok" ayrımı yapılmalı.
+  - Auth/plan engeli varsa tablo skeleton'da kalmamalı.
+  - Kabul kriteri:
+    - 390px mobilde kolonlar yatay taşsa bile kontrol edilebilir olur.
+    - Desktop'ta tablo veri yoğun ama okunur kalır.
+
+## 18.4 · Sembol 360 Sayfası
+
+- [ ] Yeni sembol detay mimarisi tasarla:
+  - Route önerisi: `/terminal/symbol/:market/:symbol`
+  - Üst başlık:
+    - sembol
+    - şirket/ad
+    - piyasa
+    - son fiyat
+    - değişim
+    - seans durumu
+    - son bar zamanı
+    - veri kalite rozeti
+  - Sekmeler:
+    - Genel Bakış
+    - Grafik
+    - Finansallar
+    - Teknikler
+    - Haber/KAP
+    - Takvim
+    - Backtest
+    - Risk
+    - Sinyaller
+    - Notlar
+  - Kabul kriteri:
+    - Kullanıcı bir sembole girdiğinde "fiyat nereden geldi, ne kadar güncel,
+      hangi hesaplamalar var" sorularının cevabını aynı sayfada bulur.
+
+- [ ] Genel Bakış panelini tamamla:
+  - Dönem performans kartları: 1g, 5g, 1ay, 6ay, YTD, 1y, 5y.
+  - Temel istatistikler:
+    - piyasa değeri
+    - F/K
+    - EPS
+    - ciro
+    - beta
+    - halka açıklık oranı
+    - çalışan sayısı
+    - sektör/endüstri
+  - Benzer hisseler:
+    - aynı sektör
+    - aynı endeks
+    - korelasyonu yüksek
+    - piyasa değeri benzer
+  - Kabul kriteri:
+    - Eksik veri "0" gibi görünmez; "yok", "güncel değil" veya "lisans gerektirir"
+      şeklinde doğru etiketlenir.
+
+- [ ] Finansallar sekmesini TradingView seviyesinde ama kendi dilimizle planla:
+  - Ana metrikler:
+    - ciro
+    - brüt kar
+    - faaliyet karı
+    - FAVÖK
+    - net kar
+    - EPS
+    - toplam varlık
+    - toplam borç
+    - nakit
+    - özkaynak
+    - operasyonel nakit akımı
+    - serbest nakit akımı
+  - Değerleme:
+    - F/K
+    - PD/DD
+    - FD/FAVÖK
+    - F/S
+    - EV/Sales
+    - PEG
+  - Büyüme ve karlılık:
+    - ciro büyümesi
+    - net kar büyümesi
+    - EPS büyümesi
+    - ROE
+    - ROA
+    - marjlar
+  - Gelir dağılımı:
+    - iş kolu bazında
+    - ülke/bölge bazında
+    - çeyreklik trend
+  - Finansal sağlık:
+    - net borç/FAVÖK
+    - cari oran
+    - faiz karşılama
+    - borç vade yapısı
+  - Kabul kriteri:
+    - TTM, yıllık ve çeyreklik veriler karıştırılmaz.
+    - Her metrik son finansal dönem ve kaynak bilgisiyle görünür.
+
+- [ ] Takvim sekmesini ekle:
+  - Bilanço tarihi
+  - Temettü tarihi
+  - Sermaye artırımı
+  - Genel kurul
+  - Halka arz takvimi
+  - Ekonomik takvim etkileri
+  - Kabul kriteri:
+    - Tarih kesin değilse "tahmini" etiketi zorunlu.
+    - Geçmiş ve gelecek olay ayrımı net.
+
+## 18.5 · Teknik Özet ve Gösterge Hesaplama Katmanı
+
+- [ ] Teknik özet endpointi ekle:
+  - Öneri: `GET /api/technical/summary?symbol=THYAO&market=BIST&timeframe=1d`
+  - Response:
+    - overall rating
+    - oscillator rating
+    - moving average rating
+    - pivot levels
+    - indicator table
+    - warmup bars used
+    - data truth metadata
+    - calculation version
+  - Kabul kriteri:
+    - UI hesaplamayı frontend'de tekrar üretmez; backend hesaplama versiyonunu gösterir.
+    - Aynı input aynı calculation version ile aynı sonucu verir.
+
+- [ ] Timeframe etiketlerini standartlaştır:
+  - Türkçe dakika için `1dk`, `5dk`, `15dk`, `30dk`.
+  - Saat için `1s`, `2s`, `4s`.
+  - Gün/hafta/ay için `1g`, `1hf`, `1ay`.
+  - `1m` ifadesi ay mı dakika mı belirsiz olduğu için kullanıcı yüzeyinde kullanılmamalı.
+  - Kabul kriteri:
+    - Frontend, backend ve dokümanda tek etiket sözlüğü kullanılır.
+
+- [ ] Osilatör tablosunu genişlet:
+  - RSI
+  - Stochastic
+  - CCI
+  - ADX
+  - Awesome Oscillator
+  - Momentum
+  - MACD
+  - Stochastic RSI
+  - Williams %R
+  - Bull/Bear Power
+  - Ultimate Oscillator
+  - Kabul kriteri:
+    - Her gösterge için değer, sinyal, eşik ve kısa açıklama bulunur.
+    - Sinyal "al/sat tavsiyesi" değil, teknik durum olarak etiketlenir.
+
+- [ ] Hareketli ortalama tablosunu genişlet:
+  - EMA/SMA 10, 20, 30, 50, 100, 200
+  - Ichimoku base
+  - VWMA
+  - Hull MA
+  - Kabul kriteri:
+    - Fiyatın ortalamaya uzaklığı yüzde olarak gösterilir.
+    - Yetersiz bar varsa gösterge hesaplanmaz ve neden yazılır.
+
+- [ ] Pivot seviyelerini ekle:
+  - Classic
+  - Fibonacci
+  - Camarilla
+  - Woodie
+  - DeMark
+  - R3, R2, R1, PP, S1, S2, S3
+  - Kabul kriteri:
+    - Pivotların hangi periyot verisinden hesaplandığı görünür.
+    - Piyasa kapalıysa son tamamlanmış bar kullanıldığı belirtilir.
+
+## 18.6 · Backtest Gerçekçiliği ve Kurumsal Hesaplama Standardı
+
+- [ ] Mevcut backtest raporuna "varsayımlar kartı" zorunluluğu ekle:
+  - Veri kaynağı
+  - Veri gecikmesi
+  - Komisyon modeli
+  - Slippage modeli
+  - Spread varsayımı
+  - Emir tipi varsayımı
+  - İşlem zamanı varsayımı
+  - Corporate action düzeltmesi
+  - Survivorship bias durumu
+  - Likidite kapasite sınırı
+  - Kabul kriteri:
+    - Varsayımlar görünmeden rapor "başarılı" gibi sunulmaz.
+
+- [ ] WFA gerçek in-sample/out-of-sample optimizasyona dönüştür:
+  - Mevcut runner uyarısı, WFA'nın yalnızca mevcut parametreleri validate ettiğini söylüyor.
+  - Yeni WFA:
+    - train fold içinde parametre gridini optimize eder.
+    - test fold içinde yalnızca seçilen parametreyi dener.
+    - fold bazında getiri, drawdown, sharpe, trade count, stability score üretir.
+  - Kabul kriteri:
+    - Train performansı ile test performansı ayrı görünür.
+    - Parametre seçimi test verisine bakmadan yapılır.
+    - Overfit uyarısı açık skorla verilir.
+
+- [ ] Slippage ve işlem maliyeti modelini piyasa gerçekliğine yaklaştır:
+  - Sabit bps seçeneği kalsın ama tek model olmasın.
+  - Yeni modeller:
+    - spread bazlı
+    - ATR bazlı
+    - hacim katılım oranı bazlı
+    - gap açılış bazlı
+    - düşük likidite cezası
+  - BIST için:
+    - komisyon
+    - BSMV
+    - takas/vergisel parametreler
+    - tavan/taban etkisi
+    - seans saatleri
+  - Kabul kriteri:
+    - Kullanıcı maliyetsiz rapor alamaz; en azından varsayılan maliyet görünür.
+    - Likidite sınırı aşıldığında rapor uyarı değil, gerektiğinde blok verir.
+
+- [ ] Corporate action ve veri düzeltme standardı ekle:
+  - Temettü
+  - Bedelli
+  - Bedelsiz
+  - Bölünme
+  - Birleşme/delisting
+  - Kabul kriteri:
+    - Backtest fiyat serisi raw mı adjusted mı açıkça görünür.
+    - Adjusted veri yoksa uzun dönem performans raporu uyarı verir.
+    - Corporate action grafikte ve raporda işaretlenir.
+
+- [ ] Risk metriklerini genişlet:
+  - Max drawdown
+  - Drawdown duration
+  - CAGR
+  - Sharpe
+  - Sortino
+  - Calmar
+  - Profit factor
+  - Expectancy
+  - Win/loss ratio
+  - Ortalama kazanç/kayıp
+  - VaR/CVaR
+  - Tail risk
+  - Exposure time
+  - Turnover
+  - Capacity estimate
+  - Kabul kriteri:
+    - Az işlemli sonuçlar "istatistiksel olarak zayıf" etiketi alır.
+    - Metrikler trade sayısı ve dönem uzunluğu ile birlikte yorumlanır.
+
+- [ ] `generate_risk_cards` içindeki sabit hacim varsayımını kaldır:
+  - Mevcut kodda kapasite kartı için `avg_volume=1_000_000` placeholder kullanılıyor.
+  - Bu ciddi parasal kullanım için yanıltıcıdır.
+  - Kabul kriteri:
+    - Ortalama hacim gerçek veri serisinden hesaplanır.
+    - Hacim yoksa kapasite kartı hesaplanmaz, uyarı verir.
+
+## 18.7 · Paper Trading ve Para Güvenliği
+
+- [ ] Paper emir yaşam döngüsünü modelle:
+  - `paper_orders`
+  - `paper_order_events`
+  - `paper_fills`
+  - `paper_positions`
+  - `paper_equity_snapshots`
+  - `paper_risk_events`
+  - Kabul kriteri:
+    - Her sinyalden emre, emirden fill'e, fill'den pozisyona iz sürülebilir.
+    - Aynı sinyal tekrar gelirse idempotency key ile çift emir engellenir.
+
+- [ ] Mark-to-market portföy muhasebesi ekle:
+  - Nakit
+  - Açık pozisyon piyasa değeri
+  - Realized PnL
+  - Unrealized PnL
+  - Günlük PnL
+  - Toplam equity
+  - Kullanılan risk bütçesi
+  - Kabul kriteri:
+    - Piyasa fiyatı güncellendiğinde equity curve güncellenir.
+    - Açık pozisyon zararları risk limitlerine dahil edilir.
+
+- [ ] Risk kill-switch katmanlarını ekle:
+  - Günlük zarar limiti
+  - Aylık zarar limiti
+  - Strateji bazlı zarar limiti
+  - Sembol bazlı maksimum pozisyon
+  - Sektör bazlı maksimum pozisyon
+  - Ardışık kayıp sonrası cooldown
+  - Veri kalitesi bozulunca emir durdurma
+  - Provider gecikmesi artınca emir durdurma
+  - Kabul kriteri:
+    - Kill-switch tetiklenirse yeni emir üretilmez.
+    - Kullanıcıya hangi limitin tetiklendiği açık yazılır.
+
+- [ ] Gerçek broker entegrasyonu için şimdiden güvenli sınır koy:
+  - Ürün gerçek emir göndermeden önce ayrı modül, ayrı yetki, ayrı onay ve ayrı log ister.
+  - Paper executor kodu doğrudan gerçek broker adapter'ına bağlanmamalı.
+  - Kabul kriteri:
+    - Production'da broker secret yoksa gerçek emir route'u hiç aktif olmaz.
+    - UI'da "gerçek emir" terimi yalnızca gerçekten broker bağlıysa görünür.
+
+## 18.8 · Sinyal Motoru Açıklanabilirliği
+
+- [ ] Her sinyal için kanıt paneli oluştur:
+  - Hangi stratejiler oy verdi.
+  - RSI/ATR/trend/LGBM gibi özellik değerleri neydi.
+  - Güven skoru nasıl hesaplandı.
+  - Veri güven kapısı geçti mi.
+  - Cooldown veya duplicate filtresi çalıştı mı.
+  - Sinyal hangi fiyat ve zamanda oluştu.
+  - Kabul kriteri:
+    - Kullanıcı "bu sinyal neden geldi" sorusunun cevabını teknik olarak görür.
+    - Sinyal tek başına büyük "AL" veya "SAT" butonu gibi sunulmaz.
+
+- [ ] Sinyal dilini kurumsallaştır:
+  - "AL" yerine "pozitif teknik koşul", "risk kontrollü long adayı" gibi bağlamlı dil.
+  - "SAT" yerine "negatif teknik koşul", "risk azaltma adayı" gibi bağlamlı dil.
+  - Her sinyalde:
+    - geçersizleşme seviyesi
+    - volatilite
+    - önerilen maksimum risk yüzdesi
+    - veri kalite durumu
+  - Kabul kriteri:
+    - Uygulama yatırım tavsiyesi veren arayüz gibi görünmez.
+    - Sinyal, risk ve varsayım birlikte okunur.
+
+- [ ] Alarm ve bildirim akışını izlenebilir yap:
+  - Telegram/email/push bildirimlerinde signal id, data truth id ve calculation version olsun.
+  - Aynı sinyal birden fazla kez gönderilmesin.
+  - Bildirim başarısızlığı tekrar denensin ama spam üretmesin.
+  - Kabul kriteri:
+    - Her gönderilen bildirim audit tablosundan bulunur.
+
+## 18.9 · Haber, KAP, Takvim ve Olay Verisi
+
+- [ ] Gerçek olay veri borcunu kapat:
+  - KAP bildirimleri
+  - Bilanço açıklama tarihleri
+  - Temettü
+  - Sermaye artırımı
+  - Halka arz
+  - Ekonomik takvim
+  - Merkez bankası kararları
+  - Enflasyon/faiz/veri açıklamaları
+  - Kabul kriteri:
+    - Grafik üzerindeki her olay gerçek kaynak linki ve timestamp ile gelir.
+    - Kaynak yoksa olay gösterilmez.
+
+- [ ] Haber akışını plan ve lisans gerçeğiyle hizala:
+  - Haber endpointleri guest mi, free mi, pro mu netleşsin.
+  - Lisanslı haber sağlayıcı kullanılırsa cache ve yeniden dağıtım kuralları dokümante edilsin.
+  - Kabul kriteri:
+    - Kullanıcı yetkisizse loading değil, plan/auth açıklaması görür.
+    - Haber verisi gecikmeli veya sınırlıysa bu görünür.
+
+- [ ] Haber etkisi analitiği ekle:
+  - Haber/KAP öncesi ve sonrası fiyat/hacim hareketi.
+  - Olay anında spread/volatilite değişimi.
+  - Aynı olay tipinin geçmiş etkileri.
+  - Kabul kriteri:
+    - Haber "sadece liste" değil, fiyat davranışıyla ilişkilendirilen olay olur.
+
+## 18.10 · Piyasa Genel Görünümü ve Makro Panel
+
+- [ ] Piyasa panosu tasarla:
+  - BIST 100
+  - BIST 30
+  - Banka/Sanayi/Holding endeksleri
+  - USD/TRY
+  - EUR/TRY
+  - Gram altın
+  - Brent
+  - ABD endeksleri
+  - BTC/ETH
+  - Kripto toplam piyasa değeri
+  - BTC/ETH dominansı
+  - Türkiye 2Y/10Y faiz
+  - Enflasyon
+  - TCMB politika faizi
+  - Kabul kriteri:
+    - Her kartta kaynak ve son güncelleme görünür.
+    - Piyasa kapalıysa "son kapanış" ile "canlı" karışmaz.
+
+- [ ] Piyasa rejimi skoru ekle:
+  - Risk-on/risk-off
+  - Volatilite yüksek/düşük
+  - BIST trend pozitif/negatif
+  - Kur baskısı
+  - Faiz/enflasyon baskısı
+  - Kripto risk durumu
+  - Kabul kriteri:
+    - Rejim skoru sinyal motorunda bağlam olarak kullanılabilir.
+    - Skorun bileşenleri açıkça gösterilir.
+
+## 18.11 · UI/UX: Daha Ciddi, Daha Finansal, Daha Az Demo Hissi
+
+- [ ] Görsel dili kurumsallaştır:
+  - Mevcut koyu/sarı ağırlıklı tema azaltılmalı.
+  - Nötr koyu/zincir gri zemin, sınırlı vurgu rengi, net tablo kontrastı tercih edilmeli.
+  - Yeşil/kırmızı yalnızca performans ve PnL anlamında kullanılmalı.
+  - Amber yalnızca uyarı/risk için kullanılmalı.
+  - Mavi/gri bilgi ve nötr durum için kullanılmalı.
+  - Kabul kriteri:
+    - Uygulama demo/oyun hissi yerine finans terminali hissi verir.
+    - Renk tek başına bilgi taşımaz; metin ve ikonla desteklenir.
+
+- [ ] Metin dilini sadeleştir ve tekrarları kaldır:
+  - Landing ve terminal kartlarında tekrar eden "Trading araştırması için sade..."
+    benzeri metinler azaltılmalı.
+  - Emoji ve fazla samimi mikro metinler terminal içinde kaldırılmalı.
+  - Ürün dili:
+    - net
+    - kısa
+    - kanıt odaklı
+    - risk farkındalığı yüksek
+  - Kabul kriteri:
+    - Terminal ekranında pazarlama cümlesi değil, veri ve aksiyon öncelikli görünür.
+
+- [ ] Sağ yan panel / hızlı işlem alanı ekle:
+  - İzleme listesi
+  - Alarmlar
+  - Haber/KAP akışı
+  - Ekonomik takvim
+  - Veri kalitesi olayları
+  - Bildirimler
+  - Kabul kriteri:
+    - Kullanıcı sembol değiştirirken ana grafiği kaybetmeden kritik yan bilgileri görür.
+
+- [ ] Komut paleti ve hızlı arama ekle:
+  - Sembol arama
+  - Komut arama
+  - Screener preset arama
+  - Son kullanılan semboller
+  - Kaydedilmiş çalışma alanları
+  - Kabul kriteri:
+    - Klavye ile hızlı kullanım mümkün olur.
+    - Mobilde ayrı tam ekran arama olarak çalışır.
+
+- [ ] Loading/error/empty state standardı oluştur:
+  - Skeleton maksimum süre ve fallback mesajı.
+  - 401/403/404/5xx ayrımı.
+  - Veri yok, yetki yok, provider yok, kalite bloklu durumları ayrı.
+  - Kabul kriteri:
+    - Hiçbir panel sonsuz skeleton'da kalmaz.
+    - Hata teknik ama kullanıcı tarafından anlaşılır şekilde özetlenir.
+
+## 18.12 · Mobil ve Çoklu Cihaz Deneyimi
+
+- [ ] Mobil terminali masaüstü kopyası yapma:
+  - Öncelik:
+    - izleme listesi
+    - sembol 360 özet
+    - sinyal/risk
+    - alarm
+    - paper portföy
+  - Büyük tablolar mobilde kolon seçimi ve yatay kaydırmayla sunulmalı.
+  - Kabul kriteri:
+    - Mobilde backtest parametre formu kullanılabilir olmalı ama ana deneyim
+      hızlı izleme ve alarm üzerinden kurulmalı.
+
+- [ ] Web ve Flutter veri kontratlarını aynı tut:
+  - DataTruth
+  - ScreenerResult
+  - SymbolSnapshot
+  - TechnicalSummary
+  - PaperPortfolio
+  - SignalEvidence
+  - Kabul kriteri:
+    - Flutter ayrı hesaplama üretmez; backend kontratını kullanır.
+
+## 18.13 · Compliance, Lisans ve Operasyon Güvenliği
+
+- [ ] Yatırım tavsiyesi risk dilini her kritik yüzeye yerleştir:
+  - Sinyal paneli
+  - Backtest raporu
+  - Screener sonucu
+  - Paper trading
+  - Finansal oranlar
+  - Bildirimler
+  - Kabul kriteri:
+    - Disclaimer sadece footer'da kalmaz; karar ekranında görünür.
+
+- [ ] Veri lisansı matrisini oluştur:
+  - Provider
+  - Piyasa
+  - Veri tipi
+  - Canlı/gecikmeli
+  - Redistribute edilebilir mi
+  - Cache süresi
+  - Kullanıcı planı
+  - Hukuki not
+  - Kabul kriteri:
+    - Ürün lisansı olmayan veriyi ücretli özellik gibi paketlemez.
+    - Export/paylaşım özellikleri lisans matrisine göre sınırlandırılır.
+
+- [ ] Audit log standardı getir:
+  - Kullanıcı auth olayları
+  - Plan/değişiklik olayları
+  - Backtest çalıştırma
+  - Screener çalıştırma
+  - Signal üretimi
+  - Paper emir/fill
+  - Admin aksiyonu
+  - Provider değişimi
+  - Veri kalite blokları
+  - Kabul kriteri:
+    - Para/karar etkisi olan her olay sonradan izlenebilir.
+
+- [ ] Production monitoring alarm setini genişlet:
+  - Provider hata oranı
+  - Veri gecikmesi
+  - Sinyal blok oranı
+  - Backtest hata oranı
+  - Paper equity hesaplama hatası
+  - Auth/Stripe webhook hatası
+  - Redis pub/sub kopması
+  - ClickHouse ingest gecikmesi
+  - MySQL migration drift
+  - Kabul kriteri:
+    - Kritik sorunlar sadece logda kalmaz; alarm üretir.
+
+## 18.14 · API Kontratları ve Test Planı
+
+- [ ] Yeni kontrat tiplerini yaz:
+  - `DataTruth`
+  - `CandleSeriesResponse`
+  - `ScreenerRunRequest`
+  - `ScreenerRunResponse`
+  - `SymbolSnapshot`
+  - `FinancialStatementSummary`
+  - `TechnicalSummary`
+  - `BacktestAssumptions`
+  - `PaperOrder`
+  - `PaperPosition`
+  - `SignalEvidence`
+  - Kabul kriteri:
+    - Backend Pydantic model, frontend TypeScript type ve Flutter model aynı alanları taşır.
+
+- [ ] Test kapsamını risk bazlı genişlet:
+  - Unit:
+    - timeframe derivation
+    - retention query safety
+    - fee/slippage calculation
+    - technical indicators
+    - paper PnL accounting
+  - Integration:
+    - `/api/v2/candles` metadata
+    - inventory upsert
+    - screener run reproducibility
+    - WFA train/test separation
+    - news auth/plan behavior
+  - E2E:
+    - terminal auth yokken sonsuz skeleton kalmaması
+    - sembol 360 veri rozetleri
+    - screener preset çalıştırma
+    - paper restart sonrası pozisyon kalıcılığı
+  - Data QA:
+    - gap detection
+    - duplicate bar detection
+    - stale provider detection
+    - sample data production gate
+  - Kabul kriteri:
+    - Üretim öncesi hiçbir "mock/sample" veri gerçek yüzeyde kalmaz.
+    - Test çıktıları kabul checklistine eklenir.
+
+## 18.15 · Önceliklendirilmiş Uygulama Planı
+
+- [ ] Faz 1: Güven kıran açıkları kapat (1-2 gün)
+  - Haber paneli 401/skeleton hatası.
+  - Frontend/backend plan gate uyuşmazlıkları.
+  - Sample chart events production gate.
+  - DataTruth metadata'nın `/api/v2/candles` ve UI'a taşınması.
+  - MySQL inventory schema mismatch.
+  - `generate_risk_cards` placeholder hacim varsayımı.
+  - Kabul kriteri:
+    - Kullanıcı hiçbir yerde gerçek olmayan veriyi gerçek gibi görmez.
+    - Yetki/plan hataları sonsuz loading yerine açıklanır.
+
+- [ ] Faz 2: Veri platformunu sağlamlaştır (3-7 gün)
+  - ClickHouse/MySQL/Redis kullanım sınırları kodda doğrulanır.
+  - Timeframe derivation tamamlanır.
+  - Retention manager dry-run ve audit ile tamamlanır.
+  - Data quality dashboard eklenir.
+  - Provider comparison/failover başlatılır.
+  - Kabul kriteri:
+    - Veri nereden geldi, nasıl türedi, ne kadar güvenilir soruları cevaplanır.
+
+- [ ] Faz 3: Ürün analitik yüzeylerini büyüt (1-2 hafta)
+  - Screener v2 backend ve UI.
+  - Sembol 360 sayfası.
+  - Teknik özet endpointi ve UI.
+  - Finansal oran/statement panelleri.
+  - Piyasa genel görünümü.
+  - Kabul kriteri:
+    - Kullanıcı TradingView benzeri beklentilerini PiyasaPilot içinde,
+      PiyasaPilot'un kendi dili ve veri standardıyla karşılar.
+
+- [ ] Faz 4: Backtest ve paper trading gerçekçiliği (1-2 hafta)
+  - WFA gerçek OOS optimizasyon.
+  - Komisyon/slippage/likidite modelleri.
+  - Corporate action standardı.
+  - Paper order/position/fill persistence.
+  - Mark-to-market equity ve risk kill-switch.
+  - Kabul kriteri:
+    - Raporlar gerçek dünyaya daha yakın varsayımlar ile üretilir.
+    - Paper sistem restart ve veri gecikmesi gibi operasyonel durumlarda güvenli kalır.
+
+- [ ] Faz 5: Kurumsal UI, compliance ve operasyon (1 hafta)
+  - Finans terminali görsel dili.
+  - Sağ panel, komut paleti, workspace.
+  - Lisans matrisi.
+  - Audit log genişletme.
+  - Monitoring alarm seti.
+  - Kabul kriteri:
+    - Uygulama sadece çalışan bir demo değil, ciddi finansal operasyon aracı gibi davranır.
+
+## 18.16 · Nihai Kabul Kriterleri
+
+- [ ] Terminalde hiçbir panel sonsuz loading/skeleton durumunda kalmıyor.
+- [ ] Her fiyat, sinyal, screener ve backtest sonucunda veri kaynağı ve kalite rozeti var.
+- [ ] Sample/mock/imported CSV veri production'da gerçek veri gibi sunulmuyor.
+- [ ] Frontend plan gate, backend feature gate ve ödeme planları tek kaynakla hizalı.
+- [ ] Paper trading restart sonrası pozisyon ve equity durumunu kaybetmiyor.
+- [ ] Backtest raporu varsayımlar kartı olmadan tamamlanmış rapor sayılmıyor.
+- [ ] WFA raporu train ve test dönemini açıkça ayırıyor.
+- [ ] Screener sonuçları `run_id`, filtre hash'i ve veri snapshot bilgisi taşıyor.
+- [ ] Sembol 360 sayfası fiyat, finansal, teknik, haber/KAP, risk ve veri kalitesini aynı yerde gösteriyor.
+- [ ] Veri lisansı ve yatırım tavsiyesi uyarısı karar etkisi olan tüm yüzeylerde görünüyor.
+- [ ] ClickHouse/MySQL/Redis ayrımı kod ve testlerle korunuyor.
+- [ ] Timeframe türetme sadece küçük timeframe'den büyük timeframe'e doğru yapılıyor.
+- [ ] Retention işlemleri dry-run, audit ve güvenlik eşiği olmadan production'da çalışmıyor.
+- [ ] UI demo/oyun hissinden çıkıp yoğun ama okunur finans terminali hissine kavuşuyor.
+
 ## OKUMA REHBERİ
 
 Bu planı uygulayan herkese (AI veya insan):
