@@ -32,6 +32,7 @@ from contextlib import asynccontextmanager
 from dataclasses import asdict
 from pathlib import Path
 from typing import Any, AsyncIterator
+from urllib.parse import urlparse
 
 from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
@@ -136,8 +137,87 @@ def _limit(limiter: Any, rule: str) -> Any:
     return limiter.limit(rule)
 
 
+async def _create_mysql_pool_from_env() -> Any | None:
+    """Auth/payment metadata pool. Optional in local SQLite-only mode."""
+    if os.environ.get("PIYASAPILOT_DISABLE_AUTH_DB") == "1":
+        return None
+    try:
+        import aiomysql
+    except ImportError:
+        _logger.warning("[auth-db] aiomysql kurulu değil; auth DB devre dışı.")
+        return None
+
+    raw_url = os.environ.get("DATABASE_URL", "")
+    parsed = urlparse(raw_url) if raw_url else None
+    host = os.environ.get("MYSQL_HOST") or (parsed.hostname if parsed else None) or "localhost"
+    port = int(os.environ.get("MYSQL_PORT") or (parsed.port if parsed else 3306))
+    user = os.environ.get("MYSQL_USER") or (parsed.username if parsed else None) or "appuser"
+    password = os.environ.get("MYSQL_PASSWORD") or (parsed.password if parsed else None) or "apppass"
+    database = (
+        os.environ.get("MYSQL_DATABASE")
+        or ((parsed.path or "").lstrip("/") if parsed else "")
+        or "metadata"
+    )
+    try:
+        return await aiomysql.create_pool(
+            host=host,
+            port=port,
+            user=user,
+            password=password,
+            db=database,
+            autocommit=False,
+            minsize=1,
+            maxsize=int(os.environ.get("MYSQL_POOL_MAXSIZE", "10")),
+        )
+    except Exception as exc:  # noqa: BLE001
+        _logger.warning("[auth-db] MySQL pool kurulamadı: %s", exc)
+        return None
+
+
+async def _create_async_redis_from_env() -> Any | None:
+    """Redis is optional; used for OAuth state and login brute-force counters."""
+    if os.environ.get("PIYASAPILOT_DISABLE_REDIS") == "1":
+        return None
+    try:
+        import redis.asyncio as redis
+    except ImportError:
+        _logger.warning("[redis] redis paketi kurulu değil; Redis devre dışı.")
+        return None
+    try:
+        client = redis.from_url(
+            os.environ.get("REDIS_URL", "redis://localhost:6379/0"),
+            decode_responses=True,
+            socket_connect_timeout=0.5,
+            socket_timeout=0.5,
+        )
+        await client.ping()
+        return client
+    except Exception as exc:  # noqa: BLE001
+        _logger.warning("[redis] bağlantı kurulamadı: %s", exc)
+        return None
+
+
 def _utc_iso() -> str:
     return dt.datetime.now(dt.UTC).replace(microsecond=0).isoformat()
+
+
+def _init_sentry() -> None:
+    dsn = getenv("SENTRY_DSN", "")
+    if not dsn:
+        return
+    try:
+        import sentry_sdk
+        from sentry_sdk.integrations.fastapi import FastApiIntegration
+        sentry_sdk.init(
+            dsn=dsn,
+            environment=getenv("SENTRY_ENVIRONMENT", getenv("APP_ENV", "development")),
+            integrations=[FastApiIntegration()],
+            traces_sample_rate=float(getenv("SENTRY_TRACES_SAMPLE_RATE", "0.1")),
+            send_default_pii=False,
+        )
+        _logger.info("[sentry] Sentry aktif.")
+    except Exception as exc:  # noqa: BLE001
+        _logger.warning("[sentry] Sentry başlatılamadı: %s", exc)
 
 
 def _check_optional_env() -> None:
@@ -326,6 +406,7 @@ def create_app(
     setli değilse varsayılan worker seti kurulur. ``quote_bus`` verilmezse
     yeni bir tane yaratılır ve worker'lar buna ``on_bar`` ile bağlanır.
     """
+    _init_sentry()
     injected_data_service = data_service is not None
     cache = cache or OHLCVCache()
     data_service = data_service or LiveDataService()
@@ -396,6 +477,8 @@ def create_app(
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         validate_env()
+        app.state.db_pool = await _create_mysql_pool_from_env()
+        app.state.redis = await _create_async_redis_from_env()
 
         # SIGTERM graceful shutdown hook
         loop = asyncio.get_event_loop()
@@ -506,6 +589,13 @@ def create_app(
         try:
             yield
         finally:
+            redis_client = getattr(app.state, "redis", None)
+            if redis_client is not None:
+                await redis_client.aclose()
+            db_pool = getattr(app.state, "db_pool", None)
+            if db_pool is not None:
+                db_pool.close()
+                await db_pool.wait_closed()
             await health_monitor.stop()
             news_worker_task.cancel()
             price_alert_task.cancel()
@@ -518,9 +608,12 @@ def create_app(
                 _logger.warning("[shutdown] WAL checkpoint başarısız: %s", exc)
 
     app = FastAPI(
-        title="PiyasaPilot Gateway",
-        version="2.0.0",
-        description="Read-only canlı/tarihsel piyasa veri kapısı. Emir motoru kapalı.",
+        title="PiyasaPilot API",
+        version="1.0.0",
+        description="Gerçek zamanlı piyasa verisi, sinyal ve backtest API'si. Emir motoru kapalı.",
+        docs_url="/api/docs",
+        redoc_url="/api/redoc",
+        openapi_url="/api/openapi.json",
         lifespan=lifespan,
     )
     app.state.supervisor = supervisor
@@ -546,6 +639,38 @@ def create_app(
         allow_headers=["*", "X-API-Key"],
     )
     app.add_middleware(APIKeyMiddleware)
+
+    # ── Auth Router ───────────────────────────────────────────────────────
+    try:
+        from backend.api.auth_router import router as auth_router
+        app.include_router(auth_router, prefix="/api/auth", tags=["auth"])
+        _logger.info("[auth] Auth router yüklendi → /api/auth/*")
+    except Exception as _auth_err:
+        _logger.warning("[auth] Auth router yüklenemedi: %s", _auth_err)
+
+    # ── Payments Router ───────────────────────────────────────────────────
+    try:
+        from backend.api.payments_router import router as payments_router
+        app.include_router(payments_router, prefix="/api/payments", tags=["payments"])
+        _logger.info("[payments] Payments router yüklendi → /api/payments/*")
+    except Exception as _pay_err:
+        _logger.warning("[payments] Payments router yüklenemedi: %s", _pay_err)
+
+    # ── Admin Router ──────────────────────────────────────────────────────
+    try:
+        from backend.api.admin_router import router as admin_router
+        app.include_router(admin_router, prefix="/api/admin", tags=["admin"])
+        _logger.info("[admin] Admin router yüklendi → /api/admin/*")
+    except Exception as _admin_err:
+        _logger.warning("[admin] Admin router yüklenemedi: %s", _admin_err)
+
+    # ── Growth Router ─────────────────────────────────────────────────────
+    try:
+        from backend.api.growth_router import router as growth_router
+        app.include_router(growth_router, prefix="/api", tags=["growth"])
+        _logger.info("[growth] Growth router yüklendi → /api/waitlist, /api/backtest/share")
+    except Exception as _growth_err:
+        _logger.warning("[growth] Growth router yüklenemedi: %s", _growth_err)
 
     # ── Assistant durumu ──────────────────────────────────────────────────
     @app.get("/api/assistant/status")
@@ -1331,7 +1456,7 @@ def create_app(
     ) -> dict[str, Any]:
         """Haber listesi döndür.
 
-        ``fresh=true`` ile yfinance'den çekip cache'e yaz.
+        ``fresh=true`` ile KAP RSS/borsapy/yfinance zincirinden çekip cache'e yaz.
         ``fresh=false`` (varsayılan) ile SQLite'tan oku.
         """
         store = _get_news_store()
@@ -1342,7 +1467,10 @@ def create_app(
                 store.upsert(items)
         news = store.query(symbol=symbol, limit=limit, keyword=keyword)
         unread = store.count_unread(symbol=symbol)
-        return {"news": news, "total": len(news), "unread_24h": unread}
+        result: dict[str, Any] = {"news": news, "total": len(news), "unread_24h": unread}
+        if not news:
+            result["message"] = "Bu sembol için haber bulunamadı." if symbol else "Haber bulunamadı."
+        return result
 
     @app.get("/api/news/unread-count")
     def get_news_unread_count(symbol: str | None = None) -> dict[str, Any]:
@@ -1764,7 +1892,7 @@ def create_app(
                         "status": "ok",
                         "fetched_at": _utc_iso(),
                     },
-                })
+                }, headers={"X-Data-Source": repo_result.source})
 
         if interval == "1d":
             try:
@@ -1787,7 +1915,7 @@ def create_app(
                     "untouched_high_volume": report.untouched_high_volume,
                 }
                 local_payload["metadata"]["cache"] = "local_parquet_then_write"
-                return JSONResponse(local_payload)
+                return JSONResponse(local_payload, headers={"X-Data-Source": "local_parquet"})
 
         # Validation backend tarafında zaten yapılıyor; burada sadece çağrı.
         provider_payload = data_service.fetch_candles(
@@ -1827,7 +1955,8 @@ def create_app(
                 "untouched_high_volume": report.untouched_high_volume,
             }
             provider_payload["metadata"]["cache"] = "miss_then_write"
-            return JSONResponse(provider_payload)
+            provider_source = provider_payload.get("metadata", {}).get("provider", "provider")
+            return JSONResponse(provider_payload, headers={"X-Data-Source": str(provider_source)})
 
         # Provider hata → cache'te biriken eski veriyle graceful degrade
         cached_bars = cache.get_window(
@@ -1854,7 +1983,7 @@ def create_app(
                     "provider_error": provider_payload.get("metadata", {}).get("error", ""),
                     "fetched_at": _utc_iso(),
                 },
-            })
+            }, headers={"X-Data-Source": "cache-legacy"})
 
         # Veri yok / lisanslı kaynak yok durumları gateway hatası değildir.
         # Payload status alanı üst katmana nedeni taşır; HTTP 200 canlılık
@@ -2113,7 +2242,12 @@ def create_app(
             }
             for p in periods
         ]
-        return {"symbol": normalized, "reports": reports, "source": "borsapy"}
+        return {
+            "symbol": normalized,
+            "periods": periods,
+            "reports": reports,
+            "source": "borsapy",
+        }
 
     @app.get("/api/mali-analiz/{symbol}/events")
     def get_mali_analiz_events(symbol: str) -> dict[str, Any]:

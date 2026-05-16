@@ -231,5 +231,5 @@ Bu proje kişisel araştırma ve eğitim amaçlıdır.
 ---
 
 <p align="center">
-  <sub>PiyasaPilot v2.0 — Algoritma tabanlı trading terminali</sub>
+  <sub>PiyasaPilot — Algoritma tabanlı trading terminali</sub>
 </p>

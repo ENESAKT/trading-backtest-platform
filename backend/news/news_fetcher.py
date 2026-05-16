@@ -14,11 +14,22 @@ _logger = logging.getLogger(__name__)
 
 def fetch_news_for_symbol(symbol: str, limit: int = 20) -> list[dict[str, Any]]:
     """Sembol için haber listesi çek. Boş liste dönerse veri yok."""
-    items = _fetch_borsapy(symbol, limit)
+    items = _fetch_kap_rss(symbol, limit)
+    if not items:
+        items = _fetch_borsapy(symbol, limit)
     if not items:
         items = _fetch_yfinance(symbol, limit)
     # Drop empty-headline items before storing
     return [i for i in items if (i.get("headline") or "").strip()]
+
+
+def _fetch_kap_rss(symbol: str, limit: int) -> list[dict[str, Any]]:
+    try:
+        from backend.news.kap_rss import fetch_kap_rss
+        return fetch_kap_rss(symbol, limit)
+    except Exception as exc:  # noqa: BLE001
+        _logger.debug("[news_fetcher] KAP RSS hatası (%s): %s", symbol, exc)
+        return []
 
 
 def _fetch_borsapy(symbol: str, limit: int) -> list[dict[str, Any]]:

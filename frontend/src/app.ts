@@ -1,7 +1,11 @@
 import type { Timeframe, DataUpdateEvent, PriceUpdateEvent, SymbolInfo } from './types.js';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import '../style.css';
+import { renderLoginPage } from './auth/LoginPage.js';
+import { renderRegisterPage } from './auth/RegisterPage.js';
+import { mountCookieBanner } from './components/CookieBanner.js';
 import { dataEngine } from './core/DataEngine.js';
+import { installErrorBoundary } from './core/ErrorBoundary.js';
 import { PortfolioEngine } from './core/PortfolioEngine.js';
 import { MultiChartLayout, type LayoutMode } from './components/MultiChartLayout.js';
 import { Sidebar } from './components/Sidebar.js';
@@ -14,6 +18,58 @@ import { MaliAnalizPanel } from './components/MaliAnalizPanel.js';
 import { NewsPanel } from './components/NewsPanel.js';
 import { TR, formatAgo } from './constants/tr.js';
 import { loadHistorical } from './core/HistoricalLoader.js';
+import { i18n } from './i18n/index.js';
+import { renderLandingPage } from './pages/LandingPage.js';
+import { renderPricingPage } from './pages/PricingPage.js';
+import { renderForgotPasswordPage, renderResetPasswordPage } from './pages/ForgotPasswordPage.js';
+import { renderVerifyEmailPage } from './pages/VerifyEmailPage.js';
+import { renderOnboardingPage } from './pages/OnboardingPage.js';
+import { renderPaymentSuccessPage } from './pages/PaymentSuccessPage.js';
+import { renderSettingsPage } from './pages/SettingsPage.js';
+import { renderWaitlistPage } from './pages/WaitlistPage.js';
+import { renderChangelogPage } from './pages/ChangelogPage.js';
+import { renderSharedBacktestPage } from './pages/SharedBacktestPage.js';
+import { renderAdminPanel } from './pages/admin/AdminPanel.js';
+import { renderTermsPage } from './pages/legal/TermsPage.js';
+import { renderPrivacyPage } from './pages/legal/PrivacyPage.js';
+import { renderCookiesPage } from './pages/legal/CookiesPage.js';
+
+i18n.init();
+installErrorBoundary();
+mountCookieBanner();
+
+// ─── Public auth pages ───────────────────────────────────────────────────────
+
+const publicPath = window.location.pathname.replace(/\/+$/, '') || '/';
+const publicRoutes: Record<string, (container: HTMLElement) => void | Promise<void>> = {
+  '/': renderLandingPage,
+  '/login': renderLoginPage,
+  '/register': renderRegisterPage,
+  '/pricing': renderPricingPage,
+  '/waitlist': renderWaitlistPage,
+  '/changelog': renderChangelogPage,
+  '/forgot-password': renderForgotPasswordPage,
+  '/reset-password': renderResetPasswordPage,
+  '/verify-email': renderVerifyEmailPage,
+  '/onboarding': renderOnboardingPage,
+  '/payment/success': renderPaymentSuccessPage,
+  '/settings': renderSettingsPage,
+  '/admin': renderAdminPanel,
+  '/legal/terms': renderTermsPage,
+  '/legal/privacy': renderPrivacyPage,
+  '/legal/cookies': renderCookiesPage,
+};
+const publicRenderer = publicRoutes[publicPath];
+const dynamicPublicRenderer = publicPath.startsWith('/shared/') ? renderSharedBacktestPage : null;
+if (publicRenderer || dynamicPublicRenderer) {
+  document.getElementById('market-ticker')?.setAttribute('hidden', 'true');
+  document.getElementById('topbar')?.setAttribute('hidden', 'true');
+  document.getElementById('app-layout')?.setAttribute('hidden', 'true');
+  const authRoot = document.createElement('main');
+  authRoot.id = 'auth-root';
+  document.body.appendChild(authRoot);
+  void (publicRenderer || dynamicPublicRenderer)!(authRoot);
+}
 
 // ─── App shell elements ───────────────────────────────────────────────────────
 
@@ -465,6 +521,13 @@ chartEl.addEventListener('timeframeChange', (e) => {
   dataEngine.setTimeframe(tf);
 });
 
+chartEl.addEventListener('chartRetry', () => {
+  const active = multiChart.getActivePaneSymbol();
+  if (active) {
+    void multiChart.setActivePaneSymbol(active);
+  }
+});
+
 // ─── Symbol selection from Sidebar ───────────────────────────────────────────
 
 sidebar.onSymbolSelect(openSymbol);
@@ -542,6 +605,21 @@ dataEngine.onStatusChange((status) => {
   statusBadge.className    = `status-badge status-${status}`;
 });
 
+window.addEventListener('piyasapilot:data-source', (event) => {
+  const source = String((event as CustomEvent<{ source?: string }>).detail?.source || 'unknown');
+  const badge: Record<string, { text: string; cls: string }> = {
+    redis: { text: 'CANLI', cls: 'status-live' },
+    clickhouse: { text: 'CANLI', cls: 'status-live' },
+    yfinance: { text: 'GECİKMELİ', cls: 'status-delayed' },
+    local_parquet: { text: 'GECİKMELİ', cls: 'status-delayed' },
+    'cache-legacy': { text: 'CACHE', cls: 'status-offline' },
+    empty: { text: 'VERİ YOK', cls: 'status-offline' },
+  };
+  const state = badge[source] || { text: 'BİLİNMİYOR', cls: 'status-offline' };
+  statusBadge.textContent = state.text;
+  statusBadge.className = `status-badge ${state.cls}`;
+});
+
 // ─── "Last updated" counter (ticks every second) ──────────────────────────────
 
 setInterval(() => {
@@ -559,4 +637,4 @@ setInterval(() => {
 
 // Sidebar will trigger setActiveSymbol from restoreLastSymbol() internally.
 // If nothing is in localStorage the default symbol (BTCUSDT) fires automatically.
-console.info('PiyasaPilot v2.0 başlatıldı — çoklu pencere layout aktif');
+console.info('PiyasaPilot başlatıldı');

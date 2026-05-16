@@ -51,6 +51,7 @@ export async function loadHistorical(
   if (!resp.ok) {
     throw new Error(`Bağlantı Hatası: backend HTTP ${resp.status}`);
   }
+  const dataSource = resp.headers.get('X-Data-Source') ?? 'unknown';
 
   const json: BackendCandlesResponse = await resp.json();
   if (json.status === 'error' || !Array.isArray(json.bars)) {
@@ -67,6 +68,10 @@ export async function loadHistorical(
     low:    b.low,
     close:  b.close,
     volume: b.volume,
+  }));
+
+  window.dispatchEvent(new CustomEvent('piyasapilot:data-source', {
+    detail: { symbol, timeframe, source: dataSource },
   }));
 
   if (opts.applyAnomalyFilter !== false && opts.assetType) {

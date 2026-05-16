@@ -330,6 +330,7 @@ export class StrategyPanel {
   private render(): void {
     this.container.innerHTML = `
       <div class="strategy-wrap">
+        <div class="paper-mode-banner">KAĞIT İŞLEM MODU - Backtest ve paper emirleri gerçek piyasaya gönderilmez.</div>
         <div class="strategy-topline">
           <div class="segmented">
             <button class="seg-btn" data-mode="spec">Kural Lab</button>
@@ -445,6 +446,7 @@ export class StrategyPanel {
                 <div class="export-actions">
                   <button class="btn-sm" id="bt-open-chart" title="Sembolü grafikte aç">📈 Grafik</button>
                   <button class="btn-sm" id="bt-open-financials" title="Mali analizi aç">💰 Mali</button>
+                  <button class="btn-sm" id="share-backtest" title="Public paylaşım bağlantısı üret">Paylaş</button>
                   <button class="btn-sm" data-export="json">JSON</button>
                   <button class="btn-sm" data-export="trades_csv">İşlem CSV</button>
                   <button class="btn-sm" data-export="equity_csv">Equity CSV</button>
@@ -687,6 +689,11 @@ export class StrategyPanel {
       const exportBtn = target.closest<HTMLElement>('[data-export]');
       if (exportBtn) {
         this.openExport(exportBtn.dataset['export'] || 'json');
+        return;
+      }
+
+      if (target.closest('#share-backtest')) {
+        void this.shareBacktest();
         return;
       }
 
@@ -1861,6 +1868,31 @@ export class StrategyPanel {
   private openExport(format: string): void {
     if (!this.lastResult?.run_id) return;
     window.open(`/api/backtest/reports/${this.lastResult.run_id}/export?format=${format}`, '_blank');
+  }
+
+  private async shareBacktest(): Promise<void> {
+    if (!this.lastResult?.run_id) {
+      this._showToast('Önce bir backtest çalıştırın', 'info');
+      return;
+    }
+    try {
+      const resp = await fetch('/api/backtest/share', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ backtest_id: this.lastResult.run_id, is_public: true }),
+      });
+      const body = await resp.json();
+      const url = body.data?.url;
+      if (!resp.ok || !url) throw new Error('Paylaşım bağlantısı üretilemedi.');
+      if (navigator.share) {
+        await navigator.share({ title: 'PiyasaPilot backtest sonucu', url });
+      } else {
+        await navigator.clipboard.writeText(url);
+        this._showToast('Paylaşım bağlantısı kopyalandı', 'success');
+      }
+    } catch (err) {
+      this._showToast(err instanceof Error ? err.message : 'Paylaşım hatası', 'error');
+    }
   }
 
   private openTextFile(content: string, filename: string, mimeType: string): void {

@@ -514,9 +514,7 @@ export class MultiChartLayout {
 
     try {
       // 1) Tarihsel veri
-      const candles = await loadHistorical(symbol, timeframe, {
-        assetType: pane.symbol.assetType,
-      });
+      const candles = await this.loadHistoricalWithRetry(symbol, timeframe, pane.symbol.assetType);
       if (pane.loadVersion !== loadVersion || pane.symbol.symbol !== symbol || pane.timeframe !== timeframe) return;
 
       pane.candles = candles;
@@ -568,6 +566,21 @@ export class MultiChartLayout {
     } finally {
       if (pane.loadVersion === loadVersion) pane.loading = false;
     }
+  }
+
+  private async loadHistoricalWithRetry(symbol: string, timeframe: Timeframe, assetType?: SymbolInfo['assetType']): Promise<OHLCV[]> {
+    let lastError: unknown = null;
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      try {
+        return await loadHistorical(symbol, timeframe, { assetType });
+      } catch (err) {
+        lastError = err;
+        if (attempt < 2) {
+          await new Promise(resolve => setTimeout(resolve, [1000, 2000, 4000][attempt]));
+        }
+      }
+    }
+    throw lastError instanceof Error ? lastError : new Error(TR.CONNECTION_ERROR);
   }
 
   private async loadCompareData(pane: ChartPaneState, symbolStr: string): Promise<void> {

@@ -1,5 +1,11 @@
 version: '3.8'
 
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "50m"
+    max-file: "5"
+
 services:
   # ─── NGINX (Reverse Proxy) ────────────────────────────────────────────────
   nginx:
@@ -16,6 +22,12 @@ services:
       - api
       - frontend
     restart: unless-stopped
+    logging: *default-logging
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
     networks:
       - piyasapilot_prod
 
@@ -27,6 +39,12 @@ services:
       dockerfile: docker/Dockerfile.frontend
     container_name: piyasapilot_frontend_prod
     restart: unless-stopped
+    logging: *default-logging
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
     networks:
       - piyasapilot_prod
 
@@ -41,6 +59,13 @@ services:
     volumes:
       - app_logs:/app/logs
     restart: unless-stopped
+    logging: *default-logging
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=5).read()"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
     networks:
       - piyasapilot_prod
 
@@ -62,6 +87,7 @@ services:
     volumes:
       - app_logs:/app/logs
     restart: unless-stopped
+    logging: *default-logging
     networks:
       - piyasapilot_prod
 
@@ -88,6 +114,7 @@ services:
         soft: 262144
         hard: 262144
     restart: unless-stopped
+    logging: *default-logging
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8123/ping"]
       interval: 10s
@@ -111,6 +138,7 @@ services:
       - mysql_data:/var/lib/mysql
       - ./mysql/migrations:/docker-entrypoint-initdb.d:ro
     restart: unless-stopped
+    logging: *default-logging
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
       interval: 10s
@@ -128,6 +156,7 @@ services:
     volumes:
       - redis_data:/data
     restart: unless-stopped
+    logging: *default-logging
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s

@@ -172,6 +172,7 @@ export class PortfolioPanel {
   private render(): void {
     this.container.innerHTML = `
       <div class="portfolio-wrap">
+        <div class="paper-mode-banner">KAĞIT İŞLEM MODU - Bu emirler gerçek piyasaya gönderilmemektedir.</div>
 
         <!-- Metrics Summary -->
         <div class="paper-metrics-summary" id="paper-metrics-summary"></div>

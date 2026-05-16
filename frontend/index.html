@@ -1,10 +1,15 @@
 <!DOCTYPE html>
-<html lang="tr">
+<html lang="tr" data-lang="tr">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>PiyasaPilot v2.0</title>
+  <title>PiyasaPilot — Algoritmik Trading Terminali</title>
+  <meta name="description" content="PiyasaPilot: BIST, kripto ve global piyasalar için backtest, sinyal ve portföy yönetimi.">
+  <meta property="og:title" content="PiyasaPilot">
+  <meta property="og:url" content="https://piyasapilotu.com">
+  <link rel="canonical" href="https://piyasapilotu.com">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="manifest" href="/manifest.webmanifest" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link
@@ -13,18 +18,15 @@
   />
 </head>
 <body>
+  <div id="app-error-banner" class="hidden app-error">
+    Beklenmedik bir hata oluştu. Sayfayı yenileyiniz.
+    <button type="button" onclick="location.reload()">Yenile</button>
+  </div>
 
-  <!-- ── Market ticker ───────────────────────────────────────────────────── -->
+  <!-- ── Market ticker (dinamik — app.ts tarafından doldurulur) ─────────── -->
   <div id="market-ticker" aria-label="Canlı piyasa özeti">
     <div class="ticker-label">Canlı Piyasa</div>
-    <div class="ticker-track">
-      <span><b>XU100</b><i>10.864,20</i><em class="pos">+0,42%</em></span>
-      <span><b>VAKBN</b><i>31,66</i><em class="pos">+1,02%</em></span>
-      <span><b>AKBNK</b><i>73,20</i><em class="neg">-0,68%</em></span>
-      <span><b>ASELS</b><i>142,80</i><em class="pos">+0,91%</em></span>
-      <span><b>BTCUSDT</b><i>68.420</i><em class="pos">+1,18%</em></span>
-      <span><b>USDTRY</b><i>32,18</i><em class="neutral">+0,06%</em></span>
-    </div>
+    <div class="ticker-track" id="ticker-track"></div>
   </div>
 
   <!-- ── Topbar ─────────────────────────────────────────────────────────── -->

@@ -376,6 +376,15 @@ export class ChartPanel {
     this.stateEl = document.createElement('div');
     this.stateEl.className = 'chart-state-overlay';
     this.stateEl.style.display = 'none';
+    this.stateEl.addEventListener('click', (event) => {
+      const target = event.target as HTMLElement;
+      if (target.closest('[data-chart-retry]')) {
+        this.container.dispatchEvent(new CustomEvent('chartRetry', {
+          detail: { symbol: this.lastSymbol, timeframe: this.lastTimeframe },
+          bubbles: true,
+        }));
+      }
+    });
     this.container.appendChild(this.stateEl);
 
     this.indicatorCenterEl = document.createElement('div');
@@ -1188,8 +1197,11 @@ export class ChartPanel {
           : status === 'error' ? TR.CONNECTION_ERROR
             : TR.WAITING_DATA;
     const detail = message && message !== label ? `<small>${this.escapeHtml(message)}</small>` : '';
+    const retry = status === 'error'
+      ? '<button class="btn btn-sm btn-warning chart-retry-btn" data-chart-retry>Yeniden Dene</button>'
+      : '';
     this.stateEl.className = `chart-state-overlay state-${status}`;
-    this.stateEl.innerHTML = `<strong>${label}</strong>${detail}`;
+    this.stateEl.innerHTML = `<strong>${label}</strong>${detail}${retry}`;
     this.stateEl.style.display = 'flex';
   }
 
