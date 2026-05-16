@@ -286,7 +286,8 @@ export class DrawingManager {
     try {
       const series = this.getMainSeries();
       if (!series) return null;
-      const price = (series as any).coordinateToPrice?.(y);
+      // Use coordinateToPrice via type assertion since it's an internal method or only available on specific series types
+      const price = (series as unknown as { coordinateToPrice?: (val: number) => number }).coordinateToPrice?.(y);
       if (price != null && Number.isFinite(price)) return price;
     } catch {
       // fallback
@@ -302,7 +303,7 @@ export class DrawingManager {
 
       const series = this.getMainSeries();
       if (!series) return null;
-      const y = (series as any).priceToCoordinate?.(point.price);
+      const y = (series as unknown as { priceToCoordinate?: (val: number) => number }).priceToCoordinate?.(point.price);
       if (y == null || !Number.isFinite(y)) return null;
       return { x, y };
     } catch {
@@ -314,7 +315,7 @@ export class DrawingManager {
     // Access chart's series via internal API
     try {
       // lightweight-charts stores series — we find the first visible one
-      const chartAny = this.chart as any;
+      const chartAny = this.chart as unknown as { _private__seriesMap?: Map<unknown, unknown> };
       // Try internal method path
       if (chartAny._private__seriesMap) {
         for (const series of chartAny._private__seriesMap.values()) {
@@ -536,7 +537,7 @@ export class DrawingManager {
 
         // Map price -> screen y via main series
         const series = this.getMainSeries();
-        const yCoord = series ? (series as any).priceToCoordinate?.(levelPrice) : null;
+        const yCoord = series ? (series as unknown as { priceToCoordinate?: (val: number) => number }).priceToCoordinate?.(levelPrice) : null;
         if (yCoord == null || !Number.isFinite(yCoord)) return;
 
         const color = FIBO_COLORS[idx % FIBO_COLORS.length]!;
@@ -614,7 +615,7 @@ export class DrawingManager {
       // Build regression screen points
       const series = this.getMainSeries();
       const priceToY = (price: number): number | null => {
-        const y = series ? (series as any).priceToCoordinate?.(price) : null;
+        const y = series ? (series as unknown as { priceToCoordinate?: (val: number) => number }).priceToCoordinate?.(price) : null;
         return (y != null && Number.isFinite(y)) ? y : null;
       };
 

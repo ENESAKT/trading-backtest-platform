@@ -1,5 +1,31 @@
 {% extends "base.html" %}
 {% block content %}
-<h1 style="color:#f4f6fa;margin-top:0">Ödeme başarısız</h1>
-<p>Abonelik ödemeniz alınamadı. Planınızın kesintiye uğramaması için ödeme yönteminizi güncelleyin.</p>
+<h1 style="color:#ffffff;margin:0 0 16px 0;font-size:24px;font-weight:700;">Ödeme Alınamadı ⚠️</h1>
+
+<p style="margin:0 0 16px 0;color:#e2e8f0;">
+  Son abonelik ödemeniz başarısız oldu.
+</p>
+
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:16px 0;width:100%;">
+  <tr><td style="background-color:#2d1215;border:1px solid #7f1d1d;border-radius:6px;padding:16px 20px;">
+    <p style="margin:0 0 8px 0;color:#ef4444;font-weight:700;font-size:14px;">🔴 Dikkat</p>
+    <p style="margin:0;color:#fca5a5;font-size:13px;">
+      Ödeme yönteminiz reddedildi. Planınızın kesintiye uğramaması için lütfen
+      ödeme bilgilerinizi <strong>7 gün</strong> içinde güncelleyin. Aksi takdirde
+      hesabınız otomatik olarak ücretsiz plana düşürülecektir.
+    </p>
+  </td></tr>
+</table>
+
+<table role="presentation" cellpadding="0" cellspacing="0" border="0">
+  <tr><td style="border-radius:6px;background-color:#ffb020;">
+    <a href="{{ settings_url }}" style="display:inline-block;padding:14px 28px;color:#0f1117;font-weight:700;font-size:15px;text-decoration:none;letter-spacing:0.3px;">
+      Ödeme Yöntemimi Güncelle
+    </a>
+  </td></tr>
+</table>
+
+<p style="margin:24px 0 0 0;color:#64748b;font-size:12px;">
+  Sorun yaşıyorsanız destek@piyasapilotu.com adresinden bize ulaşın.
+</p>
 {% endblock %}

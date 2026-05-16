@@ -667,7 +667,7 @@ export class ChartPanel {
         if (input) {
           const name = input.value.trim();
           if (!name) {
-            (window as any).showToast?.('Şablon adı boş bırakılamaz.', 'warn');
+            window.showToast?.('Şablon adı boş bırakılamaz.', 'warn');
             input.focus();
           } else {
             this.saveTemplate(name);
@@ -690,9 +690,9 @@ export class ChartPanel {
       if (btn.id === 'export-png-btn') {
         try {
           this.exportToPNG();
-          (window as any).showToast?.('Grafik PNG olarak indirildi.', 'success');
-        } catch (e) {
-          (window as any).showToast?.('PNG dışa aktarımı başarısız.', 'error');
+          window.showToast?.('Grafik PNG olarak indirildi.', 'success');
+        } catch {
+          window.showToast?.('PNG dışa aktarımı başarısız.', 'error');
         }
         this.container.querySelector('#export-menu')?.classList.remove('show');
       }
@@ -700,9 +700,9 @@ export class ChartPanel {
       if (btn.id === 'export-csv-btn') {
         try {
           this.exportToCSV();
-          (window as any).showToast?.('Veri CSV olarak indirildi.', 'success');
-        } catch (e) {
-          (window as any).showToast?.('CSV dışa aktarımı başarısız.', 'error');
+          window.showToast?.('Veri CSV olarak indirildi.', 'success');
+        } catch {
+          window.showToast?.('CSV dışa aktarımı başarısız.', 'error');
         }
         this.container.querySelector('#export-menu')?.classList.remove('show');
       }
@@ -1943,7 +1943,7 @@ export class ChartPanel {
         const key = target.dataset['indicatorParam'] as keyof IndicatorCalculationOptions;
         const value = Number(target.value);
         if (!Number.isFinite(value)) return;
-        (this.indicatorParams as any)[key] = value;
+        (this.indicatorParams as Record<string, unknown>)[key] = value;
         this.saveIndicatorPrefs();
         this.renderIndicators(this.candles);
         this.updateIndicatorVisibility();
