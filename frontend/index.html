@@ -23,12 +23,6 @@
     <button type="button" onclick="location.reload()">Yenile</button>
   </div>
 
-  <!-- ── Market ticker (dinamik — app.ts tarafından doldurulur) ─────────── -->
-  <div id="market-ticker" aria-label="Canlı piyasa özeti">
-    <div class="ticker-label">Canlı Piyasa</div>
-    <div class="ticker-track" id="ticker-track"></div>
-  </div>
-
   <!-- ── Topbar ─────────────────────────────────────────────────────────── -->
   <header id="topbar">
     <div class="topbar-left">
@@ -39,15 +33,41 @@
       <button class="tab-btn active" data-tab="chart"><span class="tab-code">1</span><span>Grafik</span></button>
       <button class="tab-btn" data-tab="portfolio"><span class="tab-code">2</span><span>Portföy</span></button>
       <button class="tab-btn" data-tab="strategy"><span class="tab-code">3</span><span>Strateji</span></button>
-      <button class="tab-btn" data-tab="screener"><span class="tab-code">4</span><span>Tarayıcı</span></button>
+      <button class="tab-btn" data-tab="screener"><span class="tab-code">4</span><span>Tarama</span></button>
       <button class="tab-btn" data-tab="signals"><span class="tab-code">5</span><span>Sinyaller</span></button>
       <button class="tab-btn" data-tab="education"><span class="tab-code">6</span><span>Eğitimler</span></button>
       <button class="tab-btn" data-tab="financials"><span class="tab-code">7</span><span>Mali Analiz</span></button>
+      <button class="tab-btn" data-tab="news"><span class="tab-code">8</span><span>Haberler</span><span class="tab-news-badge" id="tab-news-badge" hidden title="Okunmamış haber sayısı"></span></button>
     </nav>
     <div class="topbar-right">
       <span id="last-update" class="upd-green"></span>
       <span id="status-badge" class="status-badge status-offline">BAĞLANTI YOK</span>
-      <button id="theme-panel-toggle" class="theme-panel-toggle btn btn-sm btn-outline-warning" type="button" aria-expanded="false" aria-controls="theme-panel">Ayar</button>
+      <button id="theme-panel-toggle" class="theme-panel-toggle btn btn-sm btn-outline-warning" type="button" aria-expanded="false" aria-controls="theme-panel">Tema</button>
+      <!-- ── Kullanıcı Menüsü ─────────────────────────────────────────── -->
+      <div id="user-menu" class="user-menu">
+        <!-- guest state -->
+        <div id="user-menu-guest" class="user-menu-guest" hidden>
+          <a href="/login" class="btn btn-sm btn-outline-warning">Giriş Yap</a>
+          <a href="/register" class="btn btn-sm btn-warning">Ücretsiz Kayıt</a>
+        </div>
+        <!-- logged-in state -->
+        <div id="user-menu-loggedin" class="user-menu-loggedin" hidden>
+          <button id="user-avatar-btn" class="user-avatar-btn" type="button" aria-haspopup="true" aria-expanded="false">
+            <span id="user-avatar-initials" class="user-avatar-initials">?</span>
+            <span id="user-display-name" class="user-display-name"></span>
+            <span class="user-plan-badge" id="user-plan-badge"></span>
+          </button>
+          <div id="user-dropdown" class="user-dropdown" hidden role="menu">
+            <div class="user-dropdown-header">
+              <span id="user-dropdown-email" class="user-dropdown-email"></span>
+            </div>
+            <a href="/settings" class="user-dropdown-item" role="menuitem">Ayarlar</a>
+            <a href="/pricing" class="user-dropdown-item" role="menuitem">Planlar</a>
+            <hr class="user-dropdown-divider" />
+            <button id="logout-btn" class="user-dropdown-item user-dropdown-logout" type="button" role="menuitem">Çıkış Yap</button>
+          </div>
+        </div>
+      </div>
     </div>
   </header>
 

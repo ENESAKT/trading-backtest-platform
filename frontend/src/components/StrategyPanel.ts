@@ -1,4 +1,5 @@
 import Chart from 'chart.js/auto';
+import { planGate } from '../auth/PlanGate.js';
 import type {
   BacktestResult,
   BacktestTrade,
@@ -333,9 +334,9 @@ export class StrategyPanel {
         <div class="paper-mode-banner">KAĞIT İŞLEM MODU - Backtest ve paper emirleri gerçek piyasaya gönderilmez.</div>
         <div class="strategy-topline">
           <div class="segmented">
-            <button class="seg-btn" data-mode="spec">Kural Lab</button>
-            <button class="seg-btn" data-mode="preset">Katalog (Hazır)</button>
-            <button class="seg-btn" data-mode="blueprint">Eski Blueprintler</button>
+            <button class="seg-btn${this.mode === 'spec' ? ' active' : ''}" data-mode="spec">Kural Lab</button>
+            <button class="seg-btn${this.mode === 'preset' ? ' active' : ''}" data-mode="preset">Katalog (Hazır)</button>
+            <button class="seg-btn${this.mode === 'blueprint' ? ' active' : ''}" data-mode="blueprint">Eski Blueprintler</button>
           </div>
           <div class="topline-actions">
             <button class="btn-secondary" id="save-strategy">Kaydet</button>
@@ -359,8 +360,8 @@ export class StrategyPanel {
             <option value="fixed_bps">Fixed BPS</option>
             <option value="fixed_tick">Fixed Tick</option>
           </select></label>
-          <label>Slippage bps<input id="bt-slippage" type="number" min="0" max="500" step="1" value="5"></label>
-          <label>Slippage Tick<input id="bt-slippage-tick" type="number" min="0" step="0.01" value="0.01"></label>
+          <label id="bt-slippage-bps-label">Slippage bps<input id="bt-slippage" type="number" min="0" max="500" step="1" value="5"></label>
+          <label id="bt-slippage-tick-label" hidden>Slippage Tick<input id="bt-slippage-tick" type="number" min="0" step="0.01" value="0.01"></label>
           <label>Likidite %<input id="bt-volume-limit-pct" type="number" min="0" max="100" step="1" value="5"></label>
           <label>Likidite Penceresi<input id="bt-volume-window" type="number" min="1" max="100" step="1" value="5"></label>
           <label>Pozisyon %<input id="bt-maxpos" type="number" min="1" max="100" step="1" value="20"></label>
@@ -736,7 +737,16 @@ export class StrategyPanel {
     this.container.addEventListener('change', (e) => {
       const target = e.target as HTMLElement;
       if (target.id === 'bt-source') this.bindSourceMode();
+      if (target.id === 'bt-slippage-model') this.syncSlippageInputs();
     });
+  }
+
+  private syncSlippageInputs(): void {
+    const model = this.value<HTMLSelectElement>('#bt-slippage-model') || 'fixed_bps';
+    this.container.querySelector<HTMLElement>('#bt-slippage-bps-label')
+      ?.toggleAttribute('hidden', model === 'fixed_tick');
+    this.container.querySelector<HTMLElement>('#bt-slippage-tick-label')
+      ?.toggleAttribute('hidden', model !== 'fixed_tick');
   }
 
   private syncControls(): void {
@@ -773,12 +783,37 @@ export class StrategyPanel {
       this.rerunRequested = true;
       return;
     }
+
+    // ── Plan Gate: backtest erişim + günlük limit kontrolü ───────────────
+    if (!planGate.canAccess('backtest')) {
+      planGate.showPlanGate({
+        title: 'Backtest — Kayıt Gerekli',
+        description: 'Backtest çalıştırmak için ücretsiz hesap oluşturmanız yeterli. Ücretsiz planda günde 5 backtest hakkı tanınır.',
+        requiredTier: 'free',
+      });
+      return;
+    }
+    const remaining = planGate.getRemainingBacktests();
+    if (remaining <= 0) {
+      const limit = planGate.getBacktestLimit();
+      planGate.showPlanGate({
+        title: 'Günlük Backtest Limitine Ulaştınız',
+        description: `Bugün ${limit} backtest hakkınızı kullandınız. Yarın sıfırlanır ya da planınızı yükselterek daha fazla hak kazanın.`,
+        requiredTier: 'pro',
+      });
+      return;
+    }
+    // ── / Plan Gate ──────────────────────────────────────────────────────
+
     const sourceMode = this.value<HTMLSelectElement>('#bt-source') || 'cache_only';
     const needsChartCandles = sourceMode !== 'csv_import';
     if ((needsChartCandles && this.candles.length < MIN_BARS_FOR_RUN) || !this.activeSymbol) {
       this.showEmpty();
       return;
     }
+
+    // Başarılı bir şekilde çalışmaya başlayacak → limiti tüket
+    planGate.consumeBacktest();
 
     const reportEl = this.container.querySelector('#report-content');
     if (reportEl) reportEl.innerHTML = `<div class="loading">${TR.RUNNING_BACKTEST}</div>`;
@@ -1274,9 +1309,22 @@ export class StrategyPanel {
           <b>${this.escape(s.name)}</b>
           <span>${this.escape(s.symbol)} · ${this.escape(s.timeframe)} · ${formatDateTimeFromIso(s.created_at)}</span>
         </div>
-        <button class="btn-sm" data-load-strategy="${s.id}">Aç</button>
+        <div class="compact-actions">
+          <button class="btn-sm" data-load-strategy="${s.id}">Aç</button>
+          <button class="btn-sm btn-danger" data-delete-strategy="${s.id}" title="Stratejiyi sil">🗑</button>
+        </div>
       </div>
     `).join('');
+
+    el.querySelectorAll<HTMLButtonElement>('[data-delete-strategy]').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const id = Number(btn.dataset['deleteStrategy']);
+        if (!confirm('Bu kayıtlı stratejiyi silmek istediğinizden emin misiniz?')) return;
+        void fetch(`${STRATEGY_STORE_ENDPOINT}/${id}`, { method: 'DELETE' })
+          .then(r => { if (r.ok) void this.loadSavedStrategies(); });
+      });
+    });
   }
 
   private renderReportArchive(): void {
@@ -1542,7 +1590,13 @@ export class StrategyPanel {
 
   private walkForwardHTML(r: BacktestResult): string {
     const report = r.walk_forward_report;
-    if (!report) return '';
+    if (!report) return `
+      <div class="empty-state">
+        <div class="empty-icon">📊</div>
+        <div class="empty-title">Walk-Forward sonucu yok</div>
+        <div class="empty-desc">Walk-Forward analizi yapabilmek için backtest ayarlarında <strong>Walk-Forward Penceresi</strong> değerini 2 veya üzeri girin ve backtest'i yeniden çalıştırın.</div>
+      </div>
+    `;
     const status = report.passed ? 'Geçti' : 'Geçmedi';
     return `
       <div class="report-subsection">
@@ -1599,7 +1653,13 @@ export class StrategyPanel {
 
   private monteCarloHTML(r: BacktestResult): string {
     const report = r.monte_carlo_report;
-    if (!report) return '';
+    if (!report) return `
+      <div class="empty-state">
+        <div class="empty-icon">🎲</div>
+        <div class="empty-title">Monte Carlo sonucu yok</div>
+        <div class="empty-desc">Monte Carlo simülasyonu için backtest ayarlarında <strong>MC İterasyon</strong> sayısını 100 veya üzeri girin ve backtest'i yeniden çalıştırın.</div>
+      </div>
+    `;
     return `
       <div class="report-subsection">
         <h4>Monte Carlo Risk</h4>

@@ -4,6 +4,7 @@ import {
   BIST30, BIST100_EXTRA, US_SYMBOLS, CRYPTO_SYMBOLS, FX_COMMODITY_SYMBOLS,
   VIOP_SYMBOLS, ALL_SYMBOLS,
 } from '../constants/symbols.js';
+import { planGate } from '../auth/PlanGate.js';
 
 const LS_LAST_SYMBOL = 'piyasapilot_last_symbol';
 const LS_SIDEBAR_COLLAPSED = 'piyasapilot_sidebar_collapsed';
@@ -48,6 +49,7 @@ export class Sidebar {
   private isCollapsed = false;
   private toggleBtn!: HTMLElement;
   private favorites = new Set<string>();
+  private _observers: IntersectionObserver[] = [];
 
   constructor(container: HTMLElement) {
     this.container = container;
@@ -180,23 +182,36 @@ export class Sidebar {
 
   private renderGroup(g: GroupDef): void {
     const isCollapsed = this.collapsedGroups.has(g.label);
+    const isLocked = !planGate.isGroupAllowed(g.label);
 
     const groupEl = document.createElement('div');
     groupEl.className = 'sym-group';
 
     const header = document.createElement('div');
-    header.className = 'sym-group-header';
+    header.className = `sym-group-header${isLocked ? ' locked' : ''}`;
     header.innerHTML = `
       <span class="group-flag">${g.flag}</span>
       <span class="group-label">${g.label}</span>
-      <span class="group-chevron">${isCollapsed ? '▶' : '▼'}</span>
+      ${isLocked ? '<span class="sym-group-lock">🔒 Yükselt</span>' : `<span class="group-chevron">${isCollapsed ? '▶' : '▼'}</span>`}
     `;
-    header.addEventListener('click', () => this.toggleGroup(g.label, header, itemsEl));
+
+    if (isLocked) {
+      header.addEventListener('click', () => {
+        planGate.showPlanGate({
+          title: `${g.label} — Erişim Gerekli`,
+          description: `${g.label} sembollerine erişmek için ücretsiz kayıt olun veya planınızı yükseltin.`,
+          requiredTier: 'free',
+        });
+      });
+    } else {
+      header.addEventListener('click', () => this.toggleGroup(g.label, header, itemsEl));
+    }
     groupEl.appendChild(header);
 
     const itemsEl = document.createElement('div');
     itemsEl.className = 'sym-items';
-    itemsEl.style.display = isCollapsed ? 'none' : '';
+    // Kilitli gruplar her zaman kapalı gösterilir
+    itemsEl.style.display = (isLocked || isCollapsed) ? 'none' : '';
 
     g.symbols.forEach((s, i) => {
       if (i < LAZY_BATCH_SIZE) {
@@ -223,10 +238,12 @@ export class Sidebar {
         loaded += batch.length;
         if (loaded >= g.symbols.length) {
           observer.disconnect();
+          this._observers = this._observers.filter(o => o !== observer);
           sentinel.remove();
         }
       }, { root: this.listEl, rootMargin: '100px' });
       observer.observe(sentinel);
+      this._observers.push(observer);
     }
 
     groupEl.appendChild(itemsEl);
@@ -315,6 +332,12 @@ export class Sidebar {
       const item = this.createSymbolItem(s);
       this.listEl.appendChild(item);
     });
+  }
+
+  /** Tüm IntersectionObserver'ları temizler — component unmount edilirken çağrılmalı */
+  destroy(): void {
+    this._observers.forEach(o => o.disconnect());
+    this._observers = [];
   }
 
   // ─── Ticker refresh ──────────────────────────────────────────────────────

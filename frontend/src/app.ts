@@ -1,38 +1,13 @@
 import type { Timeframe, DataUpdateEvent, PriceUpdateEvent, SymbolInfo } from './types.js';
+import type { LayoutMode } from './components/MultiChartLayout.js';
+import type { MaliAnalizPanel as MaliAnalizPanelInstance } from './components/MaliAnalizPanel.js';
+import type { NewsPanel as NewsPanelInstance } from './components/NewsPanel.js';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import '../style.css';
-import { renderLoginPage } from './auth/LoginPage.js';
-import { renderRegisterPage } from './auth/RegisterPage.js';
 import { mountCookieBanner } from './components/CookieBanner.js';
-import { dataEngine } from './core/DataEngine.js';
 import { installErrorBoundary } from './core/ErrorBoundary.js';
-import { PortfolioEngine } from './core/PortfolioEngine.js';
-import { MultiChartLayout, type LayoutMode } from './components/MultiChartLayout.js';
-import { Sidebar } from './components/Sidebar.js';
-import { PortfolioPanel } from './components/PortfolioPanel.js';
-import { StrategyPanel } from './components/StrategyPanel.js';
-import { Screener } from './components/Screener.js';
-import { SignalFeed } from './components/SignalFeed.js';
-import { EgitimlerPanel } from './components/EgitimlerPanel.js';
-import { MaliAnalizPanel } from './components/MaliAnalizPanel.js';
-import { NewsPanel } from './components/NewsPanel.js';
-import { TR, formatAgo } from './constants/tr.js';
-import { loadHistorical } from './core/HistoricalLoader.js';
 import { i18n } from './i18n/index.js';
-import { renderLandingPage } from './pages/LandingPage.js';
-import { renderPricingPage } from './pages/PricingPage.js';
-import { renderForgotPasswordPage, renderResetPasswordPage } from './pages/ForgotPasswordPage.js';
-import { renderVerifyEmailPage } from './pages/VerifyEmailPage.js';
-import { renderOnboardingPage } from './pages/OnboardingPage.js';
-import { renderPaymentSuccessPage } from './pages/PaymentSuccessPage.js';
-import { renderSettingsPage } from './pages/SettingsPage.js';
-import { renderWaitlistPage } from './pages/WaitlistPage.js';
-import { renderChangelogPage } from './pages/ChangelogPage.js';
-import { renderSharedBacktestPage } from './pages/SharedBacktestPage.js';
-import { renderAdminPanel } from './pages/admin/AdminPanel.js';
-import { renderTermsPage } from './pages/legal/TermsPage.js';
-import { renderPrivacyPage } from './pages/legal/PrivacyPage.js';
-import { renderCookiesPage } from './pages/legal/CookiesPage.js';
+import { auth } from './auth/AuthManager.js';
 
 i18n.init();
 installErrorBoundary();
@@ -41,35 +16,134 @@ mountCookieBanner();
 // ─── Public auth pages ───────────────────────────────────────────────────────
 
 const publicPath = window.location.pathname.replace(/\/+$/, '') || '/';
-const publicRoutes: Record<string, (container: HTMLElement) => void | Promise<void>> = {
-  '/': renderLandingPage,
-  '/login': renderLoginPage,
-  '/register': renderRegisterPage,
-  '/pricing': renderPricingPage,
-  '/waitlist': renderWaitlistPage,
-  '/changelog': renderChangelogPage,
-  '/forgot-password': renderForgotPasswordPage,
-  '/reset-password': renderResetPasswordPage,
-  '/verify-email': renderVerifyEmailPage,
-  '/onboarding': renderOnboardingPage,
-  '/payment/success': renderPaymentSuccessPage,
-  '/settings': renderSettingsPage,
-  '/admin': renderAdminPanel,
-  '/legal/terms': renderTermsPage,
-  '/legal/privacy': renderPrivacyPage,
-  '/legal/cookies': renderCookiesPage,
+type PublicRenderer = (container: HTMLElement) => void | Promise<void>;
+const publicRoutes: Record<string, () => Promise<PublicRenderer>> = {
+  '/': async () => (await import('./pages/LandingPage.js')).renderLandingPage,
+  '/login': async () => (await import('./auth/LoginPage.js')).renderLoginPage,
+  '/register': async () => (await import('./auth/RegisterPage.js')).renderRegisterPage,
+  '/pricing': async () => (await import('./pages/PricingPage.js')).renderPricingPage,
+  '/waitlist': async () => (await import('./pages/WaitlistPage.js')).renderWaitlistPage,
+  '/changelog': async () => (await import('./pages/ChangelogPage.js')).renderChangelogPage,
+  '/forgot-password': async () => (await import('./pages/ForgotPasswordPage.js')).renderForgotPasswordPage,
+  '/reset-password': async () => (await import('./pages/ForgotPasswordPage.js')).renderResetPasswordPage,
+  '/verify-email': async () => (await import('./pages/VerifyEmailPage.js')).renderVerifyEmailPage,
+  '/onboarding': async () => (await import('./pages/OnboardingPage.js')).renderOnboardingPage,
+  '/payment/success': async () => (await import('./pages/PaymentSuccessPage.js')).renderPaymentSuccessPage,
+  '/settings': async () => (await import('./pages/SettingsPage.js')).renderSettingsPage,
+  '/admin': async () => (await import('./pages/admin/AdminPanel.js')).renderAdminPanel,
+  '/legal/terms': async () => (await import('./pages/legal/TermsPage.js')).renderTermsPage,
+  '/legal/privacy': async () => (await import('./pages/legal/PrivacyPage.js')).renderPrivacyPage,
+  '/legal/cookies': async () => (await import('./pages/legal/CookiesPage.js')).renderCookiesPage,
 };
-const publicRenderer = publicRoutes[publicPath];
-const dynamicPublicRenderer = publicPath.startsWith('/shared/') ? renderSharedBacktestPage : null;
-if (publicRenderer || dynamicPublicRenderer) {
-  document.getElementById('market-ticker')?.setAttribute('hidden', 'true');
-  document.getElementById('topbar')?.setAttribute('hidden', 'true');
-  document.getElementById('app-layout')?.setAttribute('hidden', 'true');
+const loadPublicRenderer = publicRoutes[publicPath];
+const loadDynamicPublicRenderer = publicPath.startsWith('/shared/')
+  ? async () => (await import('./pages/SharedBacktestPage.js')).renderSharedBacktestPage
+  : null;
+if (loadPublicRenderer || loadDynamicPublicRenderer) {
+  document.getElementById('market-ticker')?.remove();
+  document.getElementById('topbar')?.remove();
+  document.getElementById('theme-panel')?.remove();
+  document.getElementById('app-layout')?.remove();
   const authRoot = document.createElement('main');
   authRoot.id = 'auth-root';
   document.body.appendChild(authRoot);
-  void (publicRenderer || dynamicPublicRenderer)!(authRoot);
+  const renderer = await (loadPublicRenderer || loadDynamicPublicRenderer)!();
+  void renderer(authRoot);
+} else {
+
+const [
+  { dataEngine },
+  { PortfolioEngine },
+  { MultiChartLayout },
+  { Sidebar },
+  { PortfolioPanel },
+  { StrategyPanel },
+  { Screener },
+  { SignalFeed },
+  { EgitimlerPanel },
+  { MaliAnalizPanel },
+  { NewsPanel },
+  { TR, formatAgo },
+  { loadHistorical },
+] = await Promise.all([
+  import('./core/DataEngine.js'),
+  import('./core/PortfolioEngine.js'),
+  import('./components/MultiChartLayout.js'),
+  import('./components/Sidebar.js'),
+  import('./components/PortfolioPanel.js'),
+  import('./components/StrategyPanel.js'),
+  import('./components/Screener.js'),
+  import('./components/SignalFeed.js'),
+  import('./components/EgitimlerPanel.js'),
+  import('./components/MaliAnalizPanel.js'),
+  import('./components/NewsPanel.js'),
+  import('./constants/tr.js'),
+  import('./core/HistoricalLoader.js'),
+]);
+
+// ─── Auth init + User Menu ───────────────────────────────────────────────────
+
+await auth.init();
+
+function mountUserMenu(): void {
+  const guestEl   = document.getElementById('user-menu-guest') as HTMLElement;
+  const loggedEl  = document.getElementById('user-menu-loggedin') as HTMLElement;
+  const avatarBtn = document.getElementById('user-avatar-btn') as HTMLButtonElement;
+  const dropdown  = document.getElementById('user-dropdown') as HTMLElement;
+  const initialsEl = document.getElementById('user-avatar-initials') as HTMLElement;
+  const nameEl    = document.getElementById('user-display-name') as HTMLElement;
+  const emailEl   = document.getElementById('user-dropdown-email') as HTMLElement;
+  const planBadge = document.getElementById('user-plan-badge') as HTMLElement;
+  const logoutBtn = document.getElementById('logout-btn') as HTMLButtonElement;
+
+  function render(): void {
+    const user = auth.user;
+    if (!user) {
+      guestEl.hidden  = false;
+      loggedEl.hidden = true;
+      return;
+    }
+    guestEl.hidden  = true;
+    loggedEl.hidden = false;
+
+    const name = user.display_name || user.email.split('@')[0] || '?';
+    const initials = name.slice(0, 2).toUpperCase();
+    initialsEl.textContent = initials;
+    nameEl.textContent     = name;
+    emailEl.textContent    = user.email;
+    planBadge.textContent  = user.role.toUpperCase();
+    planBadge.dataset['plan'] = user.role;
+  }
+
+  // avatar toggle
+  avatarBtn?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const open = !dropdown.hidden;
+    dropdown.hidden = open;
+    avatarBtn.setAttribute('aria-expanded', String(!open));
+  });
+
+  // close on outside click
+  document.addEventListener('click', () => {
+    if (!dropdown.hidden) {
+      dropdown.hidden = true;
+      avatarBtn?.setAttribute('aria-expanded', 'false');
+    }
+  });
+  dropdown?.addEventListener('click', (e) => e.stopPropagation());
+
+  // logout
+  logoutBtn?.addEventListener('click', async () => {
+    logoutBtn.textContent = 'Çıkış yapılıyor…';
+    logoutBtn.setAttribute('disabled', 'true');
+    await auth.logout();
+  });
+
+  // re-render when auth changes
+  auth.onChange(render);
+  render();
 }
+mountUserMenu();
 
 // ─── App shell elements ───────────────────────────────────────────────────────
 
@@ -107,7 +181,7 @@ function buildShortcutOverlay(): void {
           <div class="shortcut-row"><kbd>1</kbd><span>Grafik</span></div>
           <div class="shortcut-row"><kbd>2</kbd><span>Portföy</span></div>
           <div class="shortcut-row"><kbd>3</kbd><span>Strateji</span></div>
-          <div class="shortcut-row"><kbd>4</kbd><span>Tarayıcı</span></div>
+          <div class="shortcut-row"><kbd>4</kbd><span>Tarama</span></div>
           <div class="shortcut-row"><kbd>5</kbd><span>Sinyaller</span></div>
           <div class="shortcut-row"><kbd>6</kbd><span>Eğitim</span></div>
           <div class="shortcut-row"><kbd>7</kbd><span>Finansallar</span></div>
@@ -299,6 +373,7 @@ async function refreshNewsBadge(): Promise<void> {
     if (!badge) return;
     if (data.count > 0) {
       badge.textContent = data.count > 99 ? '99+' : String(data.count);
+      badge.title = `${data.count} okunmamış haber`;
       badge.hidden = false;
     } else {
       badge.hidden = true;
@@ -324,15 +399,15 @@ const educationPanel  = new EgitimlerPanel(educationEl, {
   }
 });
 void educationPanel;
-let maliAnalizPanel: MaliAnalizPanel | null = null;
-function getMaliAnalizPanel(): MaliAnalizPanel {
+let maliAnalizPanel: MaliAnalizPanelInstance | null = null;
+function getMaliAnalizPanel(): MaliAnalizPanelInstance {
   if (!maliAnalizPanel) {
     maliAnalizPanel = new MaliAnalizPanel(financialsEl);
   }
   return maliAnalizPanel;
 }
-let newsPanelInstance: NewsPanel | null = null;
-function getNewsPanel(): NewsPanel {
+let newsPanelInstance: NewsPanelInstance | null = null;
+function getNewsPanel(): NewsPanelInstance {
   if (!newsPanelInstance) {
     newsPanelInstance = new NewsPanel(newsEl);
   }
@@ -443,8 +518,8 @@ document.addEventListener('keydown', (e) => {
     case 'Escape': toggleShortcutOverlay(false); break;
     case 'g':
     case 'G': {
-      // Layout döngüsü: 1x1 → 1x2 → 2x2 → 1x1
-      const cycle: LayoutMode[] = ['1x1', '1x2', '2x2'];
+      // Layout döngüsü: 1x1 → 1x2 → 2x1 → 2x2 → 1x1
+      const cycle: LayoutMode[] = ['1x1', '1x2', '2x1', '2x2'];
       const current = multiChart.getLayout();
       const idx = cycle.indexOf(current);
       const next = cycle[(idx + 1) % cycle.length]!;
@@ -638,3 +713,4 @@ setInterval(() => {
 // Sidebar will trigger setActiveSymbol from restoreLastSymbol() internally.
 // If nothing is in localStorage the default symbol (BTCUSDT) fires automatically.
 console.info('PiyasaPilot başlatıldı');
+}
