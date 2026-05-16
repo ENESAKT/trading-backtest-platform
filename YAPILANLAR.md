@@ -200,6 +200,12 @@
 - [x] Public sayfalara kalıcı TR/EN dil anahtarı eklendi; `document.documentElement.lang` aktif dil ile senkron tutuluyor.
 - [x] `cd frontend && npm run typecheck`, `cd frontend && npm run build` ve `cd frontend && npm run e2e` başarılı; E2E sonucu: 24/24 geçti.
 
+## ✅ Auth i18n Genişletmesi (2026-05-16)
+
+- [x] Login/register başlık, form label, buton, hata, şifre gücü, Google yakında ve legal onay metinleri TR/EN sözlüğe taşındı.
+- [x] Login/register kartlarına kalıcı TR/EN dil anahtarı eklendi.
+- [x] `cd frontend && npm run typecheck`, `cd frontend && npm run build` ve `cd frontend && npm run e2e` başarılı; E2E sonucu: 24/24 geçti.
+
 ---
 
 ## ✅ Güvenlik ve Deployment Altyapısı
