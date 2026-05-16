@@ -659,6 +659,14 @@ def create_app(
     except Exception as _pay_err:
         _logger.warning("[payments] Payments router yüklenemedi: %s", _pay_err)
 
+    # ── Billing Router (Task 3) ──────────────────────────────────────────
+    try:
+        from backend.api.billing_router import router as billing_router
+        app.include_router(billing_router, prefix="/api/billing", tags=["billing"])
+        _logger.info("[billing] Billing router yüklendi → /api/billing/*")
+    except Exception as _bill_err:
+        _logger.warning("[billing] Billing router yüklenemedi: %s", _bill_err)
+
     # ── Admin Router ──────────────────────────────────────────────────────
     try:
         from backend.api.admin_router import router as admin_router

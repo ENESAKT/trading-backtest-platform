@@ -87,3 +87,23 @@ def send_welcome_email(to: str, display_name: str = "") -> None:
         "base_url": BASE_URL,
     })
     _send(to, "PiyasaPilot'a hoş geldiniz!", html)
+
+
+def send_payment_success_email(to: str, plan: str = "pro", display_name: str = "") -> None:
+    """Başarılı ödeme sonrası tebrik maili."""
+    html = _render("payment_success.html", {
+        "display_name": display_name or to,
+        "plan": plan,
+        "app_url": f"{BASE_URL}/app",
+        "base_url": BASE_URL,
+    })
+    _send(to, f"PiyasaPilot — {plan.capitalize()} planınız aktif!", html)
+
+
+def send_payment_failed_email(to: str) -> None:
+    """Başarısız ödeme uyarı maili."""
+    html = _render("payment_failed.html", {
+        "settings_url": f"{BASE_URL}/settings/billing",
+        "base_url": BASE_URL,
+    })
+    _send(to, "PiyasaPilot — Ödeme alınamadı", html)

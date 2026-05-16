@@ -8,15 +8,7 @@ import { mountCookieBanner } from './components/CookieBanner.js';
 import { installErrorBoundary } from './core/ErrorBoundary.js';
 import { i18n } from './i18n/index.js';
 import { auth } from './auth/AuthManager.js';
-import * as Sentry from "@sentry/browser";
-
-if (import.meta.env.VITE_SENTRY_DSN) {
-  Sentry.init({
-    dsn: import.meta.env.VITE_SENTRY_DSN,
-    integrations: [Sentry.browserTracingIntegration()],
-    tracesSampleRate: 0.1,
-  });
-}
+// Error monitoring removed
 
 i18n.init();
 installErrorBoundary();
