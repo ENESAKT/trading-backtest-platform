@@ -61,13 +61,30 @@ python3.11 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 
-# 2. Backend'i başlat
+# 2. Ortam değişkenlerini ayarla
+cp .env.example .env
+# .env dosyasını düzenleyip JWT_SECRET, MYSQL_*, REDIS_URL vb. doldur
+
+# 3. MySQL migration'larını uygula (001 → 010 sırayla, atlamadan)
+mysql -h localhost -u appuser -p piyasapilot < infra/mysql/migrations/001_instruments.sql
+mysql -h localhost -u appuser -p piyasapilot < infra/mysql/migrations/002_providers.sql
+mysql -h localhost -u appuser -p piyasapilot < infra/mysql/migrations/003_inventory.sql
+mysql -h localhost -u appuser -p piyasapilot < infra/mysql/migrations/004_retention.sql
+mysql -h localhost -u appuser -p piyasapilot < infra/mysql/migrations/005_financial_analysis.sql
+mysql -h localhost -u appuser -p piyasapilot < infra/mysql/migrations/006_financial_enhanced.sql
+mysql -h localhost -u appuser -p piyasapilot < infra/mysql/migrations/007_auth_tables.sql
+mysql -h localhost -u appuser -p piyasapilot < infra/mysql/migrations/008_security_extensions.sql
+mysql -h localhost -u appuser -p piyasapilot < infra/mysql/migrations/009_growth_tables.sql
+mysql -h localhost -u appuser -p piyasapilot < infra/mysql/migrations/010_mobile_payment_contracts.sql
+# ⚠️ Migration 007 auth tablolarını, 008 güvenlik uzantılarını oluşturur — sıra kritik
+
+# 4. Backend'i başlat
 uvicorn backend.api.main:app --port 8000 --reload
 
-# 3. Frontend'i başlat (geliştirme)
+# 5. Frontend'i başlat (geliştirme)
 cd frontend && npm install && npm run dev
 
-# 4. Veya Docker ile
+# 6. Veya Docker ile
 make up
 ```
 

@@ -542,8 +542,8 @@ export class MultiChartLayout {
         preserveTimeRange,
       });
 
-      // G9: Load sample events for the symbol
-      pane.chartPanel.loadSampleEvents(symbol);
+      // G9: Sample events disabled in production — real KAP/dividend data not yet wired
+      // pane.chartPanel.loadSampleEvents(symbol);
 
       if (badgeEl) {
         badgeEl.textContent = TR.DELAYED;

@@ -1,7 +1,9 @@
-"""BIST ve yfinance tabanlı public veri sağlayıcı.
+"""BIST, ABD hisseleri ve yfinance tabanlı public veri sağlayıcı.
 
 Bu provider resmi/lisanslı BIST feed'i olduğunu iddia etmez. Yahoo Finance
 üzerinden best-effort public veri okur; veri gelmezse sahte fiyat üretmez.
+
+ABD hisseleri: AAPL, MSFT vb. → .IS eklenmez, yfinance'tan doğrudan çekilir.
 """
 
 from __future__ import annotations
@@ -20,6 +22,26 @@ from quant_engine.data.providers.http_ohlcv import (
     configured_template,
     fetch_http_ohlcv,
 )
+
+# ABD büyük-cap hisseleri: .IS suffix'i eklenmeden doğrudan yfinance'a gönderilir.
+# Bu liste provider_router.py'deki _US_EQUITY_TICKERS ile senkronize tutulmalıdır.
+_US_DIRECT_TICKERS: frozenset[str] = frozenset({
+    "AAPL", "MSFT", "NVDA", "GOOGL", "GOOG", "AMZN", "META", "TSLA",
+    "AVGO", "ORCL", "ADBE", "CRM", "INTC", "AMD", "QCOM", "TXN",
+    "AMAT", "MU", "LRCX", "KLAC", "SNPS", "CDNS", "MRVL",
+    "BRK", "JPM", "BAC", "WFC", "GS", "MS", "BLK", "C", "USB",
+    "AXP", "COF", "SCHW", "ICE", "CME", "CB", "MMC",
+    "LLY", "JNJ", "UNH", "PFE", "ABBV", "MRK", "TMO", "ABT",
+    "DHR", "BMY", "AMGN", "GILD", "ISRG", "MDT", "SYK",
+    "WMT", "HD", "COST", "PG", "KO", "PEP", "MCD", "SBUX",
+    "NKE", "TGT", "LOW", "EL", "CL", "KMB",
+    "XOM", "CVX", "COP", "EOG", "SLB", "PXD",
+    "BA", "CAT", "GE", "HON", "MMM", "RTX", "LMT", "NOC",
+    "UPS", "FDX", "DE", "EMR",
+    "V", "MA", "PYPL", "NFLX", "DIS", "CMCSA", "T", "VZ",
+    "NEE", "DUK", "SO", "D", "AEP", "EXC",
+    "SPY", "QQQ", "IWM", "DIA", "GLD", "SLV", "USO",
+})
 
 
 class BistMarketDataProvider:
@@ -56,6 +78,9 @@ class BistMarketDataProvider:
             canonical = clean
             display = clean[:-3]
             return canonical, clean, display
+        # ABD hisseleri: .IS eklenmeden doğrudan kullan
+        if clean in _US_DIRECT_TICKERS:
+            return clean, clean, clean
         canonical = clean
         return f"{canonical}.IS", f"{canonical}.IS", canonical
 
@@ -65,6 +90,8 @@ class BistMarketDataProvider:
             return "fx"
         if source_symbol.endswith("=F"):
             return "commodity"
+        if source_symbol in _US_DIRECT_TICKERS:
+            return "us"
         return "bist"
 
     def _load_history(self, source_symbol: str, yf_interval: str, yf_period: str) -> Any:

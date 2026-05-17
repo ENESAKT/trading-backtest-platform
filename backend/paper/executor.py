@@ -103,8 +103,8 @@ class PaperExecutor:
                     bildirim["pnl"], bildirim["reason"],
                 )
             elif tur == "donduruldu":
-                from backend.notifier.telegram import bildir_cuzdан_donduruldu
-                await bildir_cuzdан_donduruldu(
+                from backend.notifier.telegram import bildir_cuzdan_donduruldu
+                await bildir_cuzdan_donduruldu(
                     bildirim["strategy_id"],
                     bildirim["daily_loss"],
                     bildirim["initial_capital"],

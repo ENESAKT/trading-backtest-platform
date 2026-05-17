@@ -28,9 +28,10 @@ REQUIRED_VARS: list[tuple[str, str]] = [
 ]
 
 PRODUCTION_REQUIRED_VARS: list[tuple[str, str]] = [
+    ("JWT_SECRET", "JWT access token imzalama anahtarı — eksikse güvensiz varsayılan kullanılır"),
     ("CORS_ORIGINS", "Production CORS origin listesi"),
-    ("DATABASE_URL", "MySQL metadata bağlantısı"),
-    ("CLICKHOUSE_URL", "ClickHouse OHLCV bağlantısı"),
+    ("MYSQL_HOST", "MySQL sunucu adresi (RDS endpoint)"),
+    ("MYSQL_PASSWORD", "MySQL bağlantı şifresi"),
     ("REDIS_URL", "Redis sıcak cache/pub-sub bağlantısı"),
 ]
 

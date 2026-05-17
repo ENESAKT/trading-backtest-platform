@@ -122,9 +122,27 @@ export class NewsPanel {
         const data = await res.json() as { news: NewsItem[] };
         this.items = data.news ?? [];
         this.renderList();
+      } else if (res.status === 401) {
+        // Kullanıcı giriş yapmamış — sonsuz iskelet yerine bilgilendirme göster
+        const el = this.container.querySelector('#news-list');
+        if (el) {
+          el.innerHTML = `<div class="news-empty" style="padding:24px;text-align:center;">
+            📰 Haberleri görmek için <a href="/login" style="color:var(--accent)">giriş yapın</a>
+          </div>`;
+        }
+      } else {
+        // Diğer hatalar — mevcut içerik korunur, sessiz başarısızlık
+        const el = this.container.querySelector('#news-list');
+        if (el && !this.items.length) {
+          el.innerHTML = `<div class="news-empty">Haberler yüklenemedi — ⟳ Yenile</div>`;
+        }
       }
     } catch {
-      // network error — show cached
+      // Ağ hatası — mevcut önbellek korunur
+      const el = this.container.querySelector('#news-list');
+      if (el && !this.items.length) {
+        el.innerHTML = `<div class="news-empty">Bağlantı hatası — ⟳ Yenile</div>`;
+      }
     } finally {
       this.loading = false;
       if (btn) {

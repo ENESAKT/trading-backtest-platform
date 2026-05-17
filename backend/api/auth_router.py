@@ -363,6 +363,31 @@ async def get_me(request: Request, user: dict = Depends(get_current_user)):
     return _ok(me)
 
 
+@router.get("/me/limits")
+async def get_me_limits(request: Request, user: dict = Depends(get_current_user)):
+    """Kullanıcının plan limitleri ve günlük kullanımı.
+    Frontend bu endpoint'i kullanarak backtest kotasını gösterebilir.
+    """
+    from backend.auth.feature_gate import get_limits
+    pool = _get_pool(request)
+    db_user = await get_user_by_id(pool, int(user["sub"]))
+    if not db_user:
+        raise HTTPException(404, detail={"tr": "Kullanıcı bulunamadı."})
+    limits = get_limits(db_user["role"])
+    return _ok({
+        "role": db_user["role"],
+        "backtest_runs_per_day": limits.backtest_runs_per_day,
+        "api_calls_per_day":     limits.api_calls_per_day,
+        "max_watchlist_symbols": limits.max_watchlist_symbols,
+        "backtest_pro":          limits.backtest_pro,
+        "scanner":               limits.scanner,
+        "real_time_data":        limits.real_time_data,
+        "mali_analiz_scope":     limits.mali_analiz_scope,
+        "multi_chart":           limits.multi_chart,
+        "api_access":            limits.api_access,
+    })
+
+
 @router.patch("/me/settings")
 async def update_settings(
     req: UpdateSettingsRequest,

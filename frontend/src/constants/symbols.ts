@@ -167,17 +167,45 @@ export const FX_COMMODITY_SYMBOLS: SymbolInfo[] = [
   { symbol: 'BZ=F', name: 'Ham Petrol (Brent)', assetType: 'commodity', group: 'Döviz / Emtia', currency: 'USD' },
 ];
 
-// ─── VİOP (contract watchlist placeholders) ───────────────────────────────────
+// ─── VİOP (Vadeli İşlem ve Opsiyon) ──────────────────────────────────────────
 //
-// VİOP contract codes are maturity-dependent. These symbols intentionally use
-// the backend VİOP routing prefix; if a licensed/data-provider bridge is not
-// configured, the backend returns a clear "not configured" response instead of
-// fake candles.
+// Lisanslı VİOP feed yapılandırılmamışsa backend, dayanak varlıktan proxy
+// OHLCV döndürür (is_real=false olarak işaretlenir, sahte veri üretilmez).
 export const VIOP_SYMBOLS: SymbolInfo[] = [
-  { symbol: 'VIOP:XU030', name: 'VİOP BIST 30 Yakın Vade', assetType: 'derivative', group: 'VİOP', currency: 'TRY' },
-  { symbol: 'VIOP:USDTRY', name: 'VİOP Dolar/TL Yakın Vade', assetType: 'derivative', group: 'VİOP', currency: 'TRY' },
-  { symbol: 'VIOP:EURTRY', name: 'VİOP Euro/TL Yakın Vade', assetType: 'derivative', group: 'VİOP', currency: 'TRY' },
-  { symbol: 'VIOP:XAUTRY', name: 'VİOP Gram Altın Yakın Vade', assetType: 'derivative', group: 'VİOP', currency: 'TRY' },
+  // Endeks vadeli
+  { symbol: 'VIOP:XU030', name: 'VİOP BIST 30 Vadeli', assetType: 'derivative', group: 'VİOP', currency: 'TRY' },
+  { symbol: 'VIOP:XU100', name: 'VİOP BIST 100 Vadeli', assetType: 'derivative', group: 'VİOP', currency: 'TRY' },
+  // Döviz vadeli
+  { symbol: 'VIOP:USDTRY', name: 'VİOP Dolar/TL Vadeli', assetType: 'derivative', group: 'VİOP', currency: 'TRY' },
+  { symbol: 'VIOP:EURTRY', name: 'VİOP Euro/TL Vadeli', assetType: 'derivative', group: 'VİOP', currency: 'TRY' },
+  { symbol: 'VIOP:GBPTRY', name: 'VİOP Sterlin/TL Vadeli', assetType: 'derivative', group: 'VİOP', currency: 'TRY' },
+  // Emtia vadeli
+  { symbol: 'VIOP:XAUTRY', name: 'VİOP Gram Altın Vadeli', assetType: 'derivative', group: 'VİOP', currency: 'TRY' },
+  { symbol: 'VIOP:BRENT', name: 'VİOP Brent Petrol Vadeli', assetType: 'derivative', group: 'VİOP', currency: 'USD' },
+  // Banka hissesi vadeli
+  { symbol: 'F_GARAN', name: 'VİOP Garanti BBVA Vadeli', assetType: 'derivative', group: 'VİOP', currency: 'TRY' },
+  { symbol: 'F_AKBNK', name: 'VİOP Akbank Vadeli', assetType: 'derivative', group: 'VİOP', currency: 'TRY' },
+  { symbol: 'F_ISCTR', name: 'VİOP İş Bankası C Vadeli', assetType: 'derivative', group: 'VİOP', currency: 'TRY' },
+  { symbol: 'F_YKBNK', name: 'VİOP Yapı Kredi Vadeli', assetType: 'derivative', group: 'VİOP', currency: 'TRY' },
+  { symbol: 'F_HALKB', name: 'VİOP Halkbank Vadeli', assetType: 'derivative', group: 'VİOP', currency: 'TRY' },
+  { symbol: 'F_VAKBN', name: 'VİOP Vakıfbank Vadeli', assetType: 'derivative', group: 'VİOP', currency: 'TRY' },
+  // Sanayi / Holding / Diğer hisse vadeli
+  { symbol: 'F_THYAO', name: 'VİOP Türk Hava Yolları Vadeli', assetType: 'derivative', group: 'VİOP', currency: 'TRY' },
+  { symbol: 'F_EREGL', name: 'VİOP Ereğli Demir Çelik Vadeli', assetType: 'derivative', group: 'VİOP', currency: 'TRY' },
+  { symbol: 'F_TUPRS', name: 'VİOP Tüpraş Vadeli', assetType: 'derivative', group: 'VİOP', currency: 'TRY' },
+  { symbol: 'F_KCHOL', name: 'VİOP Koç Holding Vadeli', assetType: 'derivative', group: 'VİOP', currency: 'TRY' },
+  { symbol: 'F_SAHOL', name: 'VİOP Sabancı Holding Vadeli', assetType: 'derivative', group: 'VİOP', currency: 'TRY' },
+  { symbol: 'F_SISE',  name: 'VİOP Şişe Cam Vadeli', assetType: 'derivative', group: 'VİOP', currency: 'TRY' },
+  { symbol: 'F_FROTO', name: 'VİOP Ford Otosan Vadeli', assetType: 'derivative', group: 'VİOP', currency: 'TRY' },
+  { symbol: 'F_TOASO', name: 'VİOP Tofaş Vadeli', assetType: 'derivative', group: 'VİOP', currency: 'TRY' },
+  { symbol: 'F_PGSUS', name: 'VİOP Pegasus Vadeli', assetType: 'derivative', group: 'VİOP', currency: 'TRY' },
+  { symbol: 'F_ASELS', name: 'VİOP Aselsan Vadeli', assetType: 'derivative', group: 'VİOP', currency: 'TRY' },
+  { symbol: 'F_TCELL', name: 'VİOP Turkcell Vadeli', assetType: 'derivative', group: 'VİOP', currency: 'TRY' },
+  { symbol: 'F_BIMAS', name: 'VİOP BİM Mağazaları Vadeli', assetType: 'derivative', group: 'VİOP', currency: 'TRY' },
+  { symbol: 'F_KOZAL', name: 'VİOP Koza Altın Vadeli', assetType: 'derivative', group: 'VİOP', currency: 'TRY' },
+  { symbol: 'F_EKGYO', name: 'VİOP Emlak Konut GYO Vadeli', assetType: 'derivative', group: 'VİOP', currency: 'TRY' },
+  { symbol: 'F_PETKM', name: 'VİOP Petkim Vadeli', assetType: 'derivative', group: 'VİOP', currency: 'TRY' },
+  { symbol: 'F_ENKAI', name: 'VİOP Enka İnşaat Vadeli', assetType: 'derivative', group: 'VİOP', currency: 'TRY' },
 ];
 
 // ─── Flat lookup map ──────────────────────────────────────────────────────────

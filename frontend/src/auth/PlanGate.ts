@@ -48,9 +48,10 @@ function currentTier(): Tier {
 
 // ─── Backtest limitleri ──────────────────────────────────────────────────────
 
+// Limitler backend/auth/feature_gate.py ile senkron tutulmalı
 const BACKTEST_LIMITS: Record<Tier, number> = {
   guest: 0,
-  free:  5,
+  free:  10,  // feature_gate.py: backtest_runs_per_day=10
   pro:   50,
   ultra: Infinity,
   admin: Infinity,
@@ -85,10 +86,11 @@ export function consumeBacktest(): boolean {
 export function allowedSymbolGroups(): Set<string> {
   const tier = currentTier();
   if (tier === 'guest') {
-    return new Set(['BIST 30', 'Kripto', 'Döviz & Emtia']); // ücretsiz görüntülenebilir
+    // Grup adları symbols.ts ile birebir eşleşmeli
+    return new Set(['BIST 30', 'Kripto', 'Döviz / Emtia']);
   }
   if (tier === 'free') {
-    return new Set(['BIST 30', 'BIST 100', 'Kripto', 'Döviz & Emtia', 'VİOP', 'ABD Hisseleri']);
+    return new Set(['BIST 30', 'BIST 100', 'Kripto', 'Döviz / Emtia', 'VİOP', 'ABD Piyasaları']);
   }
   // pro / ultra / admin → sınırsız
   return new Set(['*']);

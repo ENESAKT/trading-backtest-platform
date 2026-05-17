@@ -15,7 +15,10 @@ def test_provider_router_routes_symbols():
     assert router.provider_for_symbol("THYAO").name == "bist_yfinance"
     assert router.provider_for_symbol("PETKM.IS").name == "bist_yfinance"
     assert router.provider_for_symbol("BTCUSDT").name == "binance_rest"
-    assert router.provider_for_symbol("F_XU0300426").name == "viop_not_configured"
+    # VİOP semboller artık proxy provider'a yönleniyor (lisanslı feed olmasa bile
+    # dayanak varlıktan proxy OHLCV döndürür)
+    assert router.provider_for_symbol("F_GARAN").name == "viop_proxy"
+    assert router.provider_for_symbol("VIOP:XU030").name == "viop_proxy"
 
 
 def test_bist_provider_returns_ok_with_yfinance_data(monkeypatch):
@@ -77,13 +80,40 @@ def test_bist_provider_returns_no_data_without_rows(monkeypatch):
     assert result.data == []
 
 
-def test_viop_provider_is_not_configured():
+def test_viop_provider_proxy_for_known_symbol(monkeypatch):
+    """Bilinen VİOP sembolü için proxy (dayanak varlık) döndürülmeli."""
+    import pandas as pd
+    import quant_engine.data.providers.viop_provider as viop_module
+
     provider = ViopMarketDataProvider()
-    result = provider.fetch_ohlcv("F_XU0300426", "15m", 20)
+    frame = pd.DataFrame({
+        "Datetime": pd.to_datetime(["2026-04-29T09:00:00Z", "2026-04-29T09:15:00Z"]),
+        "Open": [200.0, 201.0],
+        "High": [202.0, 203.0],
+        "Low": [199.0, 200.0],
+        "Close": [201.5, 202.5],
+        "Volume": [500, 600],
+    })
+    monkeypatch.setattr(viop_module, "_load_yfinance_history", lambda *_a, **_kw: frame)
+
+    result = provider.fetch_ohlcv("F_GARAN", "15m", 20)
+
+    assert result.status == MarketDataStatus.OK
+    assert result.is_real is False          # proxy = not real VİOP feed
+    assert result.data[-1]["close"] == 202.5
+    assert "proxy" in result.source
+
+
+def test_viop_provider_not_configured_for_unroutable_symbol():
+    """VIP- ön ekli ve eşlemesi olmayan sembol NOT_CONFIGURED döndürmeli."""
+    provider = ViopMarketDataProvider()
+    # VIP- prefix, is_viop_symbol() tarafından yakalanır ama _get_proxy_symbol()
+    # bu formatı tanımaz → NOT_CONFIGURED
+    result = provider.fetch_ohlcv("VIP-UNROUTABLE99", "15m", 20)
 
     assert result.status == MarketDataStatus.NOT_CONFIGURED
     assert result.is_real is False
-    assert "yapılandırılmadı" in result.error
+    assert result.data == []
 
 
 def test_viop_provider_uses_configured_http_feed(monkeypatch):

@@ -101,7 +101,18 @@ data-inventory:
 	$(PYTHON) scripts/data_platform/inventory_sync.py
 
 data-size-report:
-	@echo "Size report (To be implemented or check ClickHouse system.parts)"
+	@echo "=== ClickHouse Tablo Boyutları ==="
+	@curl -s "$$CLICKHOUSE_URL" --data \
+		"SELECT table, formatReadableSize(sum(bytes)) AS size, sum(rows) AS rows \
+		 FROM system.parts WHERE active GROUP BY table ORDER BY sum(bytes) DESC" \
+		2>/dev/null || echo "[!] ClickHouse bağlantısı kurulamadı — CLICKHOUSE_URL env var kontrol et"
+	@echo ""
+	@echo "=== MySQL Tablo Boyutları ==="
+	@mysql -h $${MYSQL_HOST:-localhost} -u $${MYSQL_USER:-appuser} -p$${MYSQL_PASSWORD} \
+		$${MYSQL_DATABASE:-piyasapilot} -e \
+		"SELECT table_name, ROUND(data_length/1024/1024,2) AS 'MB', table_rows \
+		 FROM information_schema.tables WHERE table_schema=DATABASE() ORDER BY data_length DESC;" \
+		2>/dev/null || echo "[!] MySQL bağlantısı kurulamadı"
 
 health-check:
 	$(PYTHON) scripts/data_platform/health_check.py

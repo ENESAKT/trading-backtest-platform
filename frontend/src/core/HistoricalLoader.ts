@@ -20,10 +20,23 @@ interface BackendBar {
   volume: number;
 }
 
+export interface CandleMetadata {
+  is_real?: boolean;
+  quality_status?: string;
+  data_coverage_pct?: number;
+  provider_name?: string;
+  source?: string;
+}
+
 interface BackendCandlesResponse {
   status?: string;
   message?: string;
   bars?: BackendBar[];
+  // Veri kalitesi metadata — backend tarafından döndürülür
+  is_real?: boolean;
+  quality_status?: string;
+  data_coverage_pct?: number;
+  provider_name?: string;
 }
 
 export interface LoadOptions {
@@ -31,6 +44,11 @@ export interface LoadOptions {
   timeoutMs?: number;
   applyAnomalyFilter?: boolean;
   assetType?: AssetType;  // anomaly filter eşiği için
+}
+
+export interface LoadResult {
+  candles: OHLCV[];
+  metadata: CandleMetadata;
 }
 
 /** ``/api/v2/candles`` çağrısı; OHLCV[] döner, hata durumunda fırlatır. */
@@ -70,12 +88,67 @@ export async function loadHistorical(
     volume: b.volume,
   }));
 
+  // Veri kalitesi metadata'sını event ile yayınla (grafik rozeti için)
+  const metadata: CandleMetadata = {
+    is_real:           json.is_real,
+    quality_status:    json.quality_status,
+    data_coverage_pct: json.data_coverage_pct,
+    provider_name:     json.provider_name,
+    source:            dataSource,
+  };
   window.dispatchEvent(new CustomEvent('piyasapilot:data-source', {
-    detail: { symbol, timeframe, source: dataSource },
+    detail: { symbol, timeframe, source: dataSource, metadata },
   }));
 
   if (opts.applyAnomalyFilter !== false && opts.assetType) {
     return filterAnomalies(candles, opts.assetType);
   }
   return candles;
+}
+
+/** Metadata dahil tam yükleme — kalite rozeti gerektiren yerler için */
+export async function loadHistoricalWithMeta(
+  symbol: string,
+  timeframe: Timeframe,
+  opts: LoadOptions = {},
+): Promise<LoadResult> {
+  const limit = opts.limit ?? (timeframe === '1d' ? DAILY_HISTORY_LIMIT : DEFAULT_LIMIT);
+  const timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+  const url =
+    `${ENDPOINT}` +
+    `?symbol=${encodeURIComponent(symbol)}` +
+    `&interval=${encodeURIComponent(timeframe)}` +
+    `&limit=${limit}`;
+
+  const resp = await fetch(url, { signal: AbortSignal.timeout(timeoutMs) });
+  if (!resp.ok) throw new Error(`Bağlantı Hatası: backend HTTP ${resp.status}`);
+  const dataSource = resp.headers.get('X-Data-Source') ?? 'unknown';
+
+  const json: BackendCandlesResponse = await resp.json();
+  if (json.status === 'error' || !Array.isArray(json.bars)) {
+    throw new Error(json.message || 'Bağlantı Hatası: backend boş yanıt');
+  }
+  if (json.bars.length === 0) throw new Error('Empty OHLCV result');
+
+  let candles: OHLCV[] = json.bars.map(b => ({
+    time: b.time, open: b.open, high: b.high,
+    low: b.low, close: b.close, volume: b.volume,
+  }));
+
+  const metadata: CandleMetadata = {
+    is_real:           json.is_real,
+    quality_status:    json.quality_status,
+    data_coverage_pct: json.data_coverage_pct,
+    provider_name:     json.provider_name,
+    source:            dataSource,
+  };
+
+  window.dispatchEvent(new CustomEvent('piyasapilot:data-source', {
+    detail: { symbol, timeframe, source: dataSource, metadata },
+  }));
+
+  if (opts.applyAnomalyFilter !== false && opts.assetType) {
+    candles = filterAnomalies(candles, opts.assetType);
+  }
+  return { candles, metadata };
 }

@@ -23,11 +23,25 @@ jobs:
       - name: Install backend dependencies
         run: pip install -r requirements.txt
 
-      - name: Compile changed production modules
-        run: python -m py_compile backend/api/auth_router.py backend/api/payments_router.py backend/payments/stripe_service.py
+      - name: Compile all production modules
+        run: |
+          python -m py_compile \
+            backend/api/main.py \
+            backend/api/auth_router.py \
+            backend/api/payments_router.py \
+            backend/payments/stripe_service.py \
+            backend/auth/jwt_utils.py \
+            backend/env_validator.py \
+            backend/paper/executor.py \
+            backend/notifier/telegram.py
 
-      - name: Run focused backend tests
-        run: python -m pytest tests/unit/test_api_endpoints.py tests/unit/test_auth_guards_payments.py -q --tb=short
+      - name: Run full unit test suite
+        run: python -m pytest tests/unit/ -q --tb=short --ignore=tests/unit/test_binance_ws.py --ignore=tests/unit/test_live_feed.py
+        env:
+          JWT_SECRET: "ci-test-secret-min-64-chars-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+          MYSQL_HOST: "localhost"
+          MYSQL_PASSWORD: "test"
+          APP_ENV: "test"
 
   frontend:
     runs-on: ubuntu-latest

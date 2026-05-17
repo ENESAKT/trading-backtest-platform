@@ -1,7 +1,7 @@
 {
   "name": "PiyasaPilot",
   "short_name": "PiyasaPilot",
-  "start_url": "/app",
+  "start_url": "/",
   "display": "standalone",
   "background_color": "#07080a",
   "theme_color": "#ffb020",

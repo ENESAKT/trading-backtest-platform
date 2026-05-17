@@ -29,7 +29,8 @@ import math
 import os
 import signal
 import sentry_sdk
-sentry_sdk.init(dsn=os.getenv("SENTRY_DSN"), traces_sample_rate=0.1)
+# NOT: sentry_sdk.init() burada çağrılmaz — create_app() içindeki _init_sentry() çağırır.
+# Modül seviyesinde init yapmak .env yüklenmeden önce çalışır ve FastApiIntegration eklemez.
 from contextlib import asynccontextmanager
 from dataclasses import asdict
 from pathlib import Path
@@ -683,13 +684,9 @@ def create_app(
     except Exception as _pay_err:
         _logger.warning("[payments] Payments router yüklenemedi: %s", _pay_err)
 
-    # ── Billing Router (Task 3) ──────────────────────────────────────────
-    try:
-        from backend.api.billing_router import router as billing_router
-        app.include_router(billing_router, prefix="/api/billing", tags=["billing"])
-        _logger.info("[billing] Billing router yüklendi → /api/billing/*")
-    except Exception as _bill_err:
-        _logger.warning("[billing] Billing router yüklenemedi: %s", _bill_err)
+    # ── Billing Router (devre dışı — payments_router tek yetkili Stripe handler) ──
+    # billing_router SQLite idempotency kullanıyordu; payments_router MySQL kullanıyor.
+    # İki router aynı Stripe event'larını işleyemez; billing_router kaldırıldı.
 
     # ── Admin Router ──────────────────────────────────────────────────────
     try:
