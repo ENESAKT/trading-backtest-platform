@@ -12,13 +12,13 @@ export function renderRegisterPage(container: HTMLElement): void {
 <div class="auth-page d-flex align-items-center justify-content-center min-vh-100">
   <div class="auth-card card shadow-lg p-4" style="width:100%;max-width:440px">
     <div class="auth-card-top">
-      <a class="auth-exit-link" href="/app">← Terminale dön</a>
+      <a class="auth-exit-link" href="/">← ${i18n.t('NAV_HOME')}</a>
       <button class="lang-switch" type="button" id="auth-lang-switch" aria-label="Change language">${nextLang.toUpperCase()}</button>
     </div>
 
     <div class="text-center mb-4">
-      <div class="auth-logo mb-2">
-        <span class="logo-mark">P</span><strong>PiyasaPilot</strong>
+      <div class="auth-logo mb-2" role="img" aria-label="PiyasaPilot">
+        <span class="logo-mark" aria-hidden="true">P</span><strong>PiyasaPilot</strong>
       </div>
       <h5 class="mb-0">${i18n.t('AUTH_REGISTER_TITLE')}</h5>
       <small class="text-muted">${i18n.t('AUTH_CARD_NOT_REQUIRED')}</small>
@@ -63,7 +63,7 @@ export function renderRegisterPage(container: HTMLElement): void {
             autocomplete="new-password"
             required
           />
-          <button class="btn btn-outline-secondary" type="button" id="toggle-pw1" tabindex="-1">👁</button>
+          <button class="btn btn-outline-secondary" type="button" id="toggle-pw1" aria-label="${i18n.t('AUTH_TOGGLE_PASSWORD')}">👁</button>
         </div>
         <div id="pw-strength" class="mt-1 small"></div>
       </div>
@@ -79,7 +79,7 @@ export function renderRegisterPage(container: HTMLElement): void {
             autocomplete="new-password"
             required
           />
-          <button class="btn btn-outline-secondary" type="button" id="toggle-pw2" tabindex="-1">👁</button>
+          <button class="btn btn-outline-secondary" type="button" id="toggle-pw2" aria-label="${i18n.t('AUTH_TOGGLE_PASSWORD')}">👁</button>
         </div>
       </div>
 

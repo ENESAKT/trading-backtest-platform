@@ -6,7 +6,8 @@ import { pageShell, showInlineMessage } from './pageUtils.js';
 const plans = [
   { slug: 'free', name: 'Ücretsiz', monthly: '$0', yearly: '$0', cta: 'Ücretsiz Başla', features: ['Terminal', '5 backtest/gün', 'BIST30 mali analiz', '1 paper hesap'] },
   { slug: 'pro', name: 'Pro', monthly: '$19.99/ay', yearly: '$199.99/yıl', cta: "Pro'ya Geç", features: ['50 backtest/gün', 'Backtest Pro', 'Scanner', 'Telegram Bot', 'BIST100 mali analiz'] },
-  { slug: 'ultra', name: 'Ultra', monthly: '$49.99/ay', yearly: '$499.99/yıl', cta: 'Ultra Ol', features: ['Sınırsız backtest', 'Canlı veri', 'API erişimi', 'Tüm mali analiz', 'Sınırsız watchlist'] },
+  // P0.4 FIX: "Canlı veri" yerine güvenli dil — BIST/VİOP lisansı tamamlanana kadar
+  { slug: 'ultra', name: 'Ultra', monthly: '$49.99/ay', yearly: '$499.99/yıl', cta: 'Ultra Ol', features: ['Sınırsız backtest', 'Öncelikli veri akışı¹', 'API erişimi', 'Tüm mali analiz', 'Sınırsız watchlist'] },
 ];
 
 export function renderPricingPage(container: HTMLElement): void {

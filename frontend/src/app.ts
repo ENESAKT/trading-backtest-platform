@@ -100,6 +100,15 @@ const [
 
 await auth.init();
 
+// P0.2 FIX: Misafir kullanıcılar terminale giremez.
+// Giriş yapılmamışsa login sayfasına yönlendir.
+if (!auth.user) {
+  const next = encodeURIComponent(window.location.pathname + window.location.search);
+  window.location.href = `/login?next=${next}`;
+  // Sayfanın geri kalanının çalışmasını durdur (yönlendirme async'te gecikmeli)
+  throw new Error('auth_redirect');
+}
+
 function mountUserMenu(): void {
   const guestEl   = document.getElementById('user-menu-guest') as HTMLElement;
   const loggedEl  = document.getElementById('user-menu-loggedin') as HTMLElement;
@@ -550,8 +559,15 @@ tabBtns.forEach(btn => {
   btn.addEventListener('click', () => showTab(btn.dataset['tab']!));
 });
 
-const savedLastTab = localStorage.getItem(LS_LAST_TAB);
-const initialTab: AppTab = isAppTab(savedLastTab) ? savedLastTab : 'chart';
+// P0.1 FIX: URL parametresi localStorage'dan ÖNCE okunmalı.
+// Yoksa showTab → replaceState URL'yi güncelliyor, ardından applyUrlParams
+// artık orijinal ?tab= değerini göremez.
+const _bootUrlParams = new URLSearchParams(window.location.search);
+const _bootUrlTab    = _bootUrlParams.get('tab');
+const savedLastTab   = localStorage.getItem(LS_LAST_TAB);
+const initialTab: AppTab = (_bootUrlTab && isAppTab(_bootUrlTab))
+  ? _bootUrlTab
+  : (isAppTab(savedLastTab) ? savedLastTab : 'chart');
 showTab(initialTab, false);
 
 // ─── Keyboard shortcuts (1–7 = tabs, F = fullscreen, G = cycle layout, ? = help) ──────
@@ -586,14 +602,10 @@ document.addEventListener('keydown', (e) => {
 });
 
 // ─── URL deep-link boot ───────────────────────────────────────────────────────
-// Apply ?symbol=... and ?tab=... on initial load (after all components are ready)
+// Tab already applied above from URL params; here only symbol is re-applied.
 (function applyUrlParams(): void {
   const params = new URLSearchParams(window.location.search);
-  const tabParam = params.get('tab');
   const symParam = params.get('symbol');
-  if (tabParam && isAppTab(tabParam)) {
-    showTab(tabParam, false);
-  }
   if (symParam) {
     const info = dataEngine.getSymbolInfo(symParam) || {
       symbol: symParam, name: symParam, assetType: 'equity', group: 'BIST', currency: 'TRY',

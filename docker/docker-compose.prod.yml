@@ -59,7 +59,21 @@ services:
     environment:
       - APP_ENV=production
       - STRICT_ENV_VALIDATION=1
-      # MYSQL_HOST, MYSQL_PASSWORD, JWT_SECRET, STRIPE_* ve diğerleri .env'den gelir
+      # Kritik değişkenler .env'den okunur; burada açık referans verilmesi
+      # docker-compose'un eksik tanımlı değişkeni açıkça uyarmasını sağlar.
+      - MYSQL_HOST=${MYSQL_HOST}           # AWS RDS endpoint
+      - MYSQL_PORT=${MYSQL_PORT:-3306}
+      - MYSQL_USER=${MYSQL_USER:-piyasapilot}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD}
+      - MYSQL_DATABASE=${MYSQL_DATABASE:-piyasapilot}
+      - REDIS_URL=${REDIS_URL}
+      - JWT_SECRET=${JWT_SECRET}
+      - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY}
+      - STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET}
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID:-}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET:-}
+      - SENTRY_DSN=${SENTRY_DSN:-}
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-}
     restart: always
     logging: *default-logging
     healthcheck:

@@ -13,13 +13,13 @@ export function renderLoginPage(container: HTMLElement): void {
 <div class="auth-page d-flex align-items-center justify-content-center min-vh-100">
   <div class="auth-card card shadow-lg p-4" style="width:100%;max-width:440px">
     <div class="auth-card-top">
-      <a class="auth-exit-link" href="/app">${i18n.t('AUTH_BACK_TO_TERMINAL')}</a>
+      <a class="auth-exit-link" href="/">← ${i18n.t('NAV_HOME')}</a>
       <button class="lang-switch" type="button" id="auth-lang-switch" aria-label="Change language">${nextLang.toUpperCase()}</button>
     </div>
 
     <div class="text-center mb-4">
-      <div class="auth-logo mb-2">
-        <span class="logo-mark">P</span><strong>PiyasaPilot</strong>
+      <div class="auth-logo mb-2" role="img" aria-label="PiyasaPilot">
+        <span class="logo-mark" aria-hidden="true">P</span><strong>PiyasaPilot</strong>
       </div>
       <h5 class="mb-0">${i18n.t('AUTH_LOGIN_TITLE')}</h5>
     </div>
@@ -57,7 +57,6 @@ export function renderLoginPage(container: HTMLElement): void {
             class="btn btn-outline-secondary"
             type="button"
             id="toggle-password"
-            tabindex="-1"
             aria-label="${i18n.t('AUTH_TOGGLE_PASSWORD')}"
           >👁</button>
         </div>
