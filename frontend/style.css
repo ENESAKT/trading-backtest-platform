@@ -4339,3 +4339,15 @@ kbd {
     height: 36px;
   }
 }
+
+/* ─── Public auth scroll fix ─────────────────────────────────────────────── */
+html[data-route="public"] #auth-root {
+  height: 100vh;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+html[data-route="public"] #auth-root .auth-split {
+  min-height: 100%;
+}
