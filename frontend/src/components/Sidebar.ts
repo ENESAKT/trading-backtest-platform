@@ -9,6 +9,7 @@ import { planGate } from '../auth/PlanGate.js';
 const LS_LAST_SYMBOL = 'piyasapilot_last_symbol';
 const LS_SIDEBAR_COLLAPSED = 'piyasapilot_sidebar_collapsed';
 const LS_FAVORITES = 'piyasapilot_favorites';
+const FAVORITES_GROUP_LABEL = 'Favoriler';
 const DEFAULT_FAVORITES = ['VAKBN.IS', 'AKBNK.IS', 'ASELS.IS', 'ARCLK.IS', 'THYAO.IS'];
 const LAZY_BATCH_SIZE = 15; // Her lazy-load batch'inde gösterilecek sembol sayısı
 
@@ -79,6 +80,14 @@ export class Sidebar {
     localStorage.setItem(LS_FAVORITES, JSON.stringify(Array.from(this.favorites)));
   }
 
+  private isSymbolAllowed(symbol: SymbolInfo): boolean {
+    return planGate.isGroupAllowed(symbol.group);
+  }
+
+  private filterAllowedSymbols(symbols: SymbolInfo[]): SymbolInfo[] {
+    return symbols.filter(s => this.isSymbolAllowed(s));
+  }
+
   private toggleFavorite(symbol: string, e: Event): void {
     e.stopPropagation();
     if (this.favorites.has(symbol)) {
@@ -113,14 +122,15 @@ export class Sidebar {
   getFavoriteSymbols(): SymbolInfo[] {
     return Array.from(this.favorites)
       .map(sym => ALL_SYMBOLS.find(s => s.symbol === sym))
-      .filter((s): s is SymbolInfo => Boolean(s));
+      .filter((s): s is SymbolInfo => Boolean(s))
+      .filter(s => this.isSymbolAllowed(s));
   }
 
   getStartupSymbol(): SymbolInfo {
     const last = localStorage.getItem(LS_LAST_SYMBOL);
     if (last) {
       const info = ALL_SYMBOLS.find(s => s.symbol === last);
-      if (info) return info;
+      if (info && this.isSymbolAllowed(info)) return info;
     }
     return this.getFavoriteSymbols()[0] ?? BIST30.find(s => s.symbol === 'VAKBN.IS') ?? BIST30[0]!;
   }
@@ -174,8 +184,9 @@ export class Sidebar {
         const info = ALL_SYMBOLS.find(s => s.symbol === sym);
         if (info) favSymbols.push(info);
       });
-      if (favSymbols.length > 0) {
-        this.renderGroup({ label: 'Favoriler', flag: '<svg class="icon-svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>', symbols: favSymbols });
+      const visibleFavSymbols = this.filterAllowedSymbols(favSymbols);
+      if (visibleFavSymbols.length > 0) {
+        this.renderGroup({ label: FAVORITES_GROUP_LABEL, flag: '<svg class="icon-svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>', symbols: visibleFavSymbols });
       }
     }
 
@@ -184,7 +195,8 @@ export class Sidebar {
 
   private renderGroup(g: GroupDef): void {
     const isCollapsed = this.collapsedGroups.has(g.label);
-    const isLocked = !planGate.isGroupAllowed(g.label);
+    const isLocked = g.label === FAVORITES_GROUP_LABEL ? g.symbols.length === 0 : !planGate.isGroupAllowed(g.label);
+    const visibleSymbols = isLocked ? [] : g.symbols;
 
     const groupEl = document.createElement('div');
     groupEl.className = 'sym-group';
@@ -219,7 +231,7 @@ export class Sidebar {
     // Kilitli gruplar her zaman kapalı gösterilir
     itemsEl.style.display = (isLocked || isCollapsed) ? 'none' : '';
 
-    g.symbols.forEach((s, i) => {
+    visibleSymbols.forEach((s, i) => {
       if (i < LAZY_BATCH_SIZE) {
         const item = this.createSymbolItem(s);
         itemsEl.appendChild(item);
@@ -227,7 +239,7 @@ export class Sidebar {
     });
 
     // Lazy-load: kalan sembolleri IntersectionObserver ile yükle
-    if (g.symbols.length > LAZY_BATCH_SIZE) {
+    if (visibleSymbols.length > LAZY_BATCH_SIZE) {
       const sentinel = document.createElement('div');
       sentinel.className = 'lazy-sentinel';
       sentinel.style.height = '1px';
@@ -236,13 +248,13 @@ export class Sidebar {
       let loaded = LAZY_BATCH_SIZE;
       const observer = new IntersectionObserver((entries) => {
         if (!entries[0]?.isIntersecting) return;
-        const batch = g.symbols.slice(loaded, loaded + LAZY_BATCH_SIZE);
+        const batch = visibleSymbols.slice(loaded, loaded + LAZY_BATCH_SIZE);
         batch.forEach(s => {
           const item = this.createSymbolItem(s);
           itemsEl.insertBefore(item, sentinel);
         });
         loaded += batch.length;
-        if (loaded >= g.symbols.length) {
+        if (loaded >= visibleSymbols.length) {
           observer.disconnect();
           this._observers = this._observers.filter(o => o !== observer);
           sentinel.remove();
@@ -302,6 +314,14 @@ export class Sidebar {
   // ─── Selection ───────────────────────────────────────────────────────────
 
   private selectSymbol(info: SymbolInfo): void {
+    if (!this.isSymbolAllowed(info)) {
+      planGate.showPlanGate({
+        title: `${info.symbol.replace('.IS', '')} kilitli`,
+        description: 'Bu sembol grubu mevcut erişimde kapalı. Devam etmek için ücretsiz kayıt olun veya planınızı yükseltin.',
+        requiredTier: 'free',
+      });
+      return;
+    }
     this.activeSymbol = info.symbol;
     this.container.querySelectorAll('.sym-item').forEach(el => {
       el.classList.toggle('active', (el as HTMLElement).dataset['symbol'] === info.symbol);
@@ -329,7 +349,7 @@ export class Sidebar {
     const q = query.toLowerCase();
     const matched = ALL_SYMBOLS.filter(
       s => s.symbol.toLowerCase().includes(q) || s.name.toLowerCase().includes(q)
-    );
+    ).filter(s => this.isSymbolAllowed(s));
 
     this.listEl.innerHTML = '';
     if (matched.length === 0) {

@@ -9,6 +9,7 @@ import { installErrorBoundary } from './core/ErrorBoundary.js';
 import { analytics } from './core/Analytics.js';
 import { i18n } from './i18n/index.js';
 import { auth } from './auth/AuthManager.js';
+import { planGate, type Feature } from './auth/PlanGate.js';
 // Error monitoring removed
 
 i18n.init();
@@ -30,7 +31,7 @@ if ('serviceWorker' in navigator) {
 
 type PublicRenderer = (container: HTMLElement) => void | Promise<void>;
 const publicRoutes: Record<string, () => Promise<PublicRenderer>> = {
-  '/': async () => (await import('./pages/LandingPage.js')).renderLandingPage,
+  '/landing': async () => (await import('./pages/LandingPage.js')).renderLandingPage,
   '/login': async () => (await import('./auth/LoginPage.js')).renderLoginPage,
   '/register': async () => (await import('./auth/RegisterPage.js')).renderRegisterPage,
   '/pricing': async () => (await import('./pages/PricingPage.js')).renderPricingPage,
@@ -99,15 +100,6 @@ const [
 // ─── Auth init + User Menu ───────────────────────────────────────────────────
 
 await auth.init();
-
-// P0.2 FIX: Misafir kullanıcılar terminale giremez.
-// Giriş yapılmamışsa login sayfasına yönlendir.
-if (!auth.user) {
-  const next = encodeURIComponent(window.location.pathname + window.location.search);
-  window.location.href = `/login?next=${next}`;
-  // Sayfanın geri kalanının çalışmasını durdur (yönlendirme async'te gecikmeli)
-  throw new Error('auth_redirect');
-}
 
 function mountUserMenu(): void {
   const guestEl   = document.getElementById('user-menu-guest') as HTMLElement;
@@ -185,6 +177,46 @@ const LS_THEME     = 'piyasapilot_theme';
 const LS_ACCENT    = 'piyasapilot_accent';
 type AppTab = 'chart' | 'portfolio' | 'strategy' | 'screener' | 'signals' | 'education' | 'financials' | 'news';
 const TABS: AppTab[] = ['chart', 'portfolio', 'strategy', 'screener', 'signals', 'education', 'financials', 'news'];
+type RequiredTier = 'free' | 'pro' | 'ultra';
+interface TabGate {
+  feature: Feature;
+  title: string;
+  description: string;
+  requiredTier: RequiredTier;
+}
+
+const TAB_GATES: Partial<Record<AppTab, TabGate>> = {
+  portfolio: {
+    feature: 'portfolio',
+    title: 'Portföy için kayıt gerekli',
+    description: 'Sanal portföy ve işlem geçmişi için ücretsiz hesap oluşturun.',
+    requiredTier: 'free',
+  },
+  strategy: {
+    feature: 'backtest',
+    title: 'Backtest için kayıt gerekli',
+    description: 'Strateji çalıştırma ve rapor kaydetme ücretsiz hesapla açılır.',
+    requiredTier: 'free',
+  },
+  screener: {
+    feature: 'scanner',
+    title: 'Tarama Pro planla açılır',
+    description: 'Piyasa tarayıcı ve geniş sembol filtreleri için planınızı yükseltin.',
+    requiredTier: 'pro',
+  },
+  signals: {
+    feature: 'signals',
+    title: 'Sinyaller için kayıt gerekli',
+    description: 'Canlı sinyal akışı ve uyarılar ücretsiz hesapla açılır.',
+    requiredTier: 'free',
+  },
+  financials: {
+    feature: 'mali_analiz',
+    title: 'Mali analiz için kayıt gerekli',
+    description: 'Bilanço, oran ve şirket karşılaştırmaları ücretsiz hesapla açılır.',
+    requiredTier: 'free',
+  },
+};
 
 // ─── Shortcut overlay ─────────────────────────────────────────────────────────
 
@@ -272,8 +304,47 @@ const ACCENT_PRESETS: Record<string, Record<string, string>> = {
   },
 };
 
-function isAppTab(value: string | null): value is AppTab {
+function isAppTab(value: string | null | undefined): value is AppTab {
   return !!value && TABS.includes(value as AppTab);
+}
+
+function applyTabLocks(): void {
+  document.querySelectorAll<HTMLElement>('[data-tab]').forEach((btn) => {
+    const tab = btn.dataset['tab'];
+    if (!isAppTab(tab)) return;
+
+    const gate = TAB_GATES[tab];
+    const locked = Boolean(gate && !planGate.canAccess(gate.feature));
+    btn.classList.toggle('locked', locked);
+
+    if (locked && gate) {
+      btn.title = `${gate.title}: ${gate.description}`;
+      if (!btn.querySelector('.tab-lock')) {
+        btn.insertAdjacentHTML('beforeend', `
+          <span class="tab-lock" aria-hidden="true">
+            <svg class="icon-svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="11" width="18" height="10" rx="2"></rect>
+              <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+            </svg>
+          </span>
+        `);
+      }
+      return;
+    }
+
+    btn.removeAttribute('title');
+    btn.querySelector('.tab-lock')?.remove();
+  });
+}
+
+function canOpenSymbol(info: SymbolInfo): boolean {
+  if (planGate.isGroupAllowed(info.group)) return true;
+  planGate.showPlanGate({
+    title: `${info.symbol.replace('.IS', '')} kilitli`,
+    description: 'Misafir erişiminde yalnızca seçili piyasa grupları açıktır. Bu sembol için ücretsiz kayıt olun veya planınızı yükseltin.',
+    requiredTier: 'free',
+  });
+  return false;
 }
 
 function applyTheme(theme: string, accent: string): void {
@@ -428,6 +499,9 @@ if (!document.querySelector('[data-tab="news"]')) {
   }
 }
 
+applyTabLocks();
+auth.onChange(applyTabLocks);
+
 async function refreshNewsBadge(): Promise<void> {
   try {
     const res = await fetch('/api/news/unread-count');
@@ -485,6 +559,7 @@ const _signalFeed = new SignalFeed(signalsEl);
 void _signalFeed;
 
 async function openSymbol(info: SymbolInfo): Promise<void> {
+  if (!canOpenSymbol(info)) return;
   symbolTitle.textContent = `${info.name} (${info.symbol})`;
   sidebar.setActiveSymbol(info.symbol);
   multiChart.clearSignals();
@@ -519,27 +594,43 @@ async function warmFavoriteTickers(skipSymbol?: string): Promise<void> {
 
 // ─── Tab routing ──────────────────────────────────────────────────────────────
 
+let activeTab: AppTab | null = null;
+
 function showTab(tab: string, persist = true): void {
-  if (!isAppTab(tab)) tab = 'chart';
-  document.querySelectorAll<HTMLElement>('[data-tab]').forEach(btn => btn.classList.toggle('active', btn.dataset['tab'] === tab));
-  chartEl.style.display     = tab === 'chart'     ? 'flex' : 'none';
-  portfolioEl.style.display = tab === 'portfolio' ? 'flex' : 'none';
-  strategyEl.style.display  = tab === 'strategy'  ? 'flex' : 'none';
-  screenerEl.style.display  = tab === 'screener'  ? 'flex' : 'none';
-  signalsEl.style.display   = tab === 'signals'   ? 'flex' : 'none';
-  educationEl.style.display = tab === 'education' ? 'flex' : 'none';
-  financialsEl.style.display= tab === 'financials'? 'flex' : 'none';
-  newsEl.style.display      = tab === 'news'       ? 'flex' : 'none';
-  if (tab === 'financials') {
+  let nextTab: AppTab = isAppTab(tab) ? tab : 'chart';
+  const gate = TAB_GATES[nextTab];
+  if (gate && !planGate.canAccess(gate.feature)) {
+    if (persist) {
+      planGate.showPlanGate({
+        title: gate.title,
+        description: gate.description,
+        requiredTier: gate.requiredTier,
+      });
+    }
+    if (activeTab) return;
+    nextTab = 'chart';
+  }
+
+  activeTab = nextTab;
+  document.querySelectorAll<HTMLElement>('[data-tab]').forEach(btn => btn.classList.toggle('active', btn.dataset['tab'] === nextTab));
+  chartEl.style.display     = nextTab === 'chart'     ? 'flex' : 'none';
+  portfolioEl.style.display = nextTab === 'portfolio' ? 'flex' : 'none';
+  strategyEl.style.display  = nextTab === 'strategy'  ? 'flex' : 'none';
+  screenerEl.style.display  = nextTab === 'screener'  ? 'flex' : 'none';
+  signalsEl.style.display   = nextTab === 'signals'   ? 'flex' : 'none';
+  educationEl.style.display = nextTab === 'education' ? 'flex' : 'none';
+  financialsEl.style.display= nextTab === 'financials'? 'flex' : 'none';
+  newsEl.style.display      = nextTab === 'news'       ? 'flex' : 'none';
+  if (nextTab === 'financials') {
     const panel = getMaliAnalizPanel();
     const activeSym = multiChart.getActivePaneSymbol()?.symbol;
     if (activeSym) panel.loadData(activeSym);
   }
-  if (tab === 'news') getNewsPanel();
-  if (persist) localStorage.setItem(LS_LAST_TAB, tab);
+  if (nextTab === 'news') getNewsPanel();
+  if (persist) localStorage.setItem(LS_LAST_TAB, nextTab);
 
   // Trigger backtest when strategy tab becomes visible
-  if (tab === 'strategy' && multiChart.getActivePaneCandles().length > 0) {
+  if (nextTab === 'strategy' && multiChart.getActivePaneCandles().length > 0) {
     strategyPanel.setCandles(
       multiChart.getActivePaneCandles(),
       multiChart.getActivePaneSymbol().symbol,
@@ -549,7 +640,7 @@ function showTab(tab: string, persist = true): void {
 
   // URL deep-link sync
   const url = new URL(window.location.href);
-  url.searchParams.set('tab', tab);
+  url.searchParams.set('tab', nextTab);
   const sym = multiChart.getActivePaneSymbol()?.symbol;
   if (sym) url.searchParams.set('symbol', sym);
   history.replaceState(null, '', url.toString());

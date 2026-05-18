@@ -4,6 +4,7 @@ import { loadHistorical } from '../core/HistoricalLoader.js';
 import { QuoteStream, type QuoteMessage } from '../core/QuoteStream.js';
 import { ALL_SYMBOLS, DEFAULT_SYMBOL } from '../constants/symbols.js';
 import { TR } from '../constants/tr.js';
+import { planGate } from '../auth/PlanGate.js';
 
 // ─── Layout Presets ────────────────────────────────────────────────────────────
 
@@ -60,7 +61,7 @@ export class MultiChartLayout {
   constructor(container: HTMLElement) {
     this.container = container;
     this.buildDOM();
-    this.addPane(DEFAULT_SYMBOL);
+    this.addPane(this.firstAllowedSymbol(DEFAULT_SYMBOL));
     this.updateGrid();
   }
 
@@ -76,6 +77,14 @@ export class MultiChartLayout {
 
   setLayout(mode: LayoutMode): void {
     if (mode === this.layout) return;
+    if (mode !== '1x1' && !planGate.canAccess('multi_chart')) {
+      planGate.showPlanGate({
+        title: 'Çoklu grafik Pro planla açılır',
+        description: 'Misafir ve ücretsiz planda tek grafik açık kalır. Yan yana sembol izlemek için planınızı yükseltin.',
+        requiredTier: 'pro',
+      });
+      return;
+    }
     this.layout = mode;
 
     const cfg = LAYOUTS[mode];
@@ -433,6 +442,7 @@ export class MultiChartLayout {
   private groupSymbols(): [string, SymbolInfo[]][] {
     const groups = new Map<string, SymbolInfo[]>();
     for (const s of ALL_SYMBOLS) {
+      if (!this.isSymbolAllowed(s)) continue;
       if (!groups.has(s.group)) groups.set(s.group, []);
       groups.get(s.group)!.push(s);
     }
@@ -456,6 +466,10 @@ export class MultiChartLayout {
   // ─── Veri yükleme ─────────────────────────────────────────────────────
 
   private async setPaneSymbol(pane: ChartPaneState, info: SymbolInfo): Promise<void> {
+    if (!this.isSymbolAllowed(info)) {
+      this.showSymbolGate(info);
+      return;
+    }
     pane.symbol = info;
     pane.candles = [];
     pane.chartPanel.clearSignals();
@@ -605,6 +619,11 @@ export class MultiChartLayout {
       pane.chartPanel.clearCompare();
       return;
     }
+    if (!this.isSymbolAllowed(symbolInfo)) {
+      this.showSymbolGate(symbolInfo);
+      pane.chartPanel.clearCompare();
+      return;
+    }
 
     try {
       const candles = await loadHistorical(symbolInfo.symbol, pane.timeframe, { assetType: symbolInfo.assetType });
@@ -669,8 +688,25 @@ export class MultiChartLayout {
   private pickNextSymbol(): SymbolInfo {
     // Kullanılmayan ilk sembolü seç
     const used = new Set(this.panes.map(p => p.symbol.symbol));
-    const next = ALL_SYMBOLS.find(s => !used.has(s.symbol));
-    return next ?? DEFAULT_SYMBOL;
+    const next = ALL_SYMBOLS.find(s => !used.has(s.symbol) && this.isSymbolAllowed(s));
+    return next ?? this.firstAllowedSymbol(DEFAULT_SYMBOL);
+  }
+
+  private firstAllowedSymbol(preferred: SymbolInfo): SymbolInfo {
+    if (this.isSymbolAllowed(preferred)) return preferred;
+    return ALL_SYMBOLS.find(s => this.isSymbolAllowed(s)) ?? preferred;
+  }
+
+  private isSymbolAllowed(symbol: SymbolInfo): boolean {
+    return planGate.isGroupAllowed(symbol.group);
+  }
+
+  private showSymbolGate(symbol: SymbolInfo): void {
+    planGate.showPlanGate({
+      title: `${symbol.symbol.replace('.IS', '')} kilitli`,
+      description: 'Bu sembol mevcut erişimde kapalı. Devam etmek için ücretsiz kayıt olun veya planınızı yükseltin.',
+      requiredTier: 'free',
+    });
   }
 
   // ─── Cleanup ──────────────────────────────────────────────────────────
