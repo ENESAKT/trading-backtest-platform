@@ -9,7 +9,8 @@ import secrets
 import uuid
 from datetime import datetime, timedelta, timezone
 
-from jose import JWTError, jwt
+import jwt
+from jwt import InvalidTokenError as JWTError
 
 def _load_jwt_secret() -> str:
     """JWT_SECRET ortam değişkenini yükle; production'da eksikse başlatmayı durdur."""

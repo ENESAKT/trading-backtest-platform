@@ -14,10 +14,9 @@ from __future__ import annotations
 from datetime import date
 
 from fastapi import Depends, HTTPException, Request
-from jose import JWTError
 
 from .feature_gate import can_access, get_quota
-from .jwt_utils import decode_access_token
+from .jwt_utils import JWTError, decode_access_token
 from .redis_store import AuthRedisStore
 
 # ── Temel Bağımlılıklar ──────────────────────────────────────────────────────
