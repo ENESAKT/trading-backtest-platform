@@ -1,0 +1,27 @@
+{
+  "name": "piyasapilot-frontend",
+  "version": "2.0.0",
+  "description": "PiyasaPilot — Türkiye odaklı algoritmik trading terminali",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "typecheck": "tsc --noEmit",
+    "preview": "vite preview",
+    "e2e": "playwright test",
+    "e2e:ui": "playwright test --ui"
+  },
+  "dependencies": {
+    "bootstrap": "^5.3.8",
+    "chart.js": "^4.5.1",
+    "fuse.js": "^7.3.0",
+    "lightweight-charts": "^4.2.3",
+    "marked": "^18.0.2"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.59.1",
+    "@types/bootstrap": "^5.2.10",
+    "typescript": "^5.9.3",
+    "vite": "^8.0.10"
+  }
+}
