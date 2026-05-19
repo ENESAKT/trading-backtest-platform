@@ -85,6 +85,11 @@ services:
     container_name: piyasapilot_api_prod
     env_file:
       - ../.env.production
+    environment:
+      # Production web startup hafif kalmalı. Finansal tablo harvest'ı büyük
+      # MySQL insert'leri üretir; küçük EC2'lerde siteyi boğmaması için ops işi
+      # olarak elle açılmadıkça kapalı tut.
+      PIYASAPILOT_DISABLE_FINANCIAL_HARVEST: ${PIYASAPILOT_DISABLE_FINANCIAL_HARVEST:-1}
     depends_on:
       mysql:
         condition: service_healthy
@@ -106,13 +111,20 @@ services:
       - piyasapilot_prod
 
   # ─── WORKERS / INGESTOR ──────────────────────────────────────────────────
+  # FastAPI servisi gerçek zamanlı worker supervisor'ını kendi içinde çalıştırır.
+  # Bu standalone servis sadece elle cache ön-doldurma/diagnostic gerektiğinde
+  # açılmalı; varsayılan production deploy'da çift veri çekip küçük EC2'yi boğmasın.
   workers:
+    profiles:
+      - standalone-workers
     build:
       context: ../
       dockerfile: docker/Dockerfile.workers
     container_name: piyasapilot_workers_prod
     env_file:
       - ../.env.production
+    environment:
+      PIYASAPILOT_DISABLE_FINANCIAL_HARVEST: ${PIYASAPILOT_DISABLE_FINANCIAL_HARVEST:-1}
     depends_on:
       redis:
         condition: service_healthy
