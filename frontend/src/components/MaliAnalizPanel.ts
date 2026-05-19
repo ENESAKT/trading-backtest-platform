@@ -30,6 +30,8 @@ interface FinancialChartDef {
 }
 
 const API = '/api/mali-analiz';
+const ICON_CHART = '<svg class="icon-svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg>';
+const ICON_REFRESH = '<svg class="icon-svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 1-15.5 6.3L3 16"/><path d="M3 21v-5h5"/><path d="M3 12A9 9 0 0 1 18.5 5.7L21 8"/><path d="M21 3v5h-5"/></svg>';
 
 const SEVERITY_BADGE: Record<string, string> = {
   danger: 'badge-danger', warning: 'badge-warning', success: 'badge-success', info: 'badge-info',
@@ -146,7 +148,12 @@ export class MaliAnalizPanel {
       <div class="ma-root">
         <div class="ma-sidebar" id="ma-sidebar">
           <div class="ma-sidebar-search">
-            <input type="text" placeholder="Sembol ara…" id="ma-sym-search" />
+            <input type="text" placeholder="Sembol ara…" id="ma-sym-search" class="mali-search-input" />
+          </div>
+          <div class="ma-dot-legend" title="Veri durumu göstergesi">
+            <span class="ma-sym-dot dot-ok">●</span> Tam veri
+            <span class="ma-sym-dot dot-partial">●</span> Kısmi
+            <span class="ma-sym-dot dot-empty">●</span> Veri yok
           </div>
           <div class="ma-universe-list" id="ma-universe-list">
             <div class="ma-loading">Yükleniyor…</div>
@@ -156,12 +163,13 @@ export class MaliAnalizPanel {
           <div class="ma-topbar">
             <div class="ma-symbol-title" id="ma-title">
               <span class="ma-sym-code">${this.currentSymbol}</span>
+              <span class="ma-sym-fullname">BIST şirket finansalları · BIST 30/BIST 100 kapsamı · Kaynak: borsapy/İş Yatırım</span>
             </div>
             <div class="ma-topbar-actions">
               <span class="ma-status-badge" id="ma-status-badge"></span>
-              <button class="btn-sm btn-ghost" id="ma-chart-btn" title="Bu sembolü grafik panelinde aç">📈 Grafik</button>
-              <button class="btn-sm btn-primary" id="ma-refresh-btn" title="Seçili sembolü güncelle">⟳ Yenile</button>
-              <button class="btn-sm btn-ghost" id="ma-refresh-all-btn" title="Tüm BIST 30'u güncelle">⟳ BIST 30</button>
+              <button class="btn-sm btn-ghost" id="ma-chart-btn" title="Bu sembolü grafik panelinde aç">${ICON_CHART} Grafik</button>
+              <button class="btn-sm btn-primary" id="ma-refresh-btn" title="Seçili sembolü güncelle">${ICON_REFRESH} Yenile</button>
+              <button class="btn-sm btn-ghost" id="ma-refresh-all-btn" title="Tüm BIST 30'u güncelle">${ICON_REFRESH} BIST 30</button>
             </div>
           </div>
           <div class="ma-tabs" id="ma-tabs">
@@ -204,6 +212,15 @@ export class MaliAnalizPanel {
     searchInput.addEventListener('input', () => {
       this.universeQuery = searchInput.value.toLowerCase();
       this.renderUniverseList();
+    });
+    searchInput.addEventListener('keydown', (e) => {
+      if (e.key !== 'Enter') return;
+      const query = searchInput.value.trim().toUpperCase();
+      if (!query) return;
+      const match = this.universe.find(s => s.symbol.toUpperCase() === query)
+        || this.universe.find(s => s.symbol.toUpperCase().startsWith(query))
+        || this.universe.find(s => s.name.toUpperCase().includes(query));
+      this.selectSymbol(match?.symbol || query);
     });
   }
 
@@ -267,7 +284,7 @@ export class MaliAnalizPanel {
         </div>
         <div class="ma-sym-right">
           <span class="ma-sym-period">${fs.last_period || '—'}</span>
-          <button class="ma-sym-chart-btn" data-chart-sym="${s.symbol}" title="Grafikte aç">📈</button>
+          <button class="ma-sym-chart-btn" data-chart-sym="${s.symbol}" title="Grafikte aç">${ICON_CHART}</button>
         </div>
       </div>`;
     }).join('');
@@ -324,11 +341,24 @@ export class MaliAnalizPanel {
   }
 
   loadData(symbol: string): void {
-    // If universe is loaded and symbol is not a BIST stock, keep current selection
     if (this._universeLoaded && this.universe.length > 0 && !this.universe.some(s => s.symbol === symbol)) {
+      this.showUnsupportedSymbol(symbol);
       return;
     }
     this.selectSymbol(symbol);
+  }
+
+  private showUnsupportedSymbol(symbol: string): void {
+    this.currentSymbol = symbol;
+    this.titleEl.innerHTML = `<span class="ma-sym-code">${symbol}</span>
+      <span class="ma-sym-fullname">Mali analiz kapsamı dışında</span>`;
+    this.statusBadgeEl.className = 'ma-status-badge badge-empty';
+    this.statusBadgeEl.textContent = 'Kapsam dışı';
+    this.bodyEl.innerHTML = `
+      <div class="ma-empty-block">
+        Mali analiz şu anda BIST şirket finansalları için kullanılabilir. ${symbol} için bilanço/oran verisi beklenmez.
+        Sol listeden BIST 30/BIST 100 sembolü seçin veya grafikte fiyat analizine devam edin.
+      </div>`;
   }
 
   private openOnChart(symbol: string): void {
@@ -385,7 +415,10 @@ export class MaliAnalizPanel {
           fetch(`${API}/alerts?limit=30`),
         ]);
         if (this._loadSeq !== seq) return; // symbol/tab changed while fetching
-        const summary = await sResp.json();
+        const rawSummary = await sResp.json() as Record<string, unknown>;
+        const summary = (rawSummary.summary && typeof rawSummary.summary === 'object')
+          ? rawSummary.summary
+          : rawSummary;
         const alertsData = await aResp.json();
         if (this._loadSeq !== seq) return;
         cached = { summary, alerts: alertsData.alerts || [] };
@@ -397,7 +430,10 @@ export class MaliAnalizPanel {
 
       // Only show error badge if data is actually absent; successful render clears stale errors
       const fetchStatus = this.universe.find(s => s.symbol === sym)?.fetch_status;
-      const keyRatios: RatioRow[] = ((summary.key_ratios as Record<string, unknown>[]) || []).map(toRatioRow);
+      const keyRatiosSource = (summary.key_ratios as Record<string, unknown>[] | undefined)
+        ?? (summary.ratios as Record<string, unknown>[] | undefined)
+        ?? [];
+      const keyRatios: RatioRow[] = keyRatiosSource.map(toRatioRow);
       if (keyRatios.length > 0) {
         // Data loaded successfully — show green badge regardless of cached fetch_status
         this.statusBadgeEl.className = 'ma-status-badge badge-success';
@@ -407,7 +443,14 @@ export class MaliAnalizPanel {
       }
 
       this.bodyEl.innerHTML = `
+        <div class="summary-header">
+          <div class="summary-title-row">
+            <h2>${String(summary.company_name || sym)}</h2>
+            <span class="mali-symbol-badge">${sym}</span>
+          </div>
+        </div>
         ${this.renderKeyRatiosBar(keyRatios)}
+        ${this.renderSummaryWarnings((summary.warnings as unknown[]) || [])}
         ${this.renderAlertsSection((summary.alerts as Alert[]) || [], 'Bu Sembol Direktifleri')}
         ${this.renderDisclosuresTable(allAlerts)}
       `;
@@ -428,21 +471,29 @@ export class MaliAnalizPanel {
       });
     } catch (e) {
       if (this._loadSeq !== seq) return;
-      this.bodyEl.innerHTML = `<div class="ma-error">Özet yüklenemedi: ${e}</div>`;
+      this.bodyEl.innerHTML = `<div class="ma-error">Özet yüklenemedi: ${this.escHtml(String(e))}</div>`;
     }
   }
 
   private renderKeyRatiosBar(ratios: RatioRow[]): string {
-    if (!ratios.length) return '<div class="ma-empty-block">Oran verisi yok — "Yenile" ile veri çekin.</div>';
+    if (!ratios.length) return '<div class="ma-empty-block">Oran verisi yok. BIST şirketleri için "Yenile" ile kaynak kontrolü yapılabilir; kripto/FX sembollerinde mali oran beklenmez.</div>';
     const cards = ratios.map(r => {
       const cls = colorClass(r.value, r.unit, r.key);
-      return `<div class="ma-kpi-card">
+      return `<div class="ma-kpi-card ratio-box">
         <div class="ma-kpi-name">${r.name}</div>
         <div class="ma-kpi-val ${cls}">${fmt(r.value, r.unit)}</div>
         <div class="ma-kpi-period">${r.period}</div>
       </div>`;
     }).join('');
     return `<div class="ma-kpi-bar">${cards}</div>`;
+  }
+
+  private renderSummaryWarnings(warnings: unknown[]): string {
+    if (!warnings.length) return '';
+    const items = warnings
+      .map(w => `<div class="warning-item">${String(w)}</div>`)
+      .join('');
+    return `<div class="warning-list">${items}</div>`;
   }
 
   private renderAlertsSection(alerts: Alert[], title: string): string {
@@ -502,7 +553,7 @@ export class MaliAnalizPanel {
       this.renderComparisonTable(data);
     } catch (e) {
       if (this._loadSeq !== seq) return;
-      this.bodyEl.innerHTML = `<div class="ma-error">Karşılaştırma yüklenemedi: ${e}</div>`;
+      this.bodyEl.innerHTML = `<div class="ma-error">Karşılaştırma yüklenemedi: ${this.escHtml(String(e))}</div>`;
     }
   }
 
@@ -552,7 +603,7 @@ export class MaliAnalizPanel {
         <td class="ma-cmp-symbol">
           <strong>${s.symbol}</strong>
           <span class="ma-cmp-name">${s.name}</span>
-          <button class="ma-cmp-chart-btn" data-chart-sym="${s.symbol}" title="Grafikte aç">📈</button>
+          <button class="ma-cmp-chart-btn" data-chart-sym="${s.symbol}" title="Grafikte aç">${ICON_CHART}</button>
         </td>
         <td class="ma-cmp-period">${s.period}</td>
         ${cells}
@@ -642,7 +693,7 @@ export class MaliAnalizPanel {
       const rows = data.rows || [];
 
       if (!rows.length) {
-        this.bodyEl.innerHTML = '<div class="ma-empty-block">Veri bulunamadı — "Yenile" ile veriyi çekin.</div>';
+        this.bodyEl.innerHTML = '<div class="ma-empty-block">Veri bulunamadı. Bu ekran BIST şirket finansalları içindir; destekli sembollerde "Yenile" ile kaynak tekrar kontrol edilir.</div>';
         return;
       }
 
@@ -681,7 +732,7 @@ export class MaliAnalizPanel {
         </div>`;
     } catch (e) {
       if (this._loadSeq !== seq) return;
-      this.bodyEl.innerHTML = `<div class="ma-error">Veri yüklenemedi: ${e}</div>`;
+      this.bodyEl.innerHTML = `<div class="ma-error">Veri yüklenemedi: ${this.escHtml(String(e))}</div>`;
     }
   }
 
@@ -705,7 +756,7 @@ export class MaliAnalizPanel {
       const periods: string[] = data.periods || [];
 
       if (!ratios.length) {
-        this.bodyEl.innerHTML = '<div class="ma-empty-block">Oran verisi yok — "Yenile" ile hesaplatın.</div>';
+        this.bodyEl.innerHTML = '<div class="ma-empty-block">Oran verisi yok. BIST şirketleri için "Yenile" ile hesaplama tekrar denenebilir; kapsam dışı sembollerde oran üretilmez.</div>';
         return;
       }
 
@@ -752,7 +803,7 @@ export class MaliAnalizPanel {
       this.bodyEl.innerHTML = html;
     } catch (e) {
       if (this._loadSeq !== seq) return;
-      this.bodyEl.innerHTML = `<div class="ma-error">Oranlar yüklenemedi: ${e}</div>`;
+      this.bodyEl.innerHTML = `<div class="ma-error">Oranlar yüklenemedi: ${this.escHtml(String(e))}</div>`;
     }
   }
 
@@ -873,7 +924,7 @@ export class MaliAnalizPanel {
 
     } catch (e) {
       if (this._loadSeq !== seq) return;
-      this.bodyEl.innerHTML = `<div class="ma-error">Grafikler yüklenemedi: ${e}</div>`;
+      this.bodyEl.innerHTML = `<div class="ma-error">Grafikler yüklenemedi: ${this.escHtml(String(e))}</div>`;
     }
   }
 
@@ -1082,7 +1133,7 @@ export class MaliAnalizPanel {
       }
     } catch (e) {
       if (this._loadSeq !== seq) return;
-      this.bodyEl.innerHTML = `<div class="ma-error">Veri yüklenemedi: ${e}</div>`;
+      this.bodyEl.innerHTML = `<div class="ma-error">Veri yüklenemedi: ${this.escHtml(String(e))}</div>`;
     }
   }
 
@@ -1129,7 +1180,7 @@ export class MaliAnalizPanel {
       this.bodyEl.innerHTML = `<div class="ma-reports-list">${rows}</div>`;
     } catch (e) {
       if (this._loadSeq !== seq) return;
-      this.bodyEl.innerHTML = `<div class="ma-error">Veri yüklenemedi: ${e}</div>`;
+      this.bodyEl.innerHTML = `<div class="ma-error">Veri yüklenemedi: ${this.escHtml(String(e))}</div>`;
     }
   }
 
@@ -1148,12 +1199,12 @@ export class MaliAnalizPanel {
     if (this.refreshing) return;
     this.refreshing = true;
     this.refreshBtnEl.disabled = true;
-    this.refreshBtnEl.textContent = '⟳ İndiriliyor…';
+    this.refreshBtnEl.innerHTML = `${ICON_REFRESH} İndiriliyor...`;
     this.invalidateSymbol(this.currentSymbol);
     await this.doRefreshSymbol(this.currentSymbol, true);
     this.refreshing = false;
     this.refreshBtnEl.disabled = false;
-    this.refreshBtnEl.textContent = '⟳ Yenile';
+    this.refreshBtnEl.innerHTML = `${ICON_REFRESH} Yenile`;
   }
 
   private async doRefreshSymbol(symbol: string, updateBadge: boolean): Promise<void> {
@@ -1183,25 +1234,73 @@ export class MaliAnalizPanel {
     }
   }
 
+  private _toast(msg: string, type: 'success' | 'error' | 'info' = 'info'): void {
+    let container = document.getElementById('toast-container');
+    if (!container) {
+      container = document.createElement('div');
+      container.id = 'toast-container';
+      document.body.appendChild(container);
+    }
+    const t = document.createElement('div');
+    t.className = `toast toast-${type}`;
+    t.textContent = msg;
+    container.appendChild(t);
+    setTimeout(() => t.remove(), 4000);
+  }
+
   private async refreshAll(): Promise<void> {
     if (this.refreshing) return;
-    if (!confirm('Tüm BIST 30 bilançoları güncelleniyor (~5-10 dk). Devam edilsin mi?')) return;
+    // Tema uyumlu onay — dialog kullan
+    const confirmed = await new Promise<boolean>(resolve => {
+      let dlg = document.getElementById('mali-confirm-dialog') as HTMLDialogElement | null;
+      if (!dlg) {
+        dlg = document.createElement('dialog');
+        dlg.id = 'mali-confirm-dialog';
+        dlg.innerHTML = `
+          <div class="confirm-dialog-body">
+            <p class="confirm-msg"></p>
+            <div class="confirm-actions">
+              <button class="btn-sm btn-secondary confirm-cancel">Vazgeç</button>
+              <button class="btn-sm btn-primary confirm-ok">Başlat</button>
+            </div>
+          </div>`;
+        document.body.appendChild(dlg);
+        dlg.querySelector('.confirm-cancel')?.addEventListener('click', () => { dlg!.close(); resolve(false); });
+      }
+      (dlg.querySelector('.confirm-msg') as HTMLElement).textContent =
+        'Tüm BIST 30 bilançoları güncelleniyor (~5-10 dk). Başlatılsın mı?';
+      const okBtn = dlg.querySelector('.confirm-ok') as HTMLElement;
+      const newOk = okBtn.cloneNode(true) as HTMLElement;
+      okBtn.parentNode!.replaceChild(newOk, okBtn);
+      newOk.addEventListener('click', () => { dlg!.close(); resolve(true); }, { once: true });
+      dlg.showModal();
+    });
+    if (!confirmed) return;
+
     this.refreshing = true;
     this.refreshAllBtnEl.disabled = true;
-    this.refreshAllBtnEl.textContent = '⟳ BIST 30 indiriliyor…';
+
+    // Progress göstergesi
+    let progress = 0;
+    const progressInterval = setInterval(() => {
+      progress = Math.min(progress + 3, 90);
+      this.refreshAllBtnEl.innerHTML = `${ICON_REFRESH} BIST 30 %${progress}`;
+    }, 2000);
+
     try {
       const resp = await fetch(`${API}/refresh`, { method: 'POST' });
       const data = await resp.json();
       this._cache.clear();
-      alert(`BIST 30 güncellendi: ${data.ok}/${data.triggered} başarılı.`);
+      this._toast(`BIST 30 güncellendi: ${data.ok}/${data.triggered} başarılı.`, 'success');
       await this.loadUniverse();
       this.loadTab();
     } catch {
-      alert('Güncelleme başarısız.');
+      this._toast('Güncelleme başarısız.', 'error');
     } finally {
+      clearInterval(progressInterval);
       this.refreshing = false;
       this.refreshAllBtnEl.disabled = false;
-      this.refreshAllBtnEl.textContent = '⟳ BIST 30';
+      this.refreshAllBtnEl.innerHTML = `${ICON_REFRESH} BIST 30`;
     }
   }
 

@@ -23,17 +23,23 @@ from __future__ import annotations
 
 import asyncio
 import datetime as dt
+import hashlib
 import itertools
 import logging
 import math
 import os
 import signal
+import sentry_sdk
+import uuid
+# NOT: sentry_sdk.init() burada çağrılmaz — create_app() içindeki _init_sentry() çağırır.
+# Modül seviyesinde init yapmak .env yüklenmeden önce çalışır ve FastApiIntegration eklemez.
 from contextlib import asynccontextmanager
 from dataclasses import asdict
 from pathlib import Path
 from typing import Any, AsyncIterator
+from urllib.parse import urlparse
 
-from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
+from fastapi import Depends, FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -50,6 +56,7 @@ except ImportError:  # pragma: no cover - dependency bootstrap fallback
     get_remote_address = None  # type: ignore[assignment]
 
 from backend.api.quote_bus import QuoteBus
+from backend.auth.dependencies import get_current_user, require_feature, require_quota, require_paper_trading
 from backend.signals.signal_bus import SignalBus
 from backend.backtest import (
     BacktestArchive,
@@ -116,11 +123,13 @@ def _cors_origins() -> list[str]:
 
 
 def _require_ws_token(ws: WebSocket) -> bool:
+    import hmac as _hmac
     api_key = os.environ.get("API_KEY", "")
     if not api_key:
         return True
     token = ws.query_params.get("token", "")
-    return token == api_key
+    # sabit-zamanlı karşılaştırma (timing attack'e karşı)
+    return _hmac.compare_digest(token, api_key)
 
 
 def _rate_limiter() -> Any:
@@ -136,8 +145,87 @@ def _limit(limiter: Any, rule: str) -> Any:
     return limiter.limit(rule)
 
 
+async def _create_mysql_pool_from_env() -> Any | None:
+    """Auth/payment metadata pool. Optional in local SQLite-only mode."""
+    if os.environ.get("PIYASAPILOT_DISABLE_AUTH_DB") == "1":
+        return None
+    try:
+        import aiomysql
+    except ImportError:
+        _logger.warning("[auth-db] aiomysql kurulu değil; auth DB devre dışı.")
+        return None
+
+    raw_url = os.environ.get("DATABASE_URL", "")
+    parsed = urlparse(raw_url) if raw_url else None
+    host = os.environ.get("MYSQL_HOST") or (parsed.hostname if parsed else None) or "localhost"
+    port = int(os.environ.get("MYSQL_PORT") or (parsed.port if parsed else 3306))
+    user = os.environ.get("MYSQL_USER") or (parsed.username if parsed else None) or "appuser"
+    password = os.environ.get("MYSQL_PASSWORD") or (parsed.password if parsed else None) or "apppass"
+    database = (
+        os.environ.get("MYSQL_DATABASE")
+        or ((parsed.path or "").lstrip("/") if parsed else "")
+        or "metadata"
+    )
+    try:
+        return await aiomysql.create_pool(
+            host=host,
+            port=port,
+            user=user,
+            password=password,
+            db=database,
+            autocommit=False,
+            minsize=1,
+            maxsize=int(os.environ.get("MYSQL_POOL_MAXSIZE", "10")),
+        )
+    except Exception as exc:  # noqa: BLE001
+        _logger.warning("[auth-db] MySQL pool kurulamadı: %s", exc)
+        return None
+
+
+async def _create_async_redis_from_env() -> Any | None:
+    """Redis is optional; used for OAuth state and login brute-force counters."""
+    if os.environ.get("PIYASAPILOT_DISABLE_REDIS") == "1":
+        return None
+    try:
+        import redis.asyncio as redis
+    except ImportError:
+        _logger.warning("[redis] redis paketi kurulu değil; Redis devre dışı.")
+        return None
+    try:
+        client = redis.from_url(
+            os.environ.get("REDIS_URL", "redis://localhost:6379/0"),
+            decode_responses=True,
+            socket_connect_timeout=0.5,
+            socket_timeout=0.5,
+        )
+        await client.ping()
+        return client
+    except Exception as exc:  # noqa: BLE001
+        _logger.warning("[redis] bağlantı kurulamadı: %s", exc)
+        return None
+
+
 def _utc_iso() -> str:
-    return dt.datetime.now(dt.UTC).replace(microsecond=0).isoformat()
+    return dt.datetime.now(dt.timezone.utc).replace(microsecond=0).isoformat()
+
+
+def _init_sentry() -> None:
+    dsn = getenv("SENTRY_DSN", "")
+    if not dsn:
+        return
+    try:
+        import sentry_sdk
+        from sentry_sdk.integrations.fastapi import FastApiIntegration
+        sentry_sdk.init(
+            dsn=dsn,
+            environment=getenv("SENTRY_ENVIRONMENT", getenv("APP_ENV", "development")),
+            integrations=[FastApiIntegration()],
+            traces_sample_rate=float(getenv("SENTRY_TRACES_SAMPLE_RATE", "0.1")),
+            send_default_pii=False,
+        )
+        _logger.info("[sentry] Sentry aktif.")
+    except Exception as exc:  # noqa: BLE001
+        _logger.warning("[sentry] Sentry başlatılamadı: %s", exc)
 
 
 def _check_optional_env() -> None:
@@ -326,6 +414,7 @@ def create_app(
     setli değilse varsayılan worker seti kurulur. ``quote_bus`` verilmezse
     yeni bir tane yaratılır ve worker'lar buna ``on_bar`` ile bağlanır.
     """
+    _init_sentry()
     injected_data_service = data_service is not None
     cache = cache or OHLCVCache()
     data_service = data_service or LiveDataService()
@@ -396,6 +485,8 @@ def create_app(
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         validate_env()
+        app.state.db_pool = await _create_mysql_pool_from_env()
+        app.state.redis = await _create_async_redis_from_env()
 
         # SIGTERM graceful shutdown hook
         loop = asyncio.get_event_loop()
@@ -506,6 +597,13 @@ def create_app(
         try:
             yield
         finally:
+            redis_client = getattr(app.state, "redis", None)
+            if redis_client is not None:
+                await redis_client.aclose()
+            db_pool = getattr(app.state, "db_pool", None)
+            if db_pool is not None:
+                db_pool.close()
+                await db_pool.wait_closed()
             await health_monitor.stop()
             news_worker_task.cancel()
             price_alert_task.cancel()
@@ -518,9 +616,36 @@ def create_app(
                 _logger.warning("[shutdown] WAL checkpoint başarısız: %s", exc)
 
     app = FastAPI(
-        title="PiyasaPilot Gateway",
-        version="2.0.0",
-        description="Read-only canlı/tarihsel piyasa veri kapısı. Emir motoru kapalı.",
+        title="PiyasaPilot API",
+        version="1.0.0",
+        description=(
+            "PiyasaPilot — Gerçek zamanlı piyasa verisi, sinyal üretimi, backtest motoru "
+            "ve paper trading simülasyonu API'si.\n\n"
+            "**Not:** Emir motoru pasiftir. Gerçek emir gönderimi desteklenmez.\n\n"
+            "## Kimlik Doğrulama\n"
+            "Korumalı endpoint'ler `access_token` HTTP-only cookie gerektirir. "
+            "`POST /api/auth/login` ile oturum açın."
+        ),
+        contact={
+            "name": "PiyasaPilot Destek",
+            "url": "https://piyasapilotu.com",
+            "email": "destek@piyasapilotu.com",
+        },
+        openapi_tags=[
+            {"name": "auth", "description": "Kimlik doğrulama — kayıt, giriş, OAuth, 2FA"},
+            {"name": "backtest", "description": "Backtest motoru — strateji çalıştırma, optimizasyon, tarama"},
+            {"name": "paper-trading", "description": "Paper trading simülasyonu — sanal portföy yönetimi"},
+            {"name": "strategy-lab", "description": "Strateji laboratuvarı — kaydetme, dışa/içe aktarma"},
+            {"name": "billing", "description": "Ödeme sistemi — Stripe checkout, portal, webhook"},
+            {"name": "payments", "description": "Ödeme yönetimi — abonelik durumu, iptal"},
+            {"name": "news", "description": "Haber akışı — KAP, RSS kaynakları"},
+            {"name": "financials", "description": "Mali analiz — bilanço, gelir tablosu, oranlar"},
+            {"name": "alerts", "description": "Fiyat uyarıları"},
+            {"name": "admin", "description": "Yönetici paneli"},
+        ],
+        docs_url="/api/docs",
+        redoc_url="/api/redoc",
+        openapi_url="/api/openapi.json",
         lifespan=lifespan,
     )
     app.state.supervisor = supervisor
@@ -546,6 +671,42 @@ def create_app(
         allow_headers=["*", "X-API-Key"],
     )
     app.add_middleware(APIKeyMiddleware)
+
+    # ── Auth Router ───────────────────────────────────────────────────────
+    try:
+        from backend.api.auth_router import router as auth_router
+        app.include_router(auth_router, prefix="/api/auth", tags=["auth"])
+        _logger.info("[auth] Auth router yüklendi → /api/auth/*")
+    except Exception as _auth_err:
+        _logger.warning("[auth] Auth router yüklenemedi: %s", _auth_err)
+
+    # ── Payments Router ───────────────────────────────────────────────────
+    try:
+        from backend.api.payments_router import router as payments_router
+        app.include_router(payments_router, prefix="/api/payments", tags=["payments"])
+        _logger.info("[payments] Payments router yüklendi → /api/payments/*")
+    except Exception as _pay_err:
+        _logger.warning("[payments] Payments router yüklenemedi: %s", _pay_err)
+
+    # ── Billing Router (devre dışı — payments_router tek yetkili Stripe handler) ──
+    # billing_router SQLite idempotency kullanıyordu; payments_router MySQL kullanıyor.
+    # İki router aynı Stripe event'larını işleyemez; billing_router kaldırıldı.
+
+    # ── Admin Router ──────────────────────────────────────────────────────
+    try:
+        from backend.api.admin_router import router as admin_router
+        app.include_router(admin_router, prefix="/api/admin", tags=["admin"])
+        _logger.info("[admin] Admin router yüklendi → /api/admin/*")
+    except Exception as _admin_err:
+        _logger.warning("[admin] Admin router yüklenemedi: %s", _admin_err)
+
+    # ── Growth Router ─────────────────────────────────────────────────────
+    try:
+        from backend.api.growth_router import router as growth_router
+        app.include_router(growth_router, prefix="/api", tags=["growth"])
+        _logger.info("[growth] Growth router yüklendi → /api/waitlist, /api/backtest/share")
+    except Exception as _growth_err:
+        _logger.warning("[growth] Growth router yüklenemedi: %s", _growth_err)
 
     # ── Assistant durumu ──────────────────────────────────────────────────
     @app.get("/api/assistant/status")
@@ -655,6 +816,16 @@ def create_app(
     @app.get("/api/health")
     def health() -> dict[str, Any]:
         stats = cache.stats()
+        # SQLite pool istatistikleri
+        db_pools = {}
+        try:
+            from backend.db.pool import SQLitePool
+            for attr_name in ("paper_db",):
+                obj = getattr(app.state, attr_name, None)
+                if obj and hasattr(obj, "db") and hasattr(obj.db, "stats_dict"):
+                    db_pools[attr_name] = obj.db.stats_dict()
+        except Exception:
+            pass
         return {
             "status": "ok",
             "read_only": True,
@@ -669,6 +840,7 @@ def create_app(
             "signal_bus": signal_bus.stats(),
             "signal_generator": signal_generator.stats(),
             "paper_executor": paper_executor.stats(),
+            "db_pools": db_pools,
             "fetched_at": _utc_iso(),
             "message": "PiyasaPilot gateway çalışıyor. Emir motoru pasif.",
         }
@@ -686,17 +858,17 @@ def create_app(
         }
 
     # ── Backtest API (Sprint 3.2 + 3.3) ──────────────────────────────────
-    @app.get("/api/backtest/strategies")
-    def backtest_strategies() -> dict[str, Any]:
+    @app.get("/api/backtest/strategies", tags=["backtest"])
+    def backtest_strategies(user: dict = Depends(get_current_user)) -> dict[str, Any]:
         """Mevcut strateji blueprint'lerini listele (frontend form üretir)."""
         return {
             "strategies": list_blueprints(),
             "presets": list_strategy_presets(include_spec=True)
         }
 
-    @app.post("/api/backtest/run")
+    @app.post("/api/backtest/run", tags=["backtest"])
     @_limit(limiter, "30/minute")
-    def backtest_run(request: Request, req: BacktestRequest) -> dict[str, Any]:
+    def backtest_run(request: Request, req: BacktestRequest, user: dict = Depends(get_current_user)) -> dict[str, Any]:
         del request
         try:
             result = run_backtest(
@@ -725,7 +897,9 @@ def create_app(
                 historical_store=historical_store,
             )
             result = _sanitize_floats(result)
-            run_id = backtest_archive.save(result)
+            uid = str(user.get("id", "")) or None
+            uemail = str(user.get("email", "")) or None
+            run_id = backtest_archive.save(result, user_id=uid, user_email=uemail)
             result["run_id"] = run_id
             return result
         except UnknownStrategy as exc:
@@ -735,19 +909,96 @@ def create_app(
         except BacktestRunError as exc:
             raise HTTPException(status_code=400, detail=str(exc))
 
-    @app.get("/api/backtest/reports")
-    def backtest_reports(limit: int = 50) -> dict[str, Any]:
+    @app.post("/api/backtest/batch", tags=["backtest"])
+    @_limit(limiter, "5/minute")
+    def backtest_batch(request: Request, body: dict[str, Any], user: dict = Depends(get_current_user)) -> dict[str, Any]:
+        """Aynı stratejiyi birden fazla sembole uygula, sonuçları getiriye göre sırala.
+
+        Body: {symbols: [str], strategy_id: str, params: {}, interval: str,
+               capital: float, start_date?: str, end_date?: str, max_symbols: int}
+        """
+        del request
+        symbols: list[str] = [str(s) for s in body.get("symbols", []) if isinstance(s, str)][:50]
+        if not symbols:
+            raise HTTPException(400, detail="symbols listesi boş.")
+
+        strategy_id = str(body.get("strategy_id", "sma_cross"))
+        params      = body.get("params", {})
+        interval    = str(body.get("interval", "1d"))
+        capital     = float(body.get("capital", 100_000.0))
+        start_date  = body.get("start_date")
+        end_date    = body.get("end_date")
+        commission  = float(body.get("commission_rate", 0.001))
+        max_symbols = min(int(body.get("max_symbols", 30)), 50)
+        symbols     = symbols[:max_symbols]
+
+        results = []
+        errors  = []
+        uid = str(user.get("id", "")) or None
+        uemail = str(user.get("email", "")) or None
+
+        for sym in symbols:
+            try:
+                result = run_backtest(
+                    cache=cache,
+                    data_service=data_service,
+                    symbol=sym,
+                    interval=interval,
+                    strategy_id=strategy_id,
+                    params=params,
+                    capital=capital,
+                    lookback_bars=500,
+                    start_date=start_date,
+                    end_date=end_date,
+                    commission_rate=commission,
+                    slippage_bps=5,
+                    slippage_model="fixed_bps",
+                    slippage_tick=0.01,
+                    volume_limit_pct=0.05,
+                    volume_window=5,
+                    max_position_pct=0.20,
+                    allow_short=False,
+                    source_mode="cache_only",
+                    strategy_spec=None,
+                    csv_text=None,
+                    csv_bars=None,
+                    historical_store=historical_store,
+                )
+                result = _sanitize_floats(result)
+                run_id = backtest_archive.save(result, user_id=uid, user_email=uemail)
+                m = result.get("metrics", {})
+                results.append({
+                    "symbol":        sym,
+                    "run_id":        run_id,
+                    "total_return_pct":   m.get("total_return_pct", 0),
+                    "sharpe_ratio":       m.get("sharpe_ratio"),
+                    "max_drawdown_pct":   m.get("max_drawdown_pct"),
+                    "win_rate":           m.get("win_rate"),
+                    "total_trades":       m.get("total_trades", 0),
+                    "final_equity":       m.get("final_equity", capital),
+                    "profit_factor":      m.get("profit_factor"),
+                })
+            except (UnknownStrategy, BacktestRunError) as exc:
+                errors.append({"symbol": sym, "error": str(exc)})
+            except Exception:  # noqa: BLE001
+                errors.append({"symbol": sym, "error": "Backtest çalıştırılamadı."})
+
+        results.sort(key=lambda r: r.get("total_return_pct", 0), reverse=True)
+        return {"results": results, "errors": errors, "total": len(results), "failed": len(errors)}
+
+    @app.get("/api/backtest/reports", tags=["backtest"])
+    def backtest_reports(limit: int = 50, user: dict = Depends(get_current_user)) -> dict[str, Any]:
         return {"reports": backtest_archive.list(limit=limit)}
 
-    @app.get("/api/backtest/reports/{run_id}")
-    def backtest_report(run_id: str) -> dict[str, Any]:
+    @app.get("/api/backtest/reports/{run_id}", tags=["backtest"])
+    def backtest_report(run_id: str, user: dict = Depends(get_current_user)) -> dict[str, Any]:
         report = backtest_archive.get(run_id)
         if report is None:
             raise HTTPException(status_code=404, detail="Backtest raporu bulunamadı.")
         return report
 
-    @app.get("/api/backtest/reports/{run_id}/export")
-    def backtest_report_export(run_id: str, format: str = "json") -> Any:
+    @app.get("/api/backtest/reports/{run_id}/export", tags=["backtest"])
+    def backtest_report_export(run_id: str, format: str = "json", user: dict = Depends(get_current_user)) -> Any:
         report = backtest_archive.get(run_id)
         if report is None:
             raise HTTPException(status_code=404, detail="Backtest raporu bulunamadı.")
@@ -762,15 +1013,15 @@ def create_app(
             detail="format json, trades_csv veya equity_csv olmalı.",
         )
 
-    @app.delete("/api/backtest/reports/{run_id}")
-    def backtest_report_delete(run_id: str) -> dict[str, Any]:
+    @app.delete("/api/backtest/reports/{run_id}", tags=["backtest"])
+    def backtest_report_delete(run_id: str, user: dict = Depends(get_current_user)) -> dict[str, Any]:
         deleted = backtest_archive.delete(run_id)
         if not deleted:
             raise HTTPException(status_code=404, detail="Backtest raporu bulunamadı.")
         return {"deleted": run_id}
 
-    @app.post("/api/backtest/optimize")
-    def backtest_optimize(req: OptimizeRequest) -> dict[str, Any]:
+    @app.post("/api/backtest/optimize", tags=["backtest"])
+    def backtest_optimize(req: OptimizeRequest, user: dict = Depends(get_current_user)) -> dict[str, Any]:
         grid = req.param_grid or {}
         if not grid:
             raise HTTPException(status_code=400, detail="param_grid boş olamaz.")
@@ -882,8 +1133,8 @@ def create_app(
             "stability_report": stability_report,
         }
 
-    @app.post("/api/backtest/scan")
-    def backtest_scan(req: ScanRequest) -> dict[str, Any]:
+    @app.post("/api/backtest/scan", tags=["backtest"])
+    def backtest_scan(req: ScanRequest, user: dict = Depends(get_current_user)) -> dict[str, Any]:
         rows: list[dict[str, Any]] = []
         errors: list[dict[str, Any]] = []
         for symbol in req.symbols[: req.limit]:
@@ -927,8 +1178,8 @@ def create_app(
         return {"scanner_version": "v3", "results": rows, "errors": errors}
 
     # ── Walk-Forward Analizi ──────────────────────────────────────────────
-    @app.post("/api/backtest/walk-forward")
-    def backtest_walk_forward(req: WalkForwardRequest) -> dict[str, Any]:
+    @app.post("/api/backtest/walk-forward", tags=["backtest"])
+    def backtest_walk_forward(req: WalkForwardRequest, user: dict = Depends(get_current_user)) -> dict[str, Any]:
         """Kayan pencere walk-forward analizi.
 
         Her pencerede en iyi parametre kombinasyonu in-sample'da seçilir,
@@ -1081,8 +1332,8 @@ def create_app(
         })
 
     # ── Monte Carlo Simülasyonu ───────────────────────────────────────────
-    @app.post("/api/backtest/monte-carlo")
-    def backtest_monte_carlo(req: MonteCarloRequest) -> dict[str, Any]:
+    @app.post("/api/backtest/monte-carlo", tags=["backtest"])
+    def backtest_monte_carlo(req: MonteCarloRequest, user: dict = Depends(get_current_user)) -> dict[str, Any]:
         """Arşivlenmiş backtest PnL serisinden Monte Carlo simülasyonu.
 
         ``run_id`` ile bir backtest raporu belirtilir; trade PnL'leri
@@ -1157,8 +1408,8 @@ def create_app(
         })
 
     # ── Backtest Karşılaştırma ────────────────────────────────────────────────
-    @app.post("/api/backtest/compare")
-    def backtest_compare(body: dict[str, Any]) -> dict[str, Any]:
+    @app.post("/api/backtest/compare", tags=["backtest"])
+    def backtest_compare(body: dict[str, Any], user: dict = Depends(get_current_user)) -> dict[str, Any]:
         """İki backtest raporunu yan yana karşılaştır.
 
         Body: {run_id_a: str, run_id_b: str}
@@ -1219,8 +1470,8 @@ def create_app(
         }
 
     # ── Teknik Analiz Özet ────────────────────────────────────────────────────
-    @app.get("/api/technical/{symbol}")
-    def get_technical_analysis(symbol: str, interval: str = "1d") -> dict[str, Any]:
+    @app.get("/api/technical/{symbol}", tags=["backtest"])
+    def get_technical_analysis(symbol: str, interval: str = "1d", user: dict = Depends(get_current_user)) -> dict[str, Any]:
         """Son N bar üzerinden teknik göstergeler ve sinyal özetleri.
 
         Yanıt: {symbol, interval, indicators: {...}, signals: {...}}
@@ -1322,16 +1573,17 @@ def create_app(
             _news_store_instance = NewsStore(_NEWS_DB_PATH)
         return _news_store_instance
 
-    @app.get("/api/news")
+    @app.get("/api/news", tags=["news"])
     def get_news(
         symbol: str | None = None,
         limit: int = 30,
         fresh: bool = False,
         keyword: str | None = None,
+        user: dict = Depends(get_current_user),
     ) -> dict[str, Any]:
         """Haber listesi döndür.
 
-        ``fresh=true`` ile yfinance'den çekip cache'e yaz.
+        ``fresh=true`` ile KAP RSS/borsapy/yfinance zincirinden çekip cache'e yaz.
         ``fresh=false`` (varsayılan) ile SQLite'tan oku.
         """
         store = _get_news_store()
@@ -1342,15 +1594,18 @@ def create_app(
                 store.upsert(items)
         news = store.query(symbol=symbol, limit=limit, keyword=keyword)
         unread = store.count_unread(symbol=symbol)
-        return {"news": news, "total": len(news), "unread_24h": unread}
+        result: dict[str, Any] = {"news": news, "total": len(news), "unread_24h": unread}
+        if not news:
+            result["message"] = "Bu sembol için haber bulunamadı." if symbol else "Haber bulunamadı."
+        return result
 
-    @app.get("/api/news/unread-count")
-    def get_news_unread_count(symbol: str | None = None) -> dict[str, Any]:
+    @app.get("/api/news/unread-count", tags=["news"])
+    def get_news_unread_count(symbol: str | None = None, user: dict = Depends(get_current_user)) -> dict[str, Any]:
         store = _get_news_store()
         return {"count": store.count_unread(symbol=symbol)}
 
-    @app.post("/api/news/mark-read")
-    def mark_news_read(body: dict[str, Any]) -> dict[str, Any]:
+    @app.post("/api/news/mark-read", tags=["news"])
+    def mark_news_read(body: dict[str, Any], user: dict = Depends(get_current_user)) -> dict[str, Any]:
         """Haber id listesini okundu olarak işaretle."""
         ids = body.get("ids", [])
         if not isinstance(ids, list):
@@ -1359,20 +1614,20 @@ def create_app(
         store.mark_read([int(i) for i in ids])
         return {"marked": len(ids), "unread": store.count_unread()}
 
-    @app.get("/api/strategy-lab/strategies")
-    def strategy_lab_list() -> dict[str, Any]:
+    @app.get("/api/strategy-lab/strategies", tags=["strategy-lab"])
+    def strategy_lab_list(user: dict = Depends(get_current_user)) -> dict[str, Any]:
         records = strategy_store.list_strategies()
         return {"strategies": [_strategy_record_payload(r) for r in records]}
 
-    @app.get("/api/strategy-lab/strategies/{record_id}")
-    def strategy_lab_get(record_id: int) -> dict[str, Any]:
+    @app.get("/api/strategy-lab/strategies/{record_id}", tags=["strategy-lab"])
+    def strategy_lab_get(record_id: int, user: dict = Depends(get_current_user)) -> dict[str, Any]:
         record = strategy_store.get_strategy(record_id)
         if record is None:
             raise HTTPException(status_code=404, detail="Strateji kaydı bulunamadı.")
         return _strategy_record_payload(record)
 
-    @app.post("/api/strategy-lab/strategies")
-    def strategy_lab_save(req: StrategySaveRequest) -> dict[str, Any]:
+    @app.post("/api/strategy-lab/strategies", tags=["strategy-lab"])
+    def strategy_lab_save(req: StrategySaveRequest, user: dict = Depends(get_current_user)) -> dict[str, Any]:
         params = dict(req.params)
         if req.strategy_spec is not None:
             params["strategy_spec"] = req.strategy_spec
@@ -1389,8 +1644,8 @@ def create_app(
         )
         return _strategy_record_payload(record)
 
-    @app.post("/api/strategy-lab/pack/export")
-    def strategy_pack_export(req: StrategyPackExportRequest) -> dict[str, Any]:
+    @app.post("/api/strategy-lab/pack/export", tags=["strategy-lab"])
+    def strategy_pack_export(req: StrategyPackExportRequest, user: dict = Depends(get_current_user)) -> dict[str, Any]:
         try:
             pack = export_strategy_pack(
                 req.strategy_spec,
@@ -1404,16 +1659,16 @@ def create_app(
             raise HTTPException(status_code=400, detail=str(exc))
         return {"filename": ".piyasapilot-strategy.json", "pack": pack}
 
-    @app.post("/api/strategy-lab/pack/import")
-    def strategy_pack_import(req: StrategyPackImportRequest) -> dict[str, Any]:
+    @app.post("/api/strategy-lab/pack/import", tags=["strategy-lab"])
+    def strategy_pack_import(req: StrategyPackImportRequest, user: dict = Depends(get_current_user)) -> dict[str, Any]:
         try:
             pack = import_strategy_pack(req.pack)
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc))
         return {"pack": pack}
 
-    @app.post("/api/strategy-lab/strategies/{record_id}/paper/activate")
-    def strategy_lab_activate_paper(record_id: int, req: PaperActivateRequest) -> dict[str, Any]:
+    @app.post("/api/strategy-lab/strategies/{record_id}/paper/activate", tags=["strategy-lab"])
+    def strategy_lab_activate_paper(record_id: int, req: PaperActivateRequest, user: dict = Depends(get_current_user)) -> dict[str, Any]:
         record = strategy_store.get_strategy(record_id)
         if record is None:
             raise HTTPException(status_code=404, detail="Strateji kaydı bulunamadı.")
@@ -1427,23 +1682,30 @@ def create_app(
         )
         return {"activation": asdict(activation), "warnings": warnings}
 
-    @app.post("/api/strategy-lab/paper/{activation_id}/deactivate")
-    def strategy_lab_deactivate_paper(activation_id: int) -> dict[str, Any]:
+    @app.delete("/api/strategy-lab/strategies/{record_id}", tags=["strategy-lab"])
+    def strategy_lab_delete_strategy(record_id: int, user: dict = Depends(get_current_user)) -> dict[str, Any]:
+        ok = strategy_store.delete_strategy(record_id)
+        if not ok:
+            raise HTTPException(status_code=404, detail="Strateji kaydı bulunamadı.")
+        return {"status": "ok", "id": record_id}
+
+    @app.post("/api/strategy-lab/paper/{activation_id}/deactivate", tags=["strategy-lab"])
+    def strategy_lab_deactivate_paper(activation_id: int, user: dict = Depends(get_current_user)) -> dict[str, Any]:
         ok = strategy_store.deactivate_paper(activation_id)
         if not ok:
             raise HTTPException(status_code=404, detail="Paper aktivasyonu bulunamadı.")
         return {"status": "ok", "activation_id": activation_id, "active": False}
 
-    @app.get("/api/strategy-lab/paper")
-    def strategy_lab_paper_activations(active_only: bool = False) -> dict[str, Any]:
+    @app.get("/api/strategy-lab/paper", tags=["strategy-lab"])
+    def strategy_lab_paper_activations(active_only: bool = False, user: dict = Depends(get_current_user)) -> dict[str, Any]:
         return {
             "activations": [
                 asdict(a) for a in strategy_store.list_paper_activations(active_only=active_only)
             ]
         }
 
-    @app.post("/api/backtest/reports/{run_id}/paper/activate")
-    def backtest_report_activate_paper(run_id: str) -> dict[str, Any]:
+    @app.post("/api/backtest/reports/{run_id}/paper/activate", tags=["paper-trading"])
+    def backtest_report_activate_paper(run_id: str, user: dict = Depends(get_current_user)) -> dict[str, Any]:
         report = backtest_archive.get(run_id)
         if report is None:
             raise HTTPException(status_code=404, detail="Backtest raporu bulunamadı.")
@@ -1489,36 +1751,36 @@ def create_app(
 
     # ── Paper Trading API (Sprint 4) ─────────────────────────────────────
 
-    @app.get("/api/paper/wallets")
-    def paper_wallets() -> dict[str, Any]:
+    @app.get("/api/paper/wallets", tags=["paper-trading"])
+    def paper_wallets(user: dict = Depends(get_current_user)) -> dict[str, Any]:
         return {"wallets": paper_db.all_wallets()}
 
-    @app.get("/api/paper/trades")
-    def paper_trades(strategy_id: str = "", limit: int = 50) -> dict[str, Any]:
+    @app.get("/api/paper/trades", tags=["paper-trading"])
+    def paper_trades(strategy_id: str = "", limit: int = 50, user: dict = Depends(get_current_user)) -> dict[str, Any]:
         sid = strategy_id or None
         return {"trades": paper_db.get_trades(sid, limit=limit)}
 
-    @app.get("/api/paper/trades/export")
-    def paper_trades_export(strategy_id: str = "") -> dict[str, Any]:
+    @app.get("/api/paper/trades/export", tags=["paper-trading"])
+    def paper_trades_export(strategy_id: str = "", user: dict = Depends(get_current_user)) -> dict[str, Any]:
         sid = strategy_id or None
         return {"trades": paper_db.export_trades(sid)}
 
-    @app.get("/api/paper/equity")
-    def paper_equity(strategy_id: str, limit: int = 200) -> dict[str, Any]:
+    @app.get("/api/paper/equity", tags=["paper-trading"])
+    def paper_equity(strategy_id: str, limit: int = 200, user: dict = Depends(get_current_user)) -> dict[str, Any]:
         return {"equity_curve": paper_db.get_equity_curve(strategy_id, limit=limit)}
 
-    @app.post("/api/paper/reset/{strategy_id}")
-    def paper_reset(strategy_id: str) -> dict[str, Any]:
+    @app.post("/api/paper/reset/{strategy_id}", tags=["paper-trading"], dependencies=[Depends(require_paper_trading)])
+    def paper_reset(strategy_id: str, user: dict = Depends(get_current_user)) -> dict[str, Any]:
         paper_db.reset_wallet(strategy_id)
         return {"status": "ok", "strategy_id": strategy_id}
 
-    @app.post("/api/paper/halt/{strategy_id}")
-    def paper_halt(strategy_id: str) -> dict[str, Any]:
+    @app.post("/api/paper/halt/{strategy_id}", tags=["paper-trading"], dependencies=[Depends(require_paper_trading)])
+    def paper_halt(strategy_id: str, user: dict = Depends(get_current_user)) -> dict[str, Any]:
         paper_db.halt_strategy(strategy_id)
         return {"status": "ok", "strategy_id": strategy_id, "halted": True}
 
-    @app.post("/api/paper/resume/{strategy_id}")
-    def paper_resume(strategy_id: str) -> dict[str, Any]:
+    @app.post("/api/paper/resume/{strategy_id}", tags=["paper-trading"], dependencies=[Depends(require_paper_trading)])
+    def paper_resume(strategy_id: str, user: dict = Depends(get_current_user)) -> dict[str, Any]:
         paper_db.resume_strategy(strategy_id)
         return {"status": "ok", "strategy_id": strategy_id, "halted": False}
 
@@ -1631,6 +1893,99 @@ def create_app(
             raise HTTPException(status_code=400, detail="Sembol zorunludur.")
         return data_service.fetch_chart(symbol, limit=limit)
 
+
+    # ── Piyasa Genel Görünümü ─────────────────────────────────────────────────
+    @app.get("/api/market/overview", tags=["market"])
+    def market_overview() -> dict:
+        """BIST, döviz, kripto, emtia genel görünümü. Auth gerekmez."""
+        _GROUPS: list[tuple[str, str, str]] = [
+            # (group, symbol, label)
+            ("bist",        "XU100.IS",  "BIST 100"),
+            ("bist",        "XU030.IS",  "BIST 30"),
+            ("forex",       "USDTRY=X",  "USD/TRY"),
+            ("forex",       "EURTRY=X",  "EUR/TRY"),
+            ("commodities", "GC=F",      "Altın"),
+            ("commodities", "BZ=F",      "Brent"),
+            ("crypto",      "BTCUSDT",   "BTC/USDT"),
+            ("crypto",      "ETHUSDT",   "ETH/USDT"),
+            ("global",      "SPY",       "S&P 500 (SPY)"),
+        ]
+
+        now_ts = dt.datetime.now(dt.timezone.utc)
+        result: dict[str, Any] = {
+            "bist": [],
+            "forex": [],
+            "crypto": [],
+            "commodities": [],
+            "global": [],
+            "fetched_at": _utc_iso(),
+            "data_note": "Veriler gecikmeli olabilir — yatırım tavsiyesi değildir",
+        }
+
+        for group, symbol, label in _GROUPS:
+            bar = cache.latest_bar(symbol, "1d")
+            if bar is None:
+                entry: dict[str, Any] = {
+                    "symbol": symbol,
+                    "label": label,
+                    "last": None,
+                    "change_pct": None,
+                    "fetched_at": None,
+                    "quality": "unknown",
+                }
+            else:
+                bar_time = dt.datetime.fromtimestamp(int(bar["time"]), tz=dt.timezone.utc)
+                age_hours = (now_ts - bar_time).total_seconds() / 3600
+                quality = "stale" if age_hours > 24 else "ok"
+
+                # change_pct: son 2 bar gerekir
+                prev_bars = cache.get_window(symbol, "1d", limit=2)
+                change_pct: float | None = None
+                if prev_bars and len(prev_bars) >= 2:
+                    prev_close = float(prev_bars[-2]["close"])
+                    last_close = float(bar["close"])
+                    if prev_close > 0:
+                        change_pct = round((last_close - prev_close) / prev_close * 100, 4)
+
+                entry = {
+                    "symbol": symbol,
+                    "label": label,
+                    "last": round(float(bar["close"]), 4),
+                    "change_pct": change_pct,
+                    "fetched_at": bar_time.isoformat(),
+                    "quality": quality,
+                }
+            result[group].append(entry)
+
+        return result
+
+    # ── Sinyal Güven Durumu ───────────────────────────────────────────────────
+    @app.get("/api/signals/trust-status", tags=["signals"])
+    def signals_trust_status(user: dict = Depends(get_current_user)) -> dict:
+        """BIST veri güven engelinin kullanıcıya gösterilmesi."""
+        stats = signal_generator.stats()
+        skipped = int(stats.get("skipped_untrusted", 0))
+        emitted = int(stats.get("signals_emitted", 0))
+        last_skip = stats.get("last_skip_reason")
+        trust_blocked = skipped > 0
+        return {
+            "signals_emitted": emitted,
+            "skipped_untrusted": skipped,
+            "trust_blocked": trust_blocked,
+            "block_reason": (
+                last_skip
+                if last_skip
+                else ("Yahoo Finance BIST verisi güvenilir işaretlenmedi" if trust_blocked else None)
+            ),
+            "provider": "yahoo_finance",
+            "suggestion": (
+                "Lisanslı veri sağlayıcısı bağlanmadığında BIST sinyalleri bloklanır."
+                if trust_blocked
+                else "Sinyal akışı normal."
+            ),
+            "fetched_at": _utc_iso(),
+        }
+
     @app.get("/api/workspace")
     def workspace() -> dict[str, Any]:
         return workspace_store.load()
@@ -1656,8 +2011,8 @@ def create_app(
             );""")
         return conn
 
-    @app.get("/api/alerts/price")
-    def list_price_alerts(symbol: str | None = None, active_only: bool = True) -> dict[str, Any]:
+    @app.get("/api/alerts/price", tags=["alerts"])
+    def list_price_alerts(symbol: str | None = None, active_only: bool = True, user: dict = Depends(get_current_user)) -> dict[str, Any]:
         with _pa_connect() as conn:
             q = "SELECT * FROM price_alerts"
             args: list[Any] = []
@@ -1673,8 +2028,8 @@ def create_app(
             rows = conn.execute(q, args).fetchall()
         return {"alerts": [dict(r) for r in rows]}
 
-    @app.post("/api/alerts/price")
-    def create_price_alert(body: dict[str, Any]) -> dict[str, Any]:
+    @app.post("/api/alerts/price", tags=["alerts"])
+    def create_price_alert(body: dict[str, Any], user: dict = Depends(get_current_user)) -> dict[str, Any]:
         symbol = str(body.get("symbol", "")).upper()
         target = body.get("target")
         direction = str(body.get("direction", "above"))
@@ -1692,8 +2047,8 @@ def create_app(
             alert_id = cur.lastrowid
         return {"id": alert_id, "symbol": symbol, "target": target, "direction": direction}
 
-    @app.delete("/api/alerts/price/{alert_id}")
-    def delete_price_alert(alert_id: int) -> dict[str, Any]:
+    @app.delete("/api/alerts/price/{alert_id}", tags=["alerts"])
+    def delete_price_alert(alert_id: int, user: dict = Depends(get_current_user)) -> dict[str, Any]:
         with _pa_connect() as conn:
             conn.execute("DELETE FROM price_alerts WHERE id=?", (alert_id,))
             deleted = conn.execute("SELECT changes()").fetchone()[0]
@@ -1702,8 +2057,8 @@ def create_app(
             raise HTTPException(status_code=404, detail="Uyarı bulunamadı.")
         return {"deleted": alert_id}
 
-    @app.post("/api/paper/signal")
-    async def paper_signal(request: Request) -> dict[str, Any]:
+    @app.post("/api/paper/signal", tags=["paper-trading"], dependencies=[Depends(require_paper_trading)])
+    async def paper_signal(request: Request, user: dict = Depends(get_current_user)) -> dict[str, Any]:
         try:
             payload = await request.json()
         except Exception:
@@ -1761,10 +2116,19 @@ def create_app(
                         "cache": repo_result.source,
                         "source": repo_result.source,
                         "is_real": True,
+                        "is_live": False,
+                        "is_delayed": True,
+                        "delay_minutes": 15,
                         "status": "ok",
                         "fetched_at": _utc_iso(),
+                        "quality_status": "ok",
+                        "coverage_pct": 100.0,
+                        "provider": repo_result.source,
+                        "staleness_seconds": 0,
+                        "license_note": "Gecikmeli veri — yatırım tavsiyesi değildir",
+                        "warnings": [],
                     },
-                })
+                }, headers={"X-Data-Source": repo_result.source})
 
         if interval == "1d":
             try:
@@ -1787,7 +2151,21 @@ def create_app(
                     "untouched_high_volume": report.untouched_high_volume,
                 }
                 local_payload["metadata"]["cache"] = "local_parquet_then_write"
-                return JSONResponse(local_payload)
+                local_payload["metadata"].setdefault("source", "local_parquet")
+                local_payload["metadata"].update({
+                    "is_real": True,
+                    "is_live": False,
+                    "is_delayed": True,
+                    "delay_minutes": 15,
+                    "fetched_at": _utc_iso(),
+                    "quality_status": "ok",
+                    "coverage_pct": 100.0,
+                    "provider": local_payload["metadata"].get("source", "local_parquet"),
+                    "staleness_seconds": 0,
+                    "license_note": "Gecikmeli veri — yatırım tavsiyesi değildir",
+                    "warnings": [],
+                })
+                return JSONResponse(local_payload, headers={"X-Data-Source": "local_parquet"})
 
         # Validation backend tarafında zaten yapılıyor; burada sadece çağrı.
         provider_payload = data_service.fetch_candles(
@@ -1827,7 +2205,21 @@ def create_app(
                 "untouched_high_volume": report.untouched_high_volume,
             }
             provider_payload["metadata"]["cache"] = "miss_then_write"
-            return JSONResponse(provider_payload)
+            provider_source = provider_payload.get("metadata", {}).get("provider", "provider")
+            provider_payload["metadata"].update({
+                "is_real": True,
+                "is_live": False,
+                "is_delayed": True,
+                "delay_minutes": 15,
+                "fetched_at": _utc_iso(),
+                "quality_status": "ok",
+                "coverage_pct": 100.0,
+                "provider": str(provider_source),
+                "staleness_seconds": 0,
+                "license_note": "Gecikmeli veri — yatırım tavsiyesi değildir",
+                "warnings": [],
+            })
+            return JSONResponse(provider_payload, headers={"X-Data-Source": str(provider_source)})
 
         # Provider hata → cache'te biriken eski veriyle graceful degrade
         cached_bars = cache.get_window(
@@ -1849,12 +2241,22 @@ def create_app(
                 "metadata": {
                     "read_only": True,
                     "cache": "fallback",
+                    "source": "cache-legacy",
                     "is_real": False,
+                    "is_live": False,
+                    "is_delayed": True,
+                    "delay_minutes": 15,
                     "status": "stale",
-                    "provider_error": provider_payload.get("metadata", {}).get("error", ""),
                     "fetched_at": _utc_iso(),
+                    "quality_status": "warning",
+                    "coverage_pct": 100.0,
+                    "provider": "cache-legacy",
+                    "staleness_seconds": -1,
+                    "license_note": "Gecikmeli veri — yatırım tavsiyesi değildir",
+                    "warnings": ["Provider gecikmeli yanıt"],
+                    "provider_error": provider_payload.get("metadata", {}).get("error", ""),
                 },
-            })
+            }, headers={"X-Data-Source": "cache-legacy"})
 
         # Veri yok / lisanslı kaynak yok durumları gateway hatası değildir.
         # Payload status alanı üst katmana nedeni taşır; HTTP 200 canlılık
@@ -1866,8 +2268,8 @@ def create_app(
         return JSONResponse(provider_payload, status_code=502)
 
     # ── Mali Analiz API v2 — gerçek borsapy verisi ──────────────────────────
-    @app.get("/api/mali-analiz/universe")
-    def get_mali_analiz_universe(scope: str = "bist30") -> dict[str, Any]:
+    @app.get("/api/mali-analiz/universe", tags=["financials"])
+    def get_mali_analiz_universe(scope: str = "bist30", user: dict = Depends(get_current_user)) -> dict[str, Any]:
         """BIST 30 / BIST 100 sembol listesini fetch durumu ile döndürür."""
         target_list = BIST_100_SYMBOLS if scope == "bist100" else BIST_30_SYMBOLS
         fetch_status: dict[str, dict] = {}
@@ -1890,11 +2292,12 @@ def create_app(
         ]
         return {"scope": scope, "symbols": symbols, "source": "borsapy"}
 
-    @app.get("/api/mali-analiz/alerts")
+    @app.get("/api/mali-analiz/alerts", tags=["financials"])
     def get_mali_analiz_alerts(
         symbol: str | None = None,
         limit: int = 50,
         unread_only: bool = False,
+        user: dict = Depends(get_current_user),
     ) -> dict[str, Any]:
         """Direktif ve uyarıları döndürür."""
         if not _financial_repository_ref:
@@ -1902,17 +2305,18 @@ def create_app(
         rows = _financial_repository_ref.get_alerts(symbol=symbol, limit=limit, unread_only=unread_only)
         return {"alerts": _serialize_rows(rows), "total": len(rows)}
 
-    @app.post("/api/mali-analiz/alerts/mark-read")
-    def mark_mali_analiz_alerts_read(body: dict[str, Any]) -> dict[str, Any]:
+    @app.post("/api/mali-analiz/alerts/mark-read", tags=["financials"])
+    def mark_mali_analiz_alerts_read(body: dict[str, Any], user: dict = Depends(get_current_user)) -> dict[str, Any]:
         """Belirtilen uyarıları okundu olarak işaretle."""
         ids = [int(i) for i in body.get("ids", [])]
         if _financial_repository_ref and ids:
             _financial_repository_ref.mark_alerts_read(ids)
         return {"marked": len(ids)}
 
-    @app.post("/api/mali-analiz/refresh")
+    @app.post("/api/mali-analiz/refresh", tags=["financials"])
     async def refresh_mali_analiz_all(
         symbols: list[str] | None = None,
+        user: dict = Depends(get_current_user),
     ) -> dict[str, Any]:
         """Tüm BIST 30/100 (veya belirtilen semboller) için veri yenileme tetikler."""
         if not _financial_repository_ref:
@@ -1929,8 +2333,8 @@ def create_app(
         ok = sum(1 for v in results.values() if v == "ok")
         return {"triggered": len(targets), "ok": ok, "results": results}
 
-    @app.post("/api/mali-analiz/recompute")
-    async def recompute_mali_analiz_all() -> dict[str, Any]:
+    @app.post("/api/mali-analiz/recompute", tags=["financials"])
+    async def recompute_mali_analiz_all(user: dict = Depends(get_current_user)) -> dict[str, Any]:
         """Mevcut stored raw data'dan tüm BIST 30 için oranları yeniden hesaplar.
 
         borsapy'ye gitmez — sadece MySQL'deki ham satırları kullanır.
@@ -1947,8 +2351,8 @@ def create_app(
         ok = sum(1 for v in results.values() if v == "ok")
         return {"triggered": len(BIST_30_SYMBOLS), "ok": ok, "results": results}
 
-    @app.post("/api/mali-analiz/{symbol}/recompute")
-    async def recompute_mali_analiz_symbol(symbol: str) -> dict[str, Any]:
+    @app.post("/api/mali-analiz/{symbol}/recompute", tags=["financials"])
+    async def recompute_mali_analiz_symbol(symbol: str, user: dict = Depends(get_current_user)) -> dict[str, Any]:
         """Tek sembol için stored data'dan oran yeniden hesaplama."""
         try:
             normalized = normalize_symbol(symbol)
@@ -1962,8 +2366,8 @@ def create_app(
         )
         return {"symbol": normalized, "status": result}
 
-    @app.post("/api/mali-analiz/{symbol}/refresh")
-    async def refresh_mali_analiz_symbol(symbol: str) -> dict[str, Any]:
+    @app.post("/api/mali-analiz/{symbol}/refresh", tags=["financials"])
+    async def refresh_mali_analiz_symbol(symbol: str, user: dict = Depends(get_current_user)) -> dict[str, Any]:
         """Tek sembol için veri yenileme tetikler."""
         try:
             normalized = normalize_symbol(symbol)
@@ -1981,11 +2385,12 @@ def create_app(
         results = await _aio.get_event_loop().run_in_executor(None, _run)
         return {"symbol": normalized, "status": results.get(normalized, "unknown")}
 
-    @app.get("/api/mali-analiz/{symbol}/balance-sheet")
+    @app.get("/api/mali-analiz/{symbol}/balance-sheet", tags=["financials"])
     def get_balance_sheet(
         symbol: str,
         period_type: str = "quarterly",
         limit: int = 20,
+        user: dict = Depends(get_current_user),
     ) -> dict[str, Any]:
         """Bilanço verisi — satır × dönem pivot tablosu."""
         try:
@@ -2003,11 +2408,12 @@ def create_app(
             "source": "borsapy",
         }
 
-    @app.get("/api/mali-analiz/{symbol}/income-stmt")
+    @app.get("/api/mali-analiz/{symbol}/income-stmt", tags=["financials"])
     def get_income_stmt(
         symbol: str,
         period_type: str = "quarterly",
         limit: int = 20,
+        user: dict = Depends(get_current_user),
     ) -> dict[str, Any]:
         """Gelir tablosu."""
         try:
@@ -2025,11 +2431,12 @@ def create_app(
             "source": "borsapy",
         }
 
-    @app.get("/api/mali-analiz/{symbol}/cashflow")
+    @app.get("/api/mali-analiz/{symbol}/cashflow", tags=["financials"])
     def get_cashflow(
         symbol: str,
         period_type: str = "quarterly",
         limit: int = 20,
+        user: dict = Depends(get_current_user),
     ) -> dict[str, Any]:
         """Nakit akışı tablosu."""
         try:
@@ -2047,10 +2454,11 @@ def create_app(
             "source": "borsapy",
         }
 
-    @app.get("/api/mali-analiz/{symbol}/ratios")
+    @app.get("/api/mali-analiz/{symbol}/ratios", tags=["financials"])
     def get_symbol_ratios(
         symbol: str,
         limit: int = 12,
+        user: dict = Depends(get_current_user),
     ) -> dict[str, Any]:
         """Hesaplanmış finansal oranlar."""
         try:
@@ -2068,8 +2476,8 @@ def create_app(
             "source": "borsapy",
         }
 
-    @app.get("/api/mali-analiz/{symbol}/summary")
-    def get_symbol_summary(symbol: str) -> dict[str, Any]:
+    @app.get("/api/mali-analiz/{symbol}/summary", tags=["financials"])
+    def get_symbol_summary(symbol: str, user: dict = Depends(get_current_user)) -> dict[str, Any]:
         """Özet + direktifler."""
         try:
             normalized = normalize_symbol(symbol)
@@ -2093,8 +2501,8 @@ def create_app(
         }
 
     # Eski endpoint'ler — geriye dönük uyumluluk
-    @app.get("/api/mali-analiz/{symbol}/reports")
-    def get_mali_analiz_reports(symbol: str) -> dict[str, Any]:
+    @app.get("/api/mali-analiz/{symbol}/reports", tags=["financials"])
+    def get_mali_analiz_reports(symbol: str, user: dict = Depends(get_current_user)) -> dict[str, Any]:
         try:
             normalized = normalize_symbol(symbol)
         except ValueError as exc:
@@ -2113,10 +2521,15 @@ def create_app(
             }
             for p in periods
         ]
-        return {"symbol": normalized, "reports": reports, "source": "borsapy"}
+        return {
+            "symbol": normalized,
+            "periods": periods,
+            "reports": reports,
+            "source": "borsapy",
+        }
 
-    @app.get("/api/mali-analiz/{symbol}/events")
-    def get_mali_analiz_events(symbol: str) -> dict[str, Any]:
+    @app.get("/api/mali-analiz/{symbol}/events", tags=["financials"])
+    def get_mali_analiz_events(symbol: str, user: dict = Depends(get_current_user)) -> dict[str, Any]:
         try:
             normalized = normalize_symbol(symbol)
         except ValueError as exc:
@@ -2134,10 +2547,11 @@ def create_app(
                 deduped.append(a)
         return {"symbol": normalized, "events": deduped, "source": "borsapy"}
 
-    @app.get("/api/mali-analiz/{symbol}/metric-history")
+    @app.get("/api/mali-analiz/{symbol}/metric-history", tags=["financials"])
     def get_mali_analiz_metric_history(
         symbol: str,
         metric: str = "net_income",
+        user: dict = Depends(get_current_user),
     ) -> dict[str, Any]:
         """Metrik geçmişi kontratı; finansal seri bağlanana kadar boş döner."""
         try:
@@ -2153,10 +2567,11 @@ def create_app(
         ]
         return {"symbol": normalized, "metric": metric, "points": points, "source": "borsapy"}
 
-    @app.get("/api/mali-analiz/{symbol}/chart-data")
+    @app.get("/api/mali-analiz/{symbol}/chart-data", tags=["financials"])
     def get_mali_analiz_chart_data(
         symbol: str,
         limit: int = 16,
+        user: dict = Depends(get_current_user),
     ) -> dict[str, Any]:
         """Lightweight-charts için finansal zaman serisi döner.
 
@@ -2246,8 +2661,8 @@ def create_app(
 
         return {"symbol": normalized, "metrics": metrics, "source": "borsapy"}
 
-    @app.get("/api/mali-analiz/comparison")
-    def get_mali_analiz_comparison() -> dict[str, Any]:
+    @app.get("/api/mali-analiz/comparison", tags=["financials"])
+    def get_mali_analiz_comparison(user: dict = Depends(get_current_user)) -> dict[str, Any]:
         """BIST 30 karşılaştırma tablosu — tüm semboller için son dönem oranları.
 
         Dönüş:
@@ -2312,6 +2727,413 @@ def create_app(
             "key_meta": {k: {"label": v[0], "unit": v[1]} for k, v in KEY_META.items()},
             "symbols": symbols_out,
             "source": "borsapy",
+        }
+
+    # ── Kullanıcı plan limitleri ──────────────────────────────────────────
+    @app.get("/api/me/limits", tags=["auth"])
+    def get_user_limits(user: dict = Depends(get_current_user)) -> dict:
+        """Kullanıcının plan limitlerini döndür — frontend tek kaynaktan okur."""
+        from backend.auth.feature_gate import get_quota, can_access
+        role = user.get("role", "free")
+        return {
+            "role": role,
+            "limits": {
+                "backtest_runs_per_day": get_quota(role, "backtest_runs_per_day"),
+                "screener_runs_per_day": get_quota(role, "signals_per_day"),
+                "watchlist_symbols": get_quota(role, "max_watchlist_symbols"),
+                "news_access": can_access(role, "signals_per_day"),   # signals_per_day > 0 → haber erişimi var
+                "signals_access": can_access(role, "scanner"),
+                "paper_trading": can_access(role, "paper_trading"),
+            },
+        }
+
+    # ── Screener ──────────────────────────────────────────────────────────────
+    @app.post("/api/screener/run", tags=["screener"])
+    def screener_run(
+        req: ScreenerRunRequest,
+        user: dict = Depends(get_current_user),
+    ) -> ScreenerRunResponse:
+        """Sembol evrenini filtrele, sırala ve döndür.
+
+        Cache'ten son 1d barı çeker; RSI varsa hesaplar.
+        Erişilemeyen alanlar None olarak döner.
+        """
+        import numpy as np
+
+        run_id = str(uuid.uuid4())
+        created_at = _utc_iso()
+
+        # filters_hash
+        filters_raw = req.model_dump_json(include={"filters"}).encode()
+        filters_hash = hashlib.md5(filters_raw).hexdigest()
+
+        # Evren seçimi
+        universe_upper = req.universe.upper()
+        if universe_upper == "BIST30":
+            symbols = list(BIST_30_SYMBOLS)
+        elif universe_upper == "BIST100":
+            symbols = list(BIST_100_SYMBOLS)
+        elif universe_upper == "CRYPTO":
+            symbols = [s.replace("USDT", "") + "USDT" for s in CRYPTO_WS_SYMBOLS[:50]]
+        else:
+            # ALL: BIST100 + crypto
+            symbols = list(BIST_100_SYMBOLS) + [s.replace("USDT", "") + "USDT" for s in CRYPTO_WS_SYMBOLS[:20]]
+
+        def _calc_rsi(closes: list[float], period: int = 14) -> float | None:
+            if len(closes) < period + 1:
+                return None
+            arr = np.array(closes, dtype=float)
+            deltas = np.diff(arr)
+            gains = np.where(deltas > 0, deltas, 0.0)
+            losses = np.where(deltas < 0, -deltas, 0.0)
+            avg_gain = float(np.mean(gains[:period]))
+            avg_loss = float(np.mean(losses[:period]))
+            for i in range(period, len(deltas)):
+                avg_gain = (avg_gain * (period - 1) + gains[i]) / period
+                avg_loss = (avg_loss * (period - 1) + losses[i]) / period
+            if avg_loss == 0:
+                return 100.0
+            rs = avg_gain / avg_loss
+            return round(100.0 - 100.0 / (1.0 + rs), 2)
+
+        def _apply_filter(row_val: Any, op: str, threshold: Any) -> bool:
+            if row_val is None:
+                return False
+            try:
+                rv = float(row_val)
+                tv = float(threshold)
+            except (TypeError, ValueError):
+                # string eq/neq
+                if op == "eq":
+                    return str(row_val) == str(threshold)
+                if op == "neq":
+                    return str(row_val) != str(threshold)
+                return False
+            if op == "gt":
+                return rv > tv
+            if op == "lt":
+                return rv < tv
+            if op == "gte":
+                return rv >= tv
+            if op == "lte":
+                return rv <= tv
+            if op == "eq":
+                return rv == tv
+            if op == "neq":
+                return rv != tv
+            return True
+
+        rows: list[ScreenerRow] = []
+        for sym in symbols:
+            sym_upper = sym.upper()
+            bar_now = cache.latest_bar(sym_upper, "1d")
+            if bar_now is None:
+                last_price = None
+                volume = None
+            else:
+                last_price = round(float(bar_now["close"]), 4)
+                volume = round(float(bar_now["volume"]), 2)
+
+            # Önceki bar — change_pct için
+            prev_bars = cache.get_window(sym_upper, "1d", limit=2)
+            change_pct: float | None = None
+            if prev_bars and len(prev_bars) >= 2 and last_price is not None:
+                prev_close = float(prev_bars[-2]["close"])
+                if prev_close > 0:
+                    change_pct = round((last_price - prev_close) / prev_close * 100, 2)
+
+            # Son 252 bar — RSI + 52w high + volume_avg_20d
+            hist_bars = cache.get_window(sym_upper, "1d", limit=252)
+            rsi_14: float | None = None
+            volume_avg_20d: float | None = None
+            distance_from_52w_high: float | None = None
+            if hist_bars and len(hist_bars) >= 15:
+                closes_list = [float(b["close"]) for b in hist_bars]
+                rsi_14 = _calc_rsi(closes_list, 14)
+                # Volume avg 20d
+                volumes = [float(b["volume"]) for b in hist_bars if b.get("volume") is not None]
+                if len(volumes) >= 20:
+                    volume_avg_20d = round(float(np.mean(volumes[-20:])), 2)
+                # 52w high (son 252 bar)
+                highs = [float(b["high"]) for b in hist_bars if b.get("high") is not None]
+                if highs and last_price is not None:
+                    high_52w = max(highs)
+                    if high_52w > 0:
+                        distance_from_52w_high = round((last_price - high_52w) / high_52w * 100, 2)
+
+            name = SYMBOL_METADATA.get(sym_upper, "")
+
+            row = ScreenerRow(
+                symbol=sym_upper,
+                name=name,
+                last_price=last_price,
+                change_pct=change_pct,
+                volume=volume,
+                market_cap=None,
+                pe_ratio=None,
+                rsi_14=rsi_14,
+                volume_avg_20d=volume_avg_20d,
+                distance_from_52w_high=distance_from_52w_high,
+                sector="",
+            )
+            rows.append(row)
+
+        # Filtrele
+        if req.filters:
+            filtered: list[ScreenerRow] = []
+            for row in rows:
+                passes = True
+                for f in req.filters:
+                    col_val = getattr(row, f.column, None)
+                    if not _apply_filter(col_val, f.op, f.value):
+                        passes = False
+                        break
+                if passes:
+                    filtered.append(row)
+            rows = filtered
+
+        # Sırala
+        sort_key = req.sort_by
+        reverse = req.sort_dir.lower() == "desc"
+
+        def _sort_key(r: ScreenerRow) -> tuple[int, float]:
+            v = getattr(r, sort_key, None)
+            if v is None:
+                return (1, 0.0)
+            return (0, float(v))
+
+        rows.sort(key=_sort_key, reverse=reverse)
+
+        # Limit uygula
+        rows = rows[: req.limit]
+
+        return ScreenerRunResponse(
+            run_id=run_id,
+            created_at=created_at,
+            market=req.market,
+            universe=req.universe,
+            filters_hash=filters_hash,
+            row_count=len(rows),
+            rows=rows,
+            metadata={
+                "universe_size": len(symbols),
+                "sort_by": sort_key,
+                "sort_dir": req.sort_dir,
+                "filters_applied": len(req.filters),
+            },
+        )
+
+    # ── Technical Summary ─────────────────────────────────────────────────────
+    @app.get("/api/technical/summary", tags=["technical"])
+    def technical_summary(
+        symbol: str,
+        market: str = "BIST",
+        timeframe: str = "1d",
+        user: dict = Depends(get_current_user),
+    ) -> dict:
+        """Sembol için teknik özet: RSI, SMA, EMA, MACD, ATR + overall_rating."""
+        import numpy as np
+
+        sym_upper = symbol.strip().upper()
+        fetched_at = _utc_iso()
+
+        bars = cache.get_window(sym_upper, timeframe, limit=200)
+        if not bars:
+            raise HTTPException(
+                status_code=404,
+                detail=f"{sym_upper}/{timeframe} için cache verisi bulunamadı.",
+            )
+
+        closes_arr = np.array([float(b["close"]) for b in bars], dtype=float)
+        highs_arr  = np.array([float(b["high"])  for b in bars], dtype=float)
+        lows_arr   = np.array([float(b["low"])   for b in bars], dtype=float)
+        n = len(closes_arr)
+
+        def _round(v: float | None, d: int = 4) -> float | None:
+            if v is None or math.isnan(v):
+                return None
+            return round(v, d)
+
+        # ── RSI(14) ──
+        def _rsi(arr: np.ndarray, period: int = 14) -> float | None:
+            if len(arr) < period + 1:
+                return None
+            deltas = np.diff(arr)
+            gains  = np.where(deltas > 0, deltas, 0.0)
+            losses = np.where(deltas < 0, -deltas, 0.0)
+            avg_g = float(np.mean(gains[:period]))
+            avg_l = float(np.mean(losses[:period]))
+            for i in range(period, len(deltas)):
+                avg_g = (avg_g * (period - 1) + gains[i]) / period
+                avg_l = (avg_l * (period - 1) + losses[i]) / period
+            if avg_l == 0:
+                return 100.0
+            return round(100.0 - 100.0 / (1.0 + avg_g / avg_l), 2)
+
+        # ── SMA ──
+        def _sma(arr: np.ndarray, period: int) -> float | None:
+            if len(arr) < period:
+                return None
+            return float(np.mean(arr[-period:]))
+
+        # ── EMA ──
+        def _ema(arr: np.ndarray, period: int) -> float | None:
+            if len(arr) < period:
+                return None
+            k = 2.0 / (period + 1)
+            val = float(np.mean(arr[:period]))
+            for v in arr[period:]:
+                val = v * k + val * (1 - k)
+            return val
+
+        # ── MACD(12,26,9) ──
+        def _macd(arr: np.ndarray) -> tuple[float | None, float | None, float | None]:
+            if len(arr) < 26:
+                return None, None, None
+            k12 = 2.0 / (12 + 1)
+            k26 = 2.0 / (26 + 1)
+            ema12 = float(np.mean(arr[:12]))
+            ema26 = float(np.mean(arr[:26]))
+            for v in arr[12:]:
+                ema12 = v * k12 + ema12 * (1 - k12)
+            for v in arr[26:]:
+                ema26 = v * k26 + ema26 * (1 - k26)
+            line = ema12 - ema26
+            # MACD signal: EMA(9) of MACD line over last 26+ bars
+            macd_series: list[float] = []
+            e12 = float(np.mean(arr[:12]))
+            e26 = float(np.mean(arr[:26]))
+            for v in arr[12:]:
+                e12 = v * k12 + e12 * (1 - k12)
+            for idx in range(26, len(arr)):
+                e26 = arr[idx] * k26 + e26 * (1 - k26)
+                macd_series.append(e12 - e26)
+                e12 = arr[idx] * k12 + e12 * (1 - k12)
+            if len(macd_series) < 9:
+                return round(line, 4), None, None
+            k9 = 2.0 / (9 + 1)
+            sig = float(np.mean(macd_series[:9]))
+            for mv in macd_series[9:]:
+                sig = mv * k9 + sig * (1 - k9)
+            hist = macd_series[-1] - sig if macd_series else None
+            return round(line, 4), round(sig, 4), (round(hist, 4) if hist is not None else None)
+
+        # ── ATR(14) ──
+        def _atr(high: np.ndarray, low: np.ndarray, close: np.ndarray, period: int = 14) -> float | None:
+            if len(close) < period + 1:
+                return None
+            trs = []
+            for i in range(1, len(close)):
+                tr = max(
+                    high[i] - low[i],
+                    abs(high[i] - close[i - 1]),
+                    abs(low[i]  - close[i - 1]),
+                )
+                trs.append(tr)
+            if len(trs) < period:
+                return None
+            atr_val = float(np.mean(trs[:period]))
+            for tr in trs[period:]:
+                atr_val = (atr_val * (period - 1) + tr) / period
+            return round(atr_val, 4)
+
+        last_close = _round(float(closes_arr[-1]))
+        prev_close = float(closes_arr[-2]) if n >= 2 else None
+        change_pct: float | None = None
+        if prev_close and prev_close > 0 and last_close is not None:
+            change_pct = _round((last_close - prev_close) / prev_close * 100, 2)
+
+        rsi_val   = _rsi(closes_arr, 14)
+        sma_20    = _round(_sma(closes_arr, 20))
+        sma_50    = _round(_sma(closes_arr, 50))
+        sma_200   = _round(_sma(closes_arr, 200))
+        ema_20    = _round(_ema(closes_arr, 20))
+        macd_v, macd_sig_v, macd_hist_v = _macd(closes_arr)
+        atr_val   = _atr(highs_arr, lows_arr, closes_arr, 14)
+
+        # Signal mantığı
+        def _ma_signal(ma_val: float | None) -> str:
+            if ma_val is None or last_close is None:
+                return "neutral"
+            diff_pct = abs(last_close - ma_val) / ma_val if ma_val else 0
+            if diff_pct < 0.005:
+                return "neutral"
+            return "buy" if last_close > ma_val else "sell"
+
+        def _rsi_signal(v: float | None) -> str:
+            if v is None:
+                return "neutral"
+            if v < 30:
+                return "oversold"
+            if v > 70:
+                return "overbought"
+            return "neutral"
+
+        def _macd_signal(hist: float | None) -> str:
+            if hist is None:
+                return "neutral"
+            if hist > 0:
+                return "buy"
+            if hist < 0:
+                return "sell"
+            return "neutral"
+
+        ma_signals = {
+            "sma_20":  _ma_signal(sma_20),
+            "sma_50":  _ma_signal(sma_50),
+            "sma_200": _ma_signal(sma_200),
+            "ema_20":  _ma_signal(ema_20),
+        }
+        osc_macd_signal = _macd_signal(macd_hist_v)
+
+        # overall_rating: buy/sell sayısını karşılaştır
+        all_signals = list(ma_signals.values()) + [osc_macd_signal]
+        buy_count  = sum(1 for s in all_signals if s == "buy")
+        sell_count = sum(1 for s in all_signals if s == "sell")
+        if buy_count > sell_count:
+            overall = "buy"
+        elif sell_count > buy_count:
+            overall = "sell"
+        else:
+            overall = "neutral"
+
+        return {
+            "symbol": sym_upper,
+            "timeframe": timeframe,
+            "bars_used": n,
+            "fetched_at": fetched_at,
+            "price": {
+                "last": last_close,
+                "change_pct": change_pct,
+            },
+            "oscillators": {
+                "rsi_14": {
+                    "value": rsi_val,
+                    "signal": _rsi_signal(rsi_val),
+                },
+                "macd": {
+                    "value": macd_v,
+                    "signal_line": macd_sig_v,
+                    "histogram": macd_hist_v,
+                    "signal": osc_macd_signal,
+                },
+                "atr_14": {
+                    "value": atr_val,
+                },
+            },
+            "moving_averages": {
+                "sma_20":  {"value": sma_20,  "signal": ma_signals["sma_20"]},
+                "sma_50":  {"value": sma_50,  "signal": ma_signals["sma_50"]},
+                "sma_200": {"value": sma_200, "signal": ma_signals["sma_200"]},
+                "ema_20":  {"value": ema_20,  "signal": ma_signals["ema_20"]},
+            },
+            "overall_rating": overall,
+            "data_truth": {
+                "quality_status": "ok",
+                "provider": "cache",
+                "fetched_at": fetched_at,
+            },
+            "calculation_version": "1.0",
         }
 
     # ── Statik dosyalar (SPA / index.html) ───────────────────────────────
@@ -2517,6 +3339,49 @@ class MonteCarloRequest(BaseModel):
     n_simulations: int = Field(500, ge=100, le=2000, description="Simülasyon tekrar sayısı")
     method: str = Field("bootstrap", description="bootstrap veya permutation")
     seed: int | None = Field(None, description="Tekrarlanabilirlik için rastgele tohum")
+
+
+# ── Screener modelleri ──────────────────────────────────────────────────────
+
+class ScreenerFilter(BaseModel):
+    column: str
+    op: str  # gt, lt, gte, lte, eq, neq
+    value: float | str
+
+
+class ScreenerRunRequest(BaseModel):
+    market: str = "BIST"
+    universe: str = "BIST100"  # BIST100 | BIST30 | ALL | CRYPTO
+    filters: list[ScreenerFilter] = Field(default_factory=list)
+    columns: list[str] = Field(default_factory=list)
+    sort_by: str = "volume"
+    sort_dir: str = "desc"  # asc | desc
+    limit: int = Field(50, ge=1, le=500)
+
+
+class ScreenerRow(BaseModel):
+    symbol: str
+    name: str = ""
+    last_price: float | None = None
+    change_pct: float | None = None
+    volume: float | None = None
+    market_cap: float | None = None
+    pe_ratio: float | None = None         # Harici veri gerektiriyor; şimdilik None
+    rsi_14: float | None = None
+    volume_avg_20d: float | None = None   # Son 20 günlük ortalama hacim
+    distance_from_52w_high: float | None = None  # 52-haftalık zirveye mesafe (%)
+    sector: str = ""
+
+
+class ScreenerRunResponse(BaseModel):
+    run_id: str
+    created_at: str
+    market: str
+    universe: str
+    filters_hash: str
+    row_count: int
+    rows: list[ScreenerRow]
+    metadata: dict
 
 
 # Uvicorn entry point: `uvicorn backend.api.main:app`
