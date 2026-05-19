@@ -26,18 +26,11 @@ from starlette.responses import JSONResponse, Response
 class APIKeyMiddleware(BaseHTTPMiddleware):
     """Opsiyonel API key doğrulama katmanı."""
 
-<<<<<<< Updated upstream
-    # Key doğrulamasından her zaman muaf yollar
-    _ALWAYS_EXEMPT = frozenset({"/api/health"})
-    # Sadece geliştirme ortamında muaf (production'da kapalı)
-    _DEV_ONLY_EXEMPT = frozenset({"/docs", "/openapi.json", "/redoc"})
-=======
     # Key doğrulamasından her zaman muaf yollar.
     _ALWAYS_EXEMPT = frozenset({"/api/health"})
     # Sadece geliştirme ortamında muaf (production'da kapalı)
     _DEV_ONLY_EXEMPT = frozenset({"/docs", "/openapi.json", "/redoc"})
     _DEFAULT_PROTECTED_PATHS = ("/metrics",)
->>>>>>> Stashed changes
 
     @property
     def EXEMPT_PATHS(self) -> frozenset[str]:

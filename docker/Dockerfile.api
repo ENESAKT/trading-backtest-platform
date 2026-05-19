@@ -1,0 +1,23 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY backend/ ./backend/
+COPY quant_engine/ ./quant_engine/
+
+# data/ dizini volume ile mount edilir (prod: app_logs + data volume)
+# Fallback olarak boş dizin oluştur — yoksa uygulama başlarken hata vermez
+RUN mkdir -p /app/data /app/logs
+
+EXPOSE 8000
+
+# --proxy-headers: Nginx arkasında çalışırken X-Forwarded-Proto/For başlıklarını işle
+# --forwarded-allow-ips='*': iç network container IP'lerini güvenilir say
+CMD ["uvicorn", "backend.api.main:app", \
+     "--host", "0.0.0.0", \
+     "--port", "8000", \
+     "--proxy-headers", \
+     "--forwarded-allow-ips=*"]

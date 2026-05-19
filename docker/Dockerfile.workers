@@ -1,0 +1,14 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY backend/ ./backend/
+COPY quant_engine/ ./quant_engine/
+
+# Standalone cache-filler modu: HTTP/WS bus olmadan sadece SQLite'a yazar.
+# Gerçek zamanlı /ws/quotes + /ws/signals için worker'lar api servisi içinde
+# çalışır (PIYASAPILOT_DISABLE_WORKERS ayarlı DEĞİL ise varsayılan budur).
+CMD ["python", "-m", "backend.workers"]

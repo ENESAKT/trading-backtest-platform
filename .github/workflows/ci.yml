@@ -25,15 +25,7 @@ jobs:
 
       - name: Compile all production modules
         run: |
-          python -m py_compile \
-            backend/api/main.py \
-            backend/api/auth_router.py \
-            backend/api/payments_router.py \
-            backend/payments/stripe_service.py \
-            backend/auth/jwt_utils.py \
-            backend/env_validator.py \
-            backend/paper/executor.py \
-            backend/notifier/telegram.py
+          python -m compileall -q backend quant_engine
 
       - name: Run full unit test suite
         run: python -m pytest tests/unit/ -q --tb=short --ignore=tests/unit/test_binance_ws.py --ignore=tests/unit/test_live_feed.py
