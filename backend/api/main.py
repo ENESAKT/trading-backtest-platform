@@ -123,11 +123,13 @@ def _cors_origins() -> list[str]:
 
 
 def _require_ws_token(ws: WebSocket) -> bool:
+    import hmac as _hmac
     api_key = os.environ.get("API_KEY", "")
     if not api_key:
         return True
     token = ws.query_params.get("token", "")
-    return token == api_key
+    # sabit-zamanlı karşılaştırma (timing attack'e karşı)
+    return _hmac.compare_digest(token, api_key)
 
 
 def _rate_limiter() -> Any:

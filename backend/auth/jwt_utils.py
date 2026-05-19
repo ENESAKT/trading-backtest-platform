@@ -11,7 +11,28 @@ from datetime import datetime, timedelta, timezone
 
 from jose import JWTError, jwt
 
-SECRET_KEY: str       = os.environ.get("JWT_SECRET", "CHANGE_ME_IN_PRODUCTION_MIN_64_CHARS")
+def _load_jwt_secret() -> str:
+    """JWT_SECRET ortam değişkenini yükle; production'da eksikse başlatmayı durdur."""
+    secret = os.environ.get("JWT_SECRET", "")
+    if not secret:
+        import sys
+        app_env = os.environ.get("APP_ENV", "development")
+        if app_env == "production":
+            raise ValueError(
+                "[FATAL] JWT_SECRET ortam değişkeni tanımlı değil. "
+                "Üretim için: openssl rand -hex 64"
+            )
+        # Geliştirme ortamı: uyar ama devam et
+        import logging
+        logging.getLogger(__name__).warning(
+            "[security] JWT_SECRET set edilmemiş — varsayılan insecure key kullanılıyor. "
+            "Bu sadece yerel geliştirme için kabul edilebilir."
+        )
+        secret = "dev-only-insecure-key-do-not-use-in-production"
+    return secret
+
+
+SECRET_KEY: str       = _load_jwt_secret()
 ALGORITHM: str        = os.environ.get("JWT_ALGORITHM", "HS256")
 ACCESS_TTL: int       = int(os.environ.get("ACCESS_TOKEN_TTL_SECONDS",  "900"))     # 15 dk
 REFRESH_TTL: int      = int(os.environ.get("REFRESH_TOKEN_TTL_SECONDS", "604800"))  # 7 gün

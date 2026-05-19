@@ -54,7 +54,8 @@ export async function renderSettingsPage(container: HTMLElement): Promise<void> 
     const res = await fetch('/api/auth/sessions', { credentials: 'include' });
     const body = await res.json();
     const list = container.querySelector<HTMLElement>('#sessions-list')!;
-    list.innerHTML = (body.data?.sessions || []).map((s: Record<string, string>) => `<div>${s.user_agent || i18n.t('SETTINGS_UNKNOWN_DEVICE')}<small>${s.ip_address || ''}</small></div>`).join('') || `<p>${i18n.t('SETTINGS_NO_SESSIONS')}</p>`;
+    const escHtml = (str: string) => str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    list.innerHTML = (body.data?.sessions || []).map((s: Record<string, string>) => `<div>${escHtml(s.user_agent || i18n.t('SETTINGS_UNKNOWN_DEVICE'))}<small>${escHtml(s.ip_address || '')}</small></div>`).join('') || `<p>${i18n.t('SETTINGS_NO_SESSIONS')}</p>`;
   });
 
   container.querySelector('#billing-portal')?.addEventListener('click', async () => {

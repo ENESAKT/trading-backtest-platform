@@ -11,6 +11,9 @@ Kurallar:
 
 from __future__ import annotations
 
+import hmac
+import os
+
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
@@ -19,8 +22,17 @@ from starlette.responses import JSONResponse, Response
 class APIKeyMiddleware(BaseHTTPMiddleware):
     """Opsiyonel API key doğrulama katmanı."""
 
-    # Key doğrulamasından muaf yollar
-    EXEMPT_PATHS = frozenset({"/api/health", "/docs", "/openapi.json", "/redoc"})
+    # Key doğrulamasından her zaman muaf yollar
+    _ALWAYS_EXEMPT = frozenset({"/api/health"})
+    # Sadece geliştirme ortamında muaf (production'da kapalı)
+    _DEV_ONLY_EXEMPT = frozenset({"/docs", "/openapi.json", "/redoc"})
+
+    @property
+    def EXEMPT_PATHS(self) -> frozenset[str]:
+        is_prod = os.environ.get("APP_ENV", "development") == "production"
+        if is_prod:
+            return self._ALWAYS_EXEMPT
+        return self._ALWAYS_EXEMPT | self._DEV_ONLY_EXEMPT
 
     def _get_api_key(self) -> str:
         """API key'i her istekte ortam değişkeninden oku (test izolasyonu için)."""
@@ -47,9 +59,9 @@ class APIKeyMiddleware(BaseHTTPMiddleware):
         if not (path.startswith("/api/") or path == "/metrics"):
             return await call_next(request)
 
-        # Header kontrolü
+        # Header kontrolü — sabit-zamanlı karşılaştırma (timing attack'e karşı)
         provided_key = request.headers.get("X-API-Key", "")
-        if provided_key != api_key:
+        if not hmac.compare_digest(provided_key, api_key):
             return JSONResponse(
                 {"detail": "Geçersiz veya eksik API anahtarı."},
                 status_code=401,

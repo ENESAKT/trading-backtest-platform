@@ -471,7 +471,7 @@ export class MaliAnalizPanel {
       });
     } catch (e) {
       if (this._loadSeq !== seq) return;
-      this.bodyEl.innerHTML = `<div class="ma-error">Özet yüklenemedi: ${e}</div>`;
+      this.bodyEl.innerHTML = `<div class="ma-error">Özet yüklenemedi: ${this.escHtml(String(e))}</div>`;
     }
   }
 
@@ -553,7 +553,7 @@ export class MaliAnalizPanel {
       this.renderComparisonTable(data);
     } catch (e) {
       if (this._loadSeq !== seq) return;
-      this.bodyEl.innerHTML = `<div class="ma-error">Karşılaştırma yüklenemedi: ${e}</div>`;
+      this.bodyEl.innerHTML = `<div class="ma-error">Karşılaştırma yüklenemedi: ${this.escHtml(String(e))}</div>`;
     }
   }
 
@@ -732,7 +732,7 @@ export class MaliAnalizPanel {
         </div>`;
     } catch (e) {
       if (this._loadSeq !== seq) return;
-      this.bodyEl.innerHTML = `<div class="ma-error">Veri yüklenemedi: ${e}</div>`;
+      this.bodyEl.innerHTML = `<div class="ma-error">Veri yüklenemedi: ${this.escHtml(String(e))}</div>`;
     }
   }
 
@@ -803,7 +803,7 @@ export class MaliAnalizPanel {
       this.bodyEl.innerHTML = html;
     } catch (e) {
       if (this._loadSeq !== seq) return;
-      this.bodyEl.innerHTML = `<div class="ma-error">Oranlar yüklenemedi: ${e}</div>`;
+      this.bodyEl.innerHTML = `<div class="ma-error">Oranlar yüklenemedi: ${this.escHtml(String(e))}</div>`;
     }
   }
 
@@ -924,7 +924,7 @@ export class MaliAnalizPanel {
 
     } catch (e) {
       if (this._loadSeq !== seq) return;
-      this.bodyEl.innerHTML = `<div class="ma-error">Grafikler yüklenemedi: ${e}</div>`;
+      this.bodyEl.innerHTML = `<div class="ma-error">Grafikler yüklenemedi: ${this.escHtml(String(e))}</div>`;
     }
   }
 
@@ -1133,7 +1133,7 @@ export class MaliAnalizPanel {
       }
     } catch (e) {
       if (this._loadSeq !== seq) return;
-      this.bodyEl.innerHTML = `<div class="ma-error">Veri yüklenemedi: ${e}</div>`;
+      this.bodyEl.innerHTML = `<div class="ma-error">Veri yüklenemedi: ${this.escHtml(String(e))}</div>`;
     }
   }
 
@@ -1180,7 +1180,7 @@ export class MaliAnalizPanel {
       this.bodyEl.innerHTML = `<div class="ma-reports-list">${rows}</div>`;
     } catch (e) {
       if (this._loadSeq !== seq) return;
-      this.bodyEl.innerHTML = `<div class="ma-error">Veri yüklenemedi: ${e}</div>`;
+      this.bodyEl.innerHTML = `<div class="ma-error">Veri yüklenemedi: ${this.escHtml(String(e))}</div>`;
     }
   }
 
