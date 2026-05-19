@@ -76,7 +76,9 @@ export async function loadHistorical(
     throw new Error(json.message || 'Bağlantı Hatası: backend boş yanıt');
   }
   if (json.bars.length === 0) {
-    throw new Error('Empty OHLCV result');
+    const e = new Error('Empty OHLCV result');
+    (e as any).isNoData = true;
+    throw e;
   }
 
   const candles: OHLCV[] = json.bars.map(b => ({
@@ -128,7 +130,11 @@ export async function loadHistoricalWithMeta(
   if (json.status === 'error' || !Array.isArray(json.bars)) {
     throw new Error(json.message || 'Bağlantı Hatası: backend boş yanıt');
   }
-  if (json.bars.length === 0) throw new Error('Empty OHLCV result');
+  if (json.bars.length === 0) {
+    const e = new Error('Empty OHLCV result');
+    (e as any).isNoData = true;
+    throw e;
+  }
 
   let candles: OHLCV[] = json.bars.map(b => ({
     time: b.time, open: b.open, high: b.high,

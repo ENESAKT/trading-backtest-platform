@@ -1,166 +1,257 @@
 /**
- * RegisterPage — /register ekranı
+ * RegisterPage — /register ekranı (split-screen layout + plan seçici)
  */
 
 import { auth } from './AuthManager.js';
 import { analytics } from '../core/Analytics.js';
 import { i18n } from '../i18n/index.js';
 
-export function renderRegisterPage(container: HTMLElement): void {
-  const nextLang = i18n.current() === 'tr' ? 'en' : 'tr';
-  container.innerHTML = `
-<div class="auth-page d-flex align-items-center justify-content-center min-vh-100">
-  <div class="auth-card card shadow-lg p-4" style="width:100%;max-width:440px">
-    <div class="auth-card-top">
-      <a class="auth-exit-link" href="/">← ${i18n.t('NAV_HOME')}</a>
-      <button class="lang-switch" type="button" id="auth-lang-switch" aria-label="Change language">${nextLang.toUpperCase()}</button>
-    </div>
+const PLANS = [
+  {
+    id: 'free',
+    label: 'Ücretsiz',
+    price: '$0',
+    features: ['BIST30 + BIST100', 'Günde 10 backtest', 'Temel göstergeler'],
+    badge: '',
+  },
+  {
+    id: 'pro',
+    label: 'Pro',
+    price: '$19.99/ay',
+    features: ['Tüm semboller', 'Günde 50 backtest', 'Gelişmiş göstergeler', 'KAP haberleri'],
+    badge: 'Popüler',
+  },
+  {
+    id: 'ultra',
+    label: 'Ultra',
+    price: '$49.99/ay',
+    features: ['Sınırsız backtest', 'API erişimi', 'Öncelikli destek'],
+    badge: '',
+  },
+];
 
-    <div class="text-center mb-4">
-      <div class="auth-logo mb-2" role="img" aria-label="PiyasaPilot">
-        <span class="logo-mark" aria-hidden="true">P</span><strong>PiyasaPilot</strong>
-      </div>
-      <h5 class="mb-0">${i18n.t('AUTH_REGISTER_TITLE')}</h5>
-      <small class="text-muted">${i18n.t('AUTH_CARD_NOT_REQUIRED')}</small>
-    </div>
-
-    <div id="reg-alert" class="alert alert-danger d-none" role="alert"></div>
-    <div id="reg-success" class="alert alert-success d-none" role="alert"></div>
-
-    <form id="register-form" novalidate>
-      <div class="mb-3">
-        <label for="reg-name" class="form-label">${i18n.t('AUTH_NAME')}</label>
-        <input
-          id="reg-name"
-          type="text"
-          class="form-control"
-          placeholder="Enes Aktaş"
-          autocomplete="name"
-          required
-        />
-      </div>
-
-      <div class="mb-3">
-        <label for="reg-email" class="form-label">${i18n.t('AUTH_EMAIL')}</label>
-        <input
-          id="reg-email"
-          type="email"
-          class="form-control"
-          placeholder="ornek@mail.com"
-          autocomplete="email"
-          required
-        />
-      </div>
-
-      <div class="mb-3">
-        <label for="reg-password" class="form-label">${i18n.t('AUTH_PASSWORD')}</label>
-        <div class="input-group">
-          <input
-            id="reg-password"
-            type="password"
-            class="form-control"
-            placeholder="${i18n.t('AUTH_PASSWORD_PLACEHOLDER')}"
-            autocomplete="new-password"
-            required
-          />
-          <button class="btn btn-outline-secondary" type="button" id="toggle-pw1" aria-label="${i18n.t('AUTH_TOGGLE_PASSWORD')}">👁</button>
-        </div>
-        <div id="pw-strength" class="mt-1 small"></div>
-      </div>
-
-      <div class="mb-3">
-        <label for="reg-password2" class="form-label">${i18n.t('AUTH_CONFIRM_PASSWORD')}</label>
-        <div class="input-group">
-          <input
-            id="reg-password2"
-            type="password"
-            class="form-control"
-            placeholder="••••••••"
-            autocomplete="new-password"
-            required
-          />
-          <button class="btn btn-outline-secondary" type="button" id="toggle-pw2" aria-label="${i18n.t('AUTH_TOGGLE_PASSWORD')}">👁</button>
-        </div>
-      </div>
-
-      <div class="mb-3">
-        <div class="form-check">
-          <input id="reg-terms" class="form-check-input" type="checkbox" required />
-          <label class="form-check-label small" for="reg-terms">
-            <a href="/legal/terms" target="_blank" class="text-muted">${i18n.t('LEGAL_TERMS')}</a> · ${i18n.t('AUTH_TERMS_ACCEPT')}
-          </label>
-        </div>
-        <div class="form-check mt-1">
-          <input id="reg-privacy" class="form-check-input" type="checkbox" required />
-          <label class="form-check-label small" for="reg-privacy">
-            <a href="/legal/privacy" target="_blank" class="text-muted">${i18n.t('LEGAL_PRIVACY')}</a> · ${i18n.t('AUTH_PRIVACY_ACCEPT')}
-          </label>
-        </div>
-      </div>
-
-      <button id="reg-btn" type="submit" class="btn btn-warning w-100 fw-semibold mb-3">
-        ${i18n.t('AUTH_REGISTER_SUBMIT')}
-      </button>
-    </form>
-
-    <div class="text-center text-muted small mb-3">─── ${i18n.t('AUTH_OR')} ───</div>
-
+function renderPlanCards(selectedPlan: string): string {
+  return `
+  <div class="reg-plan-grid" role="radiogroup" aria-label="Plan seçimi">
+    ${PLANS.map(p => `
     <button
       type="button"
-      class="btn btn-outline-secondary w-100 d-flex align-items-center justify-content-center gap-2 mb-3"
-      disabled
-      title="${i18n.t('AUTH_GOOGLE_SOON_TITLE')}"
+      class="reg-plan-card${p.id === selectedPlan ? ' selected' : ''}"
+      data-plan="${p.id}"
+      aria-pressed="${p.id === selectedPlan}"
     >
-      <svg width="18" height="18" viewBox="0 0 48 48">
-        <path fill="#4285F4" d="M44.5 20H24v8.5h11.7C34.3 33.9 29.7 37 24 37c-7.2 0-13-5.8-13-13s5.8-13 13-13c3.1 0 5.9 1.1 8.1 2.9l6-6C34.6 5.1 29.6 3 24 3 12.4 3 3 12.4 3 24s9.4 21 21 21c10.9 0 20-8 20-21 0-1.4-.1-2.7-.5-4z"/>
-      </svg>
-      ${i18n.t('AUTH_GOOGLE_REGISTER_SOON')}
-    </button>
+      ${p.badge ? `<span class="reg-plan-badge">${p.badge}</span>` : ''}
+      <div class="reg-plan-name">${p.label}</div>
+      <div class="reg-plan-price">${p.price}</div>
+      <ul class="reg-plan-features">
+        ${p.features.map(f => `<li>${f}</li>`).join('')}
+      </ul>
+    </button>`).join('')}
+  </div>`;
+}
 
-    <p class="text-center small text-muted mb-0">
-      ${i18n.t('AUTH_HAS_ACCOUNT')}
-      <a href="/login" class="text-warning text-decoration-none fw-semibold">${i18n.t('AUTH_SIGNIN_LINK')}</a>
-    </p>
-    <p class="text-center small mt-2 mb-0">
-      <a href="/" class="auth-secondary-link">Ana sayfaya git</a>
-    </p>
-  </div>
+export function renderRegisterPage(container: HTMLElement): void {
+  const nextLang = i18n.current() === 'tr' ? 'en' : 'tr';
+  let selectedPlan = 'free';
+
+  container.innerHTML = `
+<div class="auth-split">
+  <!-- ── Sol: Marka Paneli ── -->
+  <aside class="auth-brand-panel">
+    <div class="auth-brand-logo">
+      <span class="logo-mark" aria-hidden="true">P</span>
+      PiyasaPilot
+    </div>
+
+    <div>
+      <h1 class="auth-brand-headline">
+        Hemen <em>ücretsiz</em><br>hesap aç
+      </h1>
+      <p class="auth-brand-tagline">
+        Kredi kartı gerekmez. 2 dakikada kurulum.
+        Ücretsiz planda bile güçlü analiz araçlarına eriş.
+      </p>
+
+      <ul class="auth-features">
+        <li><span><strong>BIST30 &amp; BIST100</strong> grafik ve göstergeleri</span></li>
+        <li><span><strong>Günde 10 backtest</strong> ücretsiz planda dahil</span></li>
+        <li><span><strong>9 strateji şablonu</strong> hazır kullanım</span></li>
+        <li><span><strong>KAP haberleri</strong> gerçek zamanlı takip</span></li>
+        <li><span>İstediğin zaman <strong>Pro/Ultra'ya yükselt</strong></span></li>
+      </ul>
+    </div>
+
+    <div class="auth-brand-trust">
+      <p class="auth-brand-footer">
+        Verilerini asla üçüncü taraflarla paylaşmıyoruz.
+      </p>
+      <p class="auth-brand-footer" style="margin-top:4px">
+        © 2025 PiyasaPilot — Yatırım tavsiyesi değildir.
+      </p>
+    </div>
+  </aside>
+
+  <!-- ── Sağ: Form Paneli ── -->
+  <main class="auth-form-panel">
+    <div class="auth-form-inner">
+      <div class="auth-top-bar">
+        <a href="/" class="auth-exit-link" style="font-size:13px">← Ana Sayfa</a>
+        <button class="lang-switch" type="button" id="auth-lang-switch" aria-label="Change language">${nextLang.toUpperCase()}</button>
+      </div>
+
+      <div class="auth-form-header">
+        <div class="auth-free-badge">● Ücretsiz başla — kredi kartı gerekmez</div>
+        <h2>${i18n.t('AUTH_REGISTER_TITLE')}</h2>
+        <p>Plan seç, bilgilerini gir, hemen kullanmaya başla</p>
+      </div>
+
+      <div id="reg-alert" class="alert alert-danger d-none" role="alert"></div>
+      <div id="reg-success" class="alert alert-success d-none" role="alert"></div>
+
+      <!-- Plan seçici -->
+      <div id="plan-picker-wrapper" style="margin-bottom:20px">
+        <div class="form-label" style="margin-bottom:8px">Planı seç</div>
+        ${renderPlanCards(selectedPlan)}
+      </div>
+
+      <form id="register-form" novalidate>
+        <div class="mb-3">
+          <label for="reg-name" class="form-label">${i18n.t('AUTH_NAME')}</label>
+          <input
+            id="reg-name"
+            type="text"
+            class="form-control"
+            placeholder="Adın Soyadın"
+            autocomplete="name"
+            required
+          />
+        </div>
+
+        <div class="mb-3">
+          <label for="reg-email" class="form-label">${i18n.t('AUTH_EMAIL')}</label>
+          <input
+            id="reg-email"
+            type="email"
+            class="form-control"
+            placeholder="ornek@mail.com"
+            autocomplete="email"
+            required
+          />
+        </div>
+
+        <div class="mb-3">
+          <label for="reg-password" class="form-label">${i18n.t('AUTH_PASSWORD')}</label>
+          <div class="input-group">
+            <input
+              id="reg-password"
+              type="password"
+              class="form-control"
+              placeholder="En az 8 karakter"
+              autocomplete="new-password"
+              required
+            />
+            <button class="btn btn-outline-secondary" type="button" id="toggle-pw1" aria-label="${i18n.t('AUTH_TOGGLE_PASSWORD')}">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+            </button>
+          </div>
+          <div id="pw-strength" class="auth-pw-hint mt-1"></div>
+        </div>
+
+        <div class="mb-3">
+          <label for="reg-password2" class="form-label">${i18n.t('AUTH_CONFIRM_PASSWORD')}</label>
+          <div class="input-group">
+            <input
+              id="reg-password2"
+              type="password"
+              class="form-control"
+              placeholder="Şifreni tekrar gir"
+              autocomplete="new-password"
+              required
+            />
+            <button class="btn btn-outline-secondary" type="button" id="toggle-pw2" aria-label="${i18n.t('AUTH_TOGGLE_PASSWORD')}">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <div class="mb-3">
+          <div class="form-check">
+            <input id="reg-terms" class="form-check-input" type="checkbox" required />
+            <label class="form-check-label" for="reg-terms">
+              <a href="/legal/terms" target="_blank" style="color:var(--amber)">${i18n.t('LEGAL_TERMS')}</a>'ni okudum ve kabul ediyorum
+            </label>
+          </div>
+          <div class="form-check mt-1">
+            <input id="reg-privacy" class="form-check-input" type="checkbox" required />
+            <label class="form-check-label" for="reg-privacy">
+              <a href="/legal/privacy" target="_blank" style="color:var(--amber)">${i18n.t('LEGAL_PRIVACY')}</a>'ni kabul ediyorum
+            </label>
+          </div>
+        </div>
+
+        <button id="reg-btn" type="submit" class="btn btn-warning w-100 fw-semibold mb-2" style="padding:11px">
+          ${i18n.t('AUTH_REGISTER_SUBMIT')}
+        </button>
+        <p style="text-align:center;font-size:11px;color:var(--text-dim);margin-bottom:0">
+          Kaydolarak ücretsiz plana başlarsın. İstediğin zaman yükseltebilirsin.
+        </p>
+      </form>
+
+      <p class="auth-switch-link">
+        ${i18n.t('AUTH_HAS_ACCOUNT')}
+        <a href="/login">${i18n.t('AUTH_SIGNIN_LINK')}</a>
+      </p>
+    </div>
+  </main>
 </div>`;
 
+  // Dil geçiş
   container.querySelector<HTMLButtonElement>('#auth-lang-switch')?.addEventListener('click', () => {
     i18n.setLang(nextLang);
     window.location.reload();
+  });
+
+  // Plan seçici
+  container.querySelectorAll<HTMLButtonElement>('.reg-plan-card').forEach(btn => {
+    btn.addEventListener('click', () => {
+      selectedPlan = btn.dataset['plan'] ?? 'free';
+      container.querySelectorAll('.reg-plan-card').forEach(c => {
+        c.classList.toggle('selected', c === btn);
+        c.setAttribute('aria-pressed', String(c === btn));
+      });
+    });
   });
 
   // Şifre toggle
   _setupToggle(container, '#toggle-pw1', '#reg-password');
   _setupToggle(container, '#toggle-pw2', '#reg-password2');
 
-  // Şifre gücü göstergesi
+  // Şifre gücü
   const pw1 = container.querySelector<HTMLInputElement>('#reg-password')!;
   const pwStrength = container.querySelector<HTMLDivElement>('#pw-strength')!;
   pw1.addEventListener('input', () => {
     const v = pw1.value;
     let score = 0;
-    if (v.length >= 8)                score++;
-    if (/[A-Z]/.test(v))              score++;
-    if (/\d/.test(v))                 score++;
-    if (/[^A-Za-z0-9]/.test(v))       score++;
-    const labels = ['', i18n.t('AUTH_PASSWORD_WEAK'), i18n.t('AUTH_PASSWORD_MEDIUM'), i18n.t('AUTH_PASSWORD_GOOD'), i18n.t('AUTH_PASSWORD_STRONG')];
-    const colors = ['', 'text-danger', 'text-warning', 'text-info', 'text-success'];
-    pwStrength.textContent  = score > 0 ? `${i18n.t('AUTH_PASSWORD_STRENGTH_PREFIX')}: ${labels[score]}` : '';
-    pwStrength.className    = `mt-1 small ${colors[score] || ''}`;
+    if (v.length >= 8)              score++;
+    if (/[A-Z]/.test(v))            score++;
+    if (/\d/.test(v))               score++;
+    if (/[^A-Za-z0-9]/.test(v))     score++;
+    const labels = ['', 'Zayıf', 'Orta', 'İyi', 'Güçlü'];
+    const colors = ['', 'color:var(--red)', 'color:var(--amber)', 'color:var(--cyan)', 'color:var(--green)'];
+    pwStrength.innerHTML = score > 0
+      ? `<span style="${colors[score]}">Şifre gücü: ${labels[score]}</span>`
+      : '';
   });
 
-  const alert   = container.querySelector<HTMLDivElement>('#reg-alert')!;
-  const success = container.querySelector<HTMLDivElement>('#reg-success')!;
-  const btn     = container.querySelector<HTMLButtonElement>('#reg-btn')!;
-  const form    = container.querySelector<HTMLFormElement>('#register-form')!;
+  const alertEl  = container.querySelector<HTMLDivElement>('#reg-alert')!;
+  const successEl = container.querySelector<HTMLDivElement>('#reg-success')!;
+  const btn      = container.querySelector<HTMLButtonElement>('#reg-btn')!;
+  const form     = container.querySelector<HTMLFormElement>('#register-form')!;
 
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
-    _hideEl(alert);
-    _hideEl(success);
+    _hideEl(alertEl);
+    _hideEl(successEl);
 
     const name   = (container.querySelector<HTMLInputElement>('#reg-name')!).value.trim();
     const email  = (container.querySelector<HTMLInputElement>('#reg-email')!).value.trim();
@@ -170,15 +261,15 @@ export function renderRegisterPage(container: HTMLElement): void {
     const priv   = (container.querySelector<HTMLInputElement>('#reg-privacy')!).checked;
 
     if (!name || !email || !pw1Val || !pw2Val) {
-      _showAlert(alert, i18n.t('AUTH_REQUIRED_FIELDS'));
+      _showAlert(alertEl, i18n.t('AUTH_REQUIRED_FIELDS'));
       return;
     }
     if (pw1Val !== pw2Val) {
-      _showAlert(alert, i18n.t('AUTH_PASSWORD_MISMATCH'));
+      _showAlert(alertEl, i18n.t('AUTH_PASSWORD_MISMATCH'));
       return;
     }
     if (!terms || !priv) {
-      _showAlert(alert, i18n.t('AUTH_LEGAL_REQUIRED'));
+      _showAlert(alertEl, i18n.t('AUTH_LEGAL_REQUIRED'));
       return;
     }
 
@@ -187,12 +278,16 @@ export function renderRegisterPage(container: HTMLElement): void {
 
     const result = await auth.register(email, pw1Val, name);
     if (result.ok) {
-      analytics.track('signup_completed', { method: 'email' });
-      form.classList.add('d-none');
-      success.textContent = i18n.t('AUTH_VERIFY_SENT');
-      success.classList.remove('d-none');
+      analytics.track('signup_completed', { method: 'email', plan: selectedPlan });
+      form.closest<HTMLElement>('#register-form')?.classList.add('d-none');
+      container.querySelector<HTMLElement>('#plan-picker-wrapper')?.classList.add('d-none');
+      successEl.innerHTML = `
+        <strong>Hesabın oluşturuldu!</strong><br>
+        ${i18n.t('AUTH_VERIFY_SENT')}<br>
+        <a href="/login" style="color:var(--amber);font-weight:600">Giriş yap →</a>`;
+      successEl.classList.remove('d-none');
     } else {
-      _showAlert(alert, result.error ?? i18n.t('AUTH_REGISTER_FAILED'));
+      _showAlert(alertEl, result.error ?? i18n.t('AUTH_REGISTER_FAILED'));
       btn.disabled = false;
       btn.textContent = i18n.t('AUTH_REGISTER_SUBMIT');
     }

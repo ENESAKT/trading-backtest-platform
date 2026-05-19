@@ -8,6 +8,13 @@ from pydantic import BaseModel
 from backend.auth.dependencies import require_admin
 from backend.auth.repository import revoke_all_user_tokens
 
+PLAN_FEATURES = {
+    "free":  {"backtest_per_day": 10,  "symbols": "BIST30+BIST100",  "api_access": False, "signals": 3,  "real_time": False},
+    "pro":   {"backtest_per_day": 50,  "symbols": "Tüm semboller",   "api_access": False, "signals": 50, "real_time": True},
+    "ultra": {"backtest_per_day": -1,  "symbols": "Tüm semboller",   "api_access": True,  "signals": -1, "real_time": True},
+    "admin": {"backtest_per_day": -1,  "symbols": "Tüm semboller",   "api_access": True,  "signals": -1, "real_time": True},
+}
+
 router = APIRouter(dependencies=[Depends(require_admin)])
 
 
@@ -192,6 +199,50 @@ async def unban_user(user_id: int, request: Request):
 async def revoke_user_sessions(user_id: int, request: Request):
     await revoke_all_user_tokens(_get_pool(request), user_id)
     return _ok({"message": "Oturumlar kapatıldı."})
+
+
+@router.get("/backtest-history")
+async def backtest_history(request: Request, limit: int = 100, user_id: str | None = None):
+    """Backtest run geçmişi — SQLite archive'dan."""
+    archive = getattr(request.app.state, "backtest_archive", None)
+    if archive is None:
+        return _ok({"runs": [], "total": 0, "note": "Backtest archive mevcut değil."})
+    runs = archive.list(limit=max(1, min(limit, 500)), user_id=user_id)
+    return _ok({"runs": runs, "total": len(runs)})
+
+
+@router.get("/plan-matrix")
+async def plan_matrix(_request: Request):
+    """Plan yetki matrisi."""
+    return _ok({"matrix": PLAN_FEATURES})
+
+
+@router.get("/usage-stats")
+async def usage_stats(request: Request, days: int = 30):
+    """Kullanıcı bazlı günlük kullanım istatistikleri."""
+    pool = _get_pool(request)
+    async with pool.acquire() as conn:
+        async with conn.cursor() as cur:
+            await cur.execute(
+                """SELECT u.id, u.email, u.role,
+                          COALESCE(SUM(du.backtest_runs), 0) AS total_bt,
+                          COALESCE(SUM(du.api_calls), 0) AS total_api,
+                          MAX(du.date) AS last_active
+                   FROM users u
+                   LEFT JOIN daily_usage du ON du.user_id = u.id
+                     AND du.date >= DATE_SUB(CURDATE(), INTERVAL %s DAY)
+                   GROUP BY u.id, u.email, u.role
+                   ORDER BY total_bt DESC
+                   LIMIT 100""",
+                (max(1, min(days, 365)),),
+            )
+            rows = await cur.fetchall()
+    return _ok({"stats": [
+        {"user_id": r[0], "email": r[1], "role": r[2],
+         "total_backtests": int(r[3]), "total_api_calls": int(r[4]),
+         "last_active": str(r[5]) if r[5] else None}
+        for r in rows
+    ]})
 
 
 @router.get("/audit-log")

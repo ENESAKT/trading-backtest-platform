@@ -12,6 +12,21 @@ provider "aws" {
   region = var.region
 }
 
+data "aws_ami" "ubuntu_2404" {
+  most_recent = true
+  owners      = ["099720109477"]
+
+  filter {
+    name   = "name"
+    values = ["ubuntu/images/hvm-ssd-gp3/ubuntu-noble-24.04-amd64-server-*"]
+  }
+
+  filter {
+    name   = "virtualization-type"
+    values = ["hvm"]
+  }
+}
+
 resource "aws_key_pair" "piyasapilot" {
   key_name   = "piyasapilot-key"
   public_key = file(var.public_key_path)
@@ -54,7 +69,7 @@ resource "aws_security_group" "piyasapilot" {
 }
 
 resource "aws_instance" "piyasapilot" {
-  ami                    = var.ami_id
+  ami                    = data.aws_ami.ubuntu_2404.id
   instance_type          = var.instance_type
   key_name               = aws_key_pair.piyasapilot.key_name
   vpc_security_group_ids = [aws_security_group.piyasapilot.id]
@@ -82,7 +97,7 @@ resource "aws_ebs_volume" "data" {
 }
 
 resource "aws_volume_attachment" "data" {
-  device_name = "/dev/sdb"
+  device_name = "/dev/sdf"
   volume_id   = aws_ebs_volume.data.id
   instance_id = aws_instance.piyasapilot.id
 }

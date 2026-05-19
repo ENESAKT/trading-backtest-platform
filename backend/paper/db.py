@@ -30,7 +30,17 @@ CREATE TABLE IF NOT EXISTS paper_portfolio (
     initial_capital  REAL NOT NULL DEFAULT 10000.0,
     daily_loss       REAL NOT NULL DEFAULT 0.0,
     daily_reset_date TEXT NOT NULL,
-    is_halted        INTEGER NOT NULL DEFAULT 0
+    is_halted        INTEGER NOT NULL DEFAULT 0,
+    unrealized_pnl   REAL NOT NULL DEFAULT 0.0
+);
+CREATE TABLE IF NOT EXISTS paper_positions (
+    strategy_id  TEXT NOT NULL,
+    symbol       TEXT NOT NULL,
+    quantity     REAL NOT NULL DEFAULT 0.0,
+    entry_price  REAL NOT NULL DEFAULT 0.0,
+    opened_at    TEXT NOT NULL,
+    updated_at   TEXT NOT NULL,
+    PRIMARY KEY (strategy_id, symbol)
 );
 CREATE TABLE IF NOT EXISTS paper_equity_curve (
     id               INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -70,6 +80,7 @@ class PaperDB:
     def ensure_tables(self) -> None:
         with self._conn() as conn:
             conn.executescript(_SCHEMA)
+        self.migrate_add_columns()
 
     # ── Wallet ────────────────────────────────────────────────────────────
 
@@ -234,6 +245,73 @@ class PaperDB:
                 (strategy_id, limit),
             ).fetchall()
             return list(reversed([dict(r) for r in rows]))
+
+    # ── Positions ─────────────────────────────────────────────────────────
+
+    def upsert_position(
+        self,
+        strategy_id: str,
+        symbol: str,
+        quantity: float,
+        entry_price: float,
+        opened_at: str,
+        updated_at: str,
+    ) -> None:
+        with self._conn() as conn:
+            conn.execute(
+                "INSERT OR REPLACE INTO paper_positions "
+                "(strategy_id, symbol, quantity, entry_price, opened_at, updated_at) "
+                "VALUES (?,?,?,?,?,?)",
+                (strategy_id, symbol, quantity, entry_price, opened_at, updated_at),
+            )
+
+    def delete_position(self, strategy_id: str, symbol: str) -> None:
+        with self._conn() as conn:
+            conn.execute(
+                "DELETE FROM paper_positions WHERE strategy_id=? AND symbol=?",
+                (strategy_id, symbol),
+            )
+
+    def get_positions(self, strategy_id: str) -> list[dict[str, Any]]:
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT * FROM paper_positions WHERE strategy_id=?",
+                (strategy_id,),
+            ).fetchall()
+            return [dict(r) for r in rows]
+
+    def get_position(self, strategy_id: str, symbol: str) -> dict[str, Any] | None:
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM paper_positions WHERE strategy_id=? AND symbol=?",
+                (strategy_id, symbol),
+            ).fetchone()
+            return dict(row) if row else None
+
+    def all_positions(self) -> list[dict[str, Any]]:
+        with self._conn() as conn:
+            rows = conn.execute("SELECT * FROM paper_positions").fetchall()
+            return [dict(r) for r in rows]
+
+    def update_unrealized_pnl(self, strategy_id: str, unrealized_pnl: float) -> None:
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE paper_portfolio SET unrealized_pnl=? WHERE strategy_id=?",
+                (unrealized_pnl, strategy_id),
+            )
+
+    # ── Migration helpers ─────────────────────────────────────────────────
+
+    def migrate_add_columns(self) -> None:
+        """Mevcut veritabanına eksik kolonları ekle (idempotent)."""
+        with self._conn() as conn:
+            # paper_portfolio.unrealized_pnl
+            try:
+                conn.execute(
+                    "ALTER TABLE paper_portfolio ADD COLUMN unrealized_pnl REAL NOT NULL DEFAULT 0.0"
+                )
+            except Exception:
+                pass  # Kolon zaten var
 
     def checkpoint(self) -> None:
         """WAL modunda biriken sayfaları ana dosyaya yaz (graceful shutdown için)."""

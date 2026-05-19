@@ -21,9 +21,6 @@ class PaperExecutor:
 
     def __init__(self, db: PaperDB) -> None:
         self.db = db
-        self._open_positions: dict[str, dict[str, int]] = {}
-        self._entry_prices: dict[str, dict[str, float]] = {}
-        self._quantities: dict[str, dict[str, float]] = {}
         self._processed = 0
         self._executed = 0
         self._halted = 0
@@ -45,10 +42,9 @@ class PaperExecutor:
         return wallet
 
     def _equity_snapshot(self, strategy_id: str, wallet: dict[str, Any]) -> None:
+        positions = self.db.get_positions(strategy_id)
         positions_val = sum(
-            self._entry_prices.get(strategy_id, {}).get(sym, 0)
-            * self._quantities.get(strategy_id, {}).get(sym, 0)
-            for sym in (self._open_positions.get(strategy_id) or {})
+            p["entry_price"] * p["quantity"] for p in positions
         )
         total = wallet["cash"] + positions_val
         self.db.record_equity_snapshot(
@@ -131,8 +127,8 @@ class PaperExecutor:
         self, strategy_id: str, symbol: str, price: float,
         reason: str, wallet: dict[str, Any],
     ) -> dict[str, Any] | None:
-        open_pos = self._open_positions.get(strategy_id, {})
-        if symbol in open_pos:
+        # Açık pozisyon varsa tekrar al yapma
+        if self.db.get_position(strategy_id, symbol) is not None:
             return None
 
         allocation = wallet["cash"] * POSITION_SIZE_PCT
@@ -147,7 +143,7 @@ class PaperExecutor:
             return None
 
         now = self._utc_now()
-        trade_id = self.db.record_trade(
+        self.db.record_trade(
             strategy_id=strategy_id, symbol=symbol, side="BUY",
             price=price, quantity=quantity, commission=commission,
             opened_at=now, reason=reason,
@@ -159,14 +155,15 @@ class PaperExecutor:
             wallet["daily_loss"], wallet["daily_reset_date"]
         )
 
-        if strategy_id not in self._open_positions:
-            self._open_positions[strategy_id] = {}
-            self._entry_prices[strategy_id] = {}
-            self._quantities[strategy_id] = {}
-
-        self._open_positions[strategy_id][symbol] = trade_id
-        self._entry_prices[strategy_id][symbol] = price
-        self._quantities[strategy_id][symbol] = quantity
+        # Pozisyonu DB'ye kaydet
+        self.db.upsert_position(
+            strategy_id=strategy_id,
+            symbol=symbol,
+            quantity=quantity,
+            entry_price=price,
+            opened_at=now,
+            updated_at=now,
+        )
 
         self._equity_snapshot(strategy_id, wallet)
         self._executed += 1
@@ -186,13 +183,15 @@ class PaperExecutor:
         self, strategy_id: str, symbol: str, price: float,
         reason: str, wallet: dict[str, Any],
     ) -> dict[str, Any] | None:
-        open_pos = self._open_positions.get(strategy_id, {})
-        if symbol not in open_pos:
+        pos = self.db.get_position(strategy_id, symbol)
+        if pos is None:
             return None
 
-        trade_id = open_pos[symbol]
-        entry_price = self._entry_prices[strategy_id][symbol]
-        quantity = self._quantities[strategy_id][symbol]
+        # Açık trade kaydını bul (close için)
+        open_trade = self.db.get_open_trade(strategy_id, symbol)
+
+        entry_price = pos["entry_price"]
+        quantity = pos["quantity"]
 
         gross = price * quantity
         commission = gross * COMMISSION_RATE
@@ -200,7 +199,8 @@ class PaperExecutor:
         pnl = net_proceeds - (entry_price * quantity)
 
         now = self._utc_now()
-        self.db.close_trade(trade_id, price, pnl, now)
+        if open_trade:
+            self.db.close_trade(open_trade["id"], price, pnl, now)
 
         wallet["cash"] += net_proceeds
         new_daily_loss = wallet["daily_loss"] + (pnl if pnl < 0 else 0)
@@ -209,16 +209,15 @@ class PaperExecutor:
             new_daily_loss, wallet["daily_reset_date"]
         )
 
+        # Pozisyonu DB'den sil
+        self.db.delete_position(strategy_id, symbol)
+
         donduruldu = False
         initial = wallet["initial_capital"]
         if abs(new_daily_loss) / initial >= DAILY_LOSS_LIMIT_PCT:
             self.db.halt_strategy(strategy_id)
             logger.warning("paper executor: %s donduruldu (günlük zarar limiti)", strategy_id)
             donduruldu = True
-
-        del self._open_positions[strategy_id][symbol]
-        del self._entry_prices[strategy_id][symbol]
-        del self._quantities[strategy_id][symbol]
 
         wallet["daily_loss"] = new_daily_loss
         self._equity_snapshot(strategy_id, wallet)
@@ -244,17 +243,38 @@ class PaperExecutor:
         }
 
     def update_prices(self, price_map: dict[str, float]) -> None:
-        """Unrealized PnL takibi için fiyatları güncelle."""
-        pass  # entry_prices kasıtlı olarak değiştirilmiyor; PnL SELL'de hesaplanır
+        """Mark-to-market: tüm açık pozisyonlar için unrealized PnL hesapla ve portfolio'ya yaz."""
+        all_positions = self.db.all_positions()
+        # strategy_id başına grupla
+        by_strategy: dict[str, list[dict[str, Any]]] = {}
+        for pos in all_positions:
+            sid = pos["strategy_id"]
+            by_strategy.setdefault(sid, []).append(pos)
+
+        for sid, positions in by_strategy.items():
+            unrealized = 0.0
+            for pos in positions:
+                sym = pos["symbol"]
+                current_price = price_map.get(sym)
+                if current_price is None:
+                    # Fiyat yoksa entry price ile hesapla (PnL = 0)
+                    current_price = pos["entry_price"]
+                unrealized += (current_price - pos["entry_price"]) * pos["quantity"]
+            self.db.update_unrealized_pnl(sid, unrealized)
+
+    def get_open_positions(self, strategy_id: str) -> list[dict[str, Any]]:
+        """Strateji için açık pozisyonları DB'den döndür."""
+        return self.db.get_positions(strategy_id)
 
     def stats(self) -> dict[str, Any]:
+        all_positions = self.db.all_positions()
+        by_strategy: dict[str, list[str]] = {}
+        for pos in all_positions:
+            sid = pos["strategy_id"]
+            by_strategy.setdefault(sid, []).append(pos["symbol"])
         return {
             "processed": self._processed,
             "executed": self._executed,
             "halted_skips": self._halted,
-            "open_positions": {
-                sid: list(pos.keys())
-                for sid, pos in self._open_positions.items()
-                if pos
-            },
+            "open_positions": by_strategy,
         }

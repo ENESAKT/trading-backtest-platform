@@ -15,6 +15,7 @@ CREATE TABLE IF NOT EXISTS data_inventory (
     derived_row_count BIGINT DEFAULT 0,
     status VARCHAR(50) NOT NULL DEFAULT 'not_configured',
     source VARCHAR(100),
+    table_name VARCHAR(255),
     last_checked_at DATETIME,
     notes TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,

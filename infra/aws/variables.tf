@@ -3,14 +3,9 @@ variable "region" {
   default = "eu-central-1"
 }
 
-variable "ami_id" {
-  type        = string
-  description = "Ubuntu 24.04 LTS AMI id for eu-central-1. Verify in AWS console before apply."
-}
-
 variable "instance_type" {
   type    = string
-  default = "t3.large"
+  default = "t2.small"
 }
 
 variable "ssh_cidr" {

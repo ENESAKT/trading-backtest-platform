@@ -20,6 +20,13 @@ REQUIRED_ENV = {
     "REDIS_URL",
     "STRICT_ENV_VALIDATION",
 }
+PLACEHOLDER_MARKERS = (
+    "BURAYA_YAZ",
+    "CHANGE_ME",
+    "TODO",
+    "ornekdomain",
+    "example.com",
+)
 
 def check_deployment():
     print("Checking deployment readiness (domain, volume binds, secrets)...")
@@ -40,6 +47,21 @@ def check_deployment():
         print("ERROR: .env.production missing required values:")
         for key in missing:
             print(f"  - {key}")
+        sys.exit(1)
+    placeholders = sorted(
+        key for key, value in env.items()
+        if value and any(marker in value for marker in PLACEHOLDER_MARKERS)
+    )
+    if placeholders:
+        print("ERROR: .env.production contains placeholder values:")
+        for key in placeholders:
+            print(f"  - {key}")
+        sys.exit(1)
+    mysql_url = env.get("MYSQL_URL", "")
+    database_url = env.get("DATABASE_URL", "")
+    if "mysql:" not in mysql_url or "mysql:" not in database_url:
+        print("ERROR: MYSQL_URL and DATABASE_URL must point to the compose mysql service host `mysql`.")
+        print("       Use external RDS only after removing or disabling the mysql service deliberately.")
         sys.exit(1)
     compose_text = (ROOT / "infra/docker-compose.prod.yml").read_text(encoding="utf-8")
     for needle in ("certbot/conf", "certbot/www", "clickhouse_backups"):

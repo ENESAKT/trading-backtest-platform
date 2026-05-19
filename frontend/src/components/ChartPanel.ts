@@ -507,6 +507,7 @@ export class ChartPanel {
           <button class="ctrl-btn" id="export-btn" title="${TR.EXPORT_CHART}">${ICON_DOWNLOAD} Dışa Aktar</button>
           <div class="export-menu" id="export-menu">
             <div class="template-item" id="export-png-btn"><svg class="icon-svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg> ${TR.EXPORT_PNG}</div>
+            <div class="template-item" id="export-gif-btn"><svg class="icon-svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg> GIF / Video</div>
             <div class="template-item" id="export-csv-btn"><svg class="icon-svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 20V10M12 20V4M6 20v-4"/><path d="M2 20h20"/></svg> ${TR.EXPORT_CSV}</div>
           </div>
           </div>
@@ -706,6 +707,11 @@ export class ChartPanel {
           window.showToast?.('PNG dışa aktarımı başarısız.', 'error');
         }
         this.container.querySelector('#export-menu')?.classList.remove('show');
+      }
+
+      if (btn.id === 'export-gif-btn') {
+        this.container.querySelector('#export-menu')?.classList.remove('show');
+        void this.exportToGIF();
       }
 
       if (btn.id === 'export-csv-btn') {
@@ -1217,14 +1223,38 @@ export class ChartPanel {
       return;
     }
 
-    const label =
-      status === 'loading' ? TR.LOADING
-        : status === 'empty' ? TR.NO_DATA
-          : status === 'error' ? TR.CONNECTION_ERROR
-            : TR.WAITING_DATA;
+    if (status === 'loading') {
+      this.stateEl.className = `chart-state-overlay state-loading`;
+      this.stateEl.innerHTML = `
+        <div class="chart-overlay-spinner"></div>
+        <strong>${TR.LOADING}</strong>`;
+      this.stateEl.style.display = 'flex';
+      return;
+    }
+
+    if (status === 'empty') {
+      const symbol = this.lastSymbol?.replace('.IS', '') || '';
+      const lines = message ? message.split('\n') : [];
+      const detail = lines.length > 1 ? `<small>${this.escapeHtml(lines.slice(1).join(' '))}</small>` : '';
+      this.stateEl.className = `chart-state-overlay state-empty`;
+      this.stateEl.innerHTML = `
+        <div class="chart-overlay-icon">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+            <line x1="11" y1="8" x2="11" y2="12"/><line x1="11" y1="15" x2="11.01" y2="15"/>
+          </svg>
+        </div>
+        <strong>${symbol ? `${symbol} için veri yok` : TR.NO_DATA}</strong>
+        ${detail}
+        <small style="color:var(--text-dim);margin-top:4px">Başka bir sembol veya zaman dilimi deneyin</small>`;
+      this.stateEl.style.display = 'flex';
+      return;
+    }
+
+    const label = status === 'error' ? TR.CONNECTION_ERROR : TR.WAITING_DATA;
     const detail = message && message !== label ? `<small>${this.escapeHtml(message)}</small>` : '';
     const retry = status === 'error'
-      ? '<button class="btn btn-sm btn-warning chart-retry-btn" data-chart-retry>Yeniden Dene</button>'
+      ? '<button class="btn btn-sm btn-warning chart-retry-btn" data-chart-retry style="margin-top:10px">Yeniden Dene</button>'
       : '';
     this.stateEl.className = `chart-state-overlay state-${status}`;
     this.stateEl.innerHTML = `<strong>${label}</strong>${detail}${retry}`;
@@ -2371,6 +2401,72 @@ export class ChartPanel {
     a.click();
   }
 
+  async exportToGIF(): Promise<void> {
+    if (this.candles.length < 2) {
+      window.showToast?.('GIF için grafik verisi gerekli.', 'warn');
+      return;
+    }
+    window.showToast?.('GIF oluşturuluyor… (birkaç saniye)', 'info');
+
+    const totalCandles = this.candles.length;
+    const steps = Math.min(20, totalCandles);       // max 20 kare
+    const stepSize = Math.floor(totalCandles / steps);
+    const ts = this.candles.map(c => c.time as number);
+    const frames: string[] = [];
+
+    const originalRange = this.mainChart.timeScale().getVisibleRange();
+
+    for (let i = 0; i < steps; i++) {
+      const endIdx = Math.min(stepSize * (i + 1) + 10, totalCandles - 1);
+      const startIdx = Math.max(0, endIdx - Math.floor(totalCandles * 0.4));
+      this.mainChart.timeScale().setVisibleRange({
+        from: ts[startIdx] as any,
+        to:   ts[endIdx] as any,
+      });
+      await new Promise(r => setTimeout(r, 60));
+      const snap = this.mainChart.takeScreenshot();
+      if (snap) frames.push(snap.toDataURL('image/png'));
+    }
+
+    if (originalRange) {
+      this.mainChart.timeScale().setVisibleRange(originalRange);
+    } else {
+      this.mainChart.timeScale().fitContent();
+    }
+
+    if (frames.length === 0) {
+      window.showToast?.('GIF oluşturulamadı.', 'error');
+      return;
+    }
+
+    try {
+      const zip = await this._framesToWebP(frames);
+      if (zip) {
+        window.showToast?.(`${frames.length} kare indirildi. GIF dönüştürücüye yükleyebilirsin.`, 'success');
+      }
+    } catch {
+      window.showToast?.('Export başarısız.', 'error');
+    }
+  }
+
+  private async _framesToWebP(frames: string[]): Promise<boolean> {
+    const symbol = this.lastSymbol?.replace('.IS', '') || 'chart';
+    const ts = new Date().toISOString().slice(0, 16).replace('T', '_').replace(':', '');
+
+    for (let i = 0; i < frames.length; i++) {
+      const resp = await fetch(frames[i]!);
+      const blob = await resp.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${symbol}_${ts}_frame${String(i + 1).padStart(2, '0')}.png`;
+      a.click();
+      URL.revokeObjectURL(url);
+      await new Promise(r => setTimeout(r, 30));
+    }
+    return true;
+  }
+
   // ── Fiyat Uyarısı Modal ──────────────────────────────────────────────────
 
   private openPriceAlertModal(): void {
@@ -2972,9 +3068,29 @@ export class ChartPanel {
     });
   }
 
+  // PRODUCTION'DA KAPALI — gerçek olay API'si hazır olduğunda burası silinecek
   /** Load sample/mock events for current symbol. Called on symbol change. */
   loadSampleEvents(symbol: string): void {
-    // Sample events – always show as "örnek olay verisi" until real backend is connected
+    // Production gate: only run in explicit demo mode
+    if ((window as unknown as Record<string, unknown>)['PIYASAPILOT_DEMO_MODE'] !== true) {
+      this.chartEvents = [];
+      this.container.dataset['eventSource'] = 'none';
+      this.container.dataset['eventCount'] = '0';
+      return;
+    }
+
+    // Demo mode badge — show only when demo data is active
+    const demoBadgeId = 'event-demo-badge';
+    if (!this.container.querySelector(`#${demoBadgeId}`)) {
+      const badge = document.createElement('span');
+      badge.id = demoBadgeId;
+      badge.className = 'event-demo-badge';
+      badge.textContent = 'Demo veri';
+      badge.title = 'Gerçek olay verisi henüz bağlı değil';
+      this.mainEl.appendChild(badge);
+    }
+
+    // Sample events – only shown in demo mode
     const base = 1_714_521_600; // 2024-05-01
     const day = 86_400;
     this.chartEvents = [

@@ -177,7 +177,11 @@ export class PollingManager {
       this.retryCount = 0;
       this.setCache(symbol, tf, candles);
       this.emit(candles, 'live');
-    } catch {
+    } catch (err: any) {
+      if (err?.isNoData) {
+        this.emit([], 'no_data' as any);
+        return;
+      }
       this.retryCount++;
       if (this.retryCount >= MAX_RETRY) {
         this.emit([], 'offline');
@@ -222,7 +226,11 @@ export class PollingManager {
       throw new Error(json.message || 'Bağlantı Hatası: backend boş yanıt');
     }
 
-    if (json.bars.length === 0) throw new Error('Empty OHLCV result');
+    if (json.bars.length === 0) {
+      const noDataErr = new Error('NO_DATA_FOR_SYMBOL');
+      (noDataErr as any).isNoData = true;
+      throw noDataErr;
+    }
 
     const candles: OHLCV[] = json.bars.map(b => ({
       time:   b.time,

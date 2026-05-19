@@ -69,12 +69,21 @@ def generate_risk_cards(metrics: dict) -> list[dict]:
         })
 
     # 3. Liquidity Risk
-    if metrics.get("avg_volume", 0) < 100000:
+    avg_volume = metrics.get("avg_volume")
+    if avg_volume is None:
+        cards.append({
+            "type": "liquidity_risk",
+            "severity": "medium",
+            "title": "Kapasite Verisi Yok",
+            "description": "Hacim verisi sağlanmadı; likidite/kapasite kartı hesaplanamadı.",
+            "capacity": "veri yetersiz",
+        })
+    elif avg_volume < 100000:
         cards.append({
             "type": "liquidity_risk",
             "severity": "medium",
             "title": "Düşük Likidite",
-            "description": "Sinyal üretilen varlık sığ. Gerçekte slippage çok yüksek olabilir."
+            "description": "Sinyal üretilen varlık sığ. Gerçekte slippage çok yüksek olabilir.",
         })
 
     # 4. Slippage Risk

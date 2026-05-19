@@ -300,6 +300,55 @@ def _profit_factor(trades: list[Any]) -> float:
     return gross_profit / gross_loss
 
 
+def _sortino_ratio(trades: list[Any], df: pd.DataFrame) -> float | None:
+    """Yıllıklandırılmış Sortino oranı — downside volatilite baz alınır."""
+    if df.empty or len(df) < 2:
+        return None
+    returns = df["close"].pct_change().dropna()
+    if returns.empty:
+        return None
+    downside = returns[returns < 0]
+    if downside.empty or downside.std() == 0:
+        return None
+    try:
+        ann_factor = 252 ** 0.5
+        return float((returns.mean() / downside.std()) * ann_factor)
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def _calmar_ratio(annualized_return_pct: float, max_drawdown_pct: float) -> float | None:
+    """CAGR / Max Drawdown."""
+    if max_drawdown_pct == 0:
+        return None
+    return annualized_return_pct / abs(max_drawdown_pct)
+
+
+def _expectancy(trades: list[Any]) -> float | None:
+    """Beklenen değer: (win_rate * avg_win) - (loss_rate * avg_loss)."""
+    if not trades:
+        return None
+    winners = [float(t.net_pnl) for t in trades if t.net_pnl > 0]
+    losers = [float(t.net_pnl) for t in trades if t.net_pnl < 0]
+    total = len(trades)
+    win_rate = len(winners) / total
+    loss_rate = len(losers) / total
+    avg_win = sum(winners) / len(winners) if winners else 0.0
+    avg_loss = abs(sum(losers) / len(losers)) if losers else 0.0
+    return (win_rate * avg_win) - (loss_rate * avg_loss)
+
+
+def _exposure_time_pct(trades: list[Any], total_bars: int) -> float | None:
+    """Pozisyonda geçirilen bar sayısı / toplam bar sayısı."""
+    if total_bars <= 0 or not trades:
+        return None
+    bars_in_position = sum(
+        max(0, int(getattr(t, "exit_bar_index", 0)) - int(getattr(t, "entry_bar_index", 0)))
+        for t in trades
+    )
+    return min(100.0, (bars_in_position / total_bars) * 100.0)
+
+
 def _annualized_return_pct(final_equity: float, initial: float, df: pd.DataFrame) -> float:
     if df.empty or initial <= 0:
         return 0.0
@@ -499,7 +548,7 @@ def _paper_operation_payload(
     }
 
 
-def _lifecycle_payload(payload: dict[str, Any]) -> dict[str, Any]:
+def _lifecycle_payload(payload: dict[str, Any], df: "pd.DataFrame | None" = None) -> dict[str, Any]:
     wfa = payload.get("walk_forward_report") or {}
     mc = payload.get("monte_carlo_report") or {}
     data_source = payload.get("data_source") or {}
@@ -510,13 +559,20 @@ def _lifecycle_payload(payload: dict[str, Any]) -> dict[str, Any]:
         state = "wfa_passed"
     if wfa.get("passed") and float(mc.get("probability_of_loss", 1.0)) < 0.5:
         state = "monte_carlo_passed"
+
+    # Compute avg_volume from the real bars DataFrame; fall back to None when unavailable
+    if df is not None and "volume" in df.columns and not df["volume"].dropna().empty:
+        avg_volume: float | None = float(df["volume"].mean())
+    else:
+        avg_volume = None
+
     risk_cards = generate_risk_cards(
         {
             "data_gap_pct": max(0.0, 100.0 - float(data_source.get("data_coverage_pct", 100.0))),
             "bar_count": int(data_source.get("bar_count", 0)),
             "param_count": len(payload.get("params") or {}),
             "wfa_passed": bool(wfa.get("passed")),
-            "avg_volume": 1_000_000,
+            "avg_volume": avg_volume,
             "has_slippage_assumptions": float(assumptions.get("slippage_bps", 0) or 0) > 0,
             "market": "BIST" if str(payload.get("symbol", "")).endswith(".IS") else "OTHER",
             "allows_short": bool(assumptions.get("allow_short")),
@@ -555,14 +611,40 @@ def _report_payload(
     worst = min([float(t.net_pnl) for t in trades], default=0.0)
     total_slippage = sum(float(getattr(t, "total_slippage_cost", 0.0)) for t in trades)
     date_range = _date_range_payload(df)
-    assumptions = asdict(result.assumptions)
-    assumptions["allow_short"] = bool(strategy_spec) and any(
+    engine_assumptions = asdict(result.assumptions)
+    allow_short_flag = bool(strategy_spec) and any(
         str(strategy_spec.get("rules", {}).get(k, "")).strip()
         for k in ("short_entry", "short_exit")
     )
+    engine_assumptions["allow_short"] = allow_short_flag
+
+    current_utc_iso = dt.datetime.now(dt.timezone.utc).replace(microsecond=0).isoformat()
+    commission_bps = int(round(params.get("commission_bps", 10)))
+    slippage_bps_val = int(params.get("slippage_bps", 5))
+
+    assumptions_card = {
+        **engine_assumptions,
+        "data_source": "cache/yfinance",
+        "data_delay": "gecikmeli (15 dk)",
+        "commission_model": "sabit bps",
+        "commission_bps": commission_bps,
+        "slippage_model": "sabit bps",
+        "slippage_bps": slippage_bps_val,
+        "spread_assumption": "0 (varsayılan)",
+        "order_type": "market (bir sonraki açılış fiyatı)",
+        "execution_lag": "1 bar",
+        "survivorship_bias": "VAR — delisted semboller dahil değil",
+        "corporate_actions": "düzeltilmemiş (raw fiyat)",
+        "liquidity_limit": "sınırsız (gerçekçi değil)",
+        "calculation_time": current_utc_iso,
+        "warning": "Bu rapor varsayımlar altında üretilmiştir. Gerçek performans farklı olabilir.",
+    }
+
+    ann_return = _annualized_return_pct(result.final_equity, capital, df)
+    total_bars = len(df)
     return {
         "title": f"{strategy_name} · {symbol} · {interval}",
-        "generated_at": dt.datetime.now(dt.timezone.utc).replace(microsecond=0).isoformat(),
+        "generated_at": current_utc_iso,
         "symbol": symbol,
         "interval": interval,
         "last_price": float(df.iloc[-1]["close"]) if not df.empty else 0.0,
@@ -583,14 +665,18 @@ def _report_payload(
             "final_equity": float(result.final_equity),
             "net_pnl": net_pnl,
             "total_return_pct": float(result.total_return_pct),
-            "annualized_return_pct": _annualized_return_pct(result.final_equity, capital, df),
+            "annualized_return_pct": ann_return,
             "max_drawdown_pct": float(result.max_drawdown_pct),
             "total_trades": int(result.total_trades),
             "total_commission": float(result.total_commission),
             "total_slippage": total_slippage,
             "sharpe_ratio": float(result.sharpe_ratio),
+            "sortino_ratio": _sortino_ratio(trades, df),
+            "calmar_ratio": _calmar_ratio(ann_return, float(result.max_drawdown_pct)),
             "win_rate": float(result.win_rate),
             "profit_factor": _profit_factor(trades),
+            "expectancy": _expectancy(trades),
+            "exposure_time_pct": _exposure_time_pct(trades, total_bars),
             "best_trade": best,
             "worst_trade": worst,
             "avg_win": sum(winners) / len(winners) if winners else 0.0,
@@ -598,7 +684,7 @@ def _report_payload(
             "benchmark_return_pct": _benchmark_return_pct(df),
             "has_open_position": bool(result.has_open_position),
         },
-        "assumptions": assumptions,
+        "assumptions": assumptions_card,
         "quality_score": getattr(result, "quality_score", 100),
         "warnings": [
             {
@@ -899,5 +985,5 @@ def run_backtest(
         df=df,
         allow_short=bool(allow_short),
     )
-    payload["lifecycle_summary"] = _lifecycle_payload(payload)
+    payload["lifecycle_summary"] = _lifecycle_payload(payload, df=df)
     return payload

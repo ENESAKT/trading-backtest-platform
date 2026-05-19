@@ -160,6 +160,17 @@ export class DataEngine extends EventEmitter {
         const changePct = prev !== 0 ? ((last.close - prev) / prev) * 100 : 0;
         this.emitPriceUpdate(symbol, last.close, changePct);
         this.emitDataUpdate(candles, status);
+      } else if ((status as string) === 'no_data') {
+        this.status = 'offline';
+        const event = {
+          symbol: this.activeSymbol.symbol,
+          candles: [],
+          status: 'offline' as ConnectionStatus,
+          lastUpdate: this.lastUpdate,
+          noData: true,
+        };
+        this.emit('dataUpdate', event);
+        this.emit('statusChange', 'offline');
       } else {
         this.emit('statusChange', status);
       }

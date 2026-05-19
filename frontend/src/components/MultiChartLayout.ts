@@ -577,8 +577,11 @@ export class MultiChartLayout {
       }
     } catch (err) {
       if (pane.loadVersion !== loadVersion) return;
-      const message = err instanceof Error ? err.message : TR.CONNECTION_ERROR;
-      const status = message.includes('Empty OHLCV') ? 'empty' : 'error';
+      const isNoData = (err as any)?.isNoData || (err instanceof Error && err.message.includes('Empty OHLCV'));
+      const status = isNoData ? 'empty' : 'error';
+      const cleanSymbol = symbol.replace('.IS', '');
+      const noDataMsg = `${cleanSymbol} için veri bulunamadı.\nBu sembol arşivde olmayabilir veya henüz veri çekilmemiş olabilir.`;
+      const message = isNoData ? noDataMsg : (err instanceof Error ? err.message : TR.CONNECTION_ERROR);
       pane.candles = [];
       pane.chartPanel.setData([], {
         status,
@@ -586,11 +589,11 @@ export class MultiChartLayout {
         symbol,
         currency: pane.symbol.currency,
         timeframe,
-        message: status === 'empty' ? TR.NO_DATA : message,
+        message,
       });
       if (badgeEl) {
-        badgeEl.textContent = TR.OFFLINE;
-        badgeEl.className = 'pane-badge status-offline';
+        badgeEl.textContent = isNoData ? 'VERİ YOK' : TR.OFFLINE;
+        badgeEl.className = `pane-badge ${isNoData ? 'status-no-data' : 'status-offline'}`;
       }
     } finally {
       if (pane.loadVersion === loadVersion) pane.loading = false;
