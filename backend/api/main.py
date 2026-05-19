@@ -23,12 +23,14 @@ from __future__ import annotations
 
 import asyncio
 import datetime as dt
+import hashlib
 import itertools
 import logging
 import math
 import os
 import signal
 import sentry_sdk
+import uuid
 # NOT: sentry_sdk.init() burada çağrılmaz — create_app() içindeki _init_sentry() çağırır.
 # Modül seviyesinde init yapmak .env yüklenmeden önce çalışır ve FastApiIntegration eklemez.
 from contextlib import asynccontextmanager
@@ -893,7 +895,9 @@ def create_app(
                 historical_store=historical_store,
             )
             result = _sanitize_floats(result)
-            run_id = backtest_archive.save(result)
+            uid = str(user.get("id", "")) or None
+            uemail = str(user.get("email", "")) or None
+            run_id = backtest_archive.save(result, user_id=uid, user_email=uemail)
             result["run_id"] = run_id
             return result
         except UnknownStrategy as exc:
@@ -902,6 +906,83 @@ def create_app(
             raise HTTPException(status_code=409, detail=str(exc))
         except BacktestRunError as exc:
             raise HTTPException(status_code=400, detail=str(exc))
+
+    @app.post("/api/backtest/batch", tags=["backtest"])
+    @_limit(limiter, "5/minute")
+    def backtest_batch(request: Request, body: dict[str, Any], user: dict = Depends(get_current_user)) -> dict[str, Any]:
+        """Aynı stratejiyi birden fazla sembole uygula, sonuçları getiriye göre sırala.
+
+        Body: {symbols: [str], strategy_id: str, params: {}, interval: str,
+               capital: float, start_date?: str, end_date?: str, max_symbols: int}
+        """
+        del request
+        symbols: list[str] = [str(s) for s in body.get("symbols", []) if isinstance(s, str)][:50]
+        if not symbols:
+            raise HTTPException(400, detail="symbols listesi boş.")
+
+        strategy_id = str(body.get("strategy_id", "sma_cross"))
+        params      = body.get("params", {})
+        interval    = str(body.get("interval", "1d"))
+        capital     = float(body.get("capital", 100_000.0))
+        start_date  = body.get("start_date")
+        end_date    = body.get("end_date")
+        commission  = float(body.get("commission_rate", 0.001))
+        max_symbols = min(int(body.get("max_symbols", 30)), 50)
+        symbols     = symbols[:max_symbols]
+
+        results = []
+        errors  = []
+        uid = str(user.get("id", "")) or None
+        uemail = str(user.get("email", "")) or None
+
+        for sym in symbols:
+            try:
+                result = run_backtest(
+                    cache=cache,
+                    data_service=data_service,
+                    symbol=sym,
+                    interval=interval,
+                    strategy_id=strategy_id,
+                    params=params,
+                    capital=capital,
+                    lookback_bars=500,
+                    start_date=start_date,
+                    end_date=end_date,
+                    commission_rate=commission,
+                    slippage_bps=5,
+                    slippage_model="fixed_bps",
+                    slippage_tick=0.01,
+                    volume_limit_pct=0.05,
+                    volume_window=5,
+                    max_position_pct=0.20,
+                    allow_short=False,
+                    source_mode="cache_only",
+                    strategy_spec=None,
+                    csv_text=None,
+                    csv_bars=None,
+                    historical_store=historical_store,
+                )
+                result = _sanitize_floats(result)
+                run_id = backtest_archive.save(result, user_id=uid, user_email=uemail)
+                m = result.get("metrics", {})
+                results.append({
+                    "symbol":        sym,
+                    "run_id":        run_id,
+                    "total_return_pct":   m.get("total_return_pct", 0),
+                    "sharpe_ratio":       m.get("sharpe_ratio"),
+                    "max_drawdown_pct":   m.get("max_drawdown_pct"),
+                    "win_rate":           m.get("win_rate"),
+                    "total_trades":       m.get("total_trades", 0),
+                    "final_equity":       m.get("final_equity", capital),
+                    "profit_factor":      m.get("profit_factor"),
+                })
+            except (UnknownStrategy, BacktestRunError) as exc:
+                errors.append({"symbol": sym, "error": str(exc)})
+            except Exception:  # noqa: BLE001
+                errors.append({"symbol": sym, "error": "Backtest çalıştırılamadı."})
+
+        results.sort(key=lambda r: r.get("total_return_pct", 0), reverse=True)
+        return {"results": results, "errors": errors, "total": len(results), "failed": len(errors)}
 
     @app.get("/api/backtest/reports", tags=["backtest"])
     def backtest_reports(limit: int = 50, user: dict = Depends(get_current_user)) -> dict[str, Any]:
@@ -1810,6 +1891,99 @@ def create_app(
             raise HTTPException(status_code=400, detail="Sembol zorunludur.")
         return data_service.fetch_chart(symbol, limit=limit)
 
+
+    # ── Piyasa Genel Görünümü ─────────────────────────────────────────────────
+    @app.get("/api/market/overview", tags=["market"])
+    def market_overview() -> dict:
+        """BIST, döviz, kripto, emtia genel görünümü. Auth gerekmez."""
+        _GROUPS: list[tuple[str, str, str]] = [
+            # (group, symbol, label)
+            ("bist",        "XU100.IS",  "BIST 100"),
+            ("bist",        "XU030.IS",  "BIST 30"),
+            ("forex",       "USDTRY=X",  "USD/TRY"),
+            ("forex",       "EURTRY=X",  "EUR/TRY"),
+            ("commodities", "GC=F",      "Altın"),
+            ("commodities", "BZ=F",      "Brent"),
+            ("crypto",      "BTCUSDT",   "BTC/USDT"),
+            ("crypto",      "ETHUSDT",   "ETH/USDT"),
+            ("global",      "SPY",       "S&P 500 (SPY)"),
+        ]
+
+        now_ts = dt.datetime.now(dt.timezone.utc)
+        result: dict[str, Any] = {
+            "bist": [],
+            "forex": [],
+            "crypto": [],
+            "commodities": [],
+            "global": [],
+            "fetched_at": _utc_iso(),
+            "data_note": "Veriler gecikmeli olabilir — yatırım tavsiyesi değildir",
+        }
+
+        for group, symbol, label in _GROUPS:
+            bar = cache.latest_bar(symbol, "1d")
+            if bar is None:
+                entry: dict[str, Any] = {
+                    "symbol": symbol,
+                    "label": label,
+                    "last": None,
+                    "change_pct": None,
+                    "fetched_at": None,
+                    "quality": "unknown",
+                }
+            else:
+                bar_time = dt.datetime.fromtimestamp(int(bar["time"]), tz=dt.timezone.utc)
+                age_hours = (now_ts - bar_time).total_seconds() / 3600
+                quality = "stale" if age_hours > 24 else "ok"
+
+                # change_pct: son 2 bar gerekir
+                prev_bars = cache.get_window(symbol, "1d", limit=2)
+                change_pct: float | None = None
+                if prev_bars and len(prev_bars) >= 2:
+                    prev_close = float(prev_bars[-2]["close"])
+                    last_close = float(bar["close"])
+                    if prev_close > 0:
+                        change_pct = round((last_close - prev_close) / prev_close * 100, 4)
+
+                entry = {
+                    "symbol": symbol,
+                    "label": label,
+                    "last": round(float(bar["close"]), 4),
+                    "change_pct": change_pct,
+                    "fetched_at": bar_time.isoformat(),
+                    "quality": quality,
+                }
+            result[group].append(entry)
+
+        return result
+
+    # ── Sinyal Güven Durumu ───────────────────────────────────────────────────
+    @app.get("/api/signals/trust-status", tags=["signals"])
+    def signals_trust_status(user: dict = Depends(get_current_user)) -> dict:
+        """BIST veri güven engelinin kullanıcıya gösterilmesi."""
+        stats = signal_generator.stats()
+        skipped = int(stats.get("skipped_untrusted", 0))
+        emitted = int(stats.get("signals_emitted", 0))
+        last_skip = stats.get("last_skip_reason")
+        trust_blocked = skipped > 0
+        return {
+            "signals_emitted": emitted,
+            "skipped_untrusted": skipped,
+            "trust_blocked": trust_blocked,
+            "block_reason": (
+                last_skip
+                if last_skip
+                else ("Yahoo Finance BIST verisi güvenilir işaretlenmedi" if trust_blocked else None)
+            ),
+            "provider": "yahoo_finance",
+            "suggestion": (
+                "Lisanslı veri sağlayıcısı bağlanmadığında BIST sinyalleri bloklanır."
+                if trust_blocked
+                else "Sinyal akışı normal."
+            ),
+            "fetched_at": _utc_iso(),
+        }
+
     @app.get("/api/workspace")
     def workspace() -> dict[str, Any]:
         return workspace_store.load()
@@ -1940,8 +2114,17 @@ def create_app(
                         "cache": repo_result.source,
                         "source": repo_result.source,
                         "is_real": True,
+                        "is_live": False,
+                        "is_delayed": True,
+                        "delay_minutes": 15,
                         "status": "ok",
                         "fetched_at": _utc_iso(),
+                        "quality_status": "ok",
+                        "coverage_pct": 100.0,
+                        "provider": repo_result.source,
+                        "staleness_seconds": 0,
+                        "license_note": "Gecikmeli veri — yatırım tavsiyesi değildir",
+                        "warnings": [],
                     },
                 }, headers={"X-Data-Source": repo_result.source})
 
@@ -1966,6 +2149,20 @@ def create_app(
                     "untouched_high_volume": report.untouched_high_volume,
                 }
                 local_payload["metadata"]["cache"] = "local_parquet_then_write"
+                local_payload["metadata"].setdefault("source", "local_parquet")
+                local_payload["metadata"].update({
+                    "is_real": True,
+                    "is_live": False,
+                    "is_delayed": True,
+                    "delay_minutes": 15,
+                    "fetched_at": _utc_iso(),
+                    "quality_status": "ok",
+                    "coverage_pct": 100.0,
+                    "provider": local_payload["metadata"].get("source", "local_parquet"),
+                    "staleness_seconds": 0,
+                    "license_note": "Gecikmeli veri — yatırım tavsiyesi değildir",
+                    "warnings": [],
+                })
                 return JSONResponse(local_payload, headers={"X-Data-Source": "local_parquet"})
 
         # Validation backend tarafında zaten yapılıyor; burada sadece çağrı.
@@ -2007,6 +2204,19 @@ def create_app(
             }
             provider_payload["metadata"]["cache"] = "miss_then_write"
             provider_source = provider_payload.get("metadata", {}).get("provider", "provider")
+            provider_payload["metadata"].update({
+                "is_real": True,
+                "is_live": False,
+                "is_delayed": True,
+                "delay_minutes": 15,
+                "fetched_at": _utc_iso(),
+                "quality_status": "ok",
+                "coverage_pct": 100.0,
+                "provider": str(provider_source),
+                "staleness_seconds": 0,
+                "license_note": "Gecikmeli veri — yatırım tavsiyesi değildir",
+                "warnings": [],
+            })
             return JSONResponse(provider_payload, headers={"X-Data-Source": str(provider_source)})
 
         # Provider hata → cache'te biriken eski veriyle graceful degrade
@@ -2029,10 +2239,20 @@ def create_app(
                 "metadata": {
                     "read_only": True,
                     "cache": "fallback",
+                    "source": "cache-legacy",
                     "is_real": False,
+                    "is_live": False,
+                    "is_delayed": True,
+                    "delay_minutes": 15,
                     "status": "stale",
-                    "provider_error": provider_payload.get("metadata", {}).get("error", ""),
                     "fetched_at": _utc_iso(),
+                    "quality_status": "warning",
+                    "coverage_pct": 100.0,
+                    "provider": "cache-legacy",
+                    "staleness_seconds": -1,
+                    "license_note": "Gecikmeli veri — yatırım tavsiyesi değildir",
+                    "warnings": ["Provider gecikmeli yanıt"],
+                    "provider_error": provider_payload.get("metadata", {}).get("error", ""),
                 },
             }, headers={"X-Data-Source": "cache-legacy"})
 
@@ -2507,6 +2727,413 @@ def create_app(
             "source": "borsapy",
         }
 
+    # ── Kullanıcı plan limitleri ──────────────────────────────────────────
+    @app.get("/api/me/limits", tags=["auth"])
+    def get_user_limits(user: dict = Depends(get_current_user)) -> dict:
+        """Kullanıcının plan limitlerini döndür — frontend tek kaynaktan okur."""
+        from backend.auth.feature_gate import get_quota, can_access
+        role = user.get("role", "free")
+        return {
+            "role": role,
+            "limits": {
+                "backtest_runs_per_day": get_quota(role, "backtest_runs_per_day"),
+                "screener_runs_per_day": get_quota(role, "signals_per_day"),
+                "watchlist_symbols": get_quota(role, "max_watchlist_symbols"),
+                "news_access": can_access(role, "signals_per_day"),   # signals_per_day > 0 → haber erişimi var
+                "signals_access": can_access(role, "scanner"),
+                "paper_trading": can_access(role, "paper_trading"),
+            },
+        }
+
+    # ── Screener ──────────────────────────────────────────────────────────────
+    @app.post("/api/screener/run", tags=["screener"])
+    def screener_run(
+        req: ScreenerRunRequest,
+        user: dict = Depends(get_current_user),
+    ) -> ScreenerRunResponse:
+        """Sembol evrenini filtrele, sırala ve döndür.
+
+        Cache'ten son 1d barı çeker; RSI varsa hesaplar.
+        Erişilemeyen alanlar None olarak döner.
+        """
+        import numpy as np
+
+        run_id = str(uuid.uuid4())
+        created_at = _utc_iso()
+
+        # filters_hash
+        filters_raw = req.model_dump_json(include={"filters"}).encode()
+        filters_hash = hashlib.md5(filters_raw).hexdigest()
+
+        # Evren seçimi
+        universe_upper = req.universe.upper()
+        if universe_upper == "BIST30":
+            symbols = list(BIST_30_SYMBOLS)
+        elif universe_upper == "BIST100":
+            symbols = list(BIST_100_SYMBOLS)
+        elif universe_upper == "CRYPTO":
+            symbols = [s.replace("USDT", "") + "USDT" for s in CRYPTO_WS_SYMBOLS[:50]]
+        else:
+            # ALL: BIST100 + crypto
+            symbols = list(BIST_100_SYMBOLS) + [s.replace("USDT", "") + "USDT" for s in CRYPTO_WS_SYMBOLS[:20]]
+
+        def _calc_rsi(closes: list[float], period: int = 14) -> float | None:
+            if len(closes) < period + 1:
+                return None
+            arr = np.array(closes, dtype=float)
+            deltas = np.diff(arr)
+            gains = np.where(deltas > 0, deltas, 0.0)
+            losses = np.where(deltas < 0, -deltas, 0.0)
+            avg_gain = float(np.mean(gains[:period]))
+            avg_loss = float(np.mean(losses[:period]))
+            for i in range(period, len(deltas)):
+                avg_gain = (avg_gain * (period - 1) + gains[i]) / period
+                avg_loss = (avg_loss * (period - 1) + losses[i]) / period
+            if avg_loss == 0:
+                return 100.0
+            rs = avg_gain / avg_loss
+            return round(100.0 - 100.0 / (1.0 + rs), 2)
+
+        def _apply_filter(row_val: Any, op: str, threshold: Any) -> bool:
+            if row_val is None:
+                return False
+            try:
+                rv = float(row_val)
+                tv = float(threshold)
+            except (TypeError, ValueError):
+                # string eq/neq
+                if op == "eq":
+                    return str(row_val) == str(threshold)
+                if op == "neq":
+                    return str(row_val) != str(threshold)
+                return False
+            if op == "gt":
+                return rv > tv
+            if op == "lt":
+                return rv < tv
+            if op == "gte":
+                return rv >= tv
+            if op == "lte":
+                return rv <= tv
+            if op == "eq":
+                return rv == tv
+            if op == "neq":
+                return rv != tv
+            return True
+
+        rows: list[ScreenerRow] = []
+        for sym in symbols:
+            sym_upper = sym.upper()
+            bar_now = cache.latest_bar(sym_upper, "1d")
+            if bar_now is None:
+                last_price = None
+                volume = None
+            else:
+                last_price = round(float(bar_now["close"]), 4)
+                volume = round(float(bar_now["volume"]), 2)
+
+            # Önceki bar — change_pct için
+            prev_bars = cache.get_window(sym_upper, "1d", limit=2)
+            change_pct: float | None = None
+            if prev_bars and len(prev_bars) >= 2 and last_price is not None:
+                prev_close = float(prev_bars[-2]["close"])
+                if prev_close > 0:
+                    change_pct = round((last_price - prev_close) / prev_close * 100, 2)
+
+            # Son 252 bar — RSI + 52w high + volume_avg_20d
+            hist_bars = cache.get_window(sym_upper, "1d", limit=252)
+            rsi_14: float | None = None
+            volume_avg_20d: float | None = None
+            distance_from_52w_high: float | None = None
+            if hist_bars and len(hist_bars) >= 15:
+                closes_list = [float(b["close"]) for b in hist_bars]
+                rsi_14 = _calc_rsi(closes_list, 14)
+                # Volume avg 20d
+                volumes = [float(b["volume"]) for b in hist_bars if b.get("volume") is not None]
+                if len(volumes) >= 20:
+                    volume_avg_20d = round(float(np.mean(volumes[-20:])), 2)
+                # 52w high (son 252 bar)
+                highs = [float(b["high"]) for b in hist_bars if b.get("high") is not None]
+                if highs and last_price is not None:
+                    high_52w = max(highs)
+                    if high_52w > 0:
+                        distance_from_52w_high = round((last_price - high_52w) / high_52w * 100, 2)
+
+            name = SYMBOL_METADATA.get(sym_upper, "")
+
+            row = ScreenerRow(
+                symbol=sym_upper,
+                name=name,
+                last_price=last_price,
+                change_pct=change_pct,
+                volume=volume,
+                market_cap=None,
+                pe_ratio=None,
+                rsi_14=rsi_14,
+                volume_avg_20d=volume_avg_20d,
+                distance_from_52w_high=distance_from_52w_high,
+                sector="",
+            )
+            rows.append(row)
+
+        # Filtrele
+        if req.filters:
+            filtered: list[ScreenerRow] = []
+            for row in rows:
+                passes = True
+                for f in req.filters:
+                    col_val = getattr(row, f.column, None)
+                    if not _apply_filter(col_val, f.op, f.value):
+                        passes = False
+                        break
+                if passes:
+                    filtered.append(row)
+            rows = filtered
+
+        # Sırala
+        sort_key = req.sort_by
+        reverse = req.sort_dir.lower() == "desc"
+
+        def _sort_key(r: ScreenerRow) -> tuple[int, float]:
+            v = getattr(r, sort_key, None)
+            if v is None:
+                return (1, 0.0)
+            return (0, float(v))
+
+        rows.sort(key=_sort_key, reverse=reverse)
+
+        # Limit uygula
+        rows = rows[: req.limit]
+
+        return ScreenerRunResponse(
+            run_id=run_id,
+            created_at=created_at,
+            market=req.market,
+            universe=req.universe,
+            filters_hash=filters_hash,
+            row_count=len(rows),
+            rows=rows,
+            metadata={
+                "universe_size": len(symbols),
+                "sort_by": sort_key,
+                "sort_dir": req.sort_dir,
+                "filters_applied": len(req.filters),
+            },
+        )
+
+    # ── Technical Summary ─────────────────────────────────────────────────────
+    @app.get("/api/technical/summary", tags=["technical"])
+    def technical_summary(
+        symbol: str,
+        market: str = "BIST",
+        timeframe: str = "1d",
+        user: dict = Depends(get_current_user),
+    ) -> dict:
+        """Sembol için teknik özet: RSI, SMA, EMA, MACD, ATR + overall_rating."""
+        import numpy as np
+
+        sym_upper = symbol.strip().upper()
+        fetched_at = _utc_iso()
+
+        bars = cache.get_window(sym_upper, timeframe, limit=200)
+        if not bars:
+            raise HTTPException(
+                status_code=404,
+                detail=f"{sym_upper}/{timeframe} için cache verisi bulunamadı.",
+            )
+
+        closes_arr = np.array([float(b["close"]) for b in bars], dtype=float)
+        highs_arr  = np.array([float(b["high"])  for b in bars], dtype=float)
+        lows_arr   = np.array([float(b["low"])   for b in bars], dtype=float)
+        n = len(closes_arr)
+
+        def _round(v: float | None, d: int = 4) -> float | None:
+            if v is None or math.isnan(v):
+                return None
+            return round(v, d)
+
+        # ── RSI(14) ──
+        def _rsi(arr: np.ndarray, period: int = 14) -> float | None:
+            if len(arr) < period + 1:
+                return None
+            deltas = np.diff(arr)
+            gains  = np.where(deltas > 0, deltas, 0.0)
+            losses = np.where(deltas < 0, -deltas, 0.0)
+            avg_g = float(np.mean(gains[:period]))
+            avg_l = float(np.mean(losses[:period]))
+            for i in range(period, len(deltas)):
+                avg_g = (avg_g * (period - 1) + gains[i]) / period
+                avg_l = (avg_l * (period - 1) + losses[i]) / period
+            if avg_l == 0:
+                return 100.0
+            return round(100.0 - 100.0 / (1.0 + avg_g / avg_l), 2)
+
+        # ── SMA ──
+        def _sma(arr: np.ndarray, period: int) -> float | None:
+            if len(arr) < period:
+                return None
+            return float(np.mean(arr[-period:]))
+
+        # ── EMA ──
+        def _ema(arr: np.ndarray, period: int) -> float | None:
+            if len(arr) < period:
+                return None
+            k = 2.0 / (period + 1)
+            val = float(np.mean(arr[:period]))
+            for v in arr[period:]:
+                val = v * k + val * (1 - k)
+            return val
+
+        # ── MACD(12,26,9) ──
+        def _macd(arr: np.ndarray) -> tuple[float | None, float | None, float | None]:
+            if len(arr) < 26:
+                return None, None, None
+            k12 = 2.0 / (12 + 1)
+            k26 = 2.0 / (26 + 1)
+            ema12 = float(np.mean(arr[:12]))
+            ema26 = float(np.mean(arr[:26]))
+            for v in arr[12:]:
+                ema12 = v * k12 + ema12 * (1 - k12)
+            for v in arr[26:]:
+                ema26 = v * k26 + ema26 * (1 - k26)
+            line = ema12 - ema26
+            # MACD signal: EMA(9) of MACD line over last 26+ bars
+            macd_series: list[float] = []
+            e12 = float(np.mean(arr[:12]))
+            e26 = float(np.mean(arr[:26]))
+            for v in arr[12:]:
+                e12 = v * k12 + e12 * (1 - k12)
+            for idx in range(26, len(arr)):
+                e26 = arr[idx] * k26 + e26 * (1 - k26)
+                macd_series.append(e12 - e26)
+                e12 = arr[idx] * k12 + e12 * (1 - k12)
+            if len(macd_series) < 9:
+                return round(line, 4), None, None
+            k9 = 2.0 / (9 + 1)
+            sig = float(np.mean(macd_series[:9]))
+            for mv in macd_series[9:]:
+                sig = mv * k9 + sig * (1 - k9)
+            hist = macd_series[-1] - sig if macd_series else None
+            return round(line, 4), round(sig, 4), (round(hist, 4) if hist is not None else None)
+
+        # ── ATR(14) ──
+        def _atr(high: np.ndarray, low: np.ndarray, close: np.ndarray, period: int = 14) -> float | None:
+            if len(close) < period + 1:
+                return None
+            trs = []
+            for i in range(1, len(close)):
+                tr = max(
+                    high[i] - low[i],
+                    abs(high[i] - close[i - 1]),
+                    abs(low[i]  - close[i - 1]),
+                )
+                trs.append(tr)
+            if len(trs) < period:
+                return None
+            atr_val = float(np.mean(trs[:period]))
+            for tr in trs[period:]:
+                atr_val = (atr_val * (period - 1) + tr) / period
+            return round(atr_val, 4)
+
+        last_close = _round(float(closes_arr[-1]))
+        prev_close = float(closes_arr[-2]) if n >= 2 else None
+        change_pct: float | None = None
+        if prev_close and prev_close > 0 and last_close is not None:
+            change_pct = _round((last_close - prev_close) / prev_close * 100, 2)
+
+        rsi_val   = _rsi(closes_arr, 14)
+        sma_20    = _round(_sma(closes_arr, 20))
+        sma_50    = _round(_sma(closes_arr, 50))
+        sma_200   = _round(_sma(closes_arr, 200))
+        ema_20    = _round(_ema(closes_arr, 20))
+        macd_v, macd_sig_v, macd_hist_v = _macd(closes_arr)
+        atr_val   = _atr(highs_arr, lows_arr, closes_arr, 14)
+
+        # Signal mantığı
+        def _ma_signal(ma_val: float | None) -> str:
+            if ma_val is None or last_close is None:
+                return "neutral"
+            diff_pct = abs(last_close - ma_val) / ma_val if ma_val else 0
+            if diff_pct < 0.005:
+                return "neutral"
+            return "buy" if last_close > ma_val else "sell"
+
+        def _rsi_signal(v: float | None) -> str:
+            if v is None:
+                return "neutral"
+            if v < 30:
+                return "oversold"
+            if v > 70:
+                return "overbought"
+            return "neutral"
+
+        def _macd_signal(hist: float | None) -> str:
+            if hist is None:
+                return "neutral"
+            if hist > 0:
+                return "buy"
+            if hist < 0:
+                return "sell"
+            return "neutral"
+
+        ma_signals = {
+            "sma_20":  _ma_signal(sma_20),
+            "sma_50":  _ma_signal(sma_50),
+            "sma_200": _ma_signal(sma_200),
+            "ema_20":  _ma_signal(ema_20),
+        }
+        osc_macd_signal = _macd_signal(macd_hist_v)
+
+        # overall_rating: buy/sell sayısını karşılaştır
+        all_signals = list(ma_signals.values()) + [osc_macd_signal]
+        buy_count  = sum(1 for s in all_signals if s == "buy")
+        sell_count = sum(1 for s in all_signals if s == "sell")
+        if buy_count > sell_count:
+            overall = "buy"
+        elif sell_count > buy_count:
+            overall = "sell"
+        else:
+            overall = "neutral"
+
+        return {
+            "symbol": sym_upper,
+            "timeframe": timeframe,
+            "bars_used": n,
+            "fetched_at": fetched_at,
+            "price": {
+                "last": last_close,
+                "change_pct": change_pct,
+            },
+            "oscillators": {
+                "rsi_14": {
+                    "value": rsi_val,
+                    "signal": _rsi_signal(rsi_val),
+                },
+                "macd": {
+                    "value": macd_v,
+                    "signal_line": macd_sig_v,
+                    "histogram": macd_hist_v,
+                    "signal": osc_macd_signal,
+                },
+                "atr_14": {
+                    "value": atr_val,
+                },
+            },
+            "moving_averages": {
+                "sma_20":  {"value": sma_20,  "signal": ma_signals["sma_20"]},
+                "sma_50":  {"value": sma_50,  "signal": ma_signals["sma_50"]},
+                "sma_200": {"value": sma_200, "signal": ma_signals["sma_200"]},
+                "ema_20":  {"value": ema_20,  "signal": ma_signals["ema_20"]},
+            },
+            "overall_rating": overall,
+            "data_truth": {
+                "quality_status": "ok",
+                "provider": "cache",
+                "fetched_at": fetched_at,
+            },
+            "calculation_version": "1.0",
+        }
+
     # ── Statik dosyalar (SPA / index.html) ───────────────────────────────
     # Mount en sona; daha spesifik /api/* route'larını gölgelemesin diye.
     if (ROOT / "index.html").exists():
@@ -2710,6 +3337,49 @@ class MonteCarloRequest(BaseModel):
     n_simulations: int = Field(500, ge=100, le=2000, description="Simülasyon tekrar sayısı")
     method: str = Field("bootstrap", description="bootstrap veya permutation")
     seed: int | None = Field(None, description="Tekrarlanabilirlik için rastgele tohum")
+
+
+# ── Screener modelleri ──────────────────────────────────────────────────────
+
+class ScreenerFilter(BaseModel):
+    column: str
+    op: str  # gt, lt, gte, lte, eq, neq
+    value: float | str
+
+
+class ScreenerRunRequest(BaseModel):
+    market: str = "BIST"
+    universe: str = "BIST100"  # BIST100 | BIST30 | ALL | CRYPTO
+    filters: list[ScreenerFilter] = Field(default_factory=list)
+    columns: list[str] = Field(default_factory=list)
+    sort_by: str = "volume"
+    sort_dir: str = "desc"  # asc | desc
+    limit: int = Field(50, ge=1, le=500)
+
+
+class ScreenerRow(BaseModel):
+    symbol: str
+    name: str = ""
+    last_price: float | None = None
+    change_pct: float | None = None
+    volume: float | None = None
+    market_cap: float | None = None
+    pe_ratio: float | None = None         # Harici veri gerektiriyor; şimdilik None
+    rsi_14: float | None = None
+    volume_avg_20d: float | None = None   # Son 20 günlük ortalama hacim
+    distance_from_52w_high: float | None = None  # 52-haftalık zirveye mesafe (%)
+    sector: str = ""
+
+
+class ScreenerRunResponse(BaseModel):
+    run_id: str
+    created_at: str
+    market: str
+    universe: str
+    filters_hash: str
+    row_count: int
+    rows: list[ScreenerRow]
+    metadata: dict
 
 
 # Uvicorn entry point: `uvicorn backend.api.main:app`

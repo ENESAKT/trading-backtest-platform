@@ -99,6 +99,17 @@ export class NewsPanel {
       if (e.key === 'Enter') void this.load(true);
     });
     refreshBtn.addEventListener('click', () => void this.load(true));
+
+    // Delegated listener — "news-retry-btn" in error states calls load(true)
+    this.container.addEventListener('click', (e) => {
+      if ((e.target as HTMLElement).closest('.news-retry-btn')) {
+        void this.load(true);
+      }
+    });
+  }
+
+  private retryBtn(): string {
+    return `<button class="btn-sm news-retry-btn" style="margin-top:12px">Tekrar Dene</button>`;
   }
 
   // ── Data ─────────────────────────────────────────────────────────────────────
@@ -122,26 +133,54 @@ export class NewsPanel {
         const data = await res.json() as { news: NewsItem[] };
         this.items = data.news ?? [];
         this.renderList();
-      } else if (res.status === 401) {
-        // Kullanıcı giriş yapmamış — sonsuz iskelet yerine bilgilendirme göster
+      } else if (res.status === 401 || res.status === 403) {
+        // Kullanıcı giriş yapmamış veya yetkisiz — skeleton kapat, bilgilendirme göster
         const el = this.container.querySelector('#news-list');
         if (el) {
-          el.innerHTML = `<div class="news-empty" style="padding:24px;text-align:center;">
-            📰 Haberleri görmek için <a href="/login" style="color:var(--accent)">giriş yapın</a>
-          </div>`;
+          el.innerHTML = `
+            <div class="news-empty-state">
+              <div class="news-empty-icon">🔒</div>
+              <div class="news-empty-title">Haberler yüklenemedi</div>
+              <div class="news-empty-desc">Haber akışını görüntülemek için hesabınıza giriş yapın.</div>
+              <a href="/login" class="btn btn-sm btn-outline-secondary" style="margin-top:12px">Giriş Yap</a>
+              ${this.retryBtn()}
+            </div>`;
+        }
+      } else if (res.status >= 500) {
+        // Sunucu hatası — skeleton kapat, durum mesajı + retry göster
+        const el = this.container.querySelector('#news-list');
+        if (el) {
+          el.innerHTML = `
+            <div class="news-empty-state">
+              <div class="news-empty-icon">⚠️</div>
+              <div class="news-empty-title">Haberler yüklenemedi</div>
+              <div class="news-empty-desc">Sunucu geçici olarak kullanılamıyor. Lütfen daha sonra tekrar deneyin.</div>
+              ${this.retryBtn()}
+            </div>`;
         }
       } else {
-        // Diğer hatalar — mevcut içerik korunur, sessiz başarısızlık
+        // Diğer hatalar (4xx vb.) — skeleton kapat, genel hata mesajı + retry göster
         const el = this.container.querySelector('#news-list');
         if (el && !this.items.length) {
-          el.innerHTML = `<div class="news-empty">Haberler yüklenemedi — ⟳ Yenile</div>`;
+          el.innerHTML = `
+            <div class="news-empty-state">
+              <div class="news-empty-title">Haberler yüklenemedi</div>
+              <div class="news-empty-desc">Beklenmedik bir hata oluştu (HTTP ${res.status}).</div>
+              ${this.retryBtn()}
+            </div>`;
         }
       }
     } catch {
-      // Ağ hatası — mevcut önbellek korunur
+      // Ağ hatası — skeleton kapat, bağlantı hatası + retry göster
       const el = this.container.querySelector('#news-list');
       if (el && !this.items.length) {
-        el.innerHTML = `<div class="news-empty">Bağlantı hatası — ⟳ Yenile</div>`;
+        el.innerHTML = `
+          <div class="news-empty-state">
+            <div class="news-empty-icon">📡</div>
+            <div class="news-empty-title">Haberler yüklenemedi</div>
+            <div class="news-empty-desc">Sunucuya ulaşılamıyor. İnternet bağlantınızı kontrol edin.</div>
+            ${this.retryBtn()}
+          </div>`;
       }
     } finally {
       this.loading = false;

@@ -37,7 +37,7 @@ class PlanLimits:
 PLAN_LIMITS: dict[str, PlanLimits] = {
     "free": PlanLimits(
         api_calls_per_day=500,
-        backtest_runs_per_day=10,
+        backtest_runs_per_day=5,
         max_watchlist_symbols=10,
         max_paper_accounts=0,
         max_chart_templates=1,

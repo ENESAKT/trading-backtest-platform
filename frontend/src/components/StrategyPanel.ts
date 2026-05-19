@@ -451,6 +451,37 @@ export class StrategyPanel {
             </div>
             <div id="scan-results" class="compact-list"></div>
           </div>
+
+          <div class="lab-panel">
+            <div class="panel-title-row">
+              <h3>Multi-Sembol Backtest</h3>
+              <span class="badge-pro" title="Aktif strateji tüm seçili sembollere uygulanır">BETİ</span>
+            </div>
+            <p style="color:var(--text-dim);font-size:11px;margin-bottom:8px">
+              Aktif stratejiyi seçili sembol grubuna uygula, getiriye göre sırala.
+            </p>
+            <div class="optimizer-grid">
+              <label>Grup<select id="batch-group">
+                <option value="BIST 30">BIST 30 (30 sembol)</option>
+                <option value="BIST 100">BIST 100</option>
+                <option value="Kripto">Kripto</option>
+                <option value="custom">Özel liste</option>
+              </select></label>
+              <label>Periyot<select id="batch-interval">
+                ${['1d','1w','4h','1h','15m'].map(tf => `<option value="${tf}">${tf}</option>`).join('')}
+              </select></label>
+              <label>Özel<input id="batch-custom" type="text" placeholder="GARAN.IS,THYAO.IS" title="Özel sembol listesi (virgülle ayrılmış)"></label>
+              <label>Sırala<select id="batch-sort">
+                <option value="total_return_pct">Getiri %</option>
+                <option value="sharpe_ratio">Sharpe</option>
+                <option value="win_rate">Kazanma Oranı</option>
+                <option value="profit_factor">Kâr Faktörü</option>
+              </select></label>
+              <button class="btn-primary" id="run-batch-bt">Çalıştır</button>
+            </div>
+            <div id="batch-status" style="font-size:11px;color:var(--text-dim);margin:6px 0;min-height:16px"></div>
+            <div id="batch-results" class="compact-list"></div>
+          </div>
         </div>
 
         <div class="strategy-body">
@@ -697,6 +728,11 @@ export class StrategyPanel {
 
       if (target.closest('#run-scan')) {
         void this.runMarketScan();
+        return;
+      }
+
+      if (target.closest('#run-batch-bt')) {
+        void this.runBatchBacktest();
         return;
       }
 
@@ -1531,6 +1567,103 @@ export class StrategyPanel {
     `;
   }
 
+  private async runBatchBacktest(): Promise<void> {
+    const statusEl = this.container.querySelector<HTMLElement>('#batch-status');
+    const resultsEl = this.container.querySelector<HTMLElement>('#batch-results');
+    if (!statusEl || !resultsEl) return;
+
+    const group = (this.container.querySelector<HTMLSelectElement>('#batch-group'))?.value ?? 'BIST 30';
+    const interval = (this.container.querySelector<HTMLSelectElement>('#batch-interval'))?.value ?? '1d';
+    const sortKey = (this.container.querySelector<HTMLSelectElement>('#batch-sort'))?.value ?? 'total_return_pct';
+    const customRaw = (this.container.querySelector<HTMLInputElement>('#batch-custom'))?.value.trim() ?? '';
+
+    let symbols: string[] = [];
+    if (group === 'custom' && customRaw) {
+      symbols = customRaw.split(/[,\s]+/).filter(Boolean).map(s => s.trim().toUpperCase());
+    } else {
+      symbols = ALL_SYMBOLS
+        .filter(s => s.group === group)
+        .map(s => s.symbol)
+        .slice(0, 30);
+    }
+
+    if (symbols.length === 0) {
+      statusEl.textContent = 'Sembol bulunamadı.';
+      return;
+    }
+
+    const payload = this.buildPayload();
+
+    statusEl.textContent = `${symbols.length} sembol için backtest başlatılıyor…`;
+    resultsEl.innerHTML = '<div class="empty-state">Çalışıyor… (bu birkaç dakika sürebilir)</div>';
+
+    const btn = this.container.querySelector<HTMLButtonElement>('#run-batch-bt');
+    if (btn) btn.disabled = true;
+
+    try {
+      const body = {
+        symbols,
+        strategy_id:    String(payload['strategy_id'] ?? ''),
+        params:         payload['params'] ?? {},
+        interval,
+        capital:        Number(payload['capital'] ?? 100_000),
+        start_date:     payload['start_date'] ?? null,
+        end_date:       payload['end_date'] ?? null,
+        commission_rate: Number(payload['commission_rate'] ?? 0.001),
+        max_symbols:    30,
+      };
+      const resp = await fetch('/api/backtest/batch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(120_000),
+      });
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const data = await resp.json();
+      const results: any[] = (data.results || []).sort(
+        (a: any, b: any) => (b[sortKey] ?? 0) - (a[sortKey] ?? 0)
+      );
+      const errors: any[] = data.errors || [];
+
+      statusEl.textContent = `${results.length} başarılı / ${errors.length} hata`;
+
+      if (results.length === 0) {
+        resultsEl.innerHTML = '<div class="empty-state">Sonuç yok — sembol verisi eksik olabilir.</div>';
+        return;
+      }
+
+      resultsEl.innerHTML = `
+        <table class="data-table mini-table batch-bt-table">
+          <thead><tr>
+            <th>#</th><th>Sembol</th><th>Getiri</th><th>Sharpe</th>
+            <th>Max DD</th><th>Kazanma</th><th>İşlem</th><th></th>
+          </tr></thead>
+          <tbody>
+            ${results.map((r: any, idx: number) => `
+            <tr>
+              <td style="color:var(--text-dim)">${idx + 1}</td>
+              <td class="sym-cell"><strong>${this.escape(r.symbol)}</strong></td>
+              <td class="${r.total_return_pct >= 0 ? 'pos' : 'neg'}">${formatPct(r.total_return_pct)}</td>
+              <td>${r.sharpe_ratio != null ? formatNumber(r.sharpe_ratio, 2) : '—'}</td>
+              <td class="neg">${r.max_drawdown_pct != null ? formatPct(r.max_drawdown_pct) : '—'}</td>
+              <td>${r.win_rate != null ? formatPct(r.win_rate) : '—'}</td>
+              <td>${r.total_trades}</td>
+              <td>
+                <button class="btn-sm" data-scan-symbol="${this.escapeAttr(r.symbol)}" title="Sembole git">Aç</button>
+                ${r.run_id ? `<button class="btn-sm" data-load-report="${this.escapeAttr(r.run_id)}" title="Raporu yükle">Rapor</button>` : ''}
+              </td>
+            </tr>`).join('')}
+          </tbody>
+        </table>
+        ${errors.length > 0 ? `<div style="font-size:10px;color:var(--text-dim);margin-top:6px">${errors.length} sembol başarısız: ${errors.slice(0, 5).map((e: any) => e.symbol).join(', ')}</div>` : ''}`;
+    } catch (err: any) {
+      statusEl.textContent = 'Hata: ' + (err?.message ?? 'Bilinmeyen hata');
+      resultsEl.innerHTML = '<div class="empty-state error">Batch backtest başarısız.</div>';
+    } finally {
+      if (btn) btn.disabled = false;
+    }
+  }
+
   private renderPaperStatus(message: string): void {
     const el = this.container.querySelector('#saved-strategies');
     if (!el) return;
@@ -1610,7 +1743,44 @@ export class StrategyPanel {
         ${this.metric(TR.PROFIT_FACTOR, formatNumber(m.profit_factor ?? this.profitFactor(r.trades), 2))}
       </div>
       <div class="report-note">${this.escape(r.summary_text ?? '')}</div>
+      ${this.assumptionsHTML(r)}
     `;
+  }
+
+  /** Backtest varsayımlar kartı — kullanıcı değiştiremese de görmeli. */
+  private assumptionsHTML(r: BacktestResult): string {
+    const a = r.assumptions ?? {};
+    const ds = r.data_source ?? {};
+    const commissionRate = Number(a['commission_rate'] ?? (r as unknown as Record<string, unknown>)['commission_rate'] ?? 0.001);
+    const slippageBps    = Number(a['slippage_bps'] ?? 0);
+    const slippageModel  = String(a['slippage_model'] ?? a['slippage_type'] ?? 'fixed_bps');
+    const initialCapital = Number((r.metrics?.initial_capital) ?? r.capital ?? 0);
+    const dsExtra = ds as Record<string, unknown>;
+    const startDate = String(a['start_date'] ?? dsExtra['start'] ?? '—');
+    const endDate   = String(a['end_date']   ?? dsExtra['end']   ?? '—');
+    const rows: Array<[string, string]> = [
+      ['Başlangıç Sermayesi', initialCapital > 0 ? formatCurrency(initialCapital) : '—'],
+      ['Veri Aralığı',        `${startDate} → ${endDate}`],
+      ['Komisyon Oranı',      `${formatNumber(commissionRate * 100, 3)}%`],
+      ['Slippage Modeli',     slippageModel],
+      ['Slippage (bps)',       slippageBps > 0 ? String(slippageBps) : '0'],
+      ['Sinyal Zamanlaması',  String(a['signal_timing'] ?? 'bar_close')],
+      ['Emir Zamanlaması',    String(a['execution_timing'] ?? 'next_open')],
+    ];
+    return `
+      <div class="report-subsection" style="margin-top:14px">
+        <h4 style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--text-dim);margin:0 0 10px">
+          Backtest Varsayımları
+        </h4>
+        <table class="data-table system-table" style="font-size:12px">
+          <tbody>
+            ${rows.map(([k, v]) => `<tr><th style="white-space:nowrap">${this.escape(k)}</th><td>${this.escape(v)}</td></tr>`).join('')}
+          </tbody>
+        </table>
+        <div style="font-size:10px;color:var(--text-dim);margin-top:6px">
+          ℹ️ Bu değerler backtest çalıştırılırken seçilen ayarları gösterir. Değiştirmek için yeni bir backtest başlatın.
+        </div>
+      </div>`;
   }
 
   private performanceHTML(r: BacktestResult): string {

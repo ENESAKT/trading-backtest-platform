@@ -374,6 +374,8 @@ export interface ScreenerResult {
   bbPosition: 'Alt Band' | 'Üst Band' | 'Orta' | 'Normal';
   volumeAlert: boolean;
   alerts: string[];
+  volumeAvg20d?: number;       // Son 20 günlük ortalama hacim
+  distFrom52wHigh?: number;    // 52h zirvesine mesafe (%)
 }
 
 export type ScreenerFilter =

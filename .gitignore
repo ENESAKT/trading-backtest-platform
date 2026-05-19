@@ -49,10 +49,19 @@ Thumbs.db
 
 # Claude Code (lokal kullanıcı ayarları)
 .claude/settings.local.json
+.claude/worktrees/
 
 .env
 .env.production
 backups/
+infra/aws/.terraform/
+infra/aws/*.tfstate
+infra/aws/*.tfstate.*
+infra/aws/*.tfvars
+infra/certbot/conf/
+infra/certbot/logs/
+infra/certbot/work/
+infra/certbot/www/
 
 # Matriks referans dokümanları (PDF'den üretilir, repoya girmez)
 matriks.md

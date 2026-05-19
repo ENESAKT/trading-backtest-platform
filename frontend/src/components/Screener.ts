@@ -10,7 +10,7 @@ const ICON_PLAY = '<svg class="icon-svg" width="14" height="14" viewBox="0 0 24 
 
 // ─── Screener ─────────────────────────────────────────────────────────────────
 
-type SortCol = 'symbol' | 'price' | 'changePct' | 'rsi' | 'emaSignal' | 'bbPosition';
+type SortCol = 'symbol' | 'price' | 'changePct' | 'rsi' | 'emaSignal' | 'bbPosition' | 'volumeAvg20d' | 'distFrom52wHigh';
 type SortDir = 'asc' | 'desc';
 
 export class Screener {
@@ -173,6 +173,16 @@ export class Screener {
     // Volume alert
     const volumeAlert = avgVol > 0 && last.volume > avgVol * 1.5;
 
+    // Volume avg 20d
+    const volumeAvg20d = avgVol > 0 ? avgVol : undefined;
+
+    // 52-haftalık zirveye mesafe
+    const highs = candles.map(c => c.high);
+    const high52w = highs.length > 0 ? Math.max(...highs) : 0;
+    const distFrom52wHigh = high52w > 0
+      ? Math.round(((last.close - high52w) / high52w) * 10000) / 100
+      : undefined;
+
     // Alerts list
     const alerts: string[] = [];
     if (rsi < 30)  alerts.push(TR.RSI_OVERSOLD);
@@ -191,6 +201,8 @@ export class Screener {
       bbPosition,
       volumeAlert,
       alerts,
+      volumeAvg20d,
+      distFrom52wHigh,
     };
   }
 
@@ -213,15 +225,19 @@ export class Screener {
 
   private sortResults(): ScreenerResult[] {
     const dir = this.sortDir === 'asc' ? 1 : -1;
+    const numSort = (a: number | undefined, b: number | undefined) =>
+      ((a ?? -Infinity) - (b ?? -Infinity)) * dir;
     return [...this.results].sort((a, b) => {
       switch (this.sortCol) {
-        case 'symbol':    return dir * a.symbol.localeCompare(b.symbol);
-        case 'price':     return dir * (a.price - b.price);
-        case 'changePct': return dir * (a.changePct - b.changePct);
-        case 'rsi':       return dir * (a.rsi - b.rsi);
-        case 'emaSignal': return dir * a.emaSignal.localeCompare(b.emaSignal);
-        case 'bbPosition':return dir * a.bbPosition.localeCompare(b.bbPosition);
-        default:          return 0;
+        case 'symbol':          return dir * a.symbol.localeCompare(b.symbol);
+        case 'price':           return dir * (a.price - b.price);
+        case 'changePct':       return dir * (a.changePct - b.changePct);
+        case 'rsi':             return dir * (a.rsi - b.rsi);
+        case 'emaSignal':       return dir * a.emaSignal.localeCompare(b.emaSignal);
+        case 'bbPosition':      return dir * a.bbPosition.localeCompare(b.bbPosition);
+        case 'volumeAvg20d':    return numSort(a.volumeAvg20d, b.volumeAvg20d);
+        case 'distFrom52wHigh': return numSort(a.distFrom52wHigh, b.distFrom52wHigh);
+        default:                return 0;
       }
     });
   }
@@ -254,6 +270,8 @@ export class Screener {
             ${this.thHTML('rsi', 'RSI')}
             ${this.thHTML('emaSignal', TR.EMA_SIGNAL)}
             ${this.thHTML('bbPosition', TR.BB_POSITION)}
+            ${this.thHTML('volumeAvg20d', 'Hac.Ort.20')}
+            ${this.thHTML('distFrom52wHigh', '52h Zirve%')}
             <th>${TR.VOLUME_ALERT}</th>
             <th>${TR.ALERTS}</th>
             <th>İşlem</th>
@@ -309,6 +327,10 @@ export class Screener {
     const emaCls = r.emaSignal === 'Yükseliş' ? 'pos' : r.emaSignal === 'Düşüş' ? 'neg' : '';
     const bbCls  = r.bbPosition === 'Alt Band' ? 'pos' : r.bbPosition === 'Üst Band' ? 'neg' : '';
 
+    const fmtVol = (v?: number) => v != null ? formatNumber(v, 0) : '—';
+    const fmtDist = (v?: number) => v != null
+      ? `<span class="${v >= 0 ? 'pos' : 'neg'}">${v.toFixed(1)}%</span>`
+      : '—';
     return `
       <tr>
         <td class="sym-cell">${r.symbol}</td>
@@ -317,6 +339,8 @@ export class Screener {
         <td class="${rsiCls}">${formatNumber(r.rsi, 1)}</td>
         <td class="${emaCls}">${r.emaSignal}</td>
         <td class="${bbCls}">${r.bbPosition}</td>
+        <td style="font-size:11px;color:var(--text-dim)">${fmtVol(r.volumeAvg20d)}</td>
+        <td>${fmtDist(r.distFrom52wHigh)}</td>
         <td>${r.volumeAlert ? '⚡' : '—'}</td>
         <td class="alerts-cell">${r.alerts.slice(0, 3).map(a => `<span class="alert-tag">${a}</span>`).join('')}</td>
         <td class="screener-actions">

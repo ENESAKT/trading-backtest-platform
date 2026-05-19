@@ -51,7 +51,9 @@ const publicRoutes: Record<string, () => Promise<PublicRenderer>> = {
 const loadPublicRenderer = publicRoutes[publicPath];
 const loadDynamicPublicRenderer = publicPath.startsWith('/shared/')
   ? async () => (await import('./pages/SharedBacktestPage.js')).renderSharedBacktestPage
-  : null;
+  : publicPath.startsWith('/terminal/symbol/')
+    ? async () => (await import('./pages/Symbol360Page.js')).renderSymbol360Page
+    : null;
 if (loadPublicRenderer || loadDynamicPublicRenderer) {
   document.getElementById('market-ticker')?.remove();
   document.getElementById('topbar')?.remove();

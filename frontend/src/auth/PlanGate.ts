@@ -51,7 +51,7 @@ function currentTier(): Tier {
 // Limitler backend/auth/feature_gate.py ile senkron tutulmalı
 const BACKTEST_LIMITS: Record<Tier, number> = {
   guest: 0,
-  free:  10,  // feature_gate.py: backtest_runs_per_day=10
+  free:  5,   // feature_gate.py: backtest_runs_per_day=5
   pro:   50,
   ultra: Infinity,
   admin: Infinity,
@@ -184,6 +184,43 @@ export function canAccess(feature: Feature): boolean {
   return tierRank(current) >= tierRank(required);
 }
 
+// ─── Dinamik limit yükleme (API) ─────────────────────────────────────────────
+
+export interface ApiLimits {
+  role: string;
+  limits: {
+    backtest_runs_per_day: number;
+    screener_runs_per_day: number;
+    watchlist_symbols: number;
+    news_access: boolean;
+    signals_access: boolean;
+    paper_trading: boolean;
+  };
+}
+
+/**
+ * /api/me/limits endpoint'inden kullanıcı limitlerini çeker.
+ *
+ * Kullanım:
+ *   const apiLimits = await fetchLimits();
+ *   if (apiLimits) {
+ *     const btLimit = apiLimits.limits.backtest_runs_per_day;
+ *   }
+ *
+ * TODO: Bu fonksiyonun döndürdüğü değeri BACKTEST_LIMITS gibi statik
+ *       nesnelerin yerine kullanacak bir mekanizma eklenmeli.
+ *       Şu an BACKTEST_LIMITS hâlâ statik değerlere dayanmaktadır.
+ */
+export async function fetchLimits(): Promise<ApiLimits | null> {
+  try {
+    const res = await fetch('/api/me/limits');
+    if (!res.ok) return null;
+    return await res.json() as ApiLimits;
+  } catch {
+    return null;
+  }
+}
+
 // ─── Singleton export ────────────────────────────────────────────────────────
 export const planGate = {
   currentTier,
@@ -194,4 +231,5 @@ export const planGate = {
   isGroupAllowed,
   canAccess,
   showPlanGate,
+  fetchLimits,
 };
