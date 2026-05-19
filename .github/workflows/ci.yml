@@ -86,8 +86,30 @@ jobs:
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     needs: docker
     runs-on: ubuntu-latest
+    env:
+      EC2_HOST: ${{ secrets.EC2_HOST }}
+      EC2_USER: ${{ secrets.EC2_USER }}
+      EC2_SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
     steps:
+      - name: Check deployment configuration
+        id: deploy_config
+        shell: bash
+        run: |
+          missing=()
+          [ -n "$EC2_HOST" ] || missing+=("EC2_HOST")
+          [ -n "$EC2_USER" ] || missing+=("EC2_USER")
+          [ -n "$EC2_SSH_KEY" ] || missing+=("EC2_SSH_KEY")
+
+          if [ "${#missing[@]}" -gt 0 ]; then
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "::notice title=Deploy skipped::Missing required GitHub secrets: ${missing[*]}"
+            exit 0
+          fi
+
+          echo "ready=true" >> "$GITHUB_OUTPUT"
+
       - name: Deploy to EC2
+        if: ${{ steps.deploy_config.outputs.ready == 'true' }}
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.EC2_HOST }}
