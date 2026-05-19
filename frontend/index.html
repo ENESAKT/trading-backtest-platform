@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="tr" data-lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PiyasaPilot — Algoritmik Trading Terminali</title>
+  <meta name="description" content="PiyasaPilot: BIST, kripto ve global piyasalar için backtest, sinyal ve portföy yönetimi.">
+  <meta property="og:title" content="PiyasaPilot">
+  <meta property="og:url" content="https://piyasapilot.com">
+  <link rel="canonical" href="https://piyasapilot.com">
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="manifest" href="/manifest.webmanifest" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap"
+    rel="stylesheet"
+  />
+  <script>
+    (() => {
+      const path = window.location.pathname.replace(/\/+$/, '') || '/';
+      const publicRoutes = new Set([
+        '/landing', '/login', '/register', '/pricing', '/waitlist', '/changelog',
+        '/forgot-password', '/reset-password', '/verify-email', '/onboarding',
+        '/payment/success', '/settings', '/admin', '/legal/terms',
+        '/legal/privacy', '/legal/cookies',
+      ]);
+      if (publicRoutes.has(path) || path.startsWith('/shared/')) {
+        document.documentElement.dataset.route = 'public';
+      }
+    })();
+  </script>
+  <style>
+    html[data-route="public"] #topbar,
+    html[data-route="public"] #theme-panel,
+    html[data-route="public"] #app-layout,
+    html[data-route="public"] #market-ticker {
+      display: none !important;
+    }
+  </style>
+</head>
+<body>
+  <div id="app-error-banner" class="hidden app-error">
+    Beklenmedik bir hata oluştu. Sayfayı yenileyiniz.
+    <button type="button" onclick="location.reload()">Yenile</button>
+  </div>
+
+  <!-- ── Topbar ─────────────────────────────────────────────────────────── -->
+  <header id="topbar">
+    <div class="topbar-left">
+      <button id="mobile-sidebar-btn" class="mobile-sidebar-btn" type="button" aria-label="Sembol listesi" aria-expanded="false" aria-controls="sidebar">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+          <line x1="2" y1="4" x2="14" y2="4"/><line x1="2" y1="8" x2="14" y2="8"/><line x1="2" y1="12" x2="14" y2="12"/>
+        </svg>
+      </button>
+      <span class="logo"><span class="logo-mark">P</span><strong>PiyasaPilot</strong><small>Terminal</small></span>
+      <span id="symbol-title" class="symbol-title">Bitcoin / USDT (BTCUSDT)</span>
+    </div>
+    <nav class="topbar-tabs">
+      <button class="tab-btn active" data-tab="chart"><span class="tab-code">1</span><span>Grafik</span></button>
+      <button class="tab-btn" data-tab="portfolio"><span class="tab-code">2</span><span>Portföy</span></button>
+      <button class="tab-btn" data-tab="strategy"><span class="tab-code">3</span><span>Strateji</span></button>
+      <button class="tab-btn" data-tab="screener"><span class="tab-code">4</span><span>Tarama</span></button>
+      <button class="tab-btn" data-tab="signals"><span class="tab-code">5</span><span>Sinyaller</span></button>
+      <button class="tab-btn" data-tab="education"><span class="tab-code">6</span><span>Eğitimler</span></button>
+      <button class="tab-btn" data-tab="financials"><span class="tab-code">7</span><span>Mali Analiz</span></button>
+      <button class="tab-btn" data-tab="news"><span class="tab-code">8</span><span>Haberler</span><span class="tab-news-badge" id="tab-news-badge" hidden title="Okunmamış haber sayısı"></span></button>
+    </nav>
+    <div class="topbar-right">
+      <span id="last-update" class="upd-green"></span>
+      <span id="status-badge" class="status-badge status-offline">BAĞLANTI YOK</span>
+      <button id="theme-panel-toggle" class="theme-panel-toggle btn btn-sm btn-outline-warning" type="button" aria-expanded="false" aria-controls="theme-panel">Görünüm</button>
+      <!-- ── Kullanıcı Menüsü ─────────────────────────────────────────── -->
+      <div id="user-menu" class="user-menu">
+        <!-- guest state -->
+        <div id="user-menu-guest" class="user-menu-guest" hidden>
+          <a href="/login" class="btn btn-sm btn-outline-warning">Giriş Yap</a>
+          <a href="/register" class="btn btn-sm btn-warning">Ücretsiz Kayıt</a>
+        </div>
+        <!-- logged-in state -->
+        <div id="user-menu-loggedin" class="user-menu-loggedin" hidden>
+          <button id="user-avatar-btn" class="user-avatar-btn" type="button" aria-haspopup="true" aria-expanded="false">
+            <span id="user-avatar-initials" class="user-avatar-initials">?</span>
+            <span id="user-display-name" class="user-display-name"></span>
+            <span class="user-plan-badge" id="user-plan-badge"></span>
+          </button>
+          <div id="user-dropdown" class="user-dropdown" hidden role="menu">
+            <div class="user-dropdown-header">
+              <span id="user-dropdown-email" class="user-dropdown-email"></span>
+            </div>
+            <a href="/settings" class="user-dropdown-item" role="menuitem">Ayarlar</a>
+            <a href="/pricing" class="user-dropdown-item" role="menuitem">Planlar</a>
+            <hr class="user-dropdown-divider" />
+            <button id="logout-btn" class="user-dropdown-item user-dropdown-logout" type="button" role="menuitem">Çıkış Yap</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <section id="theme-panel" class="theme-panel card shadow-lg" aria-label="Tema ayarları" hidden>
+    <div class="theme-panel-head">
+      <strong>PiyasaPilot Görünüm</strong>
+      <button id="theme-panel-close" class="btn-close" type="button" aria-label="Kapat"></button>
+    </div>
+    <div class="theme-row">
+      <span>Tema</span>
+      <div class="segmented" role="group" aria-label="Tema seçimi">
+        <button type="button" data-theme-choice="dark" class="btn btn-sm btn-warning active">Koyu</button>
+        <button type="button" data-theme-choice="light" class="btn btn-sm btn-outline-secondary">Açık</button>
+      </div>
+    </div>
+    <div class="theme-row">
+      <span>Vurgu</span>
+      <div class="swatches" role="group" aria-label="Renk seçimi">
+        <button type="button" data-accent-choice="amber" class="active" style="--swatch:#ffb020" aria-label="Sarı"></button>
+        <button type="button" data-accent-choice="green" style="--swatch:#00c875" aria-label="Yeşil"></button>
+        <button type="button" data-accent-choice="cyan" style="--swatch:#00d4ff" aria-label="Cyan"></button>
+        <button type="button" data-accent-choice="purple" style="--swatch:#b78bff" aria-label="Mor"></button>
+        <button type="button" data-accent-choice="red" style="--swatch:#ff4757" aria-label="Kırmızı"></button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Mobile sidebar backdrop ─────────────────────────────────────── -->
+  <div id="sidebar-backdrop" class="sidebar-backdrop" aria-hidden="true"></div>
+
+  <!-- ── Layout ─────────────────────────────────────────────────────────── -->
+  <div id="app-layout">
+    <aside id="sidebar"></aside>
+    <main id="main-content"></main>
+  </div>
+
+  <script type="module" src="/src/app.ts"></script>
+</body>
+</html>

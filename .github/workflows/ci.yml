@@ -1,0 +1,141 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches:
+      - '**'
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install backend dependencies
+        run: pip install -r requirements.txt
+
+      - name: Compile all production modules
+        run: |
+          python -m py_compile \
+            backend/api/main.py \
+            backend/api/auth_router.py \
+            backend/api/payments_router.py \
+            backend/payments/stripe_service.py \
+            backend/auth/jwt_utils.py \
+            backend/env_validator.py \
+            backend/paper/executor.py \
+            backend/notifier/telegram.py
+
+      - name: Run full unit test suite
+        run: python -m pytest tests/unit/ -q --tb=short --ignore=tests/unit/test_binance_ws.py --ignore=tests/unit/test_live_feed.py
+        env:
+          JWT_SECRET: "ci-test-secret-min-64-chars-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+          MYSQL_HOST: "localhost"
+          MYSQL_PASSWORD: "test"
+          APP_ENV: "test"
+
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Setup Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install frontend dependencies
+        run: cd frontend && npm ci
+
+      - name: Run frontend typecheck
+        run: cd frontend && npm run typecheck
+
+      - name: Build frontend
+        run: cd frontend && npm run build
+
+      - name: Run Playwright smoke suite
+        run: cd frontend && npm run e2e
+
+  docker:
+    needs: [backend, frontend]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Build API image
+        run: docker build -f docker/Dockerfile.api -t piyasapilot-api:ci .
+
+      - name: Build frontend image
+        run: docker build -f docker/Dockerfile.frontend -t piyasapilot-frontend:ci .
+
+      - name: Scan API image
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: piyasapilot-api:ci
+          format: table
+          exit-code: 1
+          severity: CRITICAL,HIGH
+
+  deploy:
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    needs: docker
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to EC2
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          command_timeout: 15m
+          script: |
+            set -euo pipefail
+
+            # İlk kez deploy ise repo'yu klonla
+            if [ ! -d /opt/piyasapilot ]; then
+              sudo mkdir -p /opt/piyasapilot
+              sudo chown $USER:$USER /opt/piyasapilot
+              git clone https://github.com/ENESAKT/Backtest.git /opt/piyasapilot
+            fi
+
+            cd /opt/piyasapilot
+            git fetch origin main
+            git checkout main
+            git pull origin main
+
+            # .env.production yoksa deploy durdur
+            if [ ! -f .env.production ]; then
+              echo "HATA: .env.production bulunamadı! Sunucuda oluştur."
+              exit 1
+            fi
+
+            # Docker image'ları build et ve başlat
+            docker compose -f infra/docker-compose.prod.yml build --no-cache
+            docker compose -f infra/docker-compose.prod.yml up -d --remove-orphans
+
+            # Watchdog + systemd servisini güncelle (varsa)
+            if [ -f scripts/fix_server_stability.sh ]; then
+              bash scripts/fix_server_stability.sh || true
+            fi
+
+            # Sağlık kontrolü (60 saniye bekle)
+            echo "API sağlık kontrolü bekleniyor..."
+            for i in $(seq 1 12); do
+              if curl -sf http://localhost:8000/api/health > /dev/null 2>&1; then
+                echo "✅ API sağlıklı"
+                break
+              fi
+              echo "  Bekleniyor... ($i/12)"
+              sleep 5
+            done
+            curl -f http://localhost:8000/api/health || (echo "❌ API hâlâ yanıt vermiyor"; docker compose -f infra/docker-compose.prod.yml logs --tail=50 api; exit 1)

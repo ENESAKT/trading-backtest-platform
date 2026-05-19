@@ -1,0 +1,58 @@
+Running `(cd /Users/enes/.pub-cache/hosted/pub.dev/objective_c-9.3.0/; TMPDIR=/var/folders/cc/zjxz913j7vncbk_l810zjpv00000gn/T/ PATH=/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/System/Cryptexes/App/usr/bin:/usr/bin:/bin:/usr/sbin:/sbin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/local/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin:/opt/pkg/env/active/bin:/opt/pmk/env/global/bin:/Library/Apple/usr/bin:/Users/enes/.codex/tmp/arg0/codex-arg0UdNZNC:/Users/enes/.antigravity/antigravity/bin:/Users/enes/Library/Python/3.9/bin:/Users/enes/.local/bin:/Users/enes/development/flutter/bin:/Applications/Codex.app/Contents/Resources:/Users/enes/.local/bin HOME=/Users/enes /Users/enes/development/flutter/bin/cache/dart-sdk/bin/dart --packages=/Users/enes/AgentWorkspace/Backtest/mobile/piyasapilot_mobile/.dart_tool/package_config.json /Users/enes/AgentWorkspace/Backtest/mobile/piyasapilot_mobile/.dart_tool/hooks_runner/objective_c/7ad245dadc/hook.dill --config=/Users/enes/AgentWorkspace/Backtest/mobile/piyasapilot_mobile/.dart_tool/hooks_runner/objective_c/7ad245dadc/input.json )`.
+INFO: 2026-05-16 19:24:24.263113: Running `/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang --version`.
+
+INFO: 2026-05-16 19:24:24.411748: Running `/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang --version`.
+
+INFO: 2026-05-16 19:24:24.426339: Running: /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.5.sdk -target arm64-apple-darwin -mmacos-version-min=13 -c /Users/enes/.pub-cache/hosted/pub.dev/objective_c-9.3.0/src/include/dart_api_dl.c -fpic -I src -o /Users/enes/AgentWorkspace/Backtest/mobile/piyasapilot_mobile/.dart_tool/hooks_runner/shared/objective_c/build/7ad245dadc/obj/src/include/dart_api_dl.c.o
+
+INFO: 2026-05-16 19:24:24.426643: Running: /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.5.sdk -target arm64-apple-darwin -mmacos-version-min=13 -c /Users/enes/.pub-cache/hosted/pub.dev/objective_c-9.3.0/src/objective_c.c -fpic -I src -o /Users/enes/AgentWorkspace/Backtest/mobile/piyasapilot_mobile/.dart_tool/hooks_runner/shared/objective_c/build/7ad245dadc/obj/src/objective_c.c.o
+
+INFO: 2026-05-16 19:24:24.426807: Running: /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.5.sdk -target arm64-apple-darwin -mmacos-version-min=13 -c /Users/enes/.pub-cache/hosted/pub.dev/objective_c-9.3.0/test/util.c -fpic -I src -o /Users/enes/AgentWorkspace/Backtest/mobile/piyasapilot_mobile/.dart_tool/hooks_runner/shared/objective_c/build/7ad245dadc/obj/test/util.c.o
+
+INFO: 2026-05-16 19:24:24.426896: Running: /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.5.sdk -target arm64-apple-darwin -mmacos-version-min=13 -x objective-c -fobjc-arc -c /Users/enes/.pub-cache/hosted/pub.dev/objective_c-9.3.0/src/input_stream_adapter.m -fpic -I src -o /Users/enes/AgentWorkspace/Backtest/mobile/piyasapilot_mobile/.dart_tool/hooks_runner/shared/objective_c/build/7ad245dadc/obj/src/input_stream_adapter.m.o
+
+INFO: 2026-05-16 19:24:24.427065: Running: /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.5.sdk -target arm64-apple-darwin -mmacos-version-min=13 -x objective-c -fobjc-arc -c /Users/enes/.pub-cache/hosted/pub.dev/objective_c-9.3.0/src/objective_c.m -fpic -I src -o /Users/enes/AgentWorkspace/Backtest/mobile/piyasapilot_mobile/.dart_tool/hooks_runner/shared/objective_c/build/7ad245dadc/obj/src/objective_c.m.o
+
+INFO: 2026-05-16 19:24:24.427351: Running: /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.5.sdk -target arm64-apple-darwin -mmacos-version-min=13 -x objective-c -fobjc-arc -c /Users/enes/.pub-cache/hosted/pub.dev/objective_c-9.3.0/src/protocol.m -fpic -I src -o /Users/enes/AgentWorkspace/Backtest/mobile/piyasapilot_mobile/.dart_tool/hooks_runner/shared/objective_c/build/7ad245dadc/obj/src/protocol.m.o
+
+
+
+INFO: 2026-05-16 19:24:24.427428: Running: /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.5.sdk -target arm64-apple-darwin -mmacos-version-min=13 -x objective-c -fobjc-arc -c /Users/enes/.pub-cache/hosted/pub.dev/objective_c-9.3.0/src/objective_c_bindings_generated.m -fpic -I src -o /Users/enes/AgentWorkspace/Backtest/mobile/piyasapilot_mobile/.dart_tool/hooks_runner/shared/objective_c/build/7ad245dadc/obj/src/objective_c_bindings_generated.m.o
+
+INFO: 2026-05-16 19:24:24.616415: 
+INFO: 2026-05-16 19:24:24.616443: 
+INFO: 2026-05-16 19:24:24.616452: Generated /Users/enes/AgentWorkspace/Backtest/mobile/piyasapilot_mobile/.dart_tool/hooks_runner/shared/objective_c/build/7ad245dadc/obj/src/objective_c.c.o
+
+INFO: 2026-05-16 19:24:24.616562: 
+INFO: 2026-05-16 19:24:24.616574: 
+INFO: 2026-05-16 19:24:24.616588: Generated /Users/enes/AgentWorkspace/Backtest/mobile/piyasapilot_mobile/.dart_tool/hooks_runner/shared/objective_c/build/7ad245dadc/obj/src/include/dart_api_dl.c.o
+INFO: 2026-05-16 19:24:24.616631: 
+INFO: 2026-05-16 19:24:24.616640: 
+INFO: 2026-05-16 19:24:24.616664: Generated /Users/enes/AgentWorkspace/Backtest/mobile/piyasapilot_mobile/.dart_tool/hooks_runner/shared/objective_c/build/7ad245dadc/obj/test/util.c.o
+
+INFO: 2026-05-16 19:24:24.619675: 
+INFO: 2026-05-16 19:24:24.619721: 
+INFO: 2026-05-16 19:24:24.619733: Generated /Users/enes/AgentWorkspace/Backtest/mobile/piyasapilot_mobile/.dart_tool/hooks_runner/shared/objective_c/build/7ad245dadc/obj/src/protocol.m.o
+
+INFO: 2026-05-16 19:24:24.885324: 
+INFO: 2026-05-16 19:24:24.885360: 
+INFO: 2026-05-16 19:24:24.885368: Generated /Users/enes/AgentWorkspace/Backtest/mobile/piyasapilot_mobile/.dart_tool/hooks_runner/shared/objective_c/build/7ad245dadc/obj/src/ns_number.m.o
+
+INFO: 2026-05-16 19:24:24.893420: 
+INFO: 2026-05-16 19:24:24.893456: 
+INFO: 2026-05-16 19:24:24.893468: Generated /Users/enes/AgentWorkspace/Backtest/mobile/piyasapilot_mobile/.dart_tool/hooks_runner/shared/objective_c/build/7ad245dadc/obj/src/objective_c.m.o
+
+INFO: 2026-05-16 19:24:24.893756: 
+INFO: 2026-05-16 19:24:24.893795: 
+INFO: 2026-05-16 19:24:24.893808: Generated /Users/enes/AgentWorkspace/Backtest/mobile/piyasapilot_mobile/.dart_tool/hooks_runner/shared/objective_c/build/7ad245dadc/obj/src/input_stream_adapter.m.o
+
+INFO: 2026-05-16 19:24:24.909075: 
+INFO: 2026-05-16 19:24:24.909112: 
+INFO: 2026-05-16 19:24:24.909120: Generated /Users/enes/AgentWorkspace/Backtest/mobile/piyasapilot_mobile/.dart_tool/hooks_runner/shared/objective_c/build/7ad245dadc/obj/src/objective_c_bindings_generated.m.o
+
+INFO: 2026-05-16 19:24:24.909359: Running: /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -shared -Wl,-encryptable -undefined dynamic_lookup -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.5.sdk -target arm64-apple-darwin -mmacos-version-min=13 /Users/enes/AgentWorkspace/Backtest/mobile/piyasapilot_mobile/.dart_tool/hooks_runner/shared/objective_c/build/7ad245dadc/obj/src/include/dart_api_dl.c.o /Users/enes/AgentWorkspace/Backtest/mobile/piyasapilot_mobile/.dart_tool/hooks_runner/shared/objective_c/build/7ad245dadc/obj/src/objective_c.c.o /Users/enes/AgentWorkspace/Backtest/mobile/piyasapilot_mobile/.dart_tool/hooks_runner/shared/objective_c/build/7ad245dadc/obj/test/util.c.o /Users/enes/AgentWorkspace/Backtest/mobile/piyasapilot_mobile/.dart_tool/hooks_runner/shared/objective_c/build/7ad245dadc/obj/src/input_stream_adapter.m.o /Users/enes/AgentWorkspace/Backtest/mobile/piyasapilot_mobile/.dart_tool/hooks_runner/shared/objective_c/build/7ad245dadc/obj/src/objective_c.m.o /Users/enes/AgentWorkspace/Backtest/mobile/piyasapilot_mobile/.dart_tool/hooks_runner/shared/objective_c/build/7ad245dadc/obj/src/observer.m.o /Users/enes/AgentWorkspace/Backtest/mobile/piyasapilot_mobile/.dart_tool/hooks_runner/shared/objective_c/build/7ad245dadc/obj/src/ns_number.m.o /Users/enes/AgentWorkspace/Backtest/mobile/piyasapilot_mobile/.dart_tool/hooks_runner/shared/objective_c/build/7ad245dadc/obj/src/protocol.m.o /Users/enes/AgentWorkspace/Backtest/mobile/piyasapilot_mobile/.dart_tool/hooks_runner/shared/objective_c/build/7ad245dadc/obj/src/objective_c_bindings_generated.m.o -o /Users/enes/AgentWorkspace/Backtest/mobile/piyasapilot_mobile/.dart_tool/hooks_runner/shared/objective_c/build/7ad245dadc/objective_c.dylib
+
+INFO: 2026-05-16 19:24:25.035401: 
+INFO: 2026-05-16 19:24:25.035455: 
+INFO: 2026-05-16 19:24:25.035465: Generated /Users/enes/AgentWorkspace/Backtest/mobile/piyasapilot_mobile/.dart_tool/hooks_runner/shared/objective_c/build/7ad245dadc/objective_c.dylib
+

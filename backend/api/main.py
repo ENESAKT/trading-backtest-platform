@@ -124,6 +124,8 @@ def _cors_origins() -> list[str]:
 
 def _require_ws_token(ws: WebSocket) -> bool:
     import hmac as _hmac
+    if os.environ.get("REQUIRE_WS_API_KEY", "0") != "1":
+        return True
     api_key = os.environ.get("API_KEY", "")
     if not api_key:
         return True
@@ -855,6 +857,98 @@ def create_app(
             "fetched_at": _utc_iso(),
             "providers": [],
             "message": "Veri sağlayıcı sağlık bilgisi bu servis için raporlanmadı.",
+        }
+
+    # ── Sembol Evreni API ────────────────────────────────────────────────
+    @app.get("/api/symbols", tags=["symbols"])
+    def get_symbol_universe(
+        group: str | None = None,
+        asset_type: str | None = None,
+        active_only: bool = True,
+    ) -> dict[str, Any]:
+        """Sembol evrenini döndürür.
+
+        Query params:
+            group:       'BIST 30' | 'BIST 100' | 'Kripto' | 'Döviz / Emtia' | 'VİOP' | 'ABD Piyasaları'
+            asset_type:  'equity' | 'crypto' | 'fx' | 'commodity' | 'index' | 'futures'
+            active_only: True (varsayılan) → sadece aktif semboller
+        """
+        from backend.data.symbols import (
+            BIST_STOCKS,
+            CRYPTO_WS_SYMBOLS,
+            YAHOO_INDEX_FX_COMMODITY,
+        )
+
+        # Statik sembol kaydını SymbolInfo formatına dönüştür
+        raw: list[dict[str, Any]] = []
+
+        # BIST hisseler
+        for sym in BIST_STOCKS:
+            ticker = sym.replace(".IS", "")
+            grp = "BIST 30" if ticker in {
+                "AKBNK","ARCLK","ASELS","BIMAS","DOHOL","EREGL","FROTO","GARAN",
+                "HALKB","ISCTR","KCHOL","KOZAL","KRDMD","MAVI","PGSUS","SAHOL",
+                "SASA","SISE","TAVHL","TCELL","THYAO","TOASO","TTKOM","TUPRS",
+                "VAKBN","VESTL","YKBNK","PETKM","EKGYO","ENKAI",
+            } else "BIST 100"
+            raw.append({
+                "symbol":     sym,
+                "name":       ticker,
+                "asset_type": "equity",
+                "group":      grp,
+                "currency":   "TRY",
+                "active":     True,
+                "market":     "BIST",
+                "provider":   "yfinance",
+            })
+
+        # Kripto
+        for sym in CRYPTO_WS_SYMBOLS:
+            raw.append({
+                "symbol":     sym,
+                "name":       sym.replace("USDT", "/USDT"),
+                "asset_type": "crypto",
+                "group":      "Kripto",
+                "currency":   "USDT",
+                "active":     True,
+                "market":     "CRYPTO",
+                "provider":   "binance",
+            })
+
+        # Endeks / FX / Emtia
+        _FX_META: dict[str, dict[str, str]] = {
+            "XU100":   {"name": "BIST 100 Endeksi",  "asset_type": "index",     "group": "BIST 30",       "currency": "TRY"},
+            "USDTRY=X":{"name": "USD/TRY",           "asset_type": "fx",        "group": "Döviz / Emtia", "currency": "TRY"},
+            "EURTRY=X":{"name": "EUR/TRY",           "asset_type": "fx",        "group": "Döviz / Emtia", "currency": "TRY"},
+            "GC=F":    {"name": "Altın (USD/oz)",    "asset_type": "commodity", "group": "Döviz / Emtia", "currency": "USD"},
+            "CL=F":    {"name": "Brent Petrol",      "asset_type": "commodity", "group": "Döviz / Emtia", "currency": "USD"},
+            "SI=F":    {"name": "Gümüş (USD/oz)",    "asset_type": "commodity", "group": "Döviz / Emtia", "currency": "USD"},
+        }
+        for sym, meta in _FX_META.items():
+            raw.append({
+                "symbol":     sym,
+                "name":       meta["name"],
+                "asset_type": meta["asset_type"],
+                "group":      meta["group"],
+                "currency":   meta["currency"],
+                "active":     True,
+                "market":     "GLOBAL",
+                "provider":   "yfinance",
+            })
+
+        # Filtrele
+        result = raw
+        if active_only:
+            result = [s for s in result if s["active"]]
+        if group:
+            result = [s for s in result if s["group"] == group]
+        if asset_type:
+            result = [s for s in result if s["asset_type"] == asset_type]
+
+        return {
+            "symbols": result,
+            "total": len(result),
+            "fetched_at": _utc_iso(),
         }
 
     # ── Backtest API (Sprint 3.2 + 3.3) ──────────────────────────────────
@@ -2907,12 +3001,20 @@ def create_app(
         # Limit uygula
         rows = rows[: req.limit]
 
+        # data_snapshot_hash — satır verisinin MD5'i (tekrar üretilebilirlik)
+        rows_raw = "".join(
+            f"{r.symbol}:{r.last_price}:{r.change_pct}:{r.rsi_14}"
+            for r in rows
+        ).encode()
+        data_snapshot_hash = hashlib.md5(rows_raw).hexdigest()
+
         return ScreenerRunResponse(
             run_id=run_id,
             created_at=created_at,
             market=req.market,
             universe=req.universe,
             filters_hash=filters_hash,
+            data_snapshot_hash=data_snapshot_hash,
             row_count=len(rows),
             rows=rows,
             metadata={
@@ -2922,6 +3024,104 @@ def create_app(
                 "filters_applied": len(req.filters),
             },
         )
+
+    @app.get("/api/screener/presets", tags=["screener"])
+    def screener_presets() -> dict[str, Any]:
+        """Hazır screener preset listesi.
+
+        Her preset: id, name, description, universe, filters[], sort_by, sort_dir, limit.
+        """
+        presets = [
+            {
+                "id": "top_volume",
+                "name": "En Yüksek Hacim",
+                "description": "Günlük hacme göre sıralanmış en likit semboller.",
+                "universe": "BIST100",
+                "filters": [],
+                "sort_by": "volume",
+                "sort_dir": "desc",
+                "limit": 20,
+            },
+            {
+                "id": "top_gainers",
+                "name": "Günün En Çok Yükselenleri",
+                "description": "Günlük değişim yüzdesine göre en çok artan semboller.",
+                "universe": "BIST100",
+                "filters": [{"column": "change_pct", "op": "gt", "value": 0}],
+                "sort_by": "change_pct",
+                "sort_dir": "desc",
+                "limit": 20,
+            },
+            {
+                "id": "top_losers",
+                "name": "Günün En Çok Düşenleri",
+                "description": "Günlük değişim yüzdesine göre en çok düşen semboller.",
+                "universe": "BIST100",
+                "filters": [{"column": "change_pct", "op": "lt", "value": 0}],
+                "sort_by": "change_pct",
+                "sort_dir": "asc",
+                "limit": 20,
+            },
+            {
+                "id": "rsi_oversold",
+                "name": "RSI Aşırı Satım",
+                "description": "RSI(14) < 30 olan semboller — potansiyel dönüş adayları.",
+                "universe": "BIST100",
+                "filters": [{"column": "rsi_14", "op": "lt", "value": 30}],
+                "sort_by": "rsi_14",
+                "sort_dir": "asc",
+                "limit": 20,
+            },
+            {
+                "id": "rsi_overbought",
+                "name": "RSI Aşırı Alım",
+                "description": "RSI(14) > 70 olan semboller — momentum devam edebilir veya düzeltme gelebilir.",
+                "universe": "BIST100",
+                "filters": [{"column": "rsi_14", "op": "gt", "value": 70}],
+                "sort_by": "rsi_14",
+                "sort_dir": "desc",
+                "limit": 20,
+            },
+            {
+                "id": "near_52w_high",
+                "name": "52 Haftalık Zirveye Yakın",
+                "description": "52 haftalık zirvesinden en az %5 uzakta olan ve yükselen semboller.",
+                "universe": "BIST100",
+                "filters": [
+                    {"column": "distance_from_52w_high", "op": "gte", "value": -5},
+                    {"column": "change_pct", "op": "gt", "value": 0},
+                ],
+                "sort_by": "distance_from_52w_high",
+                "sort_dir": "desc",
+                "limit": 20,
+            },
+            {
+                "id": "crypto_momentum",
+                "name": "Kripto Momentum",
+                "description": "Günlük pozitif değişim gösteren kripto pariteler.",
+                "universe": "CRYPTO",
+                "filters": [{"column": "change_pct", "op": "gt", "value": 0}],
+                "sort_by": "change_pct",
+                "sort_dir": "desc",
+                "limit": 20,
+            },
+            {
+                "id": "relative_volume_spike",
+                "name": "Hacim Patlaması",
+                "description": "Son hacmi 20 günlük ortalama hacmin 2 katından fazla olan semboller.",
+                "universe": "BIST100",
+                "filters": [],   # volume_avg_20d karşılaştırması row-level yapılıyor
+                "sort_by": "volume",
+                "sort_dir": "desc",
+                "limit": 20,
+                "_note": "Relative volume filtresi şu an sadece volume sort ile yaklaşık uygulanıyor. Tam relative volume filtresi bir sonraki sürümde.",
+            },
+        ]
+        return {
+            "presets": presets,
+            "count": len(presets),
+            "fetched_at": _utc_iso(),
+        }
 
     # ── Technical Summary ─────────────────────────────────────────────────────
     @app.get("/api/technical/summary", tags=["technical"])
@@ -3379,6 +3579,7 @@ class ScreenerRunResponse(BaseModel):
     market: str
     universe: str
     filters_hash: str
+    data_snapshot_hash: str = ""   # row verisinin MD5'i — tekrar üretilebilirlik için
     row_count: int
     rows: list[ScreenerRow]
     metadata: dict

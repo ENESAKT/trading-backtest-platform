@@ -1,0 +1,72 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Sanal ortam
+.venv/
+venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Veriler (yerel veritabanı — git'e dahil edilmez)
+data/bist/
+data/viop/
+data/*.duckdb
+data/cache/
+data/runtime/
+data/strategy_lab/*.sqlite3
+data/strategy_lab/*.sqlite3-*
+
+# Büyük/yerel analiz çıktıları
+artifacts/
+
+# Test/build çıktıları
+piyasapilot-v2/test-results/
+piyasapilot-v2/playwright-report/
+frontend/node_modules/
+frontend/test-results/
+frontend/playwright-report/
+frontend/dist/
+
+# Loglar
+logs/
+.claude/agent-logs/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Claude Code (lokal kullanıcı ayarları)
+.claude/settings.local.json
+.claude/worktrees/
+
+.env
+.env.production
+backups/
+infra/aws/.terraform/
+infra/aws/*.tfstate
+infra/aws/*.tfstate.*
+infra/aws/*.tfvars
+infra/certbot/conf/
+infra/certbot/logs/
+infra/certbot/work/
+infra/certbot/www/
+
+# Matriks referans dokümanları (PDF'den üretilir, repoya girmez)
+matriks.md
+scripts/build_matriks_md.py
+
+# Lokal backtest rapor arşivi
+data/strategy_lab/backtest_reports.sqlite3
+*.sqlite3

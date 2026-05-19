@@ -1,10 +1,14 @@
-"""Opsiyonel X-API-Key header tabanlı kimlik doğrulama middleware.
+"""Opsiyonel X-API-Key header tabanlı iç/ops kimlik doğrulama middleware.
 
-.env'de ``API_KEY`` tanımlıysa tüm ``/api/*`` ve ``/metrics`` istekleri
-bu header'ı zorunlu kılar. Tanımlı değilse middleware şeffaf geçer (lokal mod).
+.env'de ``API_KEY`` tanımlıysa sadece ``API_KEY_PROTECTED_PATHS`` ile
+belirlenen iç/ops yolları bu header'ı zorunlu kılar. Tanımlı değilse middleware
+şeffaf geçer (lokal mod). Browser-facing ``/api/*`` endpoint'leri JWT cookie,
+Bearer token veya route-level feature gate ile korunur; gerçek ``API_KEY``
+tarayıcıya konmaz.
 
 Kurallar:
-  * ``/api/health`` ve WebSocket upgrade istekleri doğrulama dışıdır.
+  * Varsayılan korumalı yol: ``/metrics``.
+  * ``/api/health`` ve normal browser API istekleri doğrulama dışıdır.
   * Geçersiz veya eksik key → HTTP 401.
   * Key değeri loglanmaz.
 """
@@ -22,10 +26,18 @@ from starlette.responses import JSONResponse, Response
 class APIKeyMiddleware(BaseHTTPMiddleware):
     """Opsiyonel API key doğrulama katmanı."""
 
+<<<<<<< Updated upstream
     # Key doğrulamasından her zaman muaf yollar
     _ALWAYS_EXEMPT = frozenset({"/api/health"})
     # Sadece geliştirme ortamında muaf (production'da kapalı)
     _DEV_ONLY_EXEMPT = frozenset({"/docs", "/openapi.json", "/redoc"})
+=======
+    # Key doğrulamasından her zaman muaf yollar.
+    _ALWAYS_EXEMPT = frozenset({"/api/health"})
+    # Sadece geliştirme ortamında muaf (production'da kapalı)
+    _DEV_ONLY_EXEMPT = frozenset({"/docs", "/openapi.json", "/redoc"})
+    _DEFAULT_PROTECTED_PATHS = ("/metrics",)
+>>>>>>> Stashed changes
 
     @property
     def EXEMPT_PATHS(self) -> frozenset[str]:
@@ -36,8 +48,20 @@ class APIKeyMiddleware(BaseHTTPMiddleware):
 
     def _get_api_key(self) -> str:
         """API key'i her istekte ortam değişkeninden oku (test izolasyonu için)."""
-        import os
         return os.environ.get("API_KEY", "")
+
+    def _protected_paths(self) -> tuple[str, ...]:
+        raw = os.environ.get("API_KEY_PROTECTED_PATHS", ",".join(self._DEFAULT_PROTECTED_PATHS))
+        paths = tuple(path.strip() for path in raw.split(",") if path.strip())
+        return paths or self._DEFAULT_PROTECTED_PATHS
+
+    def _requires_api_key(self, path: str) -> bool:
+        for protected in self._protected_paths():
+            if protected.endswith("*") and path.startswith(protected[:-1]):
+                return True
+            if path == protected or path.startswith(f"{protected.rstrip('/')}/"):
+                return True
+        return False
 
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
         api_key = self._get_api_key()
@@ -55,8 +79,9 @@ class APIKeyMiddleware(BaseHTTPMiddleware):
         if request.headers.get("upgrade", "").lower() == "websocket":
             return await call_next(request)
 
-        # Sadece /api/* ve /metrics yollarını kontrol et
-        if not (path.startswith("/api/") or path == "/metrics"):
+        # Sadece açıkça korumalı iç/ops yollarını kontrol et. Browser-facing
+        # /api/* endpoint'leri route bazlı JWT/feature guard ile korunur.
+        if not self._requires_api_key(path):
             return await call_next(request)
 
         # Header kontrolü — sabit-zamanlı karşılaştırma (timing attack'e karşı)
