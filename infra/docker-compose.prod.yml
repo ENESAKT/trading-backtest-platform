@@ -91,7 +91,7 @@ services:
       redis:
         condition: service_healthy
       clickhouse:
-        condition: service_healthy
+        condition: service_started
     volumes:
       - app_logs:/app/logs
     restart: unless-stopped
@@ -119,7 +119,7 @@ services:
       mysql:
         condition: service_healthy
       clickhouse:
-        condition: service_healthy
+        condition: service_started
     volumes:
       - app_logs:/app/logs
     restart: unless-stopped
