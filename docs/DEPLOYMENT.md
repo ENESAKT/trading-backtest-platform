@@ -53,7 +53,7 @@ DNS A kayıtları bu sunucunun Elastic IP adresine yönlendikten sonra TLS serti
 
 ```bash
 cd ..
-DOMAIN=piyasapilot.com EMAIL=admin@piyasapilot.com bash scripts/deployment/setup_tls.sh
+DOMAIN=piyasapilotu.com EMAIL=admin@piyasapilotu.com bash scripts/deployment/setup_tls.sh
 ```
 
 Sertifika oluştuktan sonra production TLS nginx konfigürasyonuna geçin:
@@ -76,7 +76,7 @@ docker compose --env-file ../.env.production -f docker-compose.prod.yml exec api
 Nginx production konfigürasyonu TLS sertifikası bekler. İlk kurulumda önce `docker/nginx.bootstrap.conf` kullanılmalı, sonra `scripts/deployment/setup_tls.sh` ile sertifika `infra/certbot/conf` altına yazdırılmalıdır.
 
 ```bash
-DOMAIN=piyasapilot.com EMAIL=admin@piyasapilot.com bash scripts/deployment/setup_tls.sh
+DOMAIN=piyasapilotu.com EMAIL=admin@piyasapilotu.com bash scripts/deployment/setup_tls.sh
 ```
 
 Nginx servisini yeniden başlatın:

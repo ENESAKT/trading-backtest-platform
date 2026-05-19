@@ -12,7 +12,7 @@ from urllib.parse import urlparse
 
 import httpx
 
-BASE_URL = "https://piyasapilot.com"
+BASE_URL = "https://piyasapilotu.com"
 
 
 def check_env_variables(_base_url: str) -> tuple[bool, str]:

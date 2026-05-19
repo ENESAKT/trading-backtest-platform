@@ -147,7 +147,7 @@ echo "y" | sudo ufw enable
 
 # 7. Run certbot
 # Note: Ensure DNS points to this server's IP before running certbot
-sudo certbot --nginx -n --agree-tos -m admin@piyasapilot.com -d piyasapilot.com -d www.piyasapilot.com || true
+sudo certbot --nginx -n --agree-tos -m admin@piyasapilotu.com -d piyasapilotu.com -d www.piyasapilotu.com || true
 
 # 8. Add backup cron job
 CRON_JOB="0 3 * * * $INSTALL_DIR/scripts/backup.sh >> /var/log/piyasapilot_backup.log 2>&1"

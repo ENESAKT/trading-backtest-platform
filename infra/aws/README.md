@@ -42,7 +42,7 @@ Varsayılan instance tipi hesap vCPU kotası düşük olan yeni AWS hesapları i
 6. TLS'i compose mount path'lerine yazdır:
    ```bash
    cd /opt/piyasapilot
-   DOMAIN=piyasapilot.com EMAIL=admin@piyasapilot.com bash scripts/deployment/setup_tls.sh
+   DOMAIN=piyasapilotu.com EMAIL=admin@piyasapilotu.com bash scripts/deployment/setup_tls.sh
    ```
 7. Production TLS nginx'e dön:
    ```bash

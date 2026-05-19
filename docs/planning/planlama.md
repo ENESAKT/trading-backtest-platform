@@ -8,16 +8,16 @@
 ## 0. Canlı Hata Denetimi — 2026-05-19
 
 > Kaynak: Chrome canlı QA + repo/deploy dosya kontrolü.
-> İncelenen canlı yüzeyler: `https://piyasapilot.com`, `https://www.piyasapilotu.com/?tab=chart&symbol=BTCUSDT`, `/login`, sekme geçişleri, sembol arama/değiştirme, haberler.
+> İncelenen canlı yüzeyler: `https://piyasapilotu.com`, `https://www.piyasapilotu.com/?tab=chart&symbol=BTCUSDT`, `/login`, sekme geçişleri, sembol arama/değiştirme, haberler.
 > İlgili commit notu: `84ad71a fix: production kritik hatalar — domain, CORS, cookie ve SSL düzeltmeleri`.
-> 2026-05-19 uygulama durumu: canonical domain `piyasapilot.com` olarak kilitlendi; production SPA fallback, browser/API auth ayrımı, rate limit, URL sync, certbot reload ve eksik canlı çıkış plan dosyası kod/doküman tarafında düzeltildi. Canlı sunucuya deploy edilen commit/image bu çalışma alanından doğrulanamadığı için canlı kabul testi deploy sonrası tekrar koşulacak.
+> 2026-05-19 uygulama durumu: canonical domain `piyasapilotu.com` olarak kilitlendi; production SPA fallback, browser/API auth ayrımı, rate limit, URL sync, certbot reload ve eksik canlı çıkış plan dosyası kod/doküman tarafında düzeltildi. Canlı sunucuya deploy edilen commit/image bu çalışma alanından doğrulanamadığı için canlı kabul testi deploy sonrası tekrar koşulacak.
 
 ### 0.1 Önceden Tespit Edilip 84ad71a ile Düzeltilen/Kısmen Düzeltilenler
 
-- [x] Domain tutarsızlığı için `docker/nginx.prod.conf`, `docker/nginx.bootstrap.conf`, `.env.production.example` içinde `piyasapilot.com` yönüne düzeltme yapılmış.
+- [x] Domain tutarsızlığı için `docker/nginx.prod.conf`, `docker/nginx.bootstrap.conf`, `.env.production.example` içinde `piyasapilotu.com` yönüne düzeltme yapılmış.
 - [x] Cookie auth için `backend/api/main.py` CORS ayarına `allow_credentials=True` eklenmiş.
 - [x] Admin paneli ve auth akışları için `allow_methods` listesine `PUT`, `PATCH`, `DELETE` eklenmiş.
-- [x] `COOKIE_DOMAIN=piyasapilot.com` `.env.production.example` içine eklenmiş.
+- [x] `COOKIE_DOMAIN=piyasapilotu.com` `.env.production.example` içine eklenmiş.
 - [x] Nginx container healthcheck HTTPS yerine container içi HTTP `/api/health` kontrolüne alınmış.
 - [x] `certbot` servisi `infra/docker-compose.prod.yml` içine eklenmiş.
 - [x] `docker/Dockerfile.api` içine `--proxy-headers --forwarded-allow-ips=*` eklenmiş.
@@ -27,10 +27,10 @@
 #### P0 — Canlı Ürün Bloklayıcılar
 
 - [x] **Yeni canonical domain canlıda sağlıklı açılmıyor.**
-  - Chrome ile `https://piyasapilot.com` açıldığında `ERR_BLOCKED_BY_CLIENT` görüldü.
+  - Chrome ile `https://piyasapilotu.com` açıldığında `ERR_BLOCKED_BY_CLIENT` görüldü.
   - Buna karşılık çalışan terminal sekmeleri hâlâ `https://www.piyasapilotu.com/?tab=chart&symbol=BTCUSDT` üzerinde.
-  - Repo tarafında nginx/env yeni `piyasapilot.com` derken, canlı yüzey ve birçok kaynak hâlâ `piyasapilotu.com` kullanıyor. Bu haliyle kullanıcı, arama motoru, OAuth, Stripe ve cookie domainleri aynı gerçeğe bakmıyor.
-  - Durum: repo ve statik/doküman referansları `piyasapilot.com` yönüne süpürüldü; canlı DNS/deploy görüntüsü deploy sonrası doğrulanacak.
+  - Repo tarafında nginx/env yeni `piyasapilotu.com` derken, canlı yüzey ve birçok kaynak hâlâ `piyasapilotu.com` kullanıyor. Bu haliyle kullanıcı, arama motoru, OAuth, Stripe ve cookie domainleri aynı gerçeğe bakmıyor.
+  - Durum: repo ve statik/doküman referansları `piyasapilotu.com` yönüne süpürüldü; canlı DNS/deploy görüntüsü deploy sonrası doğrulanacak.
 
 - [x] **Frontend üretim container'ı SPA route fallback vermiyor; `/login` ve benzeri public route'lar 404.**
   - Chrome'da `https://www.piyasapilotu.com/login` sonucu: `404 Not Found nginx/1.31.0`.
@@ -85,12 +85,12 @@
 - [x] **Eski domain referansları çok yaygın.**
   - Kod ve statik dosyalarda hâlâ `piyasapilotu.com` geçen kritik yerler var: `frontend/index.html`, `frontend/public/robots.txt`, `frontend/public/sitemap.xml`, `backend/api/auth_router.py`, `backend/api/billing_router.py`, `backend/payments/stripe_service.py`, `backend/auth/email_sender.py`, `backend/auth/google_oauth.py`, `scripts/check_deployment_readiness.py`, `scripts/load_test.js`, `mobile/...`, `docs/DEPLOYMENT.md`, `CANLIYA_ALMA_REHBERI.md`, `YAPILACAKLAR.md`.
   - Etki: SEO canonical, sitemap, email linkleri, Google OAuth redirect URI, Stripe callback ve mobil build birbirinden kopabilir.
-  - Durum: aktif kod, public asset, script, mobile README ve deployment doküman referansları `piyasapilot.com` yönüne güncellendi; eski domain yalnızca geçmiş bulgu notlarında tutuluyor.
+  - Durum: aktif kod, public asset, script, mobile README ve deployment doküman referansları `piyasapilotu.com` yönüne güncellendi; eski domain yalnızca geçmiş bulgu notlarında tutuluyor.
 
 - [x] **`docs/DEPLOYMENT.md` hâlâ eski domainle TLS komutu gösteriyor.**
   - `DOMAIN=piyasapilotu.com EMAIL=admin@piyasapilotu.com bash scripts/deployment/setup_tls.sh`.
   - Yeni domain kararı kesinleşmeden bu rehberle deploy yapmak tekrar yanlış sertifika/domain üretebilir.
-  - Durum: deployment rehberi ve ilgili script notları `piyasapilot.com` yönüne güncellendi.
+  - Durum: deployment rehberi ve ilgili script notları `piyasapilotu.com` yönüne güncellendi.
 
 - [x] **Certbot yenileme var ama nginx reload/deploy hook net değil.**
   - `certbot renew` 12 saatte bir çalışır; fakat sertifika yenilendikten sonra nginx'in yeni sertifikayı ne zaman okuyacağı belirtilmemiş.
@@ -118,7 +118,7 @@
 ### 0.4 Yapılacaklar — Uygulama Sırası
 
 1. [x] **Canonical domain kararını kilitle.**
-   - Ya tüm proje `piyasapilot.com` olacak ya da `piyasapilotu.com` kalacak; ikisi birden dağınık kullanılmayacak.
+   - Ya tüm proje `piyasapilotu.com` olacak ya da `piyasapilotu.com` kalacak; ikisi birden dağınık kullanılmayacak.
    - DNS, nginx `server_name`, cert path, `.env.production`, OAuth, Stripe, email, sitemap, robots, mobil build ve dokümanlar aynı domaini göstermeli.
 
 2. [ ] **Canlıya gerçekten hangi commitin deploy edildiğini doğrula.**

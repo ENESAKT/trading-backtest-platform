@@ -13,7 +13,7 @@ export const options = {
   },
 };
 
-const BASE_URL = __ENV.BASE_URL || 'https://piyasapilot.com';
+const BASE_URL = __ENV.BASE_URL || 'https://piyasapilotu.com';
 
 export default function () {
   const res = http.get(`${BASE_URL}/api/health`);

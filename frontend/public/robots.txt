@@ -3,4 +3,4 @@ Allow: /
 Disallow: /api/
 Disallow: /admin
 
-Sitemap: https://piyasapilot.com/sitemap.xml
+Sitemap: https://piyasapilotu.com/sitemap.xml

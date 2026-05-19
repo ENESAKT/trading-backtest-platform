@@ -70,7 +70,7 @@ from backend.auth.schemas import (
 
 router = APIRouter()
 
-FRONTEND_URL = os.environ.get("PUBLIC_BASE_URL", "https://piyasapilot.com")
+FRONTEND_URL = os.environ.get("PUBLIC_BASE_URL", "https://piyasapilotu.com")
 
 # ── Yardımcı ─────────────────────────────────────────────────────────────────
 

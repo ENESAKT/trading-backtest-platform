@@ -105,7 +105,7 @@ class CheckoutRequest(BaseModel):
 
 # ── Endpoints ────────────────────────────────────────────────────────────────
 
-BASE_URL = os.environ.get("PUBLIC_BASE_URL", "https://piyasapilot.com")
+BASE_URL = os.environ.get("PUBLIC_BASE_URL", "https://piyasapilotu.com")
 
 
 @router.post("/checkout")

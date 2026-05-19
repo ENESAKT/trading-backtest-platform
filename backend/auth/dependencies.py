@@ -108,7 +108,7 @@ def require_feature(feature: str):
                     "code": "PLAN_LIMIT",
                     "tr": "Bu özellik Pro veya Ultra planında mevcut.",
                     "en": "This feature requires a Pro or Ultra plan.",
-                    "upgrade_url": "https://piyasapilot.com/pricing",
+                    "upgrade_url": "https://piyasapilotu.com/pricing",
                 },
             )
         return user
@@ -189,7 +189,7 @@ def require_quota(counter_field: str):
                     "en": "Daily quota exceeded. Resets tomorrow or upgrade your plan.",
                     "limit":        limit,
                     "used":         used,
-                    "upgrade_url":  "https://piyasapilot.com/pricing",
+                    "upgrade_url":  "https://piyasapilotu.com/pricing",
                 },
             )
 

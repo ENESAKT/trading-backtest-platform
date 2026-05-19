@@ -29,7 +29,7 @@ from backend.auth.jwt_utils import create_access_token
 
 def make_access_token(
     user_id: int = 1,
-    email: str = "test@piyasapilot.com",
+    email: str = "test@piyasapilotu.com",
     role: str = "free",
 ) -> str:
     """Test amaçlı geçerli JWT access token üret."""

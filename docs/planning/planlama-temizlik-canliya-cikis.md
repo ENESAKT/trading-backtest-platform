@@ -6,7 +6,7 @@
 
 ## Canlı Kritik Düzeltmeler
 
-- [x] Canonical domain kararı `piyasapilot.com` olarak tekleştirildi.
+- [x] Canonical domain kararı `piyasapilotu.com` olarak tekleştirildi.
 - [x] Production frontend image'ına nginx SPA fallback config'i eklendi.
 - [x] Browser-facing API istekleri `X-API-Key` zorunluluğundan ayrıldı.
 - [x] WebSocket API key zorunluluğu `REQUIRE_WS_API_KEY=1` env bayrağına taşındı.
@@ -16,8 +16,8 @@
 
 ## Kabul Kontrolleri
 
-- [ ] `https://piyasapilot.com/` 200 döner.
-- [ ] `https://www.piyasapilot.com/` canonical davranışa göre çalışır veya yönlenir.
+- [ ] `https://piyasapilotu.com/` 200 döner.
+- [ ] `https://www.piyasapilotu.com/` canonical davranışa göre çalışır veya yönlenir.
 - [x] Yerelde `/login`, `/register`, `/pricing`, `/settings`, `/legal/privacy` hard refresh ile 200 döner.
 - [x] Yerelde BTCUSDT ve THYAO grafik ekranları `backend HTTP 401/429` göstermeden veri veya bilinçli state gösterir.
 - [x] Yerelde Haberler sekmesi skeleton'da kalmaz; misafir kullanıcıya açık `Giriş gerekli` state'i gösterir.
@@ -28,5 +28,5 @@
 ## Canlı Deploy Sonrası Tekrar
 
 - [ ] Sunucudaki image/commit hash doğrulanır.
-- [ ] Aynı Chrome kabul listesi `https://piyasapilot.com` üzerinde tekrar koşulur.
+- [ ] Aynı Chrome kabul listesi `https://piyasapilotu.com` üzerinde tekrar koşulur.
 - [ ] TLS, redirect, `/api/health` ve SPA route fallback canlı domain üzerinde doğrulanır.

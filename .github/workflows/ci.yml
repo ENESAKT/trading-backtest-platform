@@ -90,6 +90,8 @@ jobs:
       EC2_HOST: ${{ secrets.EC2_HOST }}
       EC2_USER: ${{ secrets.EC2_USER }}
       EC2_SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
+      DEPLOY_DOMAIN: piyasapilotu.com
+      DEPLOY_EMAIL: admin@piyasapilotu.com
     steps:
       - name: Check deployment configuration
         id: deploy_config
@@ -118,28 +120,58 @@ jobs:
           command_timeout: 15m
           script: |
             set -euo pipefail
+            DEPLOY_DOMAIN="piyasapilotu.com"
+            DEPLOY_EMAIL="admin@piyasapilotu.com"
+            INSTALL_DIR="/home/ubuntu/piyasapilot"
 
-            # İlk kez deploy ise repo'yu klonla
-            if [ ! -d /opt/piyasapilot ]; then
-              sudo mkdir -p /opt/piyasapilot
-              sudo chown $USER:$USER /opt/piyasapilot
-              git clone https://github.com/ENESAKT/Backtest.git /opt/piyasapilot
+            sudo mkdir -p "$INSTALL_DIR"
+            sudo chown -R "$USER:$USER" "$INSTALL_DIR"
+
+            if [ ! -d "$INSTALL_DIR/.git" ]; then
+              tmp_dir="$(mktemp -d)"
+              git clone https://github.com/ENESAKT/Backtest.git "$tmp_dir"
+              rsync -a --delete \
+                --exclude ".env.production" \
+                --exclude "infra/certbot/conf/" \
+                --exclude "infra/certbot/www/" \
+                --exclude "infra/certbot/logs/" \
+                --exclude "infra/certbot/work/" \
+                "$tmp_dir/" "$INSTALL_DIR/"
+              rm -rf "$tmp_dir"
             fi
 
-            cd /opt/piyasapilot
+            cd "$INSTALL_DIR"
             git fetch origin main
             git checkout main
             git pull origin main
 
-            # .env.production yoksa deploy durdur
+            sudo systemctl disable --now nginx || true
+            docker rm -f piyasapilot_edge_manual 2>/dev/null || true
+
+            if [ -f .env.production ]; then
+              sudo chown "$USER:$USER" .env.production
+              chmod 600 .env.production
+            fi
+
             if [ ! -f .env.production ]; then
-              echo "HATA: .env.production bulunamadı! Sunucuda oluştur."
+              echo "HATA: $INSTALL_DIR/.env.production bulunamadı. Sunucuda .env.production.example dosyasından gerçek değerlerle oluştur."
               exit 1
             fi
 
-            # Docker image'ları build et ve başlat
-            docker compose -f infra/docker-compose.prod.yml build --no-cache
-            docker compose -f infra/docker-compose.prod.yml up -d --remove-orphans
+            if grep -q "BURAYA_YAZ" .env.production; then
+              echo "HATA: .env.production içinde BURAYA_YAZ placeholder değerleri kalmış."
+              exit 1
+            fi
+
+            docker compose --env-file .env.production -f infra/docker-compose.prod.yml config >/tmp/piyasapilot-compose.yml
+
+            if [ ! -f "infra/certbot/conf/live/${DEPLOY_DOMAIN}/fullchain.pem" ]; then
+              echo "TLS sertifikası bulunamadı; HTTP bootstrap + certbot akışı çalıştırılıyor."
+              DOMAIN="$DEPLOY_DOMAIN" EMAIL="$DEPLOY_EMAIL" bash scripts/deployment/setup_tls.sh
+            fi
+
+            docker compose --env-file .env.production -f infra/docker-compose.prod.yml build --no-cache
+            docker compose --env-file .env.production -f infra/docker-compose.prod.yml up -d --remove-orphans
 
             # Watchdog + systemd servisini güncelle (varsa)
             if [ -f scripts/fix_server_stability.sh ]; then
@@ -149,11 +181,11 @@ jobs:
             # Sağlık kontrolü (60 saniye bekle)
             echo "API sağlık kontrolü bekleniyor..."
             for i in $(seq 1 12); do
-              if curl -sf http://localhost:8000/api/health > /dev/null 2>&1; then
+              if curl -sf http://localhost/api/health > /dev/null 2>&1; then
                 echo "✅ API sağlıklı"
                 break
               fi
               echo "  Bekleniyor... ($i/12)"
               sleep 5
             done
-            curl -f http://localhost:8000/api/health || (echo "❌ API hâlâ yanıt vermiyor"; docker compose -f infra/docker-compose.prod.yml logs --tail=50 api; exit 1)
+            curl -f http://localhost/api/health || (echo "❌ API hâlâ yanıt vermiyor"; docker compose --env-file .env.production -f infra/docker-compose.prod.yml logs --tail=80 api nginx; exit 1)

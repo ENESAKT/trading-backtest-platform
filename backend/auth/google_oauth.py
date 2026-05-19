@@ -14,7 +14,7 @@ GOOGLE_CLIENT_ID     = os.environ.get("GOOGLE_CLIENT_ID", "")
 GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET", "")
 GOOGLE_REDIRECT_URI  = os.environ.get(
     "GOOGLE_REDIRECT_URI",
-    "https://piyasapilot.com/api/auth/google/callback",
+    "https://piyasapilotu.com/api/auth/google/callback",
 )
 
 GOOGLE_AUTH_URL  = "https://accounts.google.com/o/oauth2/v2/auth"

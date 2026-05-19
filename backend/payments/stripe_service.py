@@ -25,7 +25,7 @@ STRIPE_PRO_PRICE_ID    = os.environ.get("STRIPE_PRO_PRICE_ID", "")
 STRIPE_PRO_YEARLY_PRICE_ID = os.environ.get("STRIPE_PRO_YEARLY_PRICE_ID", "")
 STRIPE_ULTRA_PRICE_ID  = os.environ.get("STRIPE_ULTRA_PRICE_ID", "")
 STRIPE_ULTRA_YEARLY_PRICE_ID = os.environ.get("STRIPE_ULTRA_YEARLY_PRICE_ID", "")
-BASE_URL               = os.environ.get("PUBLIC_BASE_URL", "https://piyasapilot.com")
+BASE_URL               = os.environ.get("PUBLIC_BASE_URL", "https://piyasapilotu.com")
 
 if _STRIPE_AVAILABLE and STRIPE_SECRET_KEY:
     stripe.api_key = STRIPE_SECRET_KEY

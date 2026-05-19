@@ -24,8 +24,8 @@ SMTP_HOST   = os.environ.get("SMTP_HOST",  "smtp.gmail.com")
 SMTP_PORT   = int(os.environ.get("SMTP_PORT", "587"))
 SMTP_USER   = os.environ.get("SMTP_USER",  "")
 SMTP_PASS   = os.environ.get("SMTP_PASS",  "")
-FROM_EMAIL  = os.environ.get("SMTP_USER",  "noreply@piyasapilot.com")
-BASE_URL    = os.environ.get("PUBLIC_BASE_URL", "https://piyasapilot.com")
+FROM_EMAIL  = os.environ.get("SMTP_USER",  "noreply@piyasapilotu.com")
+BASE_URL    = os.environ.get("PUBLIC_BASE_URL", "https://piyasapilotu.com")
 
 
 def _render(template_name: str, context: dict) -> str:
