@@ -26,8 +26,17 @@ from starlette.responses import JSONResponse, Response
 class APIKeyMiddleware(BaseHTTPMiddleware):
     """Opsiyonel API key doğrulama katmanı."""
 
-    # Key doğrulamasından her zaman muaf yollar.
-    _ALWAYS_EXEMPT = frozenset({"/api/health"})
+    # Key doğrulamasından her zaman muaf yollar. Bu endpoint'ler tarayıcıdan
+    # okunur; hesap yetkisi gerekiyorsa route-level JWT guard kullanılmalıdır.
+    _ALWAYS_EXEMPT = frozenset({
+        "/api/health",
+        "/api/data/providers/health",
+        "/api/market/defaults",
+        "/api/market/chart",
+        "/api/market/overview",
+        "/api/symbols",
+        "/api/v2/candles",
+    })
     # Sadece geliştirme ortamında muaf (production'da kapalı)
     _DEV_ONLY_EXEMPT = frozenset({"/docs", "/openapi.json", "/redoc"})
     _DEFAULT_PROTECTED_PATHS = ("/metrics",)
@@ -70,6 +79,11 @@ class APIKeyMiddleware(BaseHTTPMiddleware):
 
         # WebSocket istekleri ayrı doğrulanır (upgrade header)
         if request.headers.get("upgrade", "").lower() == "websocket":
+            return await call_next(request)
+
+        # Browser-facing API yolları API key ile korunmaz. Bu yollar public ise
+        # açık kalır, özel ise route-level JWT/feature guard karar verir.
+        if path.startswith("/api/"):
             return await call_next(request)
 
         # Sadece açıkça korumalı iç/ops yollarını kontrol et. Browser-facing

@@ -7,7 +7,7 @@ export default defineConfig({
   build: {
     target: 'es2022',
     minify: 'esbuild',
-    emptyOutDir: false,
+    emptyOutDir: true,
     rollupOptions: {
       output: {
         manualChunks(id) {

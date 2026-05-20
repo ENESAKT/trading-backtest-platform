@@ -104,6 +104,49 @@ class TestAPIKeyMiddleware:
             resp = client.get("/api/health")
             assert resp.status_code == 200
 
+    @pytest.mark.parametrize(
+        "path",
+        [
+            "/api/v2/candles?symbol=AKBNK.IS&interval=1d&limit=30",
+            "/api/market/chart?symbol=AKBNK.IS&limit=30",
+            "/api/symbols",
+            "/api/data/providers/health",
+        ],
+    )
+    def test_market_data_paths_stay_public_when_api_glob_is_misconfigured(self, path: str) -> None:
+        """Yanlış /api* ops konfigürasyonu grafik/veri endpoint'lerini 401'e düşürmez."""
+        env = dict(os.environ)
+        env["PIYASAPILOT_DISABLE_WORKERS"] = "1"
+        env["API_KEY"] = "test-key-12345"
+        env["API_KEY_PROTECTED_PATHS"] = "/api*"
+        with patch.dict(os.environ, env, clear=True):
+            from backend.api.main import create_app
+            app = create_app()
+            from starlette.testclient import TestClient
+            client = TestClient(app, raise_server_exceptions=False)
+            resp = client.get(path)
+            body = resp.json()
+            assert resp.status_code != 401, body
+            assert "Geçersiz veya eksik API anahtarı" not in str(body.get("detail", ""))
+
+    def test_auth_path_uses_route_auth_when_api_glob_is_misconfigured(self) -> None:
+        """Yanlış /api* ops konfigürasyonu auth endpoint'lerini API key ile kesmez."""
+        env = dict(os.environ)
+        env["PIYASAPILOT_DISABLE_WORKERS"] = "1"
+        env["PIYASAPILOT_DISABLE_AUTH_DB"] = "1"
+        env["PIYASAPILOT_DISABLE_REDIS"] = "1"
+        env["API_KEY"] = "test-key-12345"
+        env["API_KEY_PROTECTED_PATHS"] = "/api*"
+        with patch.dict(os.environ, env, clear=True):
+            from backend.api.main import create_app
+            app = create_app()
+            from starlette.testclient import TestClient
+            client = TestClient(app, raise_server_exceptions=False)
+            resp = client.get("/api/auth/me")
+            body = resp.json()
+            assert resp.status_code == 401, body
+            assert "Geçersiz veya eksik API anahtarı" not in str(body.get("detail", ""))
+
     def test_with_key_blocks_protected_ops_path_without_header(self) -> None:
         """API_KEY tanımlıyken /metrics gibi ops yolları header ister."""
         env = dict(os.environ)

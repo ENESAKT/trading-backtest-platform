@@ -146,6 +146,7 @@ async def store_refresh_token(
     token_hash: str,
     user_agent: str = "",
     ip_address: str = "",
+    device_name: str | None = None,
 ) -> None:
     import uuid
     expires_at = refresh_token_expires_at()
@@ -153,9 +154,9 @@ async def store_refresh_token(
         async with conn.cursor() as cur:
             await cur.execute(
                 """INSERT INTO refresh_tokens
-                   (user_id, token_hash, jti, user_agent, ip_address, expires_at)
-                   VALUES (%s, %s, %s, %s, %s, %s)""",
-                (user_id, token_hash, str(uuid.uuid4()), user_agent, ip_address, expires_at),
+                   (user_id, token_hash, jti, user_agent, ip_address, device_name, expires_at)
+                   VALUES (%s, %s, %s, %s, %s, %s, %s)""",
+                (user_id, token_hash, str(uuid.uuid4()), user_agent, ip_address, device_name, expires_at),
             )
             await conn.commit()
 

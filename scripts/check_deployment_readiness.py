@@ -59,6 +59,29 @@ def check_api_health(base_url: str) -> tuple[bool, str]:
         return False, str(exc)
 
 
+def check_public_market_data(base_url: str) -> tuple[bool, str]:
+    """Grafik için gereken public candles endpoint'i API key istememeli."""
+    url = (
+        f"{base_url.rstrip('/')}/api/v2/candles"
+        "?symbol=AKBNK.IS&interval=1d&limit=5"
+    )
+    try:
+        resp = httpx.get(url, timeout=12)
+        if resp.status_code == 401:
+            return False, "HTTP 401: /api/v2/candles API key/auth arkasında"
+        if resp.status_code >= 500:
+            return False, f"HTTP {resp.status_code}: candles gateway hatası"
+        try:
+            payload = resp.json()
+        except ValueError:
+            return False, f"HTTP {resp.status_code}: JSON değil"
+        if not isinstance(payload.get("bars"), list):
+            return False, f"HTTP {resp.status_code}: bars alanı yok"
+        return True, f"HTTP {resp.status_code}: {len(payload['bars'])} bar"
+    except Exception as exc:  # noqa: BLE001
+        return False, str(exc)
+
+
 def check_metrics(base_url: str) -> tuple[bool, str]:
     try:
         resp = httpx.get(f"{base_url.rstrip('/')}/metrics", timeout=8)
@@ -98,6 +121,7 @@ def main() -> int:
     checks = [
         ("ENV_VARIABLES", check_env_variables),
         ("API_HEALTH", check_api_health),
+        ("PUBLIC_MARKET_DATA", check_public_market_data),
         ("METRICS", check_metrics),
         ("AUTH_ENDPOINTS", check_auth_smoke),
         ("MIGRATION_STATUS", check_migrations),
