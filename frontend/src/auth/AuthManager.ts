@@ -46,6 +46,70 @@ type AuthListener = (user: AuthUser | null) => void;
 
 const API_BASE = '/api/auth';
 
+type ErrorPayload = {
+  ok?: unknown;
+  data?: unknown;
+  detail?: unknown;
+  error?: unknown;
+  message?: unknown;
+  tr?: unknown;
+  en?: unknown;
+};
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+async function readJson(res: Response): Promise<ErrorPayload> {
+  try {
+    return await res.json() as ErrorPayload;
+  } catch {
+    return {};
+  }
+}
+
+function cleanValidationMessage(message: string): string {
+  return message.replace(/^Value error,\s*/i, '').trim();
+}
+
+function formatValidationItem(item: unknown): string {
+  if (!isRecord(item)) return '';
+
+  const rawMsg = typeof item['msg'] === 'string' ? item['msg'] : '';
+  const msg = cleanValidationMessage(rawMsg);
+  const loc = Array.isArray(item['loc']) ? item['loc'].map(String) : [];
+  const field = loc[loc.length - 1] ?? '';
+
+  if (field === 'email') return 'Geçerli bir e-posta adresi girin.';
+  if (field === 'password' && msg) return msg;
+  if (field === 'display_name' && msg) return msg;
+  if (msg.toLowerCase() === 'field required') return 'Zorunlu alanları doldurun.';
+  return msg;
+}
+
+function formatAuthError(body: ErrorPayload, fallback: string): string {
+  const detail = body.detail ?? body.error ?? body.message ?? body;
+
+  if (typeof detail === 'string') return detail;
+
+  if (Array.isArray(detail)) {
+    const messages = detail.map(formatValidationItem).filter(Boolean);
+    return messages.length ? messages.join(' ') : fallback;
+  }
+
+  if (isRecord(detail)) {
+    if (typeof detail['tr'] === 'string') return detail['tr'];
+    if (typeof detail['message'] === 'string') return detail['message'];
+    if (typeof detail['en'] === 'string') return detail['en'];
+    if (Array.isArray(detail['detail'])) {
+      const messages = detail['detail'].map(formatValidationItem).filter(Boolean);
+      return messages.length ? messages.join(' ') : fallback;
+    }
+  }
+
+  return fallback;
+}
+
 class AuthManager {
   private _user: AuthUser | null = null;
   private _listeners: AuthListener[] = [];
@@ -103,12 +167,12 @@ class AuthManager {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password, totp_code: totp_code || undefined }),
     });
-    const body = await res.json();
+    const body = await readJson(res);
     if (res.ok && body.ok) {
       this._setUser(body.data as AuthUser);
       return { ok: true };
     }
-    return { ok: false, error: body.detail?.tr ?? body.detail ?? 'Giriş başarısız.' };
+    return { ok: false, error: formatAuthError(body, 'Giriş başarısız.') };
   }
 
   async register(
@@ -122,19 +186,9 @@ class AuthManager {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password, display_name }),
     });
-    const body = await res.json();
+    const body = await readJson(res);
     if (res.ok && body.ok) return { ok: true };
-    // Validation hatalarını birleştir
-    if (res.status === 422 && body.detail) {
-      const msgs: string[] = [];
-      if (Array.isArray(body.detail)) {
-        body.detail.forEach((d: { msg?: string }) => msgs.push(d.msg ?? ''));
-      } else {
-        msgs.push(body.detail?.tr ?? body.detail);
-      }
-      return { ok: false, error: msgs.join(' ') };
-    }
-    return { ok: false, error: body.detail?.tr ?? body.detail ?? 'Kayıt başarısız.' };
+    return { ok: false, error: formatAuthError(body, 'Kayıt başarısız.') };
   }
 
   async logout(): Promise<void> {

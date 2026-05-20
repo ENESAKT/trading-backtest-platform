@@ -159,6 +159,10 @@ export function renderRegisterPage(container: HTMLElement): void {
       _showAlert(alert, 'Tüm alanlar zorunludur.');
       return;
     }
+    if (!_isEmail(email)) {
+      _showAlert(alert, 'E-posta alanına geçerli bir e-posta adresi yazın.');
+      return;
+    }
     if (pw1Val !== pw2Val) {
       _showAlert(alert, 'Şifreler eşleşmiyor.');
       return;
@@ -199,4 +203,7 @@ function _showAlert(el: HTMLElement, msg: string): void {
 }
 function _hideEl(el: HTMLElement): void {
   el.classList.add('d-none');
+}
+function _isEmail(value: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 }
