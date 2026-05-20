@@ -330,6 +330,17 @@ h3 { font-family: var(--font-sans); font-size: 14px; font-weight: 600; color: va
 }
 .auth-form-inner .form-check-label { color: var(--text); font-size: 12px; }
 
+.auth-page {
+  padding: clamp(18px, 5vw, 72px);
+  cursor: pointer;
+}
+
+.auth-card {
+  cursor: auto;
+  max-height: calc(100vh - clamp(36px, 10vw, 144px));
+  overflow-y: auto;
+}
+
 /* Legacy compat */
 .auth-card-top {
   display: flex;

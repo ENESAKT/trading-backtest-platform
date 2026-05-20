@@ -4,6 +4,7 @@
  */
 
 import { auth } from './AuthManager.js';
+import { bindAuthPageDismiss } from './authPageDismiss.js';
 
 export function renderLoginPage(container: HTMLElement): void {
   container.innerHTML = `
@@ -85,6 +86,8 @@ export function renderLoginPage(container: HTMLElement): void {
     </p>
   </div>
 </div>`;
+
+  bindAuthPageDismiss(container);
 
   // Şifre görünürlük toggle
   const toggleBtn = container.querySelector<HTMLButtonElement>('#toggle-password');

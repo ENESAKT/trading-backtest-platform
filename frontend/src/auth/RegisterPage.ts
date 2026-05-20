@@ -3,6 +3,7 @@
  */
 
 import { auth } from './AuthManager.js';
+import { bindAuthPageDismiss } from './authPageDismiss.js';
 
 export function renderRegisterPage(container: HTMLElement): void {
   container.innerHTML = `
@@ -114,6 +115,8 @@ export function renderRegisterPage(container: HTMLElement): void {
     </p>
   </div>
 </div>`;
+
+  bindAuthPageDismiss(container);
 
   // Şifre toggle
   _setupToggle(container, '#toggle-pw1', '#reg-password');
