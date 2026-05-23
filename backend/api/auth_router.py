@@ -7,11 +7,10 @@ main.py'e:
 
 from __future__ import annotations
 
-import os
-
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from fastapi.responses import RedirectResponse
 
+from backend.config import getenv
 from backend.auth.cookie_utils import clear_auth_cookies, set_auth_cookies
 from backend.auth.dependencies import get_current_user
 from backend.auth.email_sender import (
@@ -24,7 +23,14 @@ from backend.auth.google_oauth import (
     create_oauth_state,
     exchange_code_for_tokens,
     get_google_user_info,
+    google_oauth_configured,
     verify_and_consume_state,
+)
+from backend.auth.github_oauth import (
+    build_github_auth_url,
+    exchange_github_code_for_token,
+    get_github_user_info,
+    github_oauth_configured,
 )
 from backend.auth.jwt_utils import (
     ACCESS_TTL,
@@ -70,7 +76,7 @@ from backend.auth.schemas import (
 
 router = APIRouter()
 
-FRONTEND_URL = os.environ.get("PUBLIC_BASE_URL", "https://piyasapilotu.com")
+FRONTEND_URL = getenv("PUBLIC_BASE_URL", "https://piyasapilot.com")
 
 # ── Yardımcı ─────────────────────────────────────────────────────────────────
 
@@ -81,11 +87,16 @@ def _ok(data: dict | None = None) -> dict:
 def _get_pool(request: Request):
     pool = getattr(request.app.state, "db_pool", None)
     if pool is None:
+        import logging
+        logging.getLogger(__name__).error(
+            "[auth] MySQL bağlantı havuzu hazır değil — servis başlatılırken hata oluşmuş olabilir."
+        )
         raise HTTPException(
             503,
             detail={
-                "tr": "Kimlik veritabanı hazır değil.",
-                "en": "Auth database is not available.",
+                "tr": "Sunucu şu an kullanıcı işlemlerini gerçekleştiremiyor. Lütfen birkaç dakika sonra tekrar deneyin.",
+                "en": "The server is temporarily unable to process authentication requests. Please try again in a few minutes.",
+                "code": "DB_UNAVAILABLE",
             },
         )
     return pool
@@ -93,6 +104,66 @@ def _get_pool(request: Request):
 
 def _get_redis(request: Request):
     return getattr(request.app.state, "redis", None)
+
+
+def _configured_oauth_providers() -> list[dict[str, str]]:
+    providers: list[dict[str, str]] = []
+    if google_oauth_configured():
+        providers.append({"id": "google", "label": "Google", "url": "/api/auth/google"})
+    if github_oauth_configured():
+        providers.append({"id": "github", "label": "GitHub", "url": "/api/auth/github"})
+    return providers
+
+
+async def _create_oauth_redirect(request: Request, provider: str) -> RedirectResponse:
+    redis = _get_redis(request)
+    if not redis:
+        raise HTTPException(503, detail={"tr": "OAuth state deposu hazır değil.", "en": "OAuth state store is unavailable."})
+    state = await create_oauth_state(redis)
+    try:
+        if provider == "google":
+            url = build_google_auth_url(state)
+        elif provider == "github":
+            url = build_github_auth_url(state)
+        else:
+            raise KeyError(provider)
+    except RuntimeError:
+        raise HTTPException(503, detail={"tr": "Bu giriş yöntemi henüz yapılandırılmadı.", "en": "This sign-in method is not configured yet."})
+    return RedirectResponse(url)
+
+
+async def _finish_oauth_login(
+    *,
+    pool,
+    request: Request,
+    provider: str,
+    provider_user_id: str,
+    email: str,
+    display_name: str,
+    avatar_url: str | None,
+) -> RedirectResponse:
+    user_id, is_new = await get_or_create_oauth_user(
+        pool,
+        provider=provider,
+        provider_user_id=provider_user_id,
+        email=email,
+        display_name=display_name,
+        avatar_url=avatar_url,
+    )
+
+    user = await get_user_by_id(pool, user_id)
+    await update_last_login(pool, user_id)
+
+    access_token = create_access_token(user_id, user["email"], user["role"])
+    raw_refresh, refresh_hash = create_refresh_token()
+    ua = request.headers.get("user-agent", "")
+    ip = request.client.host if request.client else ""
+    await store_refresh_token(pool, user_id, refresh_hash, ua, ip)
+
+    redirect_to = f"{FRONTEND_URL}/onboarding" if is_new else f"{FRONTEND_URL}/app"
+    redirect = RedirectResponse(redirect_to)
+    set_auth_cookies(redirect, access_token, raw_refresh, ACCESS_TTL, REFRESH_TTL)
+    return redirect
 
 
 async def _build_me_response(pool, user_id: int) -> dict:
@@ -457,16 +528,16 @@ async def reset_password(req: ResetPasswordRequest, request: Request):
     return _ok({"message": "Şifreniz güncellendi. Lütfen tekrar giriş yapın."})
 
 
-# ── Google OAuth ─────────────────────────────────────────────────────────────
+# ── OAuth ────────────────────────────────────────────────────────────────────
+
+@router.get("/oauth/providers")
+async def oauth_providers():
+    return _ok({"providers": _configured_oauth_providers()})
+
 
 @router.get("/google")
 async def google_auth(request: Request):
-    redis = _get_redis(request)
-    if not redis:
-        raise HTTPException(503, detail={"tr": "OAuth state deposu hazır değil.", "en": "OAuth state store is unavailable."})
-    state = await create_oauth_state(redis)
-    url = build_google_auth_url(state)
-    return RedirectResponse(url)
+    return await _create_oauth_redirect(request, "google")
 
 
 @router.get("/google/callback")
@@ -474,7 +545,6 @@ async def google_callback(
     code: str,
     state: str,
     request: Request,
-    response: Response,
 ):
     pool  = _get_pool(request)
     redis = _get_redis(request)
@@ -493,8 +563,9 @@ async def google_callback(
     except Exception:
         raise HTTPException(400, detail={"tr": "Google ile giriş başarısız.", "en": "Google authentication failed."})
 
-    user_id, is_new = await get_or_create_oauth_user(
-        pool,
+    return await _finish_oauth_login(
+        pool=pool,
+        request=request,
         provider="google",
         provider_user_id=google_user["sub"],
         email=google_user["email"],
@@ -502,20 +573,42 @@ async def google_callback(
         avatar_url=google_user.get("picture"),
     )
 
-    user = await get_user_by_id(pool, user_id)
-    await update_last_login(pool, user_id)
 
-    access_token = create_access_token(user_id, user["email"], user["role"])
-    raw_refresh, refresh_hash = create_refresh_token()
-    ua = request.headers.get("user-agent", "")
-    ip = request.client.host if request.client else ""
-    await store_refresh_token(pool, user_id, refresh_hash, ua, ip)
+@router.get("/github")
+async def github_auth(request: Request):
+    return await _create_oauth_redirect(request, "github")
 
-    set_auth_cookies(response, access_token, raw_refresh, ACCESS_TTL, REFRESH_TTL)
 
-    # Yeni kullanıcıyı onboarding'e, eskisini app'e yönlendir
-    redirect_to = f"{FRONTEND_URL}/onboarding" if is_new else f"{FRONTEND_URL}/app"
-    return RedirectResponse(redirect_to)
+@router.get("/github/callback")
+async def github_callback(
+    code: str,
+    state: str,
+    request: Request,
+):
+    pool = _get_pool(request)
+    redis = _get_redis(request)
+
+    if not redis:
+        raise HTTPException(503, detail={"tr": "OAuth state deposu hazır değil.", "en": "OAuth state store is unavailable."})
+    valid = await verify_and_consume_state(redis, state)
+    if not valid:
+        raise HTTPException(400, detail={"tr": "Geçersiz OAuth state.", "en": "Invalid OAuth state."})
+
+    try:
+        access_token = await exchange_github_code_for_token(code)
+        github_user = await get_github_user_info(access_token)
+    except Exception:
+        raise HTTPException(400, detail={"tr": "GitHub ile giriş başarısız.", "en": "GitHub authentication failed."})
+
+    return await _finish_oauth_login(
+        pool=pool,
+        request=request,
+        provider="github",
+        provider_user_id=github_user["id"],
+        email=github_user["email"],
+        display_name=github_user["name"],
+        avatar_url=github_user.get("avatar_url"),
+    )
 
 
 # ── Aktif Oturumlar ──────────────────────────────────────────────────────────

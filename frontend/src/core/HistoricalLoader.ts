@@ -12,18 +12,25 @@ const DAILY_HISTORY_LIMIT = 3000;
 const DEFAULT_TIMEOUT_MS = 10_000;
 
 interface BackendBar {
-  time: number;
-  open: number;
-  high: number;
-  low: number;
-  close: number;
-  volume: number;
+  time:             number;
+  open:             number;
+  high:             number;
+  low:              number;
+  close:            number;
+  volume:           number;
+  is_real?:         boolean;
+  quality_status?:  string;
+  data_coverage_pct?: number;
 }
 
 interface BackendCandlesResponse {
-  status?: string;
-  message?: string;
-  bars?: BackendBar[];
+  status?:            string;
+  message?:           string;
+  bars?:              BackendBar[];
+  // Yanıt düzeyindeki kalite metadata (bar başına değil, toplu)
+  is_real?:           boolean;
+  quality_status?:    string;
+  data_coverage_pct?: number;
 }
 
 export interface LoadOptions {
@@ -70,8 +77,20 @@ export async function loadHistorical(
     volume: b.volume,
   }));
 
+  // Veri kalitesi metadata'sını event olarak ilet (DataQualityBadge ve diğerleri dinleyebilir)
+  const qualityMeta = {
+    symbol,
+    timeframe,
+    source: dataSource,
+    is_real:           json.is_real           ?? json.bars[0]?.is_real,
+    quality_status:    json.quality_status    ?? json.bars[0]?.quality_status,
+    data_coverage_pct: json.data_coverage_pct ?? json.bars[0]?.data_coverage_pct,
+  };
   window.dispatchEvent(new CustomEvent('piyasapilot:data-source', {
-    detail: { symbol, timeframe, source: dataSource },
+    detail: qualityMeta,
+  }));
+  window.dispatchEvent(new CustomEvent('piyasapilot:data-quality', {
+    detail: qualityMeta,
   }));
 
   if (opts.applyAnomalyFilter !== false && opts.assetType) {

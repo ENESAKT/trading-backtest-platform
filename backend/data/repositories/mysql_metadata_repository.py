@@ -7,7 +7,7 @@ class MySQLMetadataRepository:
         self.host = os.getenv("MYSQL_HOST", "localhost")
         self.port = int(os.getenv("MYSQL_PORT", 3306))
         self.user = os.getenv("MYSQL_USER", "veri_platform")
-        self.password = os.getenv("MYSQL_PASSWORD", "secret123")
+        self.password = os.getenv("MYSQL_PASSWORD")  # Fallback kaldırıldı — production'da MYSQL_PASSWORD zorunlu
         self.database = os.getenv("MYSQL_DATABASE", "veri_platform_db")
         self.pool = None
         

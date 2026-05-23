@@ -94,6 +94,10 @@ services:
       # .env.production değerleri (/api*) grafikleri 401'e düşürmesin.
       API_KEY_PROTECTED_PATHS: /metrics
       REQUIRE_WS_API_KEY: "0"
+      # MYSQL_HOST: Compose içi MySQL için 'mysql' (varsayılan).
+      # Harici AWS RDS kullanılıyorsa env_file'da veya burada RDS endpoint'i girin.
+      MYSQL_HOST: ${MYSQL_HOST:-mysql}
+      MYSQL_PORT: ${MYSQL_PORT:-3306}
     depends_on:
       mysql:
         condition: service_healthy

@@ -358,14 +358,19 @@ ls -la /opt/piyasapilot/.env
 ### Adım 5.3 — Veritabanı tablolarını oluştur (Migration sırası kritik!)
 ```bash
 cd /opt/piyasapilot
-# Migration'lar 001'den 010'a kadar sırayla uygulanmalı:
+# Migration'lar 001'den 009'a kadar sırayla uygulanmalı:
 docker compose -f docker/docker-compose.prod.yml run --rm backend python -m alembic upgrade head
 ```
 > Eğer alembic kullanmıyorsan SQL migration dosyalarını elle uygula:
-> `mysql -h ENDPOINT -u piyasapilot -p piyasapilot < infra/mysql/migrations/001_initial.sql`
-> ... ve 010'a kadar sırayla devam et.
+> ```bash
+> for i in 001 002 003 004 005 006 007 008 009; do
+>   mysql -h ENDPOINT -u piyasapilot -p piyasapilot < infra/mysql/migrations/${i}_*.sql
+> done
+> ```
 >
-> **Not:** Migration 010 `refresh_tokens` tablosuna `jti` kolonu ekliyor. Bu adım atlanırsa token blocklist çalışmaz.
+> **Not:** Mevcut migration'lar 001–009 arasındadır (010 yoktur).
+> `jti` kolonu zaten migration 007 (`007_auth_tables.sql`) içinde `refresh_tokens` tablosuna dahildir.
+> Token blocklist için migration 007'nin uygulandığından emin ol.
 
 ### Adım 5.4 — Uygulamayı başlat
 ```bash

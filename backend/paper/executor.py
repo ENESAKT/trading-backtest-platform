@@ -24,9 +24,45 @@ class PaperExecutor:
         self._open_positions: dict[str, dict[str, int]] = {}
         self._entry_prices: dict[str, dict[str, float]] = {}
         self._quantities: dict[str, dict[str, float]] = {}
+        self._current_prices: dict[str, float] = {}
         self._processed = 0
         self._executed = 0
         self._halted = 0
+        # Restart sonrası açık pozisyonları SQLite'dan geri yükle
+        self._restore_open_positions()
+
+    def _restore_open_positions(self) -> None:
+        """Restart sonrası in-memory pozisyon state'ini SQLite'dan restore et.
+
+        paper_trades tablosunda closed_at IS NULL olan her kayıt,
+        hâlâ açık bir pozisyonu temsil eder. Bu pozisyonlar
+        _open_positions, _entry_prices ve _quantities sözlüklerine yüklenir.
+        """
+        try:
+            open_trades = self.db.get_all_open_trades()
+            for trade in open_trades:
+                sid    = trade["strategy_id"]
+                symbol = trade["symbol"]
+                tid    = trade["id"]
+                price  = trade["price"]
+                qty    = trade["quantity"]
+
+                if sid not in self._open_positions:
+                    self._open_positions[sid] = {}
+                    self._entry_prices[sid]   = {}
+                    self._quantities[sid]     = {}
+
+                self._open_positions[sid][symbol] = tid
+                self._entry_prices[sid][symbol]   = price
+                self._quantities[sid][symbol]     = qty
+
+            if open_trades:
+                logger.info(
+                    "[executor] Restart: %d açık pozisyon SQLite'dan restore edildi.",
+                    len(open_trades),
+                )
+        except Exception as exc:
+            logger.error("[executor] Pozisyon restore hatası: %s", exc)
 
     def _utc_now(self) -> str:
         return dt.datetime.now(dt.UTC).replace(microsecond=0).isoformat()
@@ -103,8 +139,8 @@ class PaperExecutor:
                     bildirim["pnl"], bildirim["reason"],
                 )
             elif tur == "donduruldu":
-                from backend.notifier.telegram import bildir_cuzdан_donduruldu
-                await bildir_cuzdан_donduruldu(
+                from backend.notifier.telegram import bildir_cuzdan_donduruldu
+                await bildir_cuzdan_donduruldu(
                     bildirim["strategy_id"],
                     bildirim["daily_loss"],
                     bildirim["initial_capital"],
@@ -244,8 +280,17 @@ class PaperExecutor:
         }
 
     def update_prices(self, price_map: dict[str, float]) -> None:
-        """Unrealized PnL takibi için fiyatları güncelle."""
-        pass  # entry_prices kasıtlı olarak değiştirilmiyor; PnL SELL'de hesaplanır
+        """Anlık fiyatlarla in-memory unrealized PnL takibini güncelle.
+
+        NOT: Bu metod şu an sadece _current_prices sözlüğünü günceller.
+        Unrealized PnL, frontend'e equity_snapshot üzerinden iletilir.
+        Gerçek unrealized PnL hesabı için bkz. get_positions() — orada
+        entry_price × quantity × (current/entry - 1) formülü kullanılmalı.
+
+        TODO: _current_prices ile unrealized PnL'yi sürekli hesapla ve
+        equity_snapshot'a ekle (paper_ops.py ile entegrasyon).
+        """
+        self._current_prices: dict[str, float] = {**getattr(self, '_current_prices', {}), **price_map}
 
     def stats(self) -> dict[str, Any]:
         return {

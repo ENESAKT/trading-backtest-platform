@@ -289,7 +289,7 @@ async def bildir_satim(strategy_id: str, symbol: str, price: float,
     )
 
 
-async def bildir_cuzdан_donduruldu(strategy_id: str, daily_loss: float,
+async def bildir_cuzdan_donduruldu(strategy_id: str, daily_loss: float,
                                    initial_capital: float) -> bool:
     from backend.notifier.preferences import read_preferences
 

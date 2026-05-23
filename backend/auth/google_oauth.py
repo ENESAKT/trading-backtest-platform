@@ -5,17 +5,12 @@ CSRF koruması: state parametresi Redis'te saklanır.
 
 from __future__ import annotations
 
-import os
 import secrets
+from urllib.parse import urlencode
 
 import httpx
 
-GOOGLE_CLIENT_ID     = os.environ.get("GOOGLE_CLIENT_ID", "")
-GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET", "")
-GOOGLE_REDIRECT_URI  = os.environ.get(
-    "GOOGLE_REDIRECT_URI",
-    "https://piyasapilotu.com/api/auth/google/callback",
-)
+from backend.config import getenv
 
 GOOGLE_AUTH_URL  = "https://accounts.google.com/o/oauth2/v2/auth"
 GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
@@ -23,31 +18,56 @@ GOOGLE_USERINFO  = "https://www.googleapis.com/oauth2/v3/userinfo"
 SCOPES = "openid email profile"
 
 
+def _is_real_value(value: str) -> bool:
+    return bool(value and value.strip() and value.strip().lower() not in {"disabled", "none", "null", "false", "0", "buraya_yaz"})
+
+
+def get_google_oauth_config() -> dict[str, str]:
+    """Google OAuth ayarlarını .env yüklemesini garanti ederek oku."""
+    return {
+        "client_id": getenv("GOOGLE_CLIENT_ID", ""),
+        "client_secret": getenv("GOOGLE_CLIENT_SECRET", ""),
+        "redirect_uri": getenv(
+            "GOOGLE_REDIRECT_URI",
+            "https://piyasapilot.com/api/auth/google/callback",
+        ),
+    }
+
+
+def google_oauth_configured() -> bool:
+    cfg = get_google_oauth_config()
+    return _is_real_value(cfg["client_id"]) and _is_real_value(cfg["client_secret"])
+
+
 def build_google_auth_url(state: str) -> str:
     """Google OAuth yönlendirme URL'si."""
+    cfg = get_google_oauth_config()
+    if not google_oauth_configured():
+        raise RuntimeError("Google OAuth is not configured")
     params = {
-        "client_id":     GOOGLE_CLIENT_ID,
-        "redirect_uri":  GOOGLE_REDIRECT_URI,
+        "client_id":     cfg["client_id"],
+        "redirect_uri":  cfg["redirect_uri"],
         "response_type": "code",
         "scope":         SCOPES,
         "state":         state,
         "access_type":   "offline",
         "prompt":        "select_account",
     }
-    query = "&".join(f"{k}={v}" for k, v in params.items())
+    query = urlencode(params)
     return f"{GOOGLE_AUTH_URL}?{query}"
 
 
 async def exchange_code_for_tokens(code: str) -> dict:
     """Authorization code → access + id token."""
+    cfg = get_google_oauth_config()
     async with httpx.AsyncClient() as client:
         resp = await client.post(
             GOOGLE_TOKEN_URL,
             data={
                 "code":          code,
-                "client_id":     GOOGLE_CLIENT_ID,
-                "client_secret": GOOGLE_CLIENT_SECRET,
-                "redirect_uri":  GOOGLE_REDIRECT_URI,
+                "client_id":     cfg["client_id"],
+                "client_secret": cfg["client_secret"],
+                "redirect_uri":  cfg["redirect_uri"],
                 "grant_type":    "authorization_code",
             },
         )

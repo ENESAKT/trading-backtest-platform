@@ -5,6 +5,7 @@
 
 import { auth } from './AuthManager.js';
 import { bindAuthPageDismiss } from './authPageDismiss.js';
+import { renderOAuthButtons } from './OAuthButtons.js';
 
 export function renderLoginPage(container: HTMLElement): void {
   container.innerHTML = `
@@ -68,17 +69,7 @@ export function renderLoginPage(container: HTMLElement): void {
       >Giriş Yap</button>
     </form>
 
-    <div class="text-center text-muted small mb-3">─── veya ───</div>
-
-    <a
-      href="/api/auth/google"
-      class="btn btn-outline-secondary w-100 d-flex align-items-center justify-content-center gap-2 mb-3"
-    >
-      <svg width="18" height="18" viewBox="0 0 48 48">
-        <path fill="#4285F4" d="M44.5 20H24v8.5h11.7C34.3 33.9 29.7 37 24 37c-7.2 0-13-5.8-13-13s5.8-13 13-13c3.1 0 5.9 1.1 8.1 2.9l6-6C34.6 5.1 29.6 3 24 3 12.4 3 3 12.4 3 24s9.4 21 21 21c10.9 0 20-8 20-21 0-1.4-.1-2.7-.5-4z"/>
-      </svg>
-      Google ile Devam Et
-    </a>
+    <div data-oauth-buttons class="mb-3"></div>
 
     <p class="text-center small text-muted mb-0">
       Hesabınız yok mu?
@@ -88,6 +79,7 @@ export function renderLoginPage(container: HTMLElement): void {
 </div>`;
 
   bindAuthPageDismiss(container);
+  void renderOAuthButtons(container, 'login');
 
   // Şifre görünürlük toggle
   const toggleBtn = container.querySelector<HTMLButtonElement>('#toggle-password');

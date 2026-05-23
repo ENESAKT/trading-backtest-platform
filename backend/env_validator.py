@@ -28,10 +28,13 @@ REQUIRED_VARS: list[tuple[str, str]] = [
 ]
 
 PRODUCTION_REQUIRED_VARS: list[tuple[str, str]] = [
+    ("JWT_SECRET", "JWT token imzalama anahtarı — eksikse uygulama güvensiz varsayılanla başlar"),
     ("CORS_ORIGINS", "Production CORS origin listesi"),
     ("DATABASE_URL", "MySQL metadata bağlantısı"),
     ("CLICKHOUSE_URL", "ClickHouse OHLCV bağlantısı"),
     ("REDIS_URL", "Redis sıcak cache/pub-sub bağlantısı"),
+    ("STRIPE_SECRET_KEY", "Stripe ödeme entegrasyonu"),
+    ("STRIPE_WEBHOOK_SECRET", "Stripe webhook imza doğrulaması"),
 ]
 
 # Opsiyonel (eksikse uyarı loglanır)

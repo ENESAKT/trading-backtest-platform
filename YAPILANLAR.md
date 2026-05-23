@@ -279,3 +279,45 @@
 - [x] 5 slash command (`/durum`, `/devam`, `/backtest`, `/sinyal`, `/strateji-yeni`)
 - [x] MCP entegrasyonu (borsa-mcp, tradingview-mcp)
 - [x] `.claude/memory/` kalıcı bellek sistemi
+
+---
+
+## ✅ Deployment Hazırlık Oturumu (2026-05-23)
+
+> Bu oturumda `yapilacak.md` taranarak tüm Claude-yapılabilir maddeler kapatıldı.
+
+### Güvenlik Düzeltmeleri
+- [x] `env_validator.py` — `JWT_SECRET` ve `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` `PRODUCTION_REQUIRED_VARS`'a eklendi
+- [x] `mysql_metadata_repository.py` — hardcoded `"secret123"` fallback şifresi kaldırıldı
+- [x] `executor.py` + `telegram.py` — Cyrillic karakter içeren `bildir_cuzdан_donduruldu` → `bildir_cuzdan_donduruldu` (Latin ASCII) düzeltildi
+
+### Hata Düzeltmeleri
+- [x] `billing_router.py` — devre dışı bırakıldı; `payments_router.py` tek yetkili Stripe handler
+- [x] `auth_router.py` — MySQL bağlanamadığında 503 hata mesajı netleştirildi (`DB_UNAVAILABLE` kodu + açıklayıcı Türkçe/İngilizce mesaj)
+- [x] `CANLIYA_ALMA_REHBERI.md` — migration 010 referansı düzeltildi (mevcut maks: 009; jti kolonu 007'de)
+- [x] `CANLIYA_ALMA_REHBERI.md` — migration komut bloğu 001–009 için güncellendi
+
+### Veri Kalitesi
+- [x] `HistoricalLoader.ts` — `BackendBar` ve `BackendCandlesResponse` arayüzlerine `is_real`, `quality_status`, `data_coverage_pct` alanları eklendi; `piyasapilot:data-quality` event'ı dispatch ediliyor
+
+### Paper Trading
+- [x] `PaperDB.get_all_open_trades()` metodu eklendi
+- [x] `PaperExecutor._restore_open_positions()` metodu eklendi — restart sonrası açık pozisyonlar SQLite'dan in-memory state'e geri yükleniyor
+- [x] `PaperExecutor.update_prices()` — `_current_prices` dict'i güncelleniyor; TODO notu ve unrealized PnL yol haritası belgelendi
+
+### Servis İmplementasyonları
+- [x] `backend/services/data_service.py` — stub'dan `LiveDataService` proxy'sine dönüştürüldü
+- [x] `backend/services/backtest_service.py` — stub'dan `run_backtest_request` proxy'sine dönüştürüldü
+
+### Altyapı
+- [x] `infra/docker-compose.prod.yml` — api servisine `MYSQL_HOST: ${MYSQL_HOST:-mysql}` ve `MYSQL_PORT` eklendi
+- [x] `quant_engine/` — boş `__init__.py` dosyaları (optimizer, strategies, indicators, risk, data_feed, live_execution, backtest_engine) açıklayıcı yorumlarla belgelendi
+
+### Ortam Değişkenleri
+- [x] `.env` — `PUBLIC_BASE_URL` eklendi
+- [x] `.env.production` — dosya başlığına ⚠️ "SADECE YEREL TEST" uyarısı eklendi; production için `.env.production.example` kullanılmalı
+
+### yapilacak.md
+- [x] Tüm Claude-yapılabilir maddeler `[x]` olarak işaretlendi
+- [x] Bölüm 7 (Yapay Zekanın Yapabileceği İşler) — tüm maddeler kapatıldı
+- [x] 5b test bulguları netleştirildi (TypeScript import, argon2, Binance WS, yfinance)

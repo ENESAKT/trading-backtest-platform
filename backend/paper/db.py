@@ -235,6 +235,17 @@ class PaperDB:
             ).fetchall()
             return list(reversed([dict(r) for r in rows]))
 
+    def get_all_open_trades(self) -> list[dict[str, Any]]:
+        """Tüm stratejilerdeki kapanmamış (açık) pozisyonları döndür.
+
+        Executor restart sonrası in-memory state'i SQLite'dan restore etmek için kullanılır.
+        """
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT * FROM paper_trades WHERE closed_at IS NULL ORDER BY id ASC"
+            ).fetchall()
+            return [dict(r) for r in rows]
+
     def checkpoint(self) -> None:
         """WAL modunda biriken sayfaları ana dosyaya yaz (graceful shutdown için)."""
         with self._lock:
