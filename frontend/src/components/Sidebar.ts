@@ -2,13 +2,13 @@ import type { SymbolInfo } from '../types.js';
 import { TR, formatNumber, formatPct } from '../constants/tr.js';
 import {
   BIST30, BIST100_EXTRA, US_SYMBOLS, CRYPTO_SYMBOLS, FX_COMMODITY_SYMBOLS,
-  VIOP_SYMBOLS, ALL_SYMBOLS,
+  VIOP_SYMBOLS, ALL_SYMBOLS, DEFAULT_SYMBOL, isLicenseRestrictedSymbol,
 } from '../constants/symbols.js';
 
 const LS_LAST_SYMBOL = 'piyasapilot_last_symbol';
 const LS_SIDEBAR_COLLAPSED = 'piyasapilot_sidebar_collapsed';
 const LS_FAVORITES = 'piyasapilot_favorites';
-const DEFAULT_FAVORITES = ['VAKBN.IS', 'AKBNK.IS', 'ASELS.IS', 'ARCLK.IS', 'THYAO.IS'];
+const DEFAULT_FAVORITES = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'SOLUSDT', 'XRPUSDT'];
 const LAZY_BATCH_SIZE = 15; // Her lazy-load batch'inde gösterilecek sembol sayısı
 
 /** Yüzde değişim için CSS sınıfı: > 0 yeşil, < 0 kırmızı, === 0 sarı */
@@ -118,9 +118,9 @@ export class Sidebar {
     const last = localStorage.getItem(LS_LAST_SYMBOL);
     if (last) {
       const info = ALL_SYMBOLS.find(s => s.symbol === last);
-      if (info) return info;
+      if (info && !isLicenseRestrictedSymbol(info)) return info;
     }
-    return this.getFavoriteSymbols()[0] ?? BIST30.find(s => s.symbol === 'VAKBN.IS') ?? BIST30[0]!;
+    return this.getFavoriteSymbols().find(s => !isLicenseRestrictedSymbol(s)) ?? DEFAULT_SYMBOL;
   }
 
   // ─── Render ──────────────────────────────────────────────────────────────
@@ -238,6 +238,7 @@ export class Sidebar {
     const changePct = ticker?.changePct ?? 0;
     const price = ticker?.price ?? null;
     const isFav = this.favorites.has(s.symbol);
+    const restricted = isLicenseRestrictedSymbol(s);
 
     const el = document.createElement('div');
     el.className = `sym-item${this.activeSymbol === s.symbol ? ' active' : ''}`;
@@ -249,8 +250,8 @@ export class Sidebar {
         <span class="sym-name">${s.name}</span>
       </div>
       <div class="sym-meta">
-        <span class="sym-price">${price != null ? formatNumber(price, 2) : '—'}</span>
-        <span class="sym-change ${changeColorClass(changePct)}">${formatPct(changePct)}</span>
+        <span class="sym-price">${restricted ? 'Lisans bekliyor' : (price != null ? formatNumber(price, 2) : '—')}</span>
+        <span class="sym-change ${changeColorClass(changePct)}">${restricted ? 'Kapalı' : formatPct(changePct)}</span>
       </div>
     `;
     
@@ -322,6 +323,8 @@ export class Sidebar {
   private refreshTicker(symbol: string, price: number, changePct: number): void {
     const el = this.container.querySelector(`[data-symbol="${symbol}"]`);
     if (!el) return;
+    const info = ALL_SYMBOLS.find(s => s.symbol === symbol);
+    if (info && isLicenseRestrictedSymbol(info)) return;
 
     const priceEl   = el.querySelector('.sym-price');
     const changeEl  = el.querySelector('.sym-change');

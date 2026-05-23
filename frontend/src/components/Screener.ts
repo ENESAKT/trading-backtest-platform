@@ -13,6 +13,8 @@ export class Screener {
   private container: HTMLElement;
   private activeFilters = new Set<ScreenerFilter>();
   private results: ScreenerResult[] = [];
+  private runMeta: { run_id: string; filters_hash: string; data_snapshot_hash: string; created_at: string } | null = null;
+  private emptyMessage: string = TR.NO_RESULTS;
   private getCache: () => Map<string, OHLCV[]>;
   private sortCol: SortCol = 'changePct';
   private sortDir: SortDir = 'desc';
@@ -83,20 +85,27 @@ export class Screener {
     scanBtn.disabled = true;
     scanBtn.textContent = TR.SCANNING;
     resultsEl.innerHTML = `<div class="loading">${TR.SCANNING}</div>`;
+    this.emptyMessage = TR.NO_RESULTS;
 
     await new Promise(resolve => requestAnimationFrame(resolve));
 
     try {
-      const cache = this.getCache();
-      this.results = [];
+      const backendResult = await this.scanBackend();
+      if (backendResult) {
+        this.results = backendResult;
+      } else {
+        const cache = this.getCache();
+        this.results = [];
+        this.runMeta = null;
 
-      for (const symInfo of ALL_SYMBOLS) {
-        const candles = cache.get(symInfo.symbol);
-        if (!candles || candles.length < 30) continue;
+        for (const symInfo of ALL_SYMBOLS) {
+          const candles = cache.get(symInfo.symbol);
+          if (!candles || candles.length < 30) continue;
 
-        const result = this.analyzeSymbol(symInfo.symbol, symInfo.name, candles);
-        if (this.passesFilters(result)) {
-          this.results.push(result);
+          const result = this.analyzeSymbol(symInfo.symbol, symInfo.name, candles);
+          if (this.passesFilters(result)) {
+            this.results.push(result);
+          }
         }
       }
 
@@ -104,6 +113,78 @@ export class Screener {
     } finally {
       scanBtn.disabled = false;
       scanBtn.textContent = TR.SCAN;
+    }
+  }
+
+  private backendFilters(): Array<{ column: string; op: string; value: number | string }> {
+    const filters: Array<{ column: string; op: string; value: number | string }> = [];
+    for (const f of this.activeFilters) {
+      if (f === 'rsi_oversold') filters.push({ column: 'rsi_14', op: 'lt', value: 30 });
+      if (f === 'rsi_overbought') filters.push({ column: 'rsi_14', op: 'gt', value: 70 });
+      if (f === 'high_volume') filters.push({ column: 'volume', op: 'gt', value: 0 });
+    }
+    return filters;
+  }
+
+  private async scanBackend(): Promise<ScreenerResult[] | null> {
+    try {
+      const res = await fetch('/api/screener/run', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          market: 'CRYPTO',
+          universe: 'CRYPTO',
+          filters: this.backendFilters(),
+          columns: ['symbol', 'last_price', 'change_pct', 'rsi_14', 'volume', 'volume_avg_20d'],
+          sort_by: 'volume',
+          sort_dir: 'desc',
+          limit: 100,
+        }),
+      });
+      if (res.status === 401 || res.status === 403) {
+        this.runMeta = null;
+        this.emptyMessage = 'Tarayıcı için giriş yapmanız veya planınızı yükseltmeniz gerekiyor.';
+        return [];
+      }
+      if (!res.ok) return null;
+      const data = await res.json() as {
+        run_id: string;
+        created_at: string;
+        filters_hash: string;
+        data_snapshot_hash: string;
+        rows?: Array<{
+          symbol: string;
+          name?: string;
+          last_price?: number | null;
+          change_pct?: number | null;
+          rsi_14?: number | null;
+          volume?: number | null;
+          volume_avg_20d?: number | null;
+          distance_from_52w_high?: number | null;
+        }>;
+      };
+      this.runMeta = {
+        run_id: data.run_id,
+        created_at: data.created_at,
+        filters_hash: data.filters_hash,
+        data_snapshot_hash: data.data_snapshot_hash,
+      };
+      return (data.rows ?? []).map(row => ({
+        symbol: row.symbol,
+        name: row.name ?? row.symbol,
+        price: row.last_price ?? 0,
+        changePct: row.change_pct ?? 0,
+        rsi: row.rsi_14 ?? 50,
+        emaSignal: 'Nötr',
+        bbPosition: 'Normal',
+        volumeAlert: Boolean(row.volume && row.volume_avg_20d && row.volume > row.volume_avg_20d * 1.5),
+        alerts: [],
+        volumeAvg20d: row.volume_avg_20d ?? undefined,
+        distFrom52wHigh: row.distance_from_52w_high ?? undefined,
+      }));
+    } catch {
+      return null;
     }
   }
 
@@ -210,14 +291,19 @@ export class Screener {
     const el = this.container.querySelector('#screener-results')!;
 
     if (this.results.length === 0) {
-      el.innerHTML = `<div class="empty-state">${TR.NO_RESULTS}</div>`;
+      el.innerHTML = `<div class="empty-state">${this.emptyMessage}</div>`;
       return;
     }
 
     const sorted = this.sortResults();
 
+    const meta = this.runMeta
+      ? `<div class="screener-run-meta">Run ${this.runMeta.run_id.slice(0, 8)} · filtre ${this.runMeta.filters_hash.slice(0, 8)} · snapshot ${this.runMeta.data_snapshot_hash.slice(0, 8)}</div>`
+      : '<div class="screener-run-meta">Local cache taraması · backend snapshot yok</div>';
+
     el.innerHTML = `
       <div class="screener-count">${this.results.length} sembol bulundu</div>
+      ${meta}
       <table class="data-table screener-table">
         <thead>
           <tr>

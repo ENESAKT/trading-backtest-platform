@@ -172,7 +172,8 @@ export class PortfolioPanel {
   private render(): void {
     this.container.innerHTML = `
       <div class="portfolio-wrap">
-        <div class="paper-mode-banner">KAĞIT İŞLEM MODU - Bu emirler gerçek piyasaya gönderilmemektedir.</div>
+        <div class="paper-mode-banner">${TR.PAPER_ONLY_WARNING}</div>
+        <div class="legal-notice signal-disclaimer">${TR.SIGNAL_DISCLAIMER}</div>
 
         <!-- Metrics Summary -->
         <div class="paper-metrics-summary" id="paper-metrics-summary"></div>
@@ -235,7 +236,7 @@ export class PortfolioPanel {
     el.innerHTML = [
       card(TR.EQUITY, formatCurrency(m.totalEquity), ''),
       card(TR.TOTAL_PNL, formatCurrency(m.totalPnl), m.totalPnl >= 0 ? 'pos' : 'neg'),
-      card(TR.WIN_RATE, m.totalCompleted > 0 ? `${formatPct(m.winRate)} (${m.winners}/${m.totalCompleted})` : '—'),
+      card(TR.WIN_RATE, m.totalCompleted > 0 ? `${formatPct(m.winRate)} (${m.winners}/${m.totalCompleted}) gerçek getiri değil` : '—'),
       card(TR.PROFIT_FACTOR, isFinite(m.profitFactor) ? formatNumber(m.profitFactor, 2) : '∞', m.profitFactor >= 1 ? 'pos' : 'neg'),
       card(TR.MAX_DRAWDOWN, formatPct(-m.maxDrawdown), 'neg'),
       card('Ort. K/Z', formatCurrency(m.avgPnl), m.avgPnl >= 0 ? 'pos' : 'neg'),

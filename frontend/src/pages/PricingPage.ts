@@ -4,7 +4,7 @@ import { pageShell, showInlineMessage } from './pageUtils.js';
 const plans = [
   { slug: 'free', name: 'Ücretsiz', monthly: '$0', yearly: '$0', cta: 'Ücretsiz Başla', features: ['Terminal', '5 backtest/gün', 'BIST30 mali analiz', '1 paper hesap'] },
   { slug: 'pro', name: 'Pro', monthly: '$19.99/ay', yearly: '$199.99/yıl', cta: "Pro'ya Geç", features: ['50 backtest/gün', 'Backtest Pro', 'Scanner', 'Telegram Bot', 'BIST100 mali analiz'] },
-  { slug: 'ultra', name: 'Ultra', monthly: '$49.99/ay', yearly: '$499.99/yıl', cta: 'Ultra Ol', features: ['Sınırsız backtest', 'Canlı veri', 'API erişimi', 'Tüm mali analiz', 'Sınırsız watchlist'] },
+  { slug: 'ultra', name: 'Ultra', monthly: '$49.99/ay', yearly: '$499.99/yıl', cta: 'Ultra Ol', features: ['Sınırsız backtest', 'Lisans kapsamına göre veri', 'API erişimi', 'Tüm mali analiz', 'Sınırsız watchlist'] },
 ];
 
 export function renderPricingPage(container: HTMLElement): void {
@@ -26,6 +26,10 @@ export function renderPricingPage(container: HTMLElement): void {
           </article>`).join('')}
       </div>
       <p class="trust-line">Güvenli ödeme Stripe ile alınır. İstediğiniz zaman iptal edebilirsiniz.</p>
+      <label class="withdrawal-consent">
+        <input id="digital-service-consent" type="checkbox">
+        Dijital hizmetin ödeme sonrası hemen başlamasını istediğimi ve cayma hakkı koşullarının Kullanım Koşulları'nda açıklandığını kabul ediyorum.
+      </label>
     </section>`, 'pricing');
 
   let billing = 'monthly';
@@ -51,10 +55,26 @@ export function renderPricingPage(container: HTMLElement): void {
         window.location.href = `/login?next=/pricing&plan=${plan}`;
         return;
       }
+      const consent = container.querySelector<HTMLInputElement>('#digital-service-consent');
+      const alert = container.querySelector<HTMLElement>('#pricing-alert')!;
+      if (!consent?.checked) {
+        showInlineMessage(alert, 'Ücretli plana geçmek için dijital hizmet/cayma hakkı bilgilendirmesini onaylayın.', 'danger');
+        return;
+      }
       btn.disabled = true;
       btn.textContent = 'Stripe açılıyor...';
-      const alert = container.querySelector<HTMLElement>('#pricing-alert')!;
       try {
+        await fetch('/api/auth/me/consents', {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            consent_type: 'digital_service_withdrawal',
+            accepted: true,
+            version: '2026-05-23',
+            text: 'Dijital hizmetin ödeme sonrası hemen başlaması ve cayma hakkı koşulları kabul edildi.',
+          }),
+        }).catch(() => {});
         const res = await fetch('/api/payments/checkout', {
           method: 'POST',
           credentials: 'include',

@@ -45,6 +45,10 @@ interface TelegramPreferences {
   min_consensus_ratio: number;
   cooldown_minutes: number;
   quiet_hours: string;
+  consent_accepted?: boolean;
+  consent_version?: string;
+  consent_accepted_at?: string;
+  consent_text?: string;
   selected_symbols?: string[];
 }
 
@@ -153,6 +157,13 @@ export class SignalFeed {
       min_consensus_ratio: Number(value('tg-min-consensus') || 60) / 100,
       cooldown_minutes: Number(value('tg-cooldown') || 30),
       quiet_hours: value('tg-quiet-hours'),
+      consent_accepted: checked('tg-consent-signal') && checked('tg-consent-data') && checked('tg-consent-stop'),
+      consent_version: '2026-05-23',
+      consent_text: [
+        'Telegram bildirimleri yatırım tavsiyesi değildir; teknik sinyal bilgisidir.',
+        'Telegram chat ID yalnızca bildirim amacıyla saklanır.',
+        'Bildirimler /durdur komutuyla kapatılabilir.',
+      ].join(' '),
     };
   }
 
@@ -160,18 +171,48 @@ export class SignalFeed {
     const status = this.container.querySelector<HTMLElement>('#tg-pref-status');
     if (status) status.textContent = 'Kaydediliyor…';
     try {
+      const prefs = this.collectTelegramPreferences();
+      if (prefs.enabled && !prefs.consent_accepted) {
+        throw new Error('CONSENT_REQUIRED');
+      }
       const resp = await fetch(`${this.httpBase()}/api/notifier/preferences`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(this.collectTelegramPreferences()),
+        body: JSON.stringify(prefs),
       });
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      if (prefs.consent_accepted) {
+        void fetch(`${this.httpBase()}/api/auth/me/consents`, {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            consent_type: 'telegram_notifications',
+            accepted: true,
+            version: prefs.consent_version,
+            text: prefs.consent_text,
+          }),
+        }).catch(() => undefined);
+      }
       this.preferences = await resp.json() as TelegramPreferences;
       this.renderTelegramPreferences();
       if (status) status.textContent = 'Kaydedildi';
-    } catch {
-      if (status) status.textContent = 'Kaydedilemedi';
+    } catch (err) {
+      if (status) {
+        status.textContent = err instanceof Error && err.message === 'CONSENT_REQUIRED'
+          ? 'Telegram için üç yasal onay zorunlu'
+          : 'Kaydedilemedi';
+      }
     }
+  }
+
+  private escapeHtml(value: unknown): string {
+    return String(value ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
   }
 
   private bindPreferenceControls(): void {
@@ -213,6 +254,9 @@ export class SignalFeed {
     setValue('tg-min-consensus', Math.round(prefs.min_consensus_ratio * 100));
     setValue('tg-cooldown', prefs.cooldown_minutes);
     setValue('tg-quiet-hours', prefs.quiet_hours);
+    setChecked('tg-consent-signal', Boolean(prefs.consent_accepted));
+    setChecked('tg-consent-data', Boolean(prefs.consent_accepted));
+    setChecked('tg-consent-stop', Boolean(prefs.consent_accepted));
     this.container.querySelectorAll<HTMLInputElement>('[data-tg-type]').forEach(input => {
       input.checked = prefs.signal_types.includes(input.value);
     });
@@ -278,15 +322,15 @@ export class SignalFeed {
   private showToast(sig: LiveSignal): void {
     const isBuy = sig.signal_type.includes('BUY');
     const emoji = isBuy ? '🟢' : '🔴';
-    const label = isBuy ? 'GÜÇLÜ AL' : 'GÜÇLÜ SAT';
+    const label = isBuy ? TR.SIGNAL_STRONG_BUY : TR.SIGNAL_STRONG_SELL;
 
     const toast = document.createElement('div');
     toast.className = `toast toast-${isBuy ? 'buy' : 'sell'}`;
     toast.innerHTML = `
       <div class="toast-icon">${emoji}</div>
       <div class="toast-body">
-        <div class="toast-title">${label} — ${sig.symbol}</div>
-        <div class="toast-detail">${sig.reason}</div>
+        <div class="toast-title">${label} — ${this.escapeHtml(sig.symbol)} · Tavsiye değildir</div>
+        <div class="toast-detail">${this.escapeHtml(sig.reason)}</div>
         <div class="toast-meta">Güç: ${sig.strength}/10 · ${sig.interval}</div>
       </div>
       <button class="toast-close" onclick="this.parentElement.remove()">✕</button>
@@ -358,17 +402,22 @@ export class SignalFeed {
             <strong>Telegram filtreleri</strong>
             <span id="tg-pref-summary">Ayarlar yükleniyor…</span>
           </div>
+          <div class="tg-consent-box">
+            <label><input id="tg-consent-signal" type="checkbox"> Telegram bildirimlerinin yatırım tavsiyesi değil teknik sinyal bilgisi içerdiğini anlıyorum.</label>
+            <label><input id="tg-consent-data" type="checkbox"> Telegram chat ID bilgisinin yalnızca bildirim amacıyla saklanacağını kabul ediyorum.</label>
+            <label><input id="tg-consent-stop" type="checkbox"> Bildirimleri istediğim zaman /durdur komutuyla kapatabileceğimi biliyorum.</label>
+          </div>
           <div class="tg-control-grid">
             <label><input id="tg-enabled" type="checkbox"> Aktif</label>
-            <label><input id="tg-notify-signals" type="checkbox"> Sinyal</label>
-            <label><input id="tg-notify-trades" type="checkbox"> İşlem</label>
+            <label><input id="tg-notify-signals" type="checkbox"> Teknik sinyal</label>
+            <label><input id="tg-notify-trades" type="checkbox"> Sanal işlem</label>
             <label><input id="tg-notify-system" type="checkbox"> Sistem</label>
             <label><input id="tg-notify-daily" type="checkbox"> Günlük özet</label>
             <label>
               Grup
               <select id="tg-symbol-group">
-                <option value="bist30">BIST 30</option>
-                <option value="bist100">BIST 100</option>
+                <option value="bist30" disabled>BIST 30 — lisans sonrası</option>
+                <option value="bist100" disabled>BIST 100 — lisans sonrası</option>
                 <option value="crypto">Kripto</option>
                 <option value="custom">Özel / VİOP</option>
               </select>
@@ -396,14 +445,16 @@ export class SignalFeed {
             <label><input data-tg-type type="checkbox" value="STRONG_BUY"> STRONG_BUY</label>
             <label><input data-tg-type type="checkbox" value="STRONG_SELL"> STRONG_SELL</label>
           </div>
-          <textarea id="tg-custom-symbols" class="tg-custom-symbols" placeholder="VİOP veya özel semboller: F_XU030..., F_USDTRY..., THYAO.IS"></textarea>
+          <textarea id="tg-custom-symbols" class="tg-custom-symbols" placeholder="Kripto özel semboller: BTCUSDT, ETHUSDT"></textarea>
           <div class="tg-actions">
-            <button id="tg-bist30-preset" type="button">BIST 30 sıkı</button>
+            <button id="tg-bist30-preset" type="button" disabled title="BIST sinyal bildirimi lisans sonrası açılacak">BIST lisans sonrası</button>
             <button id="tg-save-prefs" type="button">Kaydet</button>
             <span id="tg-pref-status"></span>
           </div>
         </div>
         <div class="signal-feed-info">${TR.SIGNAL_FEED_INFO}</div>
+        <div class="legal-notice signal-disclaimer">${TR.SIGNAL_DISCLAIMER}</div>
+        <div class="legal-notice data-license-notice">${TR.MARKET_DATA_NOTICE}</div>
         <div id="signal-feed-list" class="signal-feed-list">
           <div class="signal-feed-empty">${TR.CONNECTING}…</div>
         </div>
@@ -474,16 +525,17 @@ export class SignalFeed {
       <div class="signal-item ${isStrong ? 'signal-strong' : ''}">
         <div class="signal-header">
           <span class="signal-badge ${badgeClass}">${badgeLabel}</span>
-          <span class="signal-symbol">${sig.symbol}</span>
+          <span class="signal-symbol">${this.escapeHtml(sig.symbol)}</span>
           <span class="signal-price">${formatNumber(sig.price, decimals)}</span>
           <span class="signal-time">${time}</span>
         </div>
         <div class="signal-meta">
-          <span class="signal-strategy">${sig.strategy_id}</span>
-          ${sig.interval ? `<span class="signal-interval">${sig.interval}</span>` : ''}
+          <span class="signal-strategy">${this.escapeHtml(sig.strategy_id)}</span>
+          ${sig.interval ? `<span class="signal-interval">${this.escapeHtml(sig.interval)}</span>` : ''}
           <span class="signal-strength">${stars}</span>
         </div>
-        <div class="signal-reason">${sig.reason}</div>
+        <div class="signal-reason">${this.escapeHtml(sig.reason)}</div>
+        <div class="signal-legal">${TR.SIGNAL_DISCLAIMER}</div>
         ${metadataHTML}
       </div>
     `;

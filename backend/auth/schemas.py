@@ -14,6 +14,9 @@ class RegisterRequest(BaseModel):
     email: EmailStr
     password: str
     display_name: str
+    marketing_consent: bool = False
+    terms_accepted: bool = False
+    privacy_accepted: bool = False
 
     @field_validator("password")
     @classmethod
@@ -75,6 +78,17 @@ class UpdateSettingsRequest(BaseModel):
     accent_color: str | None = None
     language: str | None = None
     onboarding_done: bool | None = None
+
+
+class LegalConsentRequest(BaseModel):
+    consent_type: str
+    accepted: bool = True
+    version: str = "2026-05-23"
+    text: str | None = None
+
+
+class AccountDeleteRequest(BaseModel):
+    confirm: str
 
 
 class TotpVerifyRequest(BaseModel):

@@ -26,6 +26,10 @@ logger = logging.getLogger(__name__)
 _LIFECYCLE_COOLDOWN_SECONDS = 60
 _LIFECYCLE_GUARD_PATH = ROOT / "data" / "runtime" / "telegram_lifecycle_guard.json"
 _SIGNAL_COOLDOWN_PATH = ROOT / "data" / "runtime" / "telegram_signal_cooldown.json"
+_LEGAL_DISCLAIMER = (
+    "⚠️ _Bu bildirim yatırım tavsiyesi değildir. Eğitim ve paper trading "
+    "amaçlıdır. Bildirimleri kapatmak için /durdur komutunu kullanabilirsiniz._"
+)
 
 
 def _configured() -> bool:
@@ -41,6 +45,25 @@ def _with_source(text: str, source: str | None) -> str:
     if not source:
         return text
     return f"🏷 *{source}*\n{text}"
+
+
+def _with_disclaimer(text: str) -> str:
+    return f"{text}\n\n{_LEGAL_DISCLAIMER}"
+
+
+def _is_crypto_signal_symbol(symbol: str) -> bool:
+    clean = symbol.upper().replace("/", "").replace("-", "").strip()
+    return clean.endswith("USDT") and len(clean) >= 7 and "." not in clean and "=" not in clean
+
+
+def _signal_label(signal_type: str) -> str:
+    labels = {
+        "BUY": "AL yönlü teknik sinyal",
+        "SELL": "SAT yönlü teknik sinyal",
+        "STRONG_BUY": "Güçlü AL yönlü teknik sinyal",
+        "STRONG_SELL": "Güçlü SAT yönlü teknik sinyal",
+    }
+    return labels.get(signal_type.upper(), signal_type.upper())
 
 
 def _lifecycle_allowed(
@@ -142,6 +165,8 @@ def should_notify_signal(signal: dict[str, Any]) -> tuple[bool, str]:
     metadata = signal.get("metadata") or {}
     consensus_ratio = float(metadata.get("consensus_ratio", 0) or 0)
 
+    if not _is_crypto_signal_symbol(symbol):
+        return False, "licensed market signal notifications disabled until data license is active"
     symbols = selected_symbols(prefs)
     if symbols and symbol not in symbols:
         return False, "symbol filtered"
@@ -233,20 +258,23 @@ async def bildir_yeni_sinyal(signal: dict[str, Any]) -> bool:
         logger.info("telegram: sinyal filtrelendi — %s", reason_filtered)
         return False
     symbol = signal.get("symbol", "?")
-    sig_type = signal.get("signal_type", "?")
+    sig_type = str(signal.get("signal_type", "?")).upper()
     price = float(signal.get("price", 0))
     strategy = signal.get("strategy_id", "?")
     strength = int(signal.get("strength", 5))
     reason = signal.get("reason", "")
     stars = "⭐" * min(strength // 2, 5)
     emoji = "🟢" if "BUY" in sig_type else "🔴"
+    label = _signal_label(sig_type)
     return await send_telegram(
-        f"{emoji} *Yeni Sinyal — {sig_type}*\n"
-        f"📌 Sembol: `{symbol}`\n"
-        f"💰 Fiyat: `{price:.4f}`\n"
-        f"📊 Strateji: `{strategy}`\n"
-        f"💪 Güç: {strength}/10 {stars}\n"
-        f"📝 {reason}",
+        _with_disclaimer(
+            f"{emoji} *Teknik Sinyal Notu — {label}*\n"
+            f"📌 Sembol: `{symbol}`\n"
+            f"💰 Fiyat: `{price:.4f}`\n"
+            f"📊 Strateji: `{strategy}`\n"
+            f"💪 Güç: {strength}/10 {stars}\n"
+            f"📝 {reason}"
+        ),
         source="Sinyal bildirimi",
     )
 
@@ -258,13 +286,15 @@ async def bildir_alim(strategy_id: str, symbol: str, price: float,
     if not read_preferences()["notify_trades"]:
         return False
     return await send_telegram(
-        f"🛒 *Alım Gerçekleşti*\n"
-        f"📌 Sembol: `{symbol}`\n"
-        f"💰 Fiyat: `{price:.4f}`\n"
-        f"📦 Miktar: `{quantity:.4f}`\n"
-        f"💵 Tutar: `{tutar:,.2f}₺`\n"
-        f"📊 Strateji: `{strategy_id}`\n"
-        f"📝 {reason}",
+        _with_disclaimer(
+            f"🛒 *Sanal Alım Kaydı (Paper Trading)*\n"
+            f"📌 Sembol: `{symbol}`\n"
+            f"💰 Fiyat: `{price:.4f}`\n"
+            f"📦 Miktar: `{quantity:.4f}`\n"
+            f"💵 Sanal Tutar: `{tutar:,.2f}₺`\n"
+            f"📊 Strateji: `{strategy_id}`\n"
+            f"📝 {reason}"
+        ),
         source="Sistem bildirimi",
     )
 
@@ -278,13 +308,15 @@ async def bildir_satim(strategy_id: str, symbol: str, price: float,
     emoji = "🟢" if pnl >= 0 else "🔴"
     isaret = "+" if pnl >= 0 else ""
     return await send_telegram(
-        f"💸 *Satım Gerçekleşti*\n"
-        f"📌 Sembol: `{symbol}`\n"
-        f"💰 Fiyat: `{price:.4f}`\n"
-        f"📦 Miktar: `{quantity:.4f}`\n"
-        f"{emoji} Kâr/Zarar: `{isaret}{pnl:,.2f}₺`\n"
-        f"📊 Strateji: `{strategy_id}`\n"
-        f"📝 {reason}",
+        _with_disclaimer(
+            f"💸 *Sanal Satım Kaydı (Paper Trading)*\n"
+            f"📌 Sembol: `{symbol}`\n"
+            f"💰 Fiyat: `{price:.4f}`\n"
+            f"📦 Miktar: `{quantity:.4f}`\n"
+            f"{emoji} Sanal Kâr/Zarar: `{isaret}{pnl:,.2f}₺`\n"
+            f"📊 Strateji: `{strategy_id}`\n"
+            f"📝 {reason}"
+        ),
         source="Sistem bildirimi",
     )
 
@@ -297,10 +329,12 @@ async def bildir_cuzdan_donduruldu(strategy_id: str, daily_loss: float,
         return False
     oran = abs(daily_loss) / initial_capital * 100
     return await send_telegram(
-        f"⛔ *Cüzdan Donduruldu*\n"
-        f"📊 Strateji: `{strategy_id}`\n"
-        f"📉 Günlük zarar: `{daily_loss:,.2f}₺` (`{oran:.1f}%`)\n"
-        f"ℹ️ Günlük zarar limiti aşıldı. Yeni işlem yapılmayacak.",
+        _with_disclaimer(
+            f"⛔ *Sanal Cüzdan Donduruldu (Paper Trading)*\n"
+            f"📊 Strateji: `{strategy_id}`\n"
+            f"📉 Günlük sanal zarar: `{daily_loss:,.2f}₺` (`{oran:.1f}%`)\n"
+            f"ℹ️ Günlük sanal zarar limiti aşıldı. Yeni paper işlem yapılmayacak."
+        ),
         source="Sistem bildirimi",
     )
 
@@ -335,10 +369,10 @@ async def bildir_gunluk_ozet(wallets: list[dict], trades: list[dict]) -> bool:
     if tamamlanan:
         win_rate = len(kazananlar) / len(tamamlanan) * 100
         satirlar.append(
-            f"\n📈 Kazanma Oranı: `{win_rate:.1f}%` "
+            f"\n📈 Paper Trading Simülasyon Oranı (gerçek getiri değil): `{win_rate:.1f}%` "
             f"({len(kazananlar)}/{len(tamamlanan)} işlem)"
         )
-    return await send_telegram("\n".join(satirlar), source="Sistem bildirimi")
+    return await send_telegram(_with_disclaimer("\n".join(satirlar)), source="Sistem bildirimi")
 
 
 async def test_baglantisi() -> bool:

@@ -27,6 +27,18 @@ SMTP_PASS   = os.environ.get("SMTP_PASS",  "")
 FROM_EMAIL  = os.environ.get("SMTP_USER",  "noreply@piyasapilotu.com")
 BASE_URL    = os.environ.get("PUBLIC_BASE_URL", "https://piyasapilotu.com")
 
+EMAIL_TEMPLATE_TYPES: dict[str, str] = {
+    "verify_email.html": "transactional",
+    "reset_password.html": "transactional",
+    "welcome.html": "transactional",
+    "payment_success.html": "transactional",
+    "payment_failed.html": "transactional",
+}
+
+
+def email_template_type(template_name: str) -> str:
+    return EMAIL_TEMPLATE_TYPES.get(template_name, "marketing")
+
 
 def _render(template_name: str, context: dict) -> str:
     """Jinja2 şablonu render et. Şablon yoksa düz metin fallback."""

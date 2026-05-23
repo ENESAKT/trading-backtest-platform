@@ -42,6 +42,7 @@ async def create_user(
     display_name: str,
     email_verified: bool = False,
     role: str = "free",
+    marketing_consent: bool = False,
 ) -> int:
     """Kullanıcı oluştur, yeni user_id döndür."""
     ph = hash_password(password) if password else None
@@ -49,9 +50,10 @@ async def create_user(
         async with conn.cursor() as cur:
             await cur.execute(
                 """INSERT INTO users
-                   (email, email_verified, password_hash, display_name, role)
-                   VALUES (%s, %s, %s, %s, %s)""",
-                (email, email_verified, ph, display_name, role),
+                   (email, email_verified, password_hash, display_name, role,
+                    marketing_consent, marketing_consent_at)
+                   VALUES (%s, %s, %s, %s, %s, %s, IF(%s, NOW(), NULL))""",
+                (email, email_verified, ph, display_name, role, marketing_consent, marketing_consent),
             )
             await conn.commit()
             # Aynı bağlantıda LAST_INSERT_ID al
@@ -64,6 +66,80 @@ async def create_user(
     await _assign_referral_code(pool, user_id)
     await _start_pro_trial(pool, user_id)
     return user_id
+
+
+async def record_legal_consent(
+    pool: aiomysql.Pool,
+    user_id: int,
+    consent_type: str,
+    accepted: bool,
+    version: str,
+    text_snapshot: str,
+    ip_address: str = "",
+    user_agent: str = "",
+) -> None:
+    async with pool.acquire() as conn:
+        async with conn.cursor() as cur:
+            await cur.execute(
+                """INSERT INTO user_legal_consents
+                   (user_id, consent_type, accepted, version, text_snapshot, ip_address, user_agent)
+                   VALUES (%s, %s, %s, %s, %s, %s, %s)""",
+                (user_id, consent_type, accepted, version, text_snapshot, ip_address, user_agent),
+            )
+            await conn.commit()
+
+
+async def list_legal_consents(pool: aiomysql.Pool, user_id: int) -> list[dict]:
+    async with pool.acquire() as conn:
+        async with conn.cursor(aiomysql.DictCursor) as cur:
+            await cur.execute(
+                """SELECT consent_type, accepted, version, created_at
+                   FROM user_legal_consents
+                   WHERE user_id = %s
+                   ORDER BY created_at DESC""",
+                (user_id,),
+            )
+            rows = await cur.fetchall()
+            return list(rows or [])
+
+
+async def anonymize_user_account(pool: aiomysql.Pool, user_id: int) -> None:
+    anon_email = f"deleted-user-{user_id}@piyasapilot.local"
+    async with pool.acquire() as conn:
+        async with conn.cursor() as cur:
+            await cur.execute(
+                """UPDATE users
+                   SET email=%s,
+                       email_verified=FALSE,
+                       password_hash=NULL,
+                       display_name='Silinmiş Kullanıcı',
+                       avatar_url=NULL,
+                       role='free',
+                       is_active=FALSE,
+                       marketing_consent=FALSE,
+                       marketing_consent_at=NULL,
+                       deleted_at=NOW(),
+                       anonymized_at=NOW()
+                   WHERE id=%s""",
+                (anon_email, user_id),
+            )
+            await cur.execute(
+                "DELETE FROM oauth_accounts WHERE user_id=%s",
+                (user_id,),
+            )
+            await cur.execute(
+                "UPDATE refresh_tokens SET revoked_at=NOW() WHERE user_id=%s AND revoked_at IS NULL",
+                (user_id,),
+            )
+            await cur.execute(
+                """UPDATE user_settings
+                   SET notification_prefs=NULL,
+                       favorite_symbols=NULL,
+                       dashboard_layout=NULL
+                   WHERE user_id=%s""",
+                (user_id,),
+            )
+            await conn.commit()
 
 
 async def _assign_referral_code(pool: aiomysql.Pool, user_id: int) -> None:

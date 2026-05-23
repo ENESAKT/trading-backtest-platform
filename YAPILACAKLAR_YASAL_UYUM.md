@@ -1,9 +1,11 @@
 # PiyasaPilotu — Yasal Uyum ve Risk Azaltma Planı
 
-> Hazırlanma tarihi: 2026-05-23  
-> Kapsam: Hukuki, veri lisansı, kullanıcı güvenliği ve yatırım tavsiyesi riski  
-> Öncelik: Bu plandaki maddeler, ürünün canlıya alınmasından önce eksiksiz uygulanmalıdır.  
+> Hazırlanma tarihi: 2026-05-23
+> Kapsam: Hukuki, veri lisansı, kullanıcı güvenliği ve yatırım tavsiyesi riski
+> Öncelik: Bu plandaki maddeler, ürünün canlıya alınmasından önce eksiksiz uygulanmalıdır.
 > ⚠️ Son aşamada bir hukukçuya, lisanslı veri sağlayıcısına ve SPK/BIST mevzuatına hâkim bir uzmana danışılmalıdır.
+
+> Durum güncellemesi (2026-05-23): Faz 1 ve Faz 2'nin kodla uygulanabilen maddeleri uygulandı. Risk/veri lisansı dili, yasal sayfalar, Telegram onay akışı, pazarlama onayı, dijital hizmet onayı, KVKK veri envanteri ve hesap silme akışı hazır. Hukukçu onayı, VERBİS/İYS değerlendirmesi, gerçek e-posta/domain kanalları, şirket/veri sorumlusu bilgileri ve BIST/VİOP lisans sözleşmeleri dış sistem/uzman işi olarak açık kalır.
 
 ---
 
@@ -274,10 +276,10 @@ PAPER_ONLY_WARNING: 'SANAL İŞLEM — Gerçek para ve gerçek piyasa emri söz 
 
 ```
 ⚠️ Yatırım Tavsiyesi Uyarısı
-Bu içerik yatırım tavsiyesi değildir. Yalnızca teknik analiz göstergeleri 
-ve eğitim amaçlı bilgilendirme içerir. Finansal kararlarınızı kendi 
-araştırmanız, risk toleransınız ve gerekiyorsa lisanslı bir yatırım 
-danışmanıyla değerlendirerek veriniz. PiyasaPilotu, herhangi bir finansal 
+Bu içerik yatırım tavsiyesi değildir. Yalnızca teknik analiz göstergeleri
+ve eğitim amaçlı bilgilendirme içerir. Finansal kararlarınızı kendi
+araştırmanız, risk toleransınız ve gerekiyorsa lisanslı bir yatırım
+danışmanıyla değerlendirerek veriniz. PiyasaPilotu, herhangi bir finansal
 sonuçtan sorumlu tutulamaz.
 ```
 
@@ -289,16 +291,16 @@ Veriler gecikmeli, eksik veya hatalı olabilir. Piyasaya göre veri durumu:
   • Kripto (BTC, ETH vb.): Binance public stream — gerçek zamanlıya yakın
   • BIST hisseleri: Lisanslı veri sağlayıcı bekleniyor — şu an eğitim amaçlı
   • VİOP sözleşmeleri: Henüz aktif değil — lisans süreci devam ediyor
-Veri doğruluğu ve güncelliği garanti edilmez. Yatırım kararlarında 
+Veri doğruluğu ve güncelliği garanti edilmez. Yatırım kararlarında
 yalnızca bu veriye dayanmayınız.
 ```
 
 ### D3. Landing Page / Genel Disclaimer (Footer veya bilgi şeridi)
 
 ```
-PiyasaPilotu bir yatırım danışmanlığı hizmeti değildir. Gösterilen veriler, 
-sinyaller ve analizler yalnızca eğitim ve araştırma amaçlıdır. Gerçek emir 
-gönderimi desteklenmez. BIST ve VİOP verileri için lisans süreci devam 
+PiyasaPilotu bir yatırım danışmanlığı hizmeti değildir. Gösterilen veriler,
+sinyaller ve analizler yalnızca eğitim ve araştırma amaçlıdır. Gerçek emir
+gönderimi desteklenmez. BIST ve VİOP verileri için lisans süreci devam
 etmektedir; bu piyasalardaki veriler şu an eğitim/demo niteliğindedir.
 ```
 
@@ -306,9 +308,9 @@ etmektedir; bu piyasalardaki veriler şu an eğitim/demo niteliğindedir.
 
 ```
 SANAL İŞLEM MODU
-Bu ekrandaki tüm emirler, pozisyonlar ve bakiyeler tamamen simüle edilmiştir. 
-Gerçek para, gerçek piyasa emri veya gerçek finansal sonuç söz konusu 
-değildir. "Al" / "Sat" butonları yalnızca sanal portföy simülasyonunu 
+Bu ekrandaki tüm emirler, pozisyonlar ve bakiyeler tamamen simüle edilmiştir.
+Gerçek para, gerçek piyasa emri veya gerçek finansal sonuç söz konusu
+değildir. "Al" / "Sat" butonları yalnızca sanal portföy simülasyonunu
 etkiler.
 ```
 
@@ -316,13 +318,13 @@ etkiler.
 
 ```
 🔒 Bu piyasa şu an aktif değildir
-BIST hisse / VİOP sözleşme verileri için lisanslı veri sağlayıcı 
-görüşmeleri devam etmektedir. Lisans sürecini tamamladıktan sonra 
+BIST hisse / VİOP sözleşme verileri için lisanslı veri sağlayıcı
+görüşmeleri devam etmektedir. Lisans sürecini tamamladıktan sonra
 bu ekran aktif hale gelecektir.
 Neden bu uyarıyı görüyorsunuz?
-Borsa İstanbul, BIST ve VİOP verilerinin üçüncü taraflara 
-dağıtılması için ayrı bir lisans sözleşmesi zorunlu kılar. 
-Kullanıcılarımızı yanlış veya lisanssız veriyle yönlendirmemek 
+Borsa İstanbul, BIST ve VİOP verilerinin üçüncü taraflara
+dağıtılması için ayrı bir lisans sözleşmesi zorunlu kılar.
+Kullanıcılarımızı yanlış veya lisanssız veriyle yönlendirmemek
 için bu ekranı geçici olarak kapattık.
 ```
 
@@ -330,12 +332,12 @@ için bu ekranı geçici olarak kapattık.
 
 ```
 Telegram sinyal bildirimlerini aktifleştirmek üzeresiniz.
-Bu bildirimler yatırım tavsiyesi değildir; teknik analiz 
+Bu bildirimler yatırım tavsiyesi değildir; teknik analiz
 göstergeleri içerir. Devam etmek için aşağıdakileri onaylamalısınız:
 
 ☐ Telegram bildirimlerinin yatırım tavsiyesi içermediğini anlıyorum.
-☐ Kişisel verilerimin (Telegram chat ID) yalnızca bildirim 
-  amaçlı saklanacağını ve üçüncü taraflarla paylaşılmayacağını 
+☐ Kişisel verilerimin (Telegram chat ID) yalnızca bildirim
+  amaçlı saklanacağını ve üçüncü taraflarla paylaşılmayacağını
   kabul ediyorum.
 ☐ İstediğim zaman bildirimleri kapatabileceğimi biliyorum.
 
@@ -353,52 +355,52 @@ Kullanım Koşulları
 Son güncelleme: [tarih]
 
 1. TARAFLAR VE KAPSAM
-   PiyasaPilotu ([Şirket Adı / Şahıs], [Adres]) tarafından işletilen 
-   piyasapilot.com ve ilgili mobil uygulamalar (birlikte "Platform") 
+   PiyasaPilotu ([Şirket Adı / Şahıs], [Adres]) tarafından işletilen
+   piyasapilot.com ve ilgili mobil uygulamalar (birlikte "Platform")
    bu koşullara tabidir.
 
 2. HİZMETİN NİTELİĞİ — YATIRIM TAVSİYESİ DEĞİLDİR
-   Platform; teknik analiz araçları, backtest simülasyonu, 
-   piyasa verileri ve eğitim içerikleri sunar. Platform yatırım 
-   danışmanlığı, portföy yönetimi veya finansal tavsiye hizmeti 
-   vermez ve veremez. Gösterilen sinyaller, analizler ve raporlar 
-   yalnızca bilgilendirme ve eğitim amaçlıdır; herhangi bir menkul 
+   Platform; teknik analiz araçları, backtest simülasyonu,
+   piyasa verileri ve eğitim içerikleri sunar. Platform yatırım
+   danışmanlığı, portföy yönetimi veya finansal tavsiye hizmeti
+   vermez ve veremez. Gösterilen sinyaller, analizler ve raporlar
+   yalnızca bilgilendirme ve eğitim amaçlıdır; herhangi bir menkul
    kıymetin alınması veya satılması yönünde tavsiye niteliği taşımaz.
    SPK lisansı gerektiren faaliyetler Platform kapsamında sunulmaz.
 
 3. VERİ KAYNAKLARI VE LİSANS DURUMU
    a) Kripto verileri: Binance public market data stream.
-   b) BIST hisse verileri: [Lisans süreci devam ettiği sürece] 
+   b) BIST hisse verileri: [Lisans süreci devam ettiği sürece]
       "Veri lisansı bekleniyor — bu piyasa eğitim/demo modundadır."
       Lisanslı feed aktif olduğunda güncelleme yapılacaktır.
    c) VİOP verileri: Henüz lisanslı kaynak bağlanmamıştır.
    d) KAP haberleri: KAP RSS public feed.
    Veri doğruluğu, güncelliği veya eksiksizliği garanti edilmez.
-   Platforma yüklenen veya oluşturulan içeriklerin lisans 
+   Platforma yüklenen veya oluşturulan içeriklerin lisans
    uyumundan kullanıcı sorumludur.
 
 4. GERÇEK EMİR GÖNDERİMİ YOKTUR
-   Platform aracılık hizmeti sunmaz. "AL" / "SAT" / "Sanal Al" / 
-   "Sanal Sat" etiketli işlemler tamamen simüle olup gerçek piyasa 
+   Platform aracılık hizmeti sunmaz. "AL" / "SAT" / "Sanal Al" /
+   "Sanal Sat" etiketli işlemler tamamen simüle olup gerçek piyasa
    emirlerine dönüştürülmez.
 
 5. KULLANICI SORUMLULUĞU VE SORUMLULUK SINIRLAMASI
-   Kullanıcı, Platform bilgilerini esas alarak aldığı yatırım 
-   kararlarından ve doğan finansal sonuçlardan münferiden 
-   sorumludur. Platform, veri hatalarından, kesintilerinden, 
-   gecikmelilerden veya kullanıcının bu verilere dayanarak aldığı 
+   Kullanıcı, Platform bilgilerini esas alarak aldığı yatırım
+   kararlarından ve doğan finansal sonuçlardan münferiden
+   sorumludur. Platform, veri hatalarından, kesintilerinden,
+   gecikmelilerden veya kullanıcının bu verilere dayanarak aldığı
    kararların sonuçlarından yasal olarak sorumlu tutulamaz.
-   Platform'un sorumluluğu, yasal zorunluluklar dışında, 
+   Platform'un sorumluluğu, yasal zorunluluklar dışında,
    kullanıcının ödediği son aylık abonelik ücretiyle sınırlıdır.
 
 6. YASAKLI KULLANIM
-   Kullanıcılar Platform'u; başkalarını yanıltmak, piyasa 
-   manipülasyonu, veri toplayıcılığı (scraping), yasa dışı 
-   amaçlar veya üçüncü taraflara lisanssız veri satmak için 
+   Kullanıcılar Platform'u; başkalarını yanıltmak, piyasa
+   manipülasyonu, veri toplayıcılığı (scraping), yasa dışı
+   amaçlar veya üçüncü taraflara lisanssız veri satmak için
    kullanamaz.
 
 7. YAŞ SINIRI
-   Platform 18 yaşını doldurmuş bireylere yöneliktir. 18 yaş 
+   Platform 18 yaşını doldurmuş bireylere yöneliktir. 18 yaş
    altı kişilerin hesap açması yasaktır.
 
 8. HESAP VE ABONELİK
@@ -408,17 +410,17 @@ Son güncelleme: [tarih]
    [Platform içerikleri, yazılım ve tasarım hakları]
 
 10. GİZLİLİK
-    Gizlilik Politikamıza ([link]) tabi olarak kişisel veriler 
+    Gizlilik Politikamıza ([link]) tabi olarak kişisel veriler
     işlenir.
 
 11. UYGULANACAK HUKUK VE UYUŞMAZLIK ÇÖZÜMÜ
-    Bu koşullar Türk hukukuna tabidir. Uyuşmazlıklarda 
+    Bu koşullar Türk hukukuna tabidir. Uyuşmazlıklarda
     [İstanbul / Ankara] Mahkemeleri ve İcra Daireleri yetkilidir.
     Taraflar öncelikle arabuluculuğa başvurur.
 
 12. DEĞİŞİKLİKLER
-    Koşullar değiştiğinde kullanıcıya e-posta ile bildirilir ve 
-    30 gün önceden duyurulur. Kullanım devam edilirse yeni 
+    Koşullar değiştiğinde kullanıcıya e-posta ile bildirilir ve
+    30 gün önceden duyurulur. Kullanım devam edilirse yeni
     koşullar kabul edilmiş sayılır.
 ```
 
@@ -473,9 +475,9 @@ VERİ SORUMLUSU
    - İşlemeye itiraz etme
    - Veri taşınabilirliği (makine okunabilir format)
    - Otomatik işlemeye karşı itiraz
-   
+
    BAŞVURU: [email] adresine "KVKK Başvurusu" konusuyla yazın.
-   30 gün içinde yanıt verilir. Yanıt verilmezse KVK Kurulu'na 
+   30 gün içinde yanıt verilir. Yanıt verilmezse KVK Kurulu'na
    başvurabilirsiniz.
 
 6. KİŞİSEL VERİ GÜVENLİĞİ
@@ -488,9 +490,9 @@ VERİ SORUMLUSU
    Çerez kullanımı için ayrı [Çerez Politikası] sayfasına bakınız.
 
 8. PAZARLAMA İLETİŞİMİ
-   Ticari elektronik ileti (promosyon e-postası, pazarlama bildirimi) 
-   yalnızca açık onay alınan kullanıcılara gönderilir. İptal: Her 
-   mesajda "Abonelikten çık" linki bulunur veya [email] adresine 
+   Ticari elektronik ileti (promosyon e-postası, pazarlama bildirimi)
+   yalnızca açık onay alınan kullanıcılara gönderilir. İptal: Her
+   mesajda "Abonelikten çık" linki bulunur veya [email] adresine
    yazılabilir.
 ```
 
@@ -512,7 +514,7 @@ Son güncelleme: [tarih]
 2. ANALİTİK ÇEREZLER (onay gerektirir)
    - [Sentry]: Hata izleme ve performans analizi.
      Sentry veri işleme politikası: sentry.io/privacy
-   - [Gelecekte eklenirse Google Analytics / benzeri]: 
+   - [Gelecekte eklenirse Google Analytics / benzeri]:
      Sayfada bildirilecektir.
 
 3. ÖDEME ÇEREZLER (zorunlu, ödeme akışında)
@@ -520,13 +522,13 @@ Son güncelleme: [tarih]
      Stripe çerez politikası: stripe.com/cookie-settings
 
 4. ÇEREZ TERCİHLERİNİZİ YÖNETİN
-   Sayfanın altındaki "Çerez Ayarları" bağlantısından 
-   tercihlerinizi güncelleyebilirsiniz. Zorunlu çerezler 
+   Sayfanın altındaki "Çerez Ayarları" bağlantısından
+   tercihlerinizi güncelleyebilirsiniz. Zorunlu çerezler
    devre dışı bırakılamaz.
 
 5. ÜÇ TARAF ÇEREZLER
-   Platform'un gömülü içerikleri (varsa: YouTube, widget) 
-   üçüncü taraf çerez kullanabilir. Bu çerezler üçüncü 
+   Platform'un gömülü içerikleri (varsa: YouTube, widget)
+   üçüncü taraf çerez kullanabilir. Bu çerezler üçüncü
    tarafların politikalarına tabidir.
 ```
 
@@ -577,7 +579,7 @@ Son güncelleme: [tarih]
 
 1. **BIST fiyat gösterimini geçici kapat veya "Lisans Bekleniyor" ekranıyla değiştir.**
    - `bist_provider.py`'de yfinance fallback tamamen kaldırılabilir ya da `is_real=False` data için frontend'de placeholder gösterilir.
-   
+
 2. **"CANLI" / "LIVE" kelimesini `tr.ts` ve `DataQualityBadge.ts`'de güvenli alternatifle değiştir.**
 
 3. **Sinyal dili güncelle:** AL/SAT → AL Sinyali/SAT Sinyali; GÜÇLÜ AL → Güçlü AL Sinyali. Tüm toast, badge ve Telegram mesajlarında.
@@ -630,8 +632,8 @@ Son güncelleme: [tarih]
 Yasal Bilgilendirme
 
 1. UYGULAMA HAKKINDA
-   PiyasaPilotu bir fintech eğitim ve araştırma platformudur. 
-   SPK lisanslı bir yatırım kuruluşu değildir ve yatırım 
+   PiyasaPilotu bir fintech eğitim ve araştırma platformudur.
+   SPK lisanslı bir yatırım kuruluşu değildir ve yatırım
    tavsiyesi hizmeti vermez.
 
 2. VERİ KAYNAKLARI VE LİSANS DURUMU
@@ -643,20 +645,20 @@ Yasal Bilgilendirme
    ─────────────────────────────────
 
 3. YATIRIM TAVSİYESİ DEĞİLDİR BEYANI
-   Platform içindeki sinyaller, analizler, screener sonuçları, 
-   backtest raporları ve Telegram bildirimleri Sermaye Piyasası 
-   Kanunu çerçevesinde yatırım tavsiyesi niteliği taşımaz. Bu 
+   Platform içindeki sinyaller, analizler, screener sonuçları,
+   backtest raporları ve Telegram bildirimleri Sermaye Piyasası
+   Kanunu çerçevesinde yatırım tavsiyesi niteliği taşımaz. Bu
    içerikler teknik analiz göstergeleri ve eğitim materyalleridir.
 
 4. VERİ DOĞRULUĞU GARANTİSİ
-   Veri doğruluğu, eksiksizliği veya gerçek zamanlılığı garanti 
-   edilmez. Gösterilen her veri için kaynağı ve güvenilirliği 
+   Veri doğruluğu, eksiksizliği veya gerçek zamanlılığı garanti
+   edilmez. Gösterilen her veri için kaynağı ve güvenilirliği
    kullanıcı tarafından doğrulanmalıdır.
 
 5. KULLANICI SORUMLULUĞU
-   Yatırım kararlarınızın tüm mali ve hukuki sonuçlarından 
-   kendiniz sorumlusunuzdur. Platformu kullanmadan önce kendi 
-   araştırmanızı yapmanız ve gerekirse lisanslı yatırım 
+   Yatırım kararlarınızın tüm mali ve hukuki sonuçlarından
+   kendiniz sorumlusunuzdur. Platformu kullanmadan önce kendi
+   araştırmanızı yapmanız ve gerekirse lisanslı yatırım
    danışmanına başvurmanız önerilir.
 
 6. İLETİŞİM VE ŞİKÂYET KANALI

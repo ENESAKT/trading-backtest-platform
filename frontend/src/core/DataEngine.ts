@@ -5,7 +5,7 @@ import type {
 import { PollingManager } from './PollingManager.js';
 import { QuoteStream, type QuoteMessage } from './QuoteStream.js';
 import { loadHistorical } from './HistoricalLoader.js';
-import { DEFAULT_SYMBOL, resolveSymbol } from '../constants/symbols.js';
+import { DEFAULT_SYMBOL, isLicenseRestrictedSymbol, resolveSymbol } from '../constants/symbols.js';
 
 // ─── Simple EventEmitter ──────────────────────────────────────────────────────
 
@@ -66,6 +66,10 @@ export class DataEngine extends EventEmitter {
     this.status          = 'offline';
 
     this.emit('statusChange', 'offline');
+
+    if (isLicenseRestrictedSymbol(info)) {
+      return;
+    }
 
     if (info.assetType === 'crypto') {
       await this.connectCrypto(info.symbol, this.activeTimeframe);

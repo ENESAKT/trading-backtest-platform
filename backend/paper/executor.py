@@ -82,7 +82,7 @@ class PaperExecutor:
 
     def _equity_snapshot(self, strategy_id: str, wallet: dict[str, Any]) -> None:
         positions_val = sum(
-            self._entry_prices.get(strategy_id, {}).get(sym, 0)
+            self._current_prices.get(sym, self._entry_prices.get(strategy_id, {}).get(sym, 0))
             * self._quantities.get(strategy_id, {}).get(sym, 0)
             for sym in (self._open_positions.get(strategy_id) or {})
         )
@@ -282,15 +282,58 @@ class PaperExecutor:
     def update_prices(self, price_map: dict[str, float]) -> None:
         """Anlık fiyatlarla in-memory unrealized PnL takibini güncelle.
 
-        NOT: Bu metod şu an sadece _current_prices sözlüğünü günceller.
-        Unrealized PnL, frontend'e equity_snapshot üzerinden iletilir.
-        Gerçek unrealized PnL hesabı için bkz. get_positions() — orada
-        entry_price × quantity × (current/entry - 1) formülü kullanılmalı.
-
-        TODO: _current_prices ile unrealized PnL'yi sürekli hesapla ve
-        equity_snapshot'a ekle (paper_ops.py ile entegrasyon).
+        Her fiyat güncellemesinde açık pozisyonları mark-to-market değerler,
+        equity snapshot yazar ve günlük zarar limitini unrealized PnL dahil izler.
         """
-        self._current_prices: dict[str, float] = {**getattr(self, '_current_prices', {}), **price_map}
+        clean_prices: dict[str, float] = {}
+        for symbol, price in price_map.items():
+            try:
+                value = float(price)
+            except (TypeError, ValueError):
+                continue
+            if symbol and value > 0:
+                clean_prices[symbol.upper()] = value
+        if not clean_prices:
+            return
+
+        self._current_prices = {**self._current_prices, **clean_prices}
+
+        for strategy_id, positions in list(self._open_positions.items()):
+            if not positions:
+                continue
+            wallet = self._reset_daily_if_needed(self.db.get_or_create_wallet(strategy_id))
+            if wallet["is_halted"]:
+                self._equity_snapshot(strategy_id, wallet)
+                continue
+
+            unrealized_pnl = 0.0
+            for symbol in positions:
+                qty = self._quantities.get(strategy_id, {}).get(symbol, 0.0)
+                entry = self._entry_prices.get(strategy_id, {}).get(symbol, 0.0)
+                current = self._current_prices.get(symbol, entry)
+                unrealized_pnl += (current - entry) * qty
+
+            mark_to_market_loss = min(0.0, unrealized_pnl)
+            daily_loss = min(float(wallet["daily_loss"]), mark_to_market_loss)
+            if daily_loss != wallet["daily_loss"]:
+                self.db.update_wallet(
+                    strategy_id,
+                    float(wallet["cash"]),
+                    daily_loss,
+                    str(wallet["daily_reset_date"]),
+                )
+                wallet["daily_loss"] = daily_loss
+
+            initial = float(wallet["initial_capital"])
+            if initial > 0 and abs(daily_loss) / initial >= DAILY_LOSS_LIMIT_PCT:
+                self.db.halt_strategy(strategy_id)
+                wallet["is_halted"] = 1
+                logger.warning(
+                    "paper executor: %s mark-to-market günlük zarar limitinde donduruldu",
+                    strategy_id,
+                )
+
+            self._equity_snapshot(strategy_id, wallet)
 
     def stats(self) -> dict[str, Any]:
         return {

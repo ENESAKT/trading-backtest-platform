@@ -36,6 +36,21 @@ function isTimeframe(value: string | null): value is Timeframe {
   return !!value && VALID_TIMEFRAMES.has(value);
 }
 
+function isLicenseRestrictedSymbol(info: SymbolInfo): boolean {
+  const symbol = info.symbol.toUpperCase();
+  return (
+    info.group.startsWith('BIST')
+    || symbol.endsWith('.IS')
+    || symbol === 'XU100'
+    || symbol === '^XU100'
+    || symbol === 'BIST100'
+    || info.group === 'VİOP'
+    || info.assetType === 'derivative'
+    || symbol.startsWith('VIOP:')
+    || symbol.startsWith('F_')
+  );
+}
+
 const publicRoutes: Record<string, () => Promise<PublicRenderer>> = {
   '/landing': async () => (await import('./pages/LandingPage.js')).renderLandingPage,
   '/login': async () => (await import('./auth/LoginPage.js')).renderLoginPage,
@@ -53,6 +68,8 @@ const publicRoutes: Record<string, () => Promise<PublicRenderer>> = {
   '/legal/terms': async () => (await import('./pages/legal/TermsPage.js')).renderTermsPage,
   '/legal/privacy': async () => (await import('./pages/legal/PrivacyPage.js')).renderPrivacyPage,
   '/legal/cookies': async () => (await import('./pages/legal/CookiesPage.js')).renderCookiesPage,
+  '/legal/info': async () => (await import('./pages/legal/LegalInfoPage.js')).renderLegalInfoPage,
+  '/yasal': async () => (await import('./pages/legal/LegalInfoPage.js')).renderLegalInfoPage,
 };
 const loadPublicRenderer = publicRoutes[publicPath];
 const loadDynamicPublicRenderer = publicPath.startsWith('/shared/')
@@ -110,7 +127,9 @@ const [
 await auth.init();
 // Oturum varsa backend'den gerçek plan limitlerini senkronize et
 if (auth.user) {
-  planGate.syncLimitsFromApi().catch(() => { /* arka planda; hata olsa uygulama çalışır */ });
+  planGate.syncLimitsFromApi()
+    .then(() => applyTabLocks())
+    .catch(() => { /* arka planda; hata olsa uygulama çalışır */ });
 }
 
 function mountUserMenu(): void {
@@ -586,6 +605,7 @@ async function warmFavoriteTickers(skipSymbol?: string): Promise<void> {
   const favorites = sidebar.getFavoriteSymbols();
   for (const info of favorites) {
     if (info.symbol === skipSymbol) continue;
+    if (isLicenseRestrictedSymbol(info)) continue;
     try {
       const candles = await loadHistorical(info.symbol, '1d', {
         limit: 3,
@@ -882,8 +902,8 @@ dataEngine.onStatusChange((status) => {
 window.addEventListener('piyasapilot:data-source', (event) => {
   const source = String((event as CustomEvent<{ source?: string }>).detail?.source || 'unknown');
   const badge: Record<string, { text: string; cls: string }> = {
-    redis: { text: 'CANLI', cls: 'status-live' },
-    clickhouse: { text: 'CANLI', cls: 'status-live' },
+    redis: { text: TR.LIVE, cls: 'status-live' },
+    clickhouse: { text: TR.LIVE, cls: 'status-live' },
     yfinance: { text: 'GECİKMELİ', cls: 'status-delayed' },
     local_parquet: { text: 'GECİKMELİ', cls: 'status-delayed' },
     'cache-legacy': { text: 'CACHE', cls: 'status-offline' },

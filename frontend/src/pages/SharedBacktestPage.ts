@@ -5,6 +5,9 @@ export async function renderSharedBacktestPage(container: HTMLElement): Promise<
   container.innerHTML = pageShell('Paylaşılan Backtest', `
     <section class="public-state">
       <h1>Paylaşılan Backtest</h1>
+      <p class="legal-notice">
+        Bu backtest sonuçları geçmiş veriye dayalı simülasyondur. Gelecekteki gerçek yatırım getirilerini göstermez ve yatırım tavsiyesi değildir.
+      </p>
       <p id="shared-status">Yükleniyor...</p>
       <pre id="shared-data" class="shared-json"></pre>
     </section>`);

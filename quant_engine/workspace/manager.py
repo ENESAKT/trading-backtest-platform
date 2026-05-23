@@ -380,17 +380,17 @@ def resolve_workspace(request: WorkspaceRequest) -> WorkspaceResolution:
 def build_workspace_config(resolution: WorkspaceResolution) -> dict[str, Any]:
     """Frontend/backend için istenen JSON konfigürasyonunu üret."""
     instrument = resolution.instrument
-    data_text = "Gerçek Zamanlı OHLCV (Açılış, Yüksek, Düşük, Kapanış, Hacim)"
+    data_text = "Kaynak Bağlı OHLCV (Açılış, Yüksek, Düşük, Kapanış, Hacim)"
     if not instrument.supports_volume:
         data_text = (
-            "Gerçek Zamanlı OHLC (Forex hacmi desteklenmiyorsa hacim paneli "
+            "Kaynak Bağlı OHLC (Forex hacmi desteklenmiyorsa hacim paneli "
             "beklemeye alınır)"
         )
 
     warning = (
         resolution.warning
         or "Veri akışı kesilirse veya API yanıt vermezse grafiği dondur ve kullanıcıya "
-        "'Bağlantı Koptu - Gerçek Veri Bekleniyor' uyarısı göster. KESİNLİKLE "
+        "'Bağlantı Koptu - Kaynak Veri Bekleniyor' uyarısı göster. KESİNLİKLE "
         "geçmiş veriyi kopyalayarak sahte mum üretme."
     )
 

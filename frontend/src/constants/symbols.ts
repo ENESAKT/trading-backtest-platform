@@ -227,6 +227,26 @@ export function resolveSymbol(symbol: string): SymbolInfo | undefined {
   return SYMBOL_MAP.get(symbol);
 }
 
+export function isBistRestrictedSymbol(info: SymbolInfo): boolean {
+  const symbol = info.symbol.toUpperCase();
+  return (
+    info.group.startsWith('BIST')
+    || symbol.endsWith('.IS')
+    || symbol === 'XU100'
+    || symbol === '^XU100'
+    || symbol === 'BIST100'
+  );
+}
+
+export function isViopRestrictedSymbol(info: SymbolInfo): boolean {
+  const symbol = info.symbol.toUpperCase();
+  return info.group === 'VİOP' || info.assetType === 'derivative' || symbol.startsWith('VIOP:') || symbol.startsWith('F_');
+}
+
+export function isLicenseRestrictedSymbol(info: SymbolInfo): boolean {
+  return isBistRestrictedSymbol(info) || isViopRestrictedSymbol(info);
+}
+
 // ─── Default symbol on startup ────────────────────────────────────────────────
 
 export const DEFAULT_SYMBOL: SymbolInfo = CRYPTO_SYMBOLS[0]!; // BTCUSDT

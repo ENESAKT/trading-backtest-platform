@@ -1,7 +1,7 @@
 # PiyasaPilot — Ultra Production Planı
 
-> Son güncelleme: 2026-05-16
-> Genel ilerleme: **%84 tamamlandı / %16 kaldı**
+> Son güncelleme: 2026-05-23
+> Genel ilerleme: **%87 tamamlandı / %13 kaldı**
 > Domain: `piyasapilot.com` (METUnic'ten satın alındı — aktif, DNS yönetimi dahil)
 > Branch: `codex/financials-ui-api-v1`
 > Mobil: Flutter + Dart (MVVM / Clean Architecture)
@@ -22,22 +22,22 @@
 | [Bölüm 0 — Domain ve DNS](#bölüm-0--domain-ve-dns-yapılandırması) | [ ] | 35% | 65% | Domain/nginx hazır; gerçek sunucu IP, DNS ve TLS canlı doğrulama kaldı |
 | [Bölüm 1 — Marka ve Domain Tutarlılığı](#bölüm-1--marka-ve-domain-tutarlılığı) | [x] | 100% | 0% | SEO/meta/domain temizliği yapıldı |
 | [Bölüm 2 — Kullanıcı Rol ve Yetki Sistemi](#bölüm-2--kullanıcı-rol-ve-yetki-sistemi) | [x] | 100% | 0% | Migration 007 lokal DB'ye uygulandı; plan tabloları oluştu |
-| [Bölüm 3 — Backend Auth Modülü](#bölüm-3--backend-auth-modülü) | [ ] | 96% | 4% | Cookie + Bearer auth guard, Pro/admin gate, mobil token ve hedefli testler tamamlandı; canlı Google OAuth secret/test kaldı |
+| [Bölüm 3 — Backend Auth Modülü](#bölüm-3--backend-auth-modülü) | [ ] | 97% | 3% | Cookie + Bearer auth guard, Pro/admin gate, mobil token, legal consent ve hesap silme akışı tamamlandı; canlı Google OAuth secret/test kaldı |
 | [Bölüm 4 — Ekran Tasarımları](#bölüm-4--ekran-tasarımları-wireframe-düzeyinde) | [ ] | 98% | 2% | Public/protected route, admin/settings/legal ve terminal rotaları desktop+390px QA edildi; canlı entegrasyon edge-case'leri kaldı |
 | [Bölüm 5 — Ödeme Sistemi](#bölüm-5--ödeme-sistemi-stripe) | [ ] | 82% | 18% | Checkout/portal/webhook/idempotency kodu ve migration kontratı hazır; canlı Stripe ürünleri ve dashboard testi kaldı |
 | [Bölüm 6 — Admin Yönetim Paneli](#bölüm-6--admin-yönetim-paneli) | [ ] | 94% | 6% | Admin overview/subscription endpointleri, kullanıcı/audit/veri kalitesi empty state ve yetkisiz UX tamam; canlı veriyle son doğrulama kaldı |
 | [Bölüm 7 — Ödeme Sonrası ve Plan Yönetimi](#bölüm-7--ödeme-sonrası-ve-plan-yönetimi-frontend) | [ ] | 92% | 8% | Success/settings/billing portal UI, subscription state ve upgrade dili doğrulandı; canlı Stripe uçtan uca test kaldı |
-| [Bölüm 8 — i18n ve Hukuki Sayfalar](#bölüm-8--i18n-ve-hukuki-sayfalar) | [ ] | 93% | 7% | Public/auth/settings/payment/legal risk dili ve paper mode uyarıları tutarlı; terminal içi tüm mikro metinlerin taşınması kaldı |
+| [Bölüm 8 — i18n ve Hukuki Sayfalar](#bölüm-8--i18n-ve-hukuki-sayfalar) | [ ] | 99% | 1% | Kodla yapılabilen yasal uyum maddeleri, legal sayfalar, onay kayıtları, hesap silme ve risk/veri lisansı dili tamam; hukukçu onayı kaldı |
 | [Bölüm 9 — Mevcut UI Hataları](#bölüm-9--mevcut-ui-hataları) | [x] | 100% | 0% | Web UX QA blocker paketi kapandı; code splitting sonrası build uyarısı yok |
 | [Bölüm 10 — Mobil Uygulama Planı](#bölüm-10--mobil-uygulama-planı-flutter) | [ ] | 65% | 35% | Flutter auth/terminal/portfolio/settings/onboarding + plan gate + analyze/test hazır; store/push/signing ve gerçek grafik derinliği kaldı |
-| [Bölüm 11 — ClickHouse + Veri Platformu](#bölüm-11--clickhouse--veri-platformu-tamamlama) | [ ] | 60% | 40% | Şema/facade/badge kontratı ve data/retention denetim scriptleri hazır; canlı backfill, retention ve provider doğrulaması kaldı |
+| [Bölüm 11 — ClickHouse + Veri Platformu](#bölüm-11--clickhouse--veri-platformu-tamamlama) | [ ] | 68% | 32% | Şema/facade/badge kontratı, inventory uyumu, timeframe türetme, retention güvenliği, BIST/VİOP lisans kapısı ve data denetimleri hazır; canlı backfill ve lisanslı provider doğrulaması kaldı |
 | [Bölüm 12 — CI/CD ve Deployment](#bölüm-12--cicd-ve-deployment) | [ ] | 82% | 18% | GitHub Actions test/build/e2e/docker/trivy ve production package denetimi hazır; gerçek secrets/deploy runner kaldı |
 | [Bölüm 13 — Error Tracking ve Monitoring](#bölüm-13--error-tracking-ve-monitoring) | [ ] | 75% | 25% | Sentry/Grafana/Prometheus iskeleti, frontend error boundary, repo/package denetimleri hazır; canlı DSN/dashboard/alert kaldı |
-| [Bölüm 14 — Kabul Testi Checklist](#bölüm-14--kabul-testi-checklist) | [ ] | 88% | 12% | Frontend typecheck/build/e2e, backend hedefli pytest/py_compile, Flutter analyze/test ve denetim scriptleri geçti; canlı domain/Stripe/Sentry kaldı |
+| [Bölüm 14 — Kabul Testi Checklist](#bölüm-14--kabul-testi-checklist) | [ ] | 91% | 9% | Frontend typecheck/build, backend hedefli py_compile, paper smoke ve yasal uyum smoke doğrulamaları geçti; canlı domain/Stripe/Sentry ve tam backend env testi kaldı |
 | [Bölüm 15 — AWS Deployment](#bölüm-15--aws-deployment-eu-central-1-frankfurt) | [ ] | 55% | 45% | AWS Terraform scaffold, Docker/package kontrolleri ve deployment checklist hazır; canlı AWS/DNS/TLS/S3/IAM yapılmadı |
 | [Bölüm 16 — Eksik / Atlanan Teknik Maddeler](#bölüm-16--eksik--atlanan-teknik-maddeler) | [ ] | 92% | 8% | Bearer auth, analytics/PWA/skeleton/code-splitting, repo/package/data/retention denetimleri ve test kontratı tamamlandı |
 | [Bölüm 17 — Proje Büyütme Yol Haritası](#bölüm-17--proje-büyütme-yol-haritası) | [ ] | 60% | 40% | Waitlist/referral/share kontratları ve UI dili hazır; blog/community/affiliate canlı kanal işleri kaldı |
-| **GENEL TOPLAM** | [ ] | **84%** | **16%** | Agent'ın yapabileceği kod/test/scaffold işleri büyük ölçüde tamamlandı; kalan ana işler canlı hesap, secret, domain, deploy ve lisans aksiyonları |
+| **GENEL TOPLAM** | [ ] | **87%** | **13%** | Agent'ın yapabileceği kod/test/scaffold işleri büyük ölçüde tamamlandı; kalan ana işler canlı hesap, secret, domain, deploy, hukukçu onayı ve lisans aksiyonları |
 
 ### Oturum Sonu Güncelleme Kuralları
 
@@ -52,7 +52,7 @@
 
 - [x] Browser QA sırasında `#app-error-banner` görünmez katman hatası bulundu ve `.hidden` CSS kuralı düzeltildi.
 - [x] Web UX QA raporu oluşturuldu: `WEB_UX_TEST_RAPORU.md`.
-- [x] Lokal MySQL migration runner ile `001-009` migration dosyaları uygulandı.
+- [x] Lokal MySQL migration runner ile `001-009` migration dosyaları uygulandı; migration 010 yasal onay/KVKK alanları için eklendi.
 - [x] `POST /api/auth/register`, `POST /api/auth/login`, `GET /api/auth/me` akışı lokal testte 200 OK döndü.
 - [x] `WEB_UX_TEST_RAPORU.md` içindeki açıklar Bölüm 9 altında kapatıldı; yeni QA sonucu rapora eklendi.
 - [x] Yeni kayıt olan kullanıcının otomatik `pro` trial alması ürün kararı netleştirildi: 14 günlük Pro trial kalacak; email ve OAuth kayıtlarında uygulanacak.
@@ -88,7 +88,7 @@
 
 ## 18.0 · İnceleme Özeti ve Ürün İlkesi
 
-- [ ] PiyasaPilot'un hedef konumunu netleştir:
+- [x] PiyasaPilot'un hedef konumunu netleştir: *(2026-05-23)*
   - Kullanıcıya "al/sat tavsiyesi veren uygulama" değil, hesaplama izini gösteren
     algoritmik araştırma ve risk terminali olarak sunulacak.
   - Her sinyal, backtest, screener sonucu ve finansal oran kendi veri kaynağı,
@@ -98,7 +98,7 @@
   - Canlı para dönebilecek her yüzeyde "veri lisansı", "gecikmeli/canlı veri",
     "yatırım tavsiyesi değildir", "hesaplama varsayımları" ve "son güncelleme" görünür olacak.
 
-- [ ] TradingView'den fikir alınan ama birebir kopyalanmayacak ana desenleri belgeye ekle:
+- [x] TradingView'den fikir alınan ama birebir kopyalanmayacak ana desenleri belgeye ekle: *(2026-05-23)*
   - Piyasa genel görünümü: BIST, global endeksler, kripto toplam piyasa değeri,
     dominans, döviz, emtia, faiz, enflasyon ve ekonomik takvim tek pano içinde.
   - Sembol 360 sayfası: fiyat başlığı, dönem performansı, temel istatistikler,
@@ -109,14 +109,14 @@
     değerleme, karlılık, büyüme, temettü, bilanço, nakit akımı ve teknik kolonları.
   - Yan panel: izleme listesi, alarm, takvim, haber akışı, bildirim ve hızlı sembol arama.
 
-- [ ] Kopyalama yasağını ürün standardı yap:
+- [x] Kopyalama yasağını ürün standardı yap: *(2026-05-23)*
   - Tasarım, metin, ikon dizilimi ve sayfa kompozisyonu birebir alınmayacak.
   - Yalnızca ürün fikri, bilgi mimarisi ve kullanıcı beklentisi seviyesinde ilham alınacak.
   - PiyasaPilot dili daha kurumsal, daha sade, daha açıklayıcı ve Türkiye piyasasına özel olacak.
 
 ## 18.1 · İncelemede Bulunan Kritik Ürün ve Güvenilirlik Açıkları
 
-- [ ] Haber paneli auth/empty-state hatasını düzelt:
+- [x] Haber paneli auth/empty-state hatasını düzelt: *(2026-05-23)*
   - Chrome QA'da `/terminal?tab=news&symbol=BTCUSDT` ekranında haber kartları skeleton
     halinde kalıyor.
   - Backend `/api/news?limit=5` yanıtı auth yokken `401 Login required`.
@@ -128,7 +128,7 @@
     - Eğer ürün kararı haberlerin guest açık olmasıysa backend auth guard buna göre hizalanmalı.
     - Frontend plan gate ile backend route gerçeği aynı olmalı.
 
-- [ ] Frontend plan gate ile backend feature gate uyuşmazlıklarını tek kaynağa indir:
+- [x] Frontend plan gate ile backend feature gate uyuşmazlıklarını tek kaynağa indir: *(2026-05-23)*
   - `frontend/src/auth/PlanGate.ts` free kullanıcı için backtest limitini 5/gün gösteriyor.
   - `backend/auth/feature_gate.py` free plan için `backtest_runs_per_day=10` tanımlıyor.
   - Frontend `news` özelliğini guest için açık gösterebiliyor, backend `/api/news`
@@ -140,7 +140,7 @@
     - Frontend `/api/me/limits` veya benzeri endpointten gerçek limitleri okusun.
     - LocalStorage quota yalnızca geçici UX göstergesi olsun, yetki kararı backend'de verilsin.
 
-- [ ] Örnek olay verisini üretimden ayır:
+- [x] Örnek olay verisini üretimden ayır: *(2026-05-23)*
   - `frontend/src/components/ChartPanel.tsx` içinde `loadSampleEvents(symbol)` sahte
     haber/KAP/bilanço/temettü/sermaye olayları üretiyor.
   - Ciddi finans ürünü için grafik üzerinde sahte olay görünmesi güven kırar.
@@ -149,7 +149,7 @@
     - Demo mod gerekiyorsa açık "Demo veri" rozeti ve ayrı route ile çalışsın.
     - Gerçek olay endpointi gelmeden grafik üstünde KAP/bilanço/temettü etiketi gösterilmesin.
 
-- [ ] MySQL veri envanteri şema uyuşmazlığını düzelt:
+- [x] MySQL veri envanteri şema uyuşmazlığını düzelt: *(2026-05-23)*
   - `backend/data/repositories/mysql_metadata_repository.py` `data_inventory`
     güncellemesinde `first_timestamp`, `last_timestamp`, `record_count`,
     `table_name`, `last_updated` kolonlarını kullanıyor.
@@ -160,7 +160,7 @@
     - Lokal MySQL migration sonrası inventory upsert entegrasyon testi geçsin.
     - Data inventory denetim scripti bu tabloyu okuyup hatasız raporlasın.
 
-- [ ] Paper executor durumunu kalıcı hale getir:
+- [x] Paper executor durumunu kalıcı hale getir: *(2026-05-23)*
   - `backend/paper/executor.py` açık pozisyonları `_open_positions`, `_entry_prices`,
     `_quantities` içinde memory'de tutuyor.
   - Restart sonrası açık pozisyon kaybolabilir.
@@ -172,7 +172,7 @@
     - Realized PnL ile unrealized PnL ayrı hesaplanmalı.
     - Günlük zarar limiti son kapalı PnL değil, mark-to-market equity üzerinden çalışmalı.
 
-- [ ] BIST güvenilir veri engelini kullanıcıya açık göster:
+- [x] BIST güvenilir veri engelini kullanıcıya açık göster: *(2026-05-23)*
   - Lokal health durumunda sinyal motoru `signals_emitted=1`, `skipped_untrusted=1596`
     gösteriyor.
   - Son skip sebebi: Yahoo Finance BIST public verisi gerçek veri olarak işaretlenmedi.
@@ -182,7 +182,7 @@
     - Kart hangi provider, hangi sembol, hangi metadata alanı yüzünden bloklandığını söylesin.
     - Kullanıcı bu uyarıyı kapatınca veri güven rozetleri yine görünür kalsın.
 
-- [ ] Frontend veri metadata kaybını düzelt:
+- [x] Frontend veri metadata kaybını düzelt: *(2026-05-23)*
   - `frontend/src/core/DataEngine.ts` ve `HistoricalLoader.ts` yalnızca fiyat barlarını
     kullanıyor; `X-Data-Source` gibi sınırlı bilgi taşıyor.
   - Backend daha zengin metadata üretebiliyor ama UI'da `is_real`, `quality_status`,
@@ -202,7 +202,7 @@
 
 ## 18.2 · Data Truth Layer: Gerçek Veri, Kalite ve Soy Ağacı
 
-- [ ] Tüm veri cevapları için ortak `DataTruth` kontratı tasarla:
+- [x] Tüm veri cevapları için ortak `DataTruth` kontratı tasarla: *(2026-05-23)*
   - Alanlar:
     - `symbol`, `market`, `timeframe`
     - `provider`
@@ -234,7 +234,7 @@
     - Sinyal motoru metadata yoksa işlem üretmez.
     - UI her önemli ekranda kısa rozet, detay panelinde tam metadata gösterir.
 
-- [ ] Veri kalite skorunu ayrı bir ürün bileşeni yap:
+- [x] Veri kalite skorunu ayrı bir ürün bileşeni yap: *(2026-05-23)*
   - `DataQualityBadge`: OK, Uyarı, Bloklu, Demo, Gecikmeli, Cache, Lisanslı.
   - `DataQualityDrawer`: gap listesi, son bar zamanı, provider, türetim bilgisi,
     en son kalite olayı ve veri lisansı.
@@ -252,7 +252,7 @@
     - Kullanıcı/plan bilgisi ClickHouse'a yazılmamalı.
     - Redis kalıcı truth source gibi kullanılmamalı.
 
-- [ ] Timeframe türetme motorunu tamamla:
+- [x] Timeframe türetme motorunu tamamla: *(2026-05-23)*
   - `backend/data/ingest/derive_timeframes.py` pass durumundan çıkarılmalı.
   - 1m ham veriden 5m, 15m, 30m, 1h, 4h, 1d, 1w, 1mo, 1y türetilecek.
   - 1d'den 1m veya 5m gibi geriye dönük türetme kesin yasak olacak.
@@ -264,7 +264,7 @@
     - Türetilmiş veride eksik kaynak bar varsa kalite warning üretilir.
     - Reverse derivation testleri özellikle başarısız olmalı.
 
-- [ ] Retention motorunu gerçek silme/raporlama işine bağla:
+- [x] Retention motorunu gerçek silme/raporlama işine bağla: *(2026-05-23)*
   - `backend/data/ingest/retention.py` pass durumundan çıkarılmalı.
   - Dry-run modu: kaç satır silinecek, hangi sembol/timeframe, ilk/son tarih raporlar.
   - Execute modu: audit kaydı oluşturarak uygular.
@@ -285,7 +285,7 @@
 
 ## 18.3 · Screener v2: TradingView Benzeri Ama PiyasaPilot'a Özgü Tarayıcı
 
-- [ ] Client-cache screener yerine backend destekli tarayıcı endpointi ekle:
+- [x] Client-cache screener yerine backend destekli tarayıcı endpointi ekle: *(2026-05-23)*
   - Yeni endpoint önerisi: `POST /api/screener/run`
   - Input:
     - market
@@ -373,7 +373,7 @@
     - Kolon setleri sekmeli veya menülü seçilir.
     - Kullanıcı kendi kolon görünümünü kaydedebilir.
 
-- [ ] Hazır screener presetleri ekle:
+- [x] Hazır screener presetleri ekle: *(2026-05-23)*
   - En yüksek hacim
   - Relative volume patlaması
   - Günün en çok yükselenleri
@@ -565,7 +565,7 @@
 
 ## 18.6 · Backtest Gerçekçiliği ve Kurumsal Hesaplama Standardı
 
-- [ ] Mevcut backtest raporuna "varsayımlar kartı" zorunluluğu ekle:
+- [x] Mevcut backtest raporuna "varsayımlar kartı" zorunluluğu ekle: *(2026-05-23)*
   - Veri kaynağı
   - Veri gecikmesi
   - Komisyon modeli
@@ -1008,19 +1008,19 @@
 
 ## 18.16 · Nihai Kabul Kriterleri
 
-- [ ] Terminalde hiçbir panel sonsuz loading/skeleton durumunda kalmıyor.
-- [ ] Her fiyat, sinyal, screener ve backtest sonucunda veri kaynağı ve kalite rozeti var.
-- [ ] Sample/mock/imported CSV veri production'da gerçek veri gibi sunulmuyor.
-- [ ] Frontend plan gate, backend feature gate ve ödeme planları tek kaynakla hizalı.
-- [ ] Paper trading restart sonrası pozisyon ve equity durumunu kaybetmiyor.
-- [ ] Backtest raporu varsayımlar kartı olmadan tamamlanmış rapor sayılmıyor.
+- [x] Terminalde hiçbir panel sonsuz loading/skeleton durumunda kalmıyor.
+- [x] Her fiyat, sinyal, screener ve backtest sonucunda veri kaynağı ve kalite rozeti var.
+- [x] Sample/mock/imported CSV veri production'da gerçek veri gibi sunulmuyor.
+- [x] Frontend plan gate, backend feature gate ve ödeme planları tek kaynakla hizalı.
+- [x] Paper trading restart sonrası pozisyon ve equity durumunu kaybetmiyor.
+- [x] Backtest raporu varsayımlar kartı olmadan tamamlanmış rapor sayılmıyor.
 - [ ] WFA raporu train ve test dönemini açıkça ayırıyor.
-- [ ] Screener sonuçları `run_id`, filtre hash'i ve veri snapshot bilgisi taşıyor.
+- [x] Screener sonuçları `run_id`, filtre hash'i ve veri snapshot bilgisi taşıyor.
 - [ ] Sembol 360 sayfası fiyat, finansal, teknik, haber/KAP, risk ve veri kalitesini aynı yerde gösteriyor.
-- [ ] Veri lisansı ve yatırım tavsiyesi uyarısı karar etkisi olan tüm yüzeylerde görünüyor.
+- [x] Veri lisansı ve yatırım tavsiyesi uyarısı karar etkisi olan tüm yüzeylerde görünüyor.
 - [ ] ClickHouse/MySQL/Redis ayrımı kod ve testlerle korunuyor.
-- [ ] Timeframe türetme sadece küçük timeframe'den büyük timeframe'e doğru yapılıyor.
-- [ ] Retention işlemleri dry-run, audit ve güvenlik eşiği olmadan production'da çalışmıyor.
+- [x] Timeframe türetme sadece küçük timeframe'den büyük timeframe'e doğru yapılıyor.
+- [x] Retention işlemleri dry-run, audit ve güvenlik eşiği olmadan production'da çalışmıyor.
 - [ ] UI demo/oyun hissinden çıkıp yoğun ama okunur finans terminali hissine kavuşuyor.
 
 ## OKUMA REHBERİ
@@ -2328,7 +2328,7 @@ Butonu panel header'ına taşı → loading spinner → tamamlanınca toast.
 
 ## 9.5 · Public Route ve Terminal Shell İzolasyonu — BLOCKER
 
-**Kaynak:** `WEB_UX_TEST_RAPORU.md` — 2026-05-16 QA  
+**Kaynak:** `WEB_UX_TEST_RAPORU.md` — 2026-05-16 QA
 **Dosyalar:** `frontend/src/app.ts`, `frontend/index.html`, public page bileşenleri
 
 - [x] `/`, `/pricing`, `/login`, `/register`, `/forgot-password`, `/reset-password`, `/verify-email`, `/onboarding`, `/settings`, `/admin`, `/legal/*`, `/changelog`, `/waitlist`, `/shared/*` route'larında terminal shell hiç mount edilmesin.
@@ -2350,7 +2350,7 @@ Playwright/Browser QA:
 
 ## 9.6 · Mobil Web `/app` Kullanılabilirliği — BLOCKER
 
-**Kaynak:** `WEB_UX_TEST_RAPORU.md` — 390x844 viewport testi  
+**Kaynak:** `WEB_UX_TEST_RAPORU.md` — 390x844 viewport testi
 **Dosyalar:** `frontend/style.css`, `frontend/src/app.ts`, `frontend/src/components/Sidebar.ts`, `frontend/src/components/MultiChartLayout.ts`
 
 - [x] Mobilde sidebar varsayılan kapalı gelsin; sembol seçimi ilk render'da dev liste basmasın.
@@ -3166,7 +3166,7 @@ Bu kontroller tüm bölümler tamamlandıktan sonra çalıştırılır.
 [ ] Logout → cookie silindi, refresh token DB'de revoked
 [ ] Pro ödeme → Stripe checkout → success → plan değişti
 [x] Admin paneli → /admin sadece admin rolüyle açılıyor
-[ ] Kullanıcı hesap sil → GDPR cascade temizliği
+[x] Kullanıcı hesap sil → KVKK/GDPR anonimleştirme akışı
 [ ] BIST hisse yükle → 🟡 Gecikmeli badge
 [ ] Grafik timeframe değişiminde siyah ekran yok
 [x] Koyu temada tablolar okunabilir
@@ -3421,11 +3421,11 @@ Security Group:   piyasapilot-sg  (aşağıda detay)
 ```
 EC2 → Elastic IPs → Allocate Elastic IP
   Network border group: eu-central-1
-  
+
 → Actions → Associate
   Instance: piyasapilot-prod
   Private IP: (otomatik)
-  
+
 Not et: <ELASTIC_IP>   # METUnic DNS'e girilecek
 ```
 
@@ -3442,7 +3442,7 @@ HTTPS        443     0.0.0.0/0       Ana trafik
 ────────────────────────────────────────────────────
 UYARI: 8000, 3306, 8123, 6379 portları kapalı
        Bu portlar sadece iç container iletişimi için
-       
+
 Giden (Outbound):
   Tümü → 0.0.0.0/0  (dışarı çıkış serbest)
 ```
@@ -4549,7 +4549,7 @@ healthcheck:
 UptimeRobot → Status Pages → Create
   Name: PiyasaPilot Status
   URL: status.piyasapilot.com
-  
+
 Monitörler ekle:
   - API Health (/api/health)
   - WebSocket Quotes (/ws/quotes)
@@ -4974,11 +4974,11 @@ v2 özellikleri:
 Ay 1 (Lansman):
   Hedef: 200 kayıt, 10 Pro kullanıcı
   Metrik: Kayıt → onboarding tamamlama oranı > %60
-  
+
 Ay 3:
   Hedef: 1.000 kayıt, 50 Pro kullanıcı, $999 MRR
   Metrik: 7-gün retention > %30
-  
+
 Ay 6:
   Hedef: 3.000 kayıt, 150 Pro, 20 Ultra → $3.998 MRR
   Metrik: NPS > 40

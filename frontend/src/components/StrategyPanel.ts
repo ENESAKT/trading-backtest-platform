@@ -359,7 +359,8 @@ export class StrategyPanel {
   private render(): void {
     this.container.innerHTML = `
       <div class="strategy-wrap">
-        <div class="paper-mode-banner">KAĞIT İŞLEM MODU - Backtest ve paper emirleri gerçek piyasaya gönderilmez.</div>
+        <div class="paper-mode-banner">${TR.PAPER_ONLY_WARNING}</div>
+        <div class="legal-notice signal-disclaimer">${TR.BACKTEST_SIMULATION_WARNING} ${TR.SIGNAL_DISCLAIMER}</div>
         <div class="strategy-topline">
           <div class="segmented">
             <button class="seg-btn${this.mode === 'spec' ? ' active' : ''}" data-mode="spec">Kural Lab</button>
@@ -440,8 +441,8 @@ export class StrategyPanel {
             <div class="optimizer-grid">
               <label>Liste<select id="scan-group">
                 <option value="Kripto">Kripto</option>
-                <option value="BIST 30">BIST 30</option>
-                <option value="BIST 100">BIST 100</option>
+                <option value="BIST 30" disabled>BIST 30 - lisans sonrası</option>
+                <option value="BIST 100" disabled>BIST 100 - lisans sonrası</option>
                 <option value="ABD Piyasaları">ABD</option>
                 <option value="Döviz / Emtia">FX/Emtia</option>
                 <option value="Özel">Özel</option>
@@ -463,9 +464,9 @@ export class StrategyPanel {
             </p>
             <div class="optimizer-grid">
               <label>Grup<select id="batch-group">
-                <option value="BIST 30">BIST 30 (30 sembol)</option>
-                <option value="BIST 100">BIST 100</option>
                 <option value="Kripto">Kripto</option>
+                <option value="BIST 30" disabled>BIST 30 - lisans sonrası</option>
+                <option value="BIST 100" disabled>BIST 100 - lisans sonrası</option>
                 <option value="custom">Özel liste</option>
               </select></label>
               <label>Periyot<select id="batch-interval">
@@ -475,7 +476,7 @@ export class StrategyPanel {
               <label>Sırala<select id="batch-sort">
                 <option value="total_return_pct">Getiri %</option>
                 <option value="sharpe_ratio">Sharpe</option>
-                <option value="win_rate">Kazanma Oranı</option>
+                <option value="win_rate">Paper Sim. Oranı</option>
                 <option value="profit_factor">Kâr Faktörü</option>
               </select></label>
               <button class="btn-primary" id="run-batch-bt">Çalıştır</button>
@@ -518,6 +519,7 @@ export class StrategyPanel {
             </div>
             <div class="panel-section">
               <h3>${TR.SIGNALS}</h3>
+              <div class="legal-notice signal-disclaimer">${TR.SIGNAL_DISCLAIMER}</div>
               <div id="signals-list"></div>
             </div>
           </div>
@@ -1771,6 +1773,7 @@ export class StrategyPanel {
         ${this.metric(TR.PROFIT_FACTOR, formatNumber(m.profit_factor ?? this.profitFactor(r.trades), 2))}
       </div>
       <div class="report-note">${this.escape(r.summary_text ?? '')}</div>
+      <div class="legal-notice signal-disclaimer">${TR.BACKTEST_SIMULATION_WARNING}</div>
       ${this.assumptionsHTML(r)}
     `;
   }
@@ -2229,7 +2232,7 @@ export class StrategyPanel {
   }
 
   private signalLabel(type: Signal['type']): string {
-    return ({ BUY: 'AL', SELL: 'SAT', SHORT: 'SHORT', COVER: 'COVER', HOLD: 'BEKLE' })[type];
+    return ({ BUY: TR.SIGNAL_BUY, SELL: TR.SIGNAL_SELL, SHORT: 'SHORT', COVER: 'COVER', HOLD: 'BEKLE' })[type];
   }
 
   private badgeClass(type: Signal['type']): string {

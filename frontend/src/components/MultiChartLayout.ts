@@ -2,7 +2,7 @@ import type { OHLCV, SymbolInfo, Timeframe, Signal, ChartDataRenderReason } from
 import { ChartPanel } from './ChartPanel.js';
 import { loadHistorical } from '../core/HistoricalLoader.js';
 import { QuoteStream, type QuoteMessage } from '../core/QuoteStream.js';
-import { ALL_SYMBOLS, DEFAULT_SYMBOL } from '../constants/symbols.js';
+import { ALL_SYMBOLS, DEFAULT_SYMBOL, isBistRestrictedSymbol, isLicenseRestrictedSymbol, isViopRestrictedSymbol } from '../constants/symbols.js';
 import { TR } from '../constants/tr.js';
 
 // ─── Layout Presets ────────────────────────────────────────────────────────────
@@ -497,6 +497,27 @@ export class MultiChartLayout {
 
     const symbol = pane.symbol.symbol;
     const timeframe = pane.timeframe;
+
+    if (isLicenseRestrictedSymbol(pane.symbol)) {
+      const message = isViopRestrictedSymbol(pane.symbol) ? TR.VIOP_DATA_STATUS : TR.BIST_DATA_STATUS;
+      pane.loading = false;
+      pane.candles = [];
+      pane.chartPanel.setData([], {
+        status: 'empty',
+        reason,
+        symbol,
+        currency: pane.symbol.currency,
+        timeframe,
+        message,
+      });
+      const badgeEl = pane.containerEl.querySelector<HTMLElement>(`#pane-badge-${pane.id}`);
+      if (badgeEl) {
+        badgeEl.textContent = isBistRestrictedSymbol(pane.symbol) ? 'LİSANS BEKLENİYOR' : 'AKTİF DEĞİL';
+        badgeEl.className = 'pane-badge status-offline';
+      }
+      return;
+    }
+
     pane.chartPanel.setData([], {
       status: 'loading',
       reason,
@@ -587,6 +608,11 @@ export class MultiChartLayout {
     const symbolInfo = ALL_SYMBOLS.find(s => s.symbol === symbolStr || s.symbol.replace('.IS', '') === symbolStr);
     if (!symbolInfo) {
       alert(TR.NO_DATA + ': ' + symbolStr);
+      pane.chartPanel.clearCompare();
+      return;
+    }
+    if (isLicenseRestrictedSymbol(symbolInfo)) {
+      alert(isViopRestrictedSymbol(symbolInfo) ? TR.VIOP_DATA_STATUS : TR.BIST_DATA_STATUS);
       pane.chartPanel.clearCompare();
       return;
     }

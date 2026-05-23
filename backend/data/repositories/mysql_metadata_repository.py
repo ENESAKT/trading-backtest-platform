@@ -35,18 +35,29 @@ class MySQLMetadataRepository:
                 await cur.execute(query, params)
                 return await cur.fetchall()
                 
-    async def update_inventory_status(self, symbol: str, market: str, timeframe: str, start_ts: str, end_ts: str, record_count: int, table_name: str="market_bars"):
+    async def update_inventory_status(
+        self,
+        symbol: str,
+        market: str,
+        timeframe: str,
+        start_ts: str,
+        end_ts: str,
+        record_count: int,
+        source: str = "market_bars",
+    ):
         await self.connect()
         async with self.pool.acquire() as conn:
             async with conn.cursor() as cur:
                 query = """
-                INSERT INTO data_inventory 
-                (symbol, market, timeframe, first_timestamp, last_timestamp, record_count, table_name, last_updated)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, NOW())
-                ON DUPLICATE KEY UPDATE 
-                first_timestamp = LEAST(first_timestamp, VALUES(first_timestamp)),
-                last_timestamp = GREATEST(last_timestamp, VALUES(last_timestamp)),
-                record_count = VALUES(record_count),
-                last_updated = NOW()
+                INSERT INTO data_inventory
+                (symbol, market, timeframe, first_ts, last_ts, row_count, source, status, last_checked_at)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, 'ok', NOW())
+                ON DUPLICATE KEY UPDATE
+                first_ts = LEAST(COALESCE(first_ts, VALUES(first_ts)), VALUES(first_ts)),
+                last_ts = GREATEST(COALESCE(last_ts, VALUES(last_ts)), VALUES(last_ts)),
+                row_count = VALUES(row_count),
+                source = VALUES(source),
+                status = 'ok',
+                last_checked_at = NOW()
                 """
-                await cur.execute(query, (symbol, market, timeframe, start_ts, end_ts, record_count, table_name))
+                await cur.execute(query, (symbol, market, timeframe, start_ts, end_ts, record_count, source))

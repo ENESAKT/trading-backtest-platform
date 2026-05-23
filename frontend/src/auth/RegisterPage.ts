@@ -91,6 +91,12 @@ export function renderRegisterPage(container: HTMLElement): void {
             <a href="/legal/privacy" target="_blank" class="text-muted">Gizlilik Politikası</a>'nı okudum
           </label>
         </div>
+        <div class="form-check mt-1">
+          <input id="reg-marketing" class="form-check-input" type="checkbox" />
+          <label class="form-check-label small" for="reg-marketing">
+            Kampanya, yenilik ve teklif e-postaları almak istiyorum. İstediğim zaman vazgeçebileceğimi biliyorum.
+          </label>
+        </div>
       </div>
 
       <button id="reg-btn" type="submit" class="btn btn-warning w-100 fw-semibold mb-3">
@@ -146,6 +152,7 @@ export function renderRegisterPage(container: HTMLElement): void {
     const pw2Val = (container.querySelector<HTMLInputElement>('#reg-password2')!).value;
     const terms  = (container.querySelector<HTMLInputElement>('#reg-terms')!).checked;
     const priv   = (container.querySelector<HTMLInputElement>('#reg-privacy')!).checked;
+    const marketing = (container.querySelector<HTMLInputElement>('#reg-marketing')!).checked;
 
     if (!name || !email || !pw1Val || !pw2Val) {
       _showAlert(alert, 'Tüm alanlar zorunludur.');
@@ -167,7 +174,7 @@ export function renderRegisterPage(container: HTMLElement): void {
     btn.disabled = true;
     btn.textContent = 'Hesap oluşturuluyor…';
 
-    const result = await auth.register(email, pw1Val, name);
+    const result = await auth.register(email, pw1Val, name, marketing, terms, priv);
     if (result.ok) {
       form.classList.add('d-none');
       success.textContent = '📬 E-posta kutunuzu kontrol edin. Doğrulama bağlantısı gönderildi.';

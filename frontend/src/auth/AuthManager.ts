@@ -179,12 +179,22 @@ class AuthManager {
     email: string,
     password: string,
     display_name: string,
+    marketing_consent = false,
+    terms_accepted = false,
+    privacy_accepted = false,
   ): Promise<{ ok: boolean; error?: string }> {
     const res = await fetch(`${API_BASE}/register`, {
       method: 'POST',
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password, display_name }),
+      body: JSON.stringify({
+        email,
+        password,
+        display_name,
+        marketing_consent,
+        terms_accepted,
+        privacy_accepted,
+      }),
     });
     const body = await readJson(res);
     if (res.ok && body.ok) return { ok: true };

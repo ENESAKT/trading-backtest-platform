@@ -58,6 +58,8 @@ const BACKTEST_LIMITS: Record<Tier, number> = {
   admin: -1,
 };
 
+let serverFeatureAccess: Partial<Record<Feature, boolean>> = {};
+
 export function getBacktestLimit(): number {
   const limit = BACKTEST_LIMITS[currentTier()];
   return limit === -1 ? Infinity : limit;
@@ -170,7 +172,7 @@ const FEATURE_MIN_TIER: Record<Feature, Tier> = {
   portfolio:   'free',
   mali_analiz: 'free',
   multi_chart: 'pro',
-  news:        'guest',   // herkes görebilir
+  news:        'free',
   education:   'guest',   // herkes görebilir
 };
 
@@ -181,6 +183,9 @@ function tierRank(t: Tier): number {
 }
 
 export function canAccess(feature: Feature): boolean {
+  if (feature in serverFeatureAccess) {
+    return serverFeatureAccess[feature] === true;
+  }
   const required = FEATURE_MIN_TIER[feature];
   const current  = currentTier();
   return tierRank(current) >= tierRank(required);
@@ -197,17 +202,30 @@ export interface ApiLimits {
     news_access: boolean;
     signals_access: boolean;
     paper_trading: boolean;
+    scanner?: boolean;
+    backtest_pro?: boolean;
+    real_time_data?: boolean;
+    mali_analiz_scope?: string;
+    multi_chart?: boolean;
+    api_access?: boolean;
+    telegram_bot?: boolean;
+    education_full?: boolean;
+    terminal_access?: boolean;
   };
 }
 
 /**
- * /api/me/limits endpoint'inden kullanıcı limitlerini çeker.
+ * /api/auth/me/limits endpoint'inden kullanıcı limitlerini çeker.
  */
 export async function fetchLimits(): Promise<ApiLimits | null> {
   try {
-    const res = await fetch('/api/me/limits');
+    const res = await fetch('/api/auth/me/limits', { credentials: 'include' });
     if (!res.ok) return null;
-    return await res.json() as ApiLimits;
+    const body = await res.json();
+    if (body?.ok && body?.data) {
+      return { role: body.data.role, limits: body.data } as ApiLimits;
+    }
+    return body as ApiLimits;
   } catch {
     return null;
   }
@@ -227,6 +245,16 @@ export async function syncLimitsFromApi(): Promise<void> {
   if (tier !== 'guest') {
     BACKTEST_LIMITS[tier] = resolved;
   }
+  serverFeatureAccess = {
+    backtest:    data.limits.backtest_runs_per_day !== 0,
+    scanner:     data.limits.scanner === true,
+    signals:     data.limits.signals_access === true,
+    portfolio:   data.limits.paper_trading === true,
+    mali_analiz: data.limits.mali_analiz_scope !== 'none',
+    multi_chart: data.limits.multi_chart === true,
+    news:        data.limits.news_access === true,
+    education:   true,
+  };
 }
 
 // ─── Singleton export ────────────────────────────────────────────────────────

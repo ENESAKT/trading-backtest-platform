@@ -43,7 +43,7 @@ OPTIONAL_VARS: list[tuple[str, str]] = [
     ("TELEGRAM_CHAT_ID", "Telegram yetkili kullanıcı tanımlı değil"),
     ("SMTP_HOST", "E-posta bildirimleri devre dışı"),
     ("SMTP_USER", "E-posta gönderici hesap tanımlı değil"),
-    ("BIST_HTTP_URL_TEMPLATE", "Lisanslı BIST feed bağlı değil — Yahoo fallback aktif"),
+    ("BIST_HTTP_URL_TEMPLATE", "Lisanslı BIST feed bağlı değil — BIST fiyat/grafik akışı kapalı"),
     ("VIOP_HTTP_URL_TEMPLATE", "Lisanslı VİOP feed bağlı değil"),
     ("ANTHROPIC_API_KEY", "LLM serbest sohbet devre dışı"),
 ]

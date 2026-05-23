@@ -1,7 +1,7 @@
-"""BIST ve yfinance tabanlı public veri sağlayıcı.
+"""BIST lisanslı feed ve FX/emtia için public veri sağlayıcı.
 
-Bu provider resmi/lisanslı BIST feed'i olduğunu iddia etmez. Yahoo Finance
-üzerinden best-effort public veri okur; veri gelmezse sahte fiyat üretmez.
+BIST fiyat/grafik verisi lisanslı HTTP feed yapılandırılmadan açılmaz.
+FX/emtia sembolleri için Yahoo Finance best-effort public okuma korunur.
 """
 
 from __future__ import annotations
@@ -21,10 +21,19 @@ from quant_engine.data.providers.http_ohlcv import (
     fetch_http_ohlcv,
 )
 
+try:
+    from backend.data.symbols import BIST_STOCKS
+except Exception:  # pragma: no cover - provider tek başına da import edilebilsin
+    BIST_STOCKS = ()
+
+_BIST_CODES = {item.replace(".IS", "") for item in BIST_STOCKS}
+
 
 class BistMarketDataProvider:
-    name = "bist_yfinance"
-    source = "Yahoo Finance (BIST best-effort public)"
+    name = "bist_license_pending"
+    source = "BIST lisanslı veri sağlayıcı bağlantısı bekleniyor"
+    yf_name = "yfinance_public"
+    yf_source = "Yahoo Finance (FX/emtia best-effort public)"
     http_name = "bist_http"
 
     _INTERVAL_MAP: dict[str, tuple[str, str]] = {
@@ -56,6 +65,10 @@ class BistMarketDataProvider:
             canonical = clean
             display = clean[:-3]
             return canonical, clean, display
+        if clean in _BIST_CODES:
+            return f"{clean}.IS", f"{clean}.IS", clean
+        if clean.isalpha():
+            return clean, clean, clean
         canonical = clean
         return f"{canonical}.IS", f"{canonical}.IS", canonical
 
@@ -65,6 +78,8 @@ class BistMarketDataProvider:
             return "fx"
         if source_symbol.endswith("=F"):
             return "commodity"
+        if not source_symbol.endswith(".IS"):
+            return "us_equity"
         return "bist"
 
     def _load_history(self, source_symbol: str, yf_interval: str, yf_period: str) -> Any:
@@ -127,6 +142,39 @@ class BistMarketDataProvider:
                     display_name=display,
                 )
 
+        if market == "bist":
+            if http_template:
+                self.last_error = self.last_error or "BIST HTTP feed veri döndürmedi."
+                return MarketDataResult(
+                    symbol=canonical,
+                    market=market,
+                    timeframe=timeframe,
+                    data=[],
+                    source="Configured BIST HTTP feed",
+                    is_real=False,
+                    status=MarketDataStatus.NO_DATA,
+                    timestamp=timestamp,
+                    error=self.last_error,
+                    provider_name=self.http_name,
+                    display_name=display,
+                )
+            self.last_error = (
+                "BIST verileri lisanslı veri sağlayıcı bağlantısı tamamlanana kadar kapalıdır."
+            )
+            return MarketDataResult(
+                symbol=canonical,
+                market=market,
+                timeframe=timeframe,
+                data=[],
+                source=self.source,
+                is_real=False,
+                status=MarketDataStatus.NOT_CONFIGURED,
+                timestamp=timestamp,
+                error=self.last_error,
+                provider_name=self.name,
+                display_name=display,
+            )
+
         try:
             frame = self._load_history(source_symbol, yf_interval, yf_period)
         except Exception as exc:  # noqa: BLE001
@@ -136,12 +184,12 @@ class BistMarketDataProvider:
                 market=market,
                 timeframe=timeframe,
                 data=[],
-                source=self.source,
+                source=self.yf_source,
                 is_real=False,
                 status=MarketDataStatus.ERROR,
                 timestamp=timestamp,
-                error="BIST/yfinance veri sağlayıcı hatası.",
-                provider_name=self.name,
+                error="Public yfinance veri sağlayıcı hatası.",
+                provider_name=self.yf_name,
                 display_name=display,
             )
 
@@ -152,12 +200,12 @@ class BistMarketDataProvider:
                 market=market,
                 timeframe=timeframe,
                 data=[],
-                source=self.source,
+                source=self.yf_source,
                 is_real=False,
                 status=MarketDataStatus.NO_DATA,
                 timestamp=timestamp,
                 error=self.last_error,
-                provider_name=self.name,
+                provider_name=self.yf_name,
                 display_name=display,
             )
 
@@ -198,12 +246,12 @@ class BistMarketDataProvider:
                 market=market,
                 timeframe=timeframe,
                 data=[],
-                source=self.source,
+                source=self.yf_source,
                 is_real=False,
                 status=MarketDataStatus.NO_DATA,
                 timestamp=timestamp,
                 error=self.last_error,
-                provider_name=self.name,
+                provider_name=self.yf_name,
                 display_name=display,
             )
 
@@ -214,24 +262,27 @@ class BistMarketDataProvider:
             market=market,
             timeframe=timeframe,
             data=bars,
-            source=self.source,
+            source=self.yf_source,
             is_real=False,
             status=MarketDataStatus.OK,
             timestamp=timestamp,
-            provider_name=self.name,
+            provider_name=self.yf_name,
             display_name=display,
         )
 
     def health(self) -> MarketDataHealth:
         http_configured = bool(configured_template("BIST_HTTP_URL_TEMPLATE"))
+        last_error = self.last_error
+        if not http_configured and not last_error:
+            last_error = "BIST lisanslı veri sağlayıcı bağlantısı bekleniyor."
         return MarketDataHealth(
             provider_name=self.http_name if http_configured else self.name,
             provider_type=MarketDataProviderType.BIST,
-            active=True,
-            configured=True,
+            active=http_configured,
+            configured=http_configured,
             is_real=http_configured,
-            supported_markets=["bist", "fx", "commodity"],
+            supported_markets=["bist", "fx", "commodity", "us_equity"],
             last_success_at=self.last_success_at,
-            last_error=self.last_error,
+            last_error=last_error,
             source="Configured BIST HTTP feed" if http_configured else self.source,
         )

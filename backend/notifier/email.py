@@ -106,7 +106,12 @@ def format_daily_email(wallets: list[dict[str, Any]], trades: list[dict[str, Any
         <h2 style="color:#58a6ff">📊 PiyasaPilot Günlük Rapor</h2>
         {wallet_table}
         <p style="margin-top:12px">
-            📈 Win Rate: <strong>{win_rate:.1f}%</strong> ({winners}/{trade_count})
+            📈 Paper Trading Simülasyon Oranı (gerçek getiri değildir):
+            <strong>{win_rate:.1f}%</strong> ({winners}/{trade_count})
+        </p>
+        <p style="margin-top:14px;color:#8b949e;font-size:12px;line-height:1.5">
+            Bu e-posta yatırım tavsiyesi değildir. Eğitim, araştırma ve paper trading
+            amaçlı otomatik rapordur; gerçek emir veya gerçek getiri garantisi içermez.
         </p>
     </div>
     """

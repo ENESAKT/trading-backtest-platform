@@ -48,12 +48,15 @@ from backend.auth.repository import (
     create_email_verification_token,
     create_password_reset_token,
     create_user,
+    anonymize_user_account,
     get_or_create_oauth_user,
     get_refresh_token,
     get_user_by_email,
     get_user_by_id,
     get_user_settings,
+    list_legal_consents,
     mark_email_verified,
+    record_legal_consent,
     revoke_all_user_tokens,
     revoke_refresh_token,
     store_refresh_token,
@@ -63,7 +66,9 @@ from backend.auth.repository import (
 )
 from backend.auth.schemas import (
     ApiKeyCreateRequest,
+    AccountDeleteRequest,
     ForgotPasswordRequest,
+    LegalConsentRequest,
     LoginRequest,
     MobileLoginRequest,
     MobileRefreshRequest,
@@ -215,6 +220,14 @@ async def register(req: RegisterRequest, request: Request):
             422,
             detail={"tr": " ".join(password_errors), "en": "Password does not meet security requirements."},
         )
+    if not req.terms_accepted or not req.privacy_accepted:
+        raise HTTPException(
+            422,
+            detail={
+                "tr": "Kullanım koşulları ve gizlilik politikası onayı zorunludur.",
+                "en": "Terms and privacy policy consent is required.",
+            },
+        )
 
     # Duplicate email kontrolü
     existing = await get_user_by_email(pool, req.email)
@@ -230,7 +243,42 @@ async def register(req: RegisterRequest, request: Request):
         password=req.password,
         display_name=req.display_name,
         email_verified=False,
+        marketing_consent=req.marketing_consent,
     )
+
+    ip = request.client.host if request.client else ""
+    ua = request.headers.get("user-agent", "")
+    await record_legal_consent(
+        pool,
+        user_id,
+        "terms",
+        True,
+        "2026-05-23",
+        "Kullanım Koşulları kabul edildi.",
+        ip,
+        ua,
+    )
+    await record_legal_consent(
+        pool,
+        user_id,
+        "privacy",
+        True,
+        "2026-05-23",
+        "Gizlilik Politikası okundu ve kabul edildi.",
+        ip,
+        ua,
+    )
+    if req.marketing_consent:
+        await record_legal_consent(
+            pool,
+            user_id,
+            "marketing_email",
+            True,
+            "2026-05-23",
+            "Kampanya, yenilik ve teklif e-postaları için açık onay.",
+            ip,
+            ua,
+        )
 
     # Email doğrulama gönder
     token = await create_email_verification_token(pool, user_id)
@@ -456,6 +504,12 @@ async def get_me_limits(request: Request, user: dict = Depends(get_current_user)
         "mali_analiz_scope":     limits.mali_analiz_scope,
         "multi_chart":           limits.multi_chart,
         "api_access":            limits.api_access,
+        "telegram_bot":          limits.telegram_bot,
+        "education_full":        limits.education_full,
+        "terminal_access":       limits.terminal_access,
+        "news_access":           limits.terminal_access,
+        "signals_access":        limits.signals_per_day != 0,
+        "paper_trading":         limits.max_paper_accounts != 0,
     })
 
 
@@ -479,6 +533,74 @@ async def update_settings(
         updates["onboarding_done"] = req.onboarding_done
     await update_user_settings(pool, int(user["sub"]), updates)
     return _ok({"message": "Ayarlar güncellendi."})
+
+
+@router.get("/me/consents")
+async def get_my_consents(request: Request, user: dict = Depends(get_current_user)):
+    pool = _get_pool(request)
+    consents = await list_legal_consents(pool, int(user["sub"]))
+    return _ok({"consents": [
+        {
+            "consent_type": c["consent_type"],
+            "accepted": bool(c["accepted"]),
+            "version": c["version"],
+            "created_at": str(c["created_at"]),
+        }
+        for c in consents
+    ]})
+
+
+@router.post("/me/consents")
+async def save_my_consent(
+    req: LegalConsentRequest,
+    request: Request,
+    user: dict = Depends(get_current_user),
+):
+    allowed = {
+        "terms",
+        "privacy",
+        "cookies_analytics",
+        "telegram_notifications",
+        "marketing_email",
+        "digital_service_withdrawal",
+    }
+    if req.consent_type not in allowed:
+        raise HTTPException(422, detail={"tr": "Geçersiz onay türü.", "en": "Invalid consent type."})
+    pool = _get_pool(request)
+    ip = request.client.host if request.client else ""
+    ua = request.headers.get("user-agent", "")
+    await record_legal_consent(
+        pool,
+        int(user["sub"]),
+        req.consent_type,
+        req.accepted,
+        req.version,
+        req.text or "",
+        ip,
+        ua,
+    )
+    return _ok({"message": "Onay kaydedildi."})
+
+
+@router.delete("/me")
+async def delete_my_account(
+    req: AccountDeleteRequest,
+    request: Request,
+    response: Response,
+    user: dict = Depends(get_current_user),
+):
+    if req.confirm.strip().upper() != "HESABIMI SIL":
+        raise HTTPException(
+            422,
+            detail={
+                "tr": "Hesap silme için onay metni HESABIMI SIL olmalı.",
+                "en": "Account deletion confirmation must be HESABIMI SIL.",
+            },
+        )
+    pool = _get_pool(request)
+    await anonymize_user_account(pool, int(user["sub"]))
+    clear_auth_cookies(response)
+    return _ok({"message": "Hesap anonimleştirildi ve oturumlar kapatıldı."})
 
 
 # ── Email Doğrulama ──────────────────────────────────────────────────────────

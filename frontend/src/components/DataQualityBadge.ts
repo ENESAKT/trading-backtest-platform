@@ -2,7 +2,7 @@
  * DataQualityBadge — veri kalitesini tek bakışta gösteren rozet bileşeni.
  *
  * Durumlar:
- *   ok        → yeşil   "Canlı" veya "Gerçek Veri"
+ *   ok        → yeşil   "Kaynak Bağlı"
  *   warning   → sarı    "Gecikmeli" veya "Güvenilmez"
  *   blocked   → kırmızı "Bloklandı"
  *   unknown   → gri     "Bilinmiyor"
@@ -36,7 +36,7 @@ interface BadgeConfig {
 }
 
 const BADGE_CONFIG: Record<BadgeVariant, BadgeConfig> = {
-  ok:       { label: 'Gerçek Veri',  icon: '●', cssClass: 'dqb-ok'       },
+  ok:       { label: 'Kaynak Bağlı', icon: '●', cssClass: 'dqb-ok'       },
   warning:  { label: 'Uyarı',        icon: '▲', cssClass: 'dqb-warning'  },
   blocked:  { label: 'Bloklandı',    icon: '✕', cssClass: 'dqb-blocked'  },
   unknown:  { label: 'Bilinmiyor',   icon: '?', cssClass: 'dqb-unknown'  },
@@ -64,7 +64,8 @@ function buildTooltip(truth: DataTruth): string {
   if (truth.coverage_pct > 0) lines.push(`Kapsam: %${truth.coverage_pct.toFixed(1)}`);
   if (truth.gap_count > 0)    lines.push(`Boşluk sayısı: ${truth.gap_count}`);
   if (truth.is_derived)       lines.push(`Türetildi: ${truth.source_timeframe}'dan`);
-  if (truth.license_note)     lines.push(`Lisans: ${truth.license_note}`);
+  lines.push(`Veri lisansı: ${truth.is_real ? 'Lisanslı/Kaynaktan' : 'Lisanssız/Gecikmeli veya doğrulanmamış'}`);
+  lines.push(`Lisans notu: ${truth.license_note || 'Lisans bilgisi yok'}`);
   if (truth.warnings.length)  lines.push(`Uyarı: ${truth.warnings.join(' | ')}`);
   if (truth.fetched_at)       lines.push(`Güncelleme: ${new Date(truth.fetched_at).toLocaleTimeString('tr-TR')}`);
   return lines.join('\n');
@@ -138,7 +139,7 @@ export class DataQualityBadge {
     rows.push(row('Timeframe',   truth.timeframe));
     rows.push(row('Sağlayıcı',  truth.provider));
     rows.push(row('Kaynak tipi', truth.source_type));
-    rows.push(row('Gerçek veri', truth.is_real ? '✓ Evet' : '✕ Hayır'));
+    rows.push(row('Veri lisansı', truth.is_real ? 'Lisanslı/Kaynaktan' : 'Lisanssız/Gecikmeli'));
     if (truth.is_delayed)
       rows.push(row('Gecikme', `${truth.delay_minutes} dk`));
     rows.push(row('Kapsam', `%${truth.coverage_pct.toFixed(1)}`));
@@ -150,8 +151,7 @@ export class DataQualityBadge {
       rows.push(row('Bölünme düzeltmesi', '✓'));
     if (truth.adjusted_for_dividends)
       rows.push(row('Temettü düzeltmesi', '✓'));
-    if (truth.license_note)
-      rows.push(row('Lisans', truth.license_note));
+    rows.push(row('Lisans notu', truth.license_note || 'Lisans bilgisi yok'));
     if (truth.fetched_at)
       rows.push(row('Güncelleme', new Date(truth.fetched_at).toLocaleString('tr-TR')));
 

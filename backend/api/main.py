@@ -29,7 +29,6 @@ import logging
 import math
 import os
 import signal
-import sentry_sdk
 import uuid
 # NOT: sentry_sdk.init() burada çağrılmaz — create_app() içindeki _init_sentry() çağırır.
 # Modül seviyesinde init yapmak .env yüklenmeden önce çalışır ve FastApiIntegration eklemez.
@@ -114,6 +113,85 @@ _logger = logging.getLogger(__name__)
 # Cache miss eşiği: cache'teki en yeni bar'dan beri bu süreden uzun zaman
 # geçmişse provider'a yeniden git. 15dk barlar için 90s mantıklı.
 CACHE_FRESHNESS_SECONDS = 90
+
+
+def _bist_feed_configured() -> bool:
+    return bool(getenv("BIST_HTTP_URL_TEMPLATE"))
+
+
+def _viop_feed_configured() -> bool:
+    return bool(getenv("VIOP_HTTP_URL_TEMPLATE"))
+
+
+def _is_viop_market_symbol(symbol: str) -> bool:
+    clean = symbol.strip().upper().replace(" ", "")
+    return (
+        clean.startswith("VIOP:")
+        or clean.startswith("F_")
+        or clean.startswith("O_")
+        or clean.startswith("VIP-")
+        or clean.startswith("VIOP_")
+    )
+
+
+def _is_bist_market_symbol(symbol: str) -> bool:
+    clean = symbol.strip().upper().replace(" ", "")
+    if not clean or clean.endswith("=X") or clean.endswith("=F"):
+        return False
+    if clean in {"XU100", "^XU100", "BIST100", "XU100.IS", "XU030.IS"}:
+        return True
+    if clean.endswith(".IS"):
+        return True
+    bist_codes = {item.replace(".IS", "") for item in BIST_STOCKS}
+    return clean in bist_codes
+
+
+def _license_blocked_payload(symbol: str, interval: str, market: str) -> dict[str, Any]:
+    clean = symbol.strip().upper().replace(" ", "")
+    if market == "viop":
+        message = "VİOP verileri lisanslı veri sağlayıcı bağlantısı tamamlanana kadar kapalıdır."
+        display = clean.replace("VIOP:", "")
+    else:
+        message = "BIST verileri lisanslı veri sağlayıcı bağlantısı tamamlanana kadar kapalıdır."
+        display = "BIST 100" if clean in {"XU100", "^XU100", "BIST100", "XU100.IS"} else clean
+    return {
+        "symbol": clean,
+        "display_name": display,
+        "market": market,
+        "interval": interval,
+        "status": "not_configured",
+        "message": message,
+        "bars": [],
+        "quote": None,
+        "metadata": {
+            "read_only": True,
+            "cache": "blocked",
+            "source": "license_pending",
+            "is_real": False,
+            "is_live": False,
+            "is_delayed": False,
+            "delay_minutes": None,
+            "status": "not_configured",
+            "fetched_at": _utc_iso(),
+            "quality_status": "blocked",
+            "coverage_pct": 0.0,
+            "provider": "license_pending",
+            "staleness_seconds": None,
+            "license_note": message,
+            "warnings": [
+                "Lisanslı veri bağlantısı aktif olmadığından fiyat, grafik ve sinyal gösterimi kapalıdır.",
+                "Yatırım tavsiyesi değildir.",
+            ],
+        },
+    }
+
+
+def _license_restricted_payload(symbol: str, interval: str) -> dict[str, Any] | None:
+    if _is_viop_market_symbol(symbol) and not _viop_feed_configured():
+        return _license_blocked_payload(symbol, interval, "viop")
+    if _is_bist_market_symbol(symbol) and not _bist_feed_configured():
+        return _license_blocked_payload(symbol, interval, "bist")
+    return None
 
 
 def _cors_origins() -> list[str]:
@@ -236,7 +314,7 @@ def _check_optional_env() -> None:
         ("TELEGRAM_BOT_TOKEN", "Telegram bildirimleri devre dışı"),
         ("TELEGRAM_CHAT_ID", "Telegram bildirimleri devre dışı"),
         ("SMTP_HOST", "E-posta bildirimleri devre dışı"),
-        ("BIST_HTTP_URL_TEMPLATE", "Lisanslı BIST feed bağlı değil — Yahoo fallback aktif"),
+        ("BIST_HTTP_URL_TEMPLATE", "Lisanslı BIST feed bağlı değil — BIST fiyat/grafik akışı kapalı"),
         ("VIOP_HTTP_URL_TEMPLATE", "Lisanslı VİOP feed bağlı değil"),
     ]
     for key, note in checks:
@@ -354,30 +432,37 @@ def _build_default_supervisor(
         quote_bus is not None or signal_generator is not None or paper_executor is not None
     )
     on_bar = _on_bar if has_live_hooks else None
-    return WorkerSupervisor(
-        [
-            BinanceKlineWorker(
-                cache=cache,
-                symbols=CRYPTO_WS_SYMBOLS,
-                interval=DEFAULT_INTERVAL,
-                on_bar=on_bar,
+    workers = [
+        BinanceKlineWorker(
+            cache=cache,
+            symbols=CRYPTO_WS_SYMBOLS,
+            interval=DEFAULT_INTERVAL,
+            on_bar=on_bar,
+        ),
+        YahooPoller(
+            cache=cache,
+            data_service=data_service,
+            symbols=tuple(
+                symbol for symbol in YAHOO_INDEX_FX_COMMODITY
+                if not _is_bist_market_symbol(symbol) or _bist_feed_configured()
             ),
-            YahooPoller(
-                cache=cache,
-                data_service=data_service,
-                symbols=YAHOO_INDEX_FX_COMMODITY,
-                interval=DEFAULT_INTERVAL,
-                on_bar=on_bar,
-            ),
+            interval=DEFAULT_INTERVAL,
+            on_bar=on_bar,
+        ),
+    ]
+    if _bist_feed_configured():
+        workers.append(
             BistStockPoller(
                 cache=cache,
                 data_service=data_service,
                 symbols=BIST_STOCKS,
                 interval=DEFAULT_INTERVAL,
                 on_bar=on_bar,
-            ),
-        ]
-    )
+            )
+        )
+    else:
+        _logger.info("[workers] BIST poller lisanslı feed beklediği için başlatılmadı.")
+    return WorkerSupervisor(workers)
 
 
 def _sanitize_floats(obj: Any) -> Any:
@@ -882,6 +967,7 @@ def create_app(
 
         # Statik sembol kaydını SymbolInfo formatına dönüştür
         raw: list[dict[str, Any]] = []
+        bist_licensed = _bist_feed_configured()
 
         # BIST hisseler
         for sym in BIST_STOCKS:
@@ -898,9 +984,9 @@ def create_app(
                 "asset_type": "equity",
                 "group":      grp,
                 "currency":   "TRY",
-                "active":     True,
+                "active":     bist_licensed,
                 "market":     "BIST",
-                "provider":   "yfinance",
+                "provider":   "bist_http" if bist_licensed else "license_pending",
             })
 
         # Kripto
@@ -926,15 +1012,19 @@ def create_app(
             "SI=F":    {"name": "Gümüş (USD/oz)",    "asset_type": "commodity", "group": "Döviz / Emtia", "currency": "USD"},
         }
         for sym, meta in _FX_META.items():
+            is_bist_index = sym == "XU100"
             raw.append({
                 "symbol":     sym,
                 "name":       meta["name"],
                 "asset_type": meta["asset_type"],
                 "group":      meta["group"],
                 "currency":   meta["currency"],
-                "active":     True,
-                "market":     "GLOBAL",
-                "provider":   "yfinance",
+                "active":     bist_licensed if is_bist_index else True,
+                "market":     "BIST" if is_bist_index else "GLOBAL",
+                "provider":   (
+                    "bist_http" if is_bist_index and bist_licensed
+                    else ("license_pending" if is_bist_index else "yfinance")
+                ),
             })
 
         # Filtrele
@@ -1855,6 +1945,11 @@ def create_app(
         sid = strategy_id or None
         return {"trades": paper_db.get_trades(sid, limit=limit)}
 
+    @app.get("/api/paper/positions", tags=["paper-trading"])
+    def paper_positions(strategy_id: str = "", user: dict = Depends(get_current_user)) -> dict[str, Any]:
+        sid = strategy_id or None
+        return {"positions": paper_db.get_positions(sid)}
+
     @app.get("/api/paper/trades/export", tags=["paper-trading"])
     def paper_trades_export(strategy_id: str = "", user: dict = Depends(get_current_user)) -> dict[str, Any]:
         sid = strategy_id or None
@@ -2018,6 +2113,17 @@ def create_app(
         }
 
         for group, symbol, label in _GROUPS:
+            if group == "bist" and not _bist_feed_configured():
+                result[group].append({
+                    "symbol": symbol,
+                    "label": label,
+                    "last": None,
+                    "change_pct": None,
+                    "fetched_at": None,
+                    "quality": "license_pending",
+                    "message": "BIST verileri lisanslı sağlayıcı bağlantısı tamamlanana kadar kapalıdır.",
+                })
+                continue
             bar = cache.latest_bar(symbol, "1d")
             if bar is None:
                 entry: dict[str, Any] = {
@@ -2191,6 +2297,14 @@ def create_app(
         except (TypeError, ValueError):
             safe_limit = 500
 
+        if symbol.strip():
+            restricted_payload = _license_restricted_payload(symbol, interval)
+            if restricted_payload is not None:
+                return JSONResponse(
+                    restricted_payload,
+                    headers={"X-Data-Source": "license_pending"},
+                )
+
         if market_data_facade is not None and symbol.strip():
             repo_result = market_data_facade.read_candles(symbol, interval, safe_limit)
             if repo_result is not None:
@@ -2284,35 +2398,41 @@ def create_app(
         if provider_payload.get("status") == "ok" and bars:
             cleaned, report = filter_bars(bars)
             cache.upsert_bars(canonical_symbol, interval, cleaned)
+            metadata = provider_payload.setdefault("metadata", {})
+            provider_source = metadata.get("provider") or metadata.get("provider_name") or "provider"
+            is_real_provider = bool(metadata.get("is_real", False))
             if market_data_facade is not None:
                 market_data_facade.write_candles(
                     canonical_symbol,
                     interval,
                     cleaned,
-                    source=provider_payload.get("metadata", {}).get("provider", "provider"),
+                    source=str(provider_source),
                     limit=safe_limit,
                 )
             provider_payload["bars"] = cleaned
-            provider_payload.setdefault("metadata", {})
-            provider_payload["metadata"]["spike_filter"] = {
+            metadata["spike_filter"] = {
                 "total": report.total_bars,
                 "winsorized": report.winsorized,
                 "untouched_high_volume": report.untouched_high_volume,
             }
-            provider_payload["metadata"]["cache"] = "miss_then_write"
-            provider_source = provider_payload.get("metadata", {}).get("provider", "provider")
-            provider_payload["metadata"].update({
-                "is_real": True,
+            metadata["cache"] = "miss_then_write"
+            metadata.update({
+                "is_real": is_real_provider,
                 "is_live": False,
                 "is_delayed": True,
                 "delay_minutes": 15,
                 "fetched_at": _utc_iso(),
-                "quality_status": "ok",
+                "quality_status": "ok" if is_real_provider else "warning",
                 "coverage_pct": 100.0,
                 "provider": str(provider_source),
                 "staleness_seconds": 0,
-                "license_note": "Gecikmeli veri — yatırım tavsiyesi değildir",
-                "warnings": [],
+                "source_type": "licensed" if is_real_provider else "public_unverified",
+                "license_note": (
+                    "Lisanslı/kaynaktan veri — yatırım tavsiyesi değildir"
+                    if is_real_provider
+                    else "Lisans bilgisi doğrulanmadı; yatırım tavsiyesi değildir"
+                ),
+                "warnings": [] if is_real_provider else ["Veri lisansı doğrulanmadı"],
             })
             return JSONResponse(provider_payload, headers={"X-Data-Source": str(provider_source)})
 
@@ -2836,9 +2956,13 @@ def create_app(
                 "backtest_runs_per_day": get_quota(role, "backtest_runs_per_day"),
                 "screener_runs_per_day": get_quota(role, "signals_per_day"),
                 "watchlist_symbols": get_quota(role, "max_watchlist_symbols"),
-                "news_access": can_access(role, "signals_per_day"),   # signals_per_day > 0 → haber erişimi var
-                "signals_access": can_access(role, "scanner"),
-                "paper_trading": can_access(role, "paper_trading"),
+                "news_access": can_access(role, "terminal_access"),
+                "signals_access": can_access(role, "signals_per_day"),
+                "paper_trading": get_quota(role, "max_paper_accounts") != 0,
+                "scanner": can_access(role, "scanner"),
+                "backtest_pro": can_access(role, "backtest_pro"),
+                "multi_chart": can_access(role, "multi_chart"),
+                "mali_analiz_scope": get_quota(role, "mali_analiz_scope"),
             },
         }
 

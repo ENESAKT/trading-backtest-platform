@@ -3,7 +3,7 @@ export function mountCookieBanner(): void {
   const banner = document.createElement('div');
   banner.className = 'cookie-banner';
   banner.innerHTML = `
-    <p>Bu site yalnızca oturum ve tercih çerezleri kullanır.</p>
+    <p>Zorunlu oturum/güvenlik çerezleri kullanılır. Analitik çerezleri için ayrı onay alınır.</p>
     <a href="/legal/cookies">Detaylar</a>
     <button class="btn btn-sm btn-outline-warning" data-cookie-choice="reject">Reddet</button>
     <button class="btn btn-sm btn-warning" data-cookie-choice="accept">Kabul Et</button>`;

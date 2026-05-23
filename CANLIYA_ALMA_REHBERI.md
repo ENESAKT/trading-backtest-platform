@@ -1,6 +1,6 @@
 # PiyasaPilot — Canlıya Alma Rehberi
 
-> Bu dosya **sadece senin yapacağın adımları** içerir.  
+> Bu dosya **sadece senin yapacağın adımları** içerir.
 > Her aşama bittikten sonra bana söyle, yüzdeyi güncelleyelim ve bir sonraki aşamaya geçelim.
 
 ---
@@ -346,7 +346,7 @@ git clone https://github.com/ENESAKT/piyasapilot.git
 cd piyasapilot
 ```
 > Eğer repo private ise, GitHub token ile clone et:
-> GitHub → Settings → Developer settings → Personal access tokens → token oluştur  
+> GitHub → Settings → Developer settings → Personal access tokens → token oluştur
 > `git clone https://TOKEN@github.com/ENESAKT/piyasapilot.git`
 
 ### Adım 5.2 — .env dosyasını yerleştir
@@ -358,19 +358,18 @@ ls -la /opt/piyasapilot/.env
 ### Adım 5.3 — Veritabanı tablolarını oluştur (Migration sırası kritik!)
 ```bash
 cd /opt/piyasapilot
-# Migration'lar 001'den 009'a kadar sırayla uygulanmalı:
+# Migration'lar 001'den 010'a kadar sırayla uygulanmalı:
 docker compose -f docker/docker-compose.prod.yml run --rm backend python -m alembic upgrade head
 ```
 > Eğer alembic kullanmıyorsan SQL migration dosyalarını elle uygula:
 > ```bash
-> for i in 001 002 003 004 005 006 007 008 009; do
+> for i in 001 002 003 004 005 006 007 008 009 010; do
 >   mysql -h ENDPOINT -u piyasapilot -p piyasapilot < infra/mysql/migrations/${i}_*.sql
 > done
 > ```
 >
-> **Not:** Mevcut migration'lar 001–009 arasındadır (010 yoktur).
+> **Not:** Migration 010 yasal onay kayıtları, pazarlama onayı ve KVKK hesap anonimleştirme alanlarını ekler.
 > `jti` kolonu zaten migration 007 (`007_auth_tables.sql`) içinde `refresh_tokens` tablosuna dahildir.
-> Token blocklist için migration 007'nin uygulandığından emin ol.
 
 ### Adım 5.4 — Uygulamayı başlat
 ```bash

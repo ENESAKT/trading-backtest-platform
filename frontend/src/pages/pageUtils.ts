@@ -27,6 +27,7 @@ export function pageShell(title: string, body: string, active = ''): string {
         <a href="/legal/terms">${i18n.t('LEGAL_TERMS')}</a>
         <a href="/legal/privacy">${i18n.t('LEGAL_PRIVACY')}</a>
         <a href="/legal/cookies">${i18n.t('LEGAL_COOKIES')}</a>
+        <a href="/legal/info">${i18n.t('LEGAL_INFO')}</a>
         <p class="risk-disclaimer">${i18n.t('PUBLIC_RISK_DISCLAIMER')}</p>
       </footer>
     </div>`;

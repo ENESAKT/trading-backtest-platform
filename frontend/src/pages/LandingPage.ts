@@ -9,7 +9,7 @@ export function renderLandingPage(container: HTMLElement): void {
       <div class="hero-copy">
         <p class="eyebrow">BIST, kripto ve global piyasalar</p>
         <h1>Algoritmik trading terminali</h1>
-        <p>Strateji fikrini kurala çevir, gerçek veriyle test et, riski gör ve paper trading akışını tek ekrandan yönet.</p>
+        <p>Strateji fikrini kurala çevir, geçmiş veriyle test et, riski gör ve paper trading akışını tek ekrandan yönet.</p>
         <div class="hero-actions">
           <a class="btn btn-warning" href="/register">Ücretsiz Başla</a>
           <a class="btn btn-outline-warning" href="/pricing">Planları İncele</a>
@@ -17,8 +17,9 @@ export function renderLandingPage(container: HTMLElement): void {
         <div class="hero-counters">
           <span><b>57</b> eğitim</span>
           <span><b>9</b> strateji</span>
-          <span><b>0</b> gerçek emir</span>
+          <span><b>0</b> gerçek emir yok</span>
         </div>
+        <div class="landing-risk-strip">PiyasaPilot yatırım tavsiyesi vermez. BIST ve VİOP veri gösterimi lisans süreci tamamlanana kadar kapalıdır.</div>
       </div>
       <div class="demo-terminal" aria-label="Statik BTCUSDT demo grafiği">
         <div class="demo-head"><strong>BTCUSDT</strong><span>Statik demo</span></div>
@@ -34,7 +35,7 @@ export function renderLandingPage(container: HTMLElement): void {
         <article class="feature-card">
           <div class="feature-shot"></div>
           <h2>${name}</h2>
-          <p>Trading araştırması için sade, ölçülebilir ve paper-mode güvenli iş akışı.</p>
+          <p>Trading araştırması için sade, ölçülebilir ve yatırım tavsiyesi içermeyen paper-mode iş akışı.</p>
         </article>`).join('')}
     </section>
     <section class="pricing-strip">

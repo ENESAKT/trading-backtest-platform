@@ -37,6 +37,13 @@ export async function renderSettingsPage(container: HTMLElement): Promise<void> 
             <option value="en" ${user.language === 'en' ? 'selected' : ''}>English</option>
           </select>
         </article>
+        <article>
+          <h2>KVKK / Hesap</h2>
+          <p>Hesap silme talebi kimlik ve iletişim verilerini anonimleştirir; fatura ve yasal saklama yükümlülüğü olan kayıtlar mevzuat süresi boyunca tutulabilir.</p>
+          <label>Onay metni</label>
+          <input id="delete-confirm" class="form-control" placeholder="HESABIMI SIL" />
+          <button id="delete-account" class="btn btn-outline-danger mt-3">Hesabımı Sil</button>
+        </article>
       </div>
     </section>`);
 
@@ -66,6 +73,26 @@ export async function renderSettingsPage(container: HTMLElement): Promise<void> 
     else {
       const detail = i18n.current() === 'en' ? body.detail?.en : body.detail?.tr;
       showInlineMessage(alert, detail || i18n.t('SETTINGS_PORTAL_ERROR'), 'danger');
+    }
+  });
+
+  container.querySelector('#delete-account')?.addEventListener('click', async () => {
+    const confirm = container.querySelector<HTMLInputElement>('#delete-confirm')?.value ?? '';
+    if (confirm.trim().toUpperCase() !== 'HESABIMI SIL') {
+      showInlineMessage(alert, 'Hesap silme için HESABIMI SIL yazın.', 'danger');
+      return;
+    }
+    const res = await fetch('/api/auth/me', {
+      method: 'DELETE',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ confirm }),
+    });
+    if (res.ok) {
+      showInlineMessage(alert, 'Hesabınız anonimleştirildi. Oturum kapatılıyor.', 'success');
+      setTimeout(() => { window.location.href = '/'; }, 900);
+    } else {
+      showInlineMessage(alert, 'Hesap silme işlemi tamamlanamadı.', 'danger');
     }
   });
 }

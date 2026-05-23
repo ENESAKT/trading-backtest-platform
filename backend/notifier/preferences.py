@@ -7,6 +7,7 @@ notifier sends, while token/chat credentials stay in environment variables.
 from __future__ import annotations
 
 import json
+import datetime as dt
 from typing import Any
 
 from backend.config import ROOT, getenv
@@ -37,18 +38,22 @@ SYMBOL_GROUPS: dict[str, tuple[str, ...]] = {
 }
 
 DEFAULT_PREFERENCES: dict[str, Any] = {
-    "enabled": True,
+    "enabled": False,
     "notify_signals": True,
     "notify_trades": False,
     "notify_system": False,
     "notify_daily_summary": True,
-    "symbol_group": "bist30",
+    "symbol_group": "crypto",
     "custom_symbols": [],
     "signal_types": ["STRONG_BUY", "STRONG_SELL"],
     "min_strength": 8,
     "min_consensus_ratio": 0.6,
     "cooldown_minutes": 30,
     "quiet_hours": "",
+    "consent_accepted": False,
+    "consent_version": "",
+    "consent_accepted_at": "",
+    "consent_text": "",
 }
 
 
@@ -109,12 +114,15 @@ def normalize_preferences(raw: dict[str, Any] | None) -> dict[str, Any]:
         prefs.update(raw)
 
     prefs["enabled"] = bool(prefs.get("enabled"))
+    prefs["consent_accepted"] = bool(prefs.get("consent_accepted"))
+    if prefs["enabled"] and not prefs["consent_accepted"]:
+        prefs["enabled"] = False
     prefs["notify_signals"] = bool(prefs.get("notify_signals"))
     prefs["notify_trades"] = bool(prefs.get("notify_trades"))
     prefs["notify_system"] = bool(prefs.get("notify_system"))
     prefs["notify_daily_summary"] = bool(prefs.get("notify_daily_summary"))
 
-    group = str(prefs.get("symbol_group") or "bist30").lower()
+    group = str(prefs.get("symbol_group") or "crypto").lower()
     prefs["symbol_group"] = group if group in SYMBOL_GROUPS else "custom"
     prefs["custom_symbols"] = _normalize_symbols(prefs.get("custom_symbols"))
 
@@ -131,6 +139,9 @@ def normalize_preferences(raw: dict[str, Any] | None) -> dict[str, Any]:
         0.0, min(1.0, float(prefs.get("min_consensus_ratio") or 0.0))
     )
     prefs["quiet_hours"] = str(prefs.get("quiet_hours") or "").strip()
+    prefs["consent_version"] = str(prefs.get("consent_version") or "").strip()
+    prefs["consent_accepted_at"] = str(prefs.get("consent_accepted_at") or "").strip()
+    prefs["consent_text"] = str(prefs.get("consent_text") or "").strip()
     return prefs
 
 
@@ -148,6 +159,10 @@ def read_preferences() -> dict[str, Any]:
 
 def write_preferences(raw: dict[str, Any]) -> dict[str, Any]:
     prefs = normalize_preferences(raw)
+    if prefs["consent_accepted"] and not prefs["consent_accepted_at"]:
+        prefs["consent_accepted_at"] = dt.datetime.now(dt.UTC).replace(microsecond=0).isoformat()
+    if prefs["consent_accepted"] and not prefs["consent_version"]:
+        prefs["consent_version"] = "2026-05-23"
     PREFERENCES_PATH.parent.mkdir(parents=True, exist_ok=True)
     tmp = PREFERENCES_PATH.with_suffix(".tmp")
     tmp.write_text(json.dumps(prefs, ensure_ascii=False, indent=2), encoding="utf-8")

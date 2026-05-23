@@ -391,6 +391,11 @@ export class ChartPanel {
     controls.appendChild(badgeWrap);
     this.qualityBadge = new DataQualityBadge(badgeWrap, { showDrawer: true });
 
+    const licenseNotice = document.createElement('div');
+    licenseNotice.className = 'legal-notice data-license-notice chart-license-notice';
+    licenseNotice.textContent = TR.DATA_LICENSE_DISCLAIMER;
+    this.container.appendChild(licenseNotice);
+
     // Crosshair info overlay
     this.infoEl = document.createElement('div');
     this.infoEl.className = 'chart-info-overlay';

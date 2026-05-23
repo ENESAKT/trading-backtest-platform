@@ -1,7 +1,31 @@
 # PiyasaPilot — YAPILANLAR
 
-> Son güncelleme: 2026-05-16 · Branch: `codex/financials-ui-api-v1`
-> Toplam: 151 görev tamamlandı
+> Son güncelleme: 2026-05-23 · Branch: `codex/financials-ui-api-v1`
+> Toplam: 162 görev tamamlandı
+
+---
+
+## ✅ Yasal Uyum Faz 2 Kod Tamamlama
+
+- [x] Telegram onay paneli, onay zorunluluğu ve `/durdur` iptal komutu eklendi.
+- [x] Giriş yapmış kullanıcılar için yasal onay kayıtları `user_legal_consents` tablosuna bağlandı.
+- [x] Kayıt formuna varsayılan kapalı pazarlama e-posta onayı eklendi.
+- [x] Dijital hizmet/cayma hakkı onayı checkout akışına eklendi.
+- [x] KVKK veri envanteri dokümanı ve hesap silme/anonimleştirme akışı eklendi.
+- [x] Paylaşılan backtest ve performans yüzeylerinde geçmiş simülasyon uyarısı tamamlandı.
+
+---
+
+## ✅ Ürün Güvenilirliği ve Veri Kalitesi Tamamlama
+
+- [x] Haber paneli 401/403/5xx/ağ hatalarında skeleton'da kalmayacak şekilde empty/error state'e bağlandı.
+- [x] Plan gate haber erişimi backend auth gerçeğiyle hizalandı; `/api/auth/me/limits` daha zengin feature bayrakları döndürüyor.
+- [x] MySQL `data_inventory` repository upsert'i migration 003 kolonlarıyla uyumlu hale getirildi.
+- [x] Production'da grafik sample event marker'ları kapalı; sadece açık demo modda "Demo veri" rozetiyle gösteriliyor.
+- [x] DataTruth/DataQualityBadge hattı, veri kaynağı/kalite metadata'sını grafik UI'ına taşıyacak şekilde doğrulandı.
+- [x] Paper trading emir/fill/pozisyon tabloları ve mark-to-market equity snapshot güncellemesi eklendi.
+- [x] Timeframe türetme ve retention motorlarının dry-run/execute güvenlik davranışları doğrulandı.
+- [x] Screener frontend taraması backend `POST /api/screener/run` endpointine bağlandı; `run_id`, `filters_hash` ve `data_snapshot_hash` UI'da gösteriliyor.
 
 ---
 
@@ -294,8 +318,8 @@
 ### Hata Düzeltmeleri
 - [x] `billing_router.py` — devre dışı bırakıldı; `payments_router.py` tek yetkili Stripe handler
 - [x] `auth_router.py` — MySQL bağlanamadığında 503 hata mesajı netleştirildi (`DB_UNAVAILABLE` kodu + açıklayıcı Türkçe/İngilizce mesaj)
-- [x] `CANLIYA_ALMA_REHBERI.md` — migration 010 referansı düzeltildi (mevcut maks: 009; jti kolonu 007'de)
-- [x] `CANLIYA_ALMA_REHBERI.md` — migration komut bloğu 001–009 için güncellendi
+- [x] `CANLIYA_ALMA_REHBERI.md` — migration komut bloğu 001–010 için güncellendi
+- [x] `infra/mysql/migrations/010_legal_consents.sql` — yasal onay, pazarlama onayı ve KVKK hesap anonimleştirme alanları eklendi
 
 ### Veri Kalitesi
 - [x] `HistoricalLoader.ts` — `BackendBar` ve `BackendCandlesResponse` arayüzlerine `is_real`, `quality_status`, `data_coverage_pct` alanları eklendi; `piyasapilot:data-quality` event'ı dispatch ediliyor
@@ -321,3 +345,15 @@
 - [x] Tüm Claude-yapılabilir maddeler `[x]` olarak işaretlendi
 - [x] Bölüm 7 (Yapay Zekanın Yapabileceği İşler) — tüm maddeler kapatıldı
 - [x] 5b test bulguları netleştirildi (TypeScript import, argon2, Binance WS, yfinance)
+
+## ✅ Yasal Uyum Faz 1 Kod Paketi (2026-05-23)
+
+> Türk mevzuatı risk azaltma planındaki canlı öncesi kod maddeleri uygulandı. Hukukçu onayı, VERBİS kontrolü ve BIST/VİOP veri lisansı başvurusu manuel kalır.
+
+- [x] Sinyal ve paper trading dili güncellendi: `AL/SAT` eylem dili yerine `AL/SAT Sinyali`, `Sanal Al/Sanal Sat`, `Paper Trading` ve "yatırım tavsiyesi değildir" metinleri kullanılıyor.
+- [x] `SignalFeed`, `PortfolioPanel`, `StrategyPanel` ve `ChartPanel` içinde sabit yasal uyarı ve veri lisansı bildirimleri gösteriliyor.
+- [x] Telegram ve e-posta bildirimleri teknik sinyal/paper trading diliyle yeniden yazıldı; performans metni "Paper Trading Simülasyon Oranı (gerçek getiri değil)" olarak değiştirildi.
+- [x] BIST ve VİOP fiyat/grafik/sinyal akışı lisanslı feed olmadan kapatıldı; BIST poller yalnızca `BIST_HTTP_URL_TEMPLATE` tanımlıysa başlıyor.
+- [x] `/api/v2/candles`, `/api/symbols` ve market overview BIST/VİOP için `license_pending/not_configured` davranışı döndürüyor.
+- [x] `TermsPage`, `PrivacyPage`, `CookiesPage` genişletildi; `/legal/info` ve `/yasal` rotaları eklendi; public footer yasal bilgilendirme linki ve risk şeridi içeriyor.
+- [x] Doğrulama: `cd frontend && npm run typecheck`, `cd frontend && npm run build`, hedefli `python3 -m py_compile` başarılı.

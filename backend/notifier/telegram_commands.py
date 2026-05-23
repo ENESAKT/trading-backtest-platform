@@ -223,7 +223,7 @@ async def cmd_fiyat(args: str) -> str:
             pass
 
     metadata = data.get("metadata") if isinstance(data.get("metadata"), dict) else {}
-    real_mark = "🟢 Gerçek veri" if metadata.get("is_real") else "🟡 Doğrulanmamış veri"
+    real_mark = "🟢 Kaynak bağlı" if metadata.get("is_real") else "🟡 Lisans/doğrulama bilgisi yok"
     freshness = "🕒 Eski veri" if data.get("status") == "stale" else real_mark
     display = data.get("display_name", symbol)
     market = data.get("market", "")
@@ -578,6 +578,18 @@ async def cmd_duzelt(args: str) -> str:
     return await fix_task(args.strip())
 
 
+async def cmd_durdur(_args: str) -> str:
+    from backend.notifier.preferences import read_preferences, write_preferences
+
+    prefs = read_preferences()
+    prefs["enabled"] = False
+    write_preferences(prefs)
+    return (
+        "Telegram bildirimleri kapatıldı.\n"
+        "Tekrar açmak için uygulamadaki Telegram filtreleri panelinden üç yasal onayı verip kaydedin."
+    )
+
+
 # ── Komut tablosu ─────────────────────────────────────────────────────────────
 
 COMMANDS: dict[str, Any] = {
@@ -592,6 +604,7 @@ COMMANDS: dict[str, Any] = {
     "/kontrol": cmd_kontrol,
     "/gorev": cmd_gorev,
     "/duzelt": cmd_duzelt,
+    "/durdur": cmd_durdur,
     # Kısaltmalar
     "/start": cmd_yardim,
     "/help": cmd_yardim,

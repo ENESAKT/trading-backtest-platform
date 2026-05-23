@@ -133,6 +133,14 @@ def _compute_strength(signal_int: int, rsi: float, trend: str) -> int:
     return max(1, min(10, base))
 
 
+def _signal_direction_label(signal_type: str) -> str:
+    if signal_type in {"BUY", "STRONG_BUY"}:
+        return "AL"
+    if signal_type in {"SELL", "STRONG_SELL"}:
+        return "SAT"
+    return signal_type
+
+
 class SignalGenerator:
     """Cache'ten en güncel pencereyi çek, stratejileri çalıştır, sinyal yayınla."""
 
@@ -269,7 +277,11 @@ class SignalGenerator:
                     "signal_type": sig_type,
                     "price": price,
                     "strategy_id": name,
-                    "reason": f"{name}: {sig_type} @ {price:.2f}",
+                    "reason": (
+                        f"Teknik görünüm ({name}): "
+                        f"{_signal_direction_label(sig_type)} yönlü sinyal @ {price:.2f}; "
+                        "yatırım tavsiyesi değildir."
+                    ),
                     "strength": strength,
                     "interval": interval,
                     "metadata": metadata,
@@ -298,7 +310,10 @@ class SignalGenerator:
                     "signal_type": "STRONG_BUY",
                     "price": price,
                     "strategy_id": "_consensus",
-                    "reason": f"KONSENSÜS: {buy_count}/{total_strategies} strateji AL sinyali",
+                    "reason": (
+                        f"Teknik konsensüs: {buy_count}/{total_strategies} strateji "
+                        "AL yönlü sinyal verdi; yatırım tavsiyesi değildir."
+                    ),
                     "strength": consensus_strength,
                     "interval": interval,
                     "metadata": metadata,
@@ -322,7 +337,10 @@ class SignalGenerator:
                     "signal_type": "STRONG_SELL",
                     "price": price,
                     "strategy_id": "_consensus",
-                    "reason": f"KONSENSÜS: {sell_count}/{total_strategies} strateji SAT sinyali",
+                    "reason": (
+                        f"Teknik konsensüs: {sell_count}/{total_strategies} strateji "
+                        "SAT yönlü sinyal verdi; yatırım tavsiyesi değildir."
+                    ),
                     "strength": consensus_strength,
                     "interval": interval,
                     "metadata": metadata,
@@ -387,7 +405,11 @@ class SignalGenerator:
                     "signal_type": signal_type,
                     "price": price,
                     "strategy_id": f"paper_spec_{record.id}",
-                    "reason": f"{record.name}: {reason_key} @ {price:.2f}",
+                    "reason": (
+                        f"Paper strateji kuralı ({record.name}/{reason_key}): "
+                        f"{_signal_direction_label(signal_type)} yönlü sanal işlem sinyali "
+                        f"@ {price:.2f}; yatırım tavsiyesi değildir."
+                    ),
                     "strength": 6,
                     "interval": interval,
                     "metadata": {

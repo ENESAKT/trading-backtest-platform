@@ -1,9 +1,9 @@
 """
 Quant Engine — Strateji Analiz ve Karar Motoru.
 
-Bu modül backtest stratejisi değildir; gerçek veriyle beslenen son barı
+Bu modül backtest stratejisi değildir; doğrulanmış kaynak verisiyle beslenen son barı
 EMA 200, Bollinger Bands ve RSI 14 füzyonuyla yorumlayan karar katmanıdır.
-Gerçek dışı veya test fixture verisiyle karar üretmez.
+Doğrulanmamış veya test fixture verisiyle karar üretmez.
 """
 
 from __future__ import annotations
@@ -91,7 +91,7 @@ def analyze_indicator_snapshot(
     snapshot: IndicatorSnapshot,
     *,
     is_real_data: bool,
-    source_label: str = "Gerçek veri",
+    source_label: str = "Doğrulanmış kaynak verisi",
 ) -> DecisionReport:
     """
     Verilmiş indikatör değerleriyle AL/SAT/BEKLE kararı üret.
