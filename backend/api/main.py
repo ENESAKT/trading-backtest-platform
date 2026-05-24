@@ -21,6 +21,14 @@ devreye alındı.
 
 from __future__ import annotations
 
+# ── Python 3.10 uyumluluk yaması ─────────────────────────────────────────────
+# datetime.UTC, Python 3.11'de eklendi. 3.10'da datetime.timezone.utc kullan.
+import datetime as _dt_compat
+if not hasattr(_dt_compat, "UTC"):
+    _dt_compat.UTC = _dt_compat.timezone.utc  # type: ignore[attr-defined]
+del _dt_compat
+# ─────────────────────────────────────────────────────────────────────────────
+
 import asyncio
 import datetime as dt
 import hashlib
@@ -55,7 +63,7 @@ except ImportError:  # pragma: no cover - dependency bootstrap fallback
     get_remote_address = None  # type: ignore[assignment]
 
 from backend.api.quote_bus import QuoteBus
-from backend.auth.dependencies import get_current_user, require_feature, require_quota, require_paper_trading
+from backend.auth.dependencies import get_current_user, get_optional_user, require_feature, require_quota, require_paper_trading
 from backend.signals.signal_bus import SignalBus
 from backend.backtest import (
     BacktestArchive,
@@ -69,6 +77,7 @@ from backend.backtest import (
 )
 from backend.config import getenv, llm_configured, mask_sensitive, telegram_configured
 from backend.data.cache import OHLCVCache
+from backend.data.constants import VALID_INTERVALS_SET, validate_interval
 from backend.data.historical_store import HistoricalStore
 from backend.data.repositories.market_data_facade import MarketDataFacade
 from backend.data.spike_filter import filter_bars
@@ -1086,6 +1095,23 @@ def create_app(
             uemail = str(user.get("email", "")) or None
             run_id = backtest_archive.save(result, user_id=uid, user_email=uemail)
             result["run_id"] = run_id
+            # ── Audit log ─────────────────────────────────────────────────────
+            try:
+                from backend.audit import audit_logger, AuditEvent, AuditAction
+                import asyncio
+                asyncio.get_event_loop().run_until_complete(audit_logger.log(AuditEvent(
+                    action=AuditAction.BACKTEST_RUN,
+                    user_id=int(user.get("id", 0)) or None,
+                    resource=f"{req.symbol}/{req.interval}",
+                    metadata={
+                        "run_id": run_id,
+                        "strategy": req.strategy_id,
+                        "bars": req.lookback_bars,
+                        "capital": req.capital,
+                    },
+                )))
+            except Exception:
+                pass  # audit hatası backtest'i engellemesin
             return result
         except UnknownStrategy as exc:
             raise HTTPException(status_code=400, detail=str(exc))
@@ -1764,24 +1790,51 @@ def create_app(
         limit: int = 30,
         fresh: bool = False,
         keyword: str | None = None,
-        user: dict = Depends(get_current_user),
+        user: dict | None = Depends(get_optional_user),
     ) -> dict[str, Any]:
         """Haber listesi döndür.
+
+        Plan kapısı:
+          - guest (giriş yok): son 5 haber, fresh=false zorlanır
+          - free: 20 haber
+          - pro/ultra/admin: 100 habere kadar
 
         ``fresh=true`` ile KAP RSS/borsapy/yfinance zincirinden çekip cache'e yaz.
         ``fresh=false`` (varsayılan) ile SQLite'tan oku.
         """
+        # Plan bazlı limit ve fresh kısıtı
+        if user is None:
+            # Guest — giriş yok; sınırlı erişim, fresh kapalı
+            effective_limit = min(limit, 5)
+            allow_fresh = False
+            plan_note = "guest"
+        else:
+            role = user.get("role", "free")
+            if role in ("pro", "ultra", "admin"):
+                effective_limit = min(limit, 100)
+            else:
+                effective_limit = min(limit, 20)
+            allow_fresh = fresh
+            plan_note = role
+
         store = _get_news_store()
-        if fresh and symbol:
+        if allow_fresh and symbol:
             from backend.news.news_fetcher import fetch_news_for_symbol
-            items = fetch_news_for_symbol(symbol, limit=min(limit, 40))
+            items = fetch_news_for_symbol(symbol, limit=min(effective_limit, 40))
             if items:
                 store.upsert(items)
-        news = store.query(symbol=symbol, limit=limit, keyword=keyword)
-        unread = store.count_unread(symbol=symbol)
-        result: dict[str, Any] = {"news": news, "total": len(news), "unread_24h": unread}
+        news = store.query(symbol=symbol, limit=effective_limit, keyword=keyword)
+        unread = store.count_unread(symbol=symbol) if user else 0
+        result: dict[str, Any] = {
+            "news": news,
+            "total": len(news),
+            "unread_24h": unread,
+            "plan_note": plan_note,
+        }
         if not news:
             result["message"] = "Bu sembol için haber bulunamadı." if symbol else "Haber bulunamadı."
+        if user is None:
+            result["guest_limit_note"] = "Tüm haberleri görmek için giriş yapın."
         return result
 
     @app.get("/api/news/unread-count", tags=["news"])
@@ -1798,6 +1851,236 @@ def create_app(
         store = _get_news_store()
         store.mark_read([int(i) for i in ids])
         return {"marked": len(ids), "unread": store.count_unread()}
+
+    @app.get("/api/news/impact/{symbol}", tags=["news"])
+    def get_news_impact(
+        symbol: str,
+        days_before: int = 2,
+        days_after: int = 5,
+        limit: int = 20,
+        user: dict | None = Depends(get_optional_user),
+    ) -> dict[str, Any]:
+        """
+        Haber/KAP olay anı etrafındaki fiyat/hacim hareketi analizi.
+
+        Her olay için:
+          - Olay öncesi N bar getirisi
+          - Olay sonrası N bar getirisi
+          - Etki skoru (sonrası / öncesi oranı)
+
+        Gerçek fiyat verisi yoksa boş event_impacts döndürür.
+        Veri mevcut olduğunda event_impacts dolacak.
+        """
+        import math
+
+        store = _get_news_store()
+        news = store.query(symbol=symbol.upper(), limit=limit)
+        if not news:
+            return {
+                "symbol": symbol.upper(),
+                "event_impacts": [],
+                "note": "Bu sembol için haber verisi yok.",
+            }
+
+        # Yfinance'dan son fiyat verisi çek
+        price_map: dict[str, float] = {}
+        try:
+            import yfinance as yf  # type: ignore[import-untyped]
+            import datetime as dt
+            ticker_sym = f"{symbol.upper()}.IS" if not symbol.upper().endswith(".IS") and len(symbol) <= 7 else symbol.upper()
+            ticker = yf.Ticker(ticker_sym)
+            hist = ticker.history(period="2y", interval="1d")
+            if hist is not None and not hist.empty:
+                for ts, row in hist.iterrows():
+                    date_str = str(ts)[:10]
+                    price_map[date_str] = float(row.get("Close") or 0.0)
+        except Exception:
+            pass
+
+        impacts = []
+        for item in news:
+            event_date = item.get("published_at") or item.get("fetched_at") or ""
+            event_date = event_date[:10]
+            if not event_date or not price_map:
+                impacts.append({
+                    "news_id": item.get("id"),
+                    "event_date": event_date,
+                    "headline": item.get("headline", "")[:80],
+                    "pre_return_pct": None,
+                    "post_return_pct": None,
+                    "impact_score": None,
+                    "note": "Fiyat verisi yok",
+                })
+                continue
+
+            # Tarih bazlı fiyat arama
+            sorted_dates = sorted(price_map.keys())
+
+            def find_price_n_days(anchor: str, n: int) -> float | None:
+                """anchor tarihinden n gün önceki/sonraki ilk mevcut fiyat."""
+                try:
+                    anchor_dt = dt.date.fromisoformat(anchor)
+                    target = (anchor_dt + dt.timedelta(days=n)).isoformat()
+                    # En yakın mevcut tarihi bul
+                    if n >= 0:
+                        candidates = [d for d in sorted_dates if d >= target]
+                    else:
+                        candidates = [d for d in sorted_dates if d <= target]
+                    if candidates:
+                        return price_map[candidates[0] if n >= 0 else candidates[-1]]
+                    return None
+                except Exception:
+                    return None
+
+            p_before = find_price_n_days(event_date, -days_before)
+            p_event  = find_price_n_days(event_date, 0)
+            p_after  = find_price_n_days(event_date, days_after)
+
+            pre_ret: float | None = None
+            post_ret: float | None = None
+            impact_score: float | None = None
+
+            if p_before and p_event and p_before > 0:
+                pre_ret = round((p_event - p_before) / p_before * 100, 3)
+            if p_event and p_after and p_event > 0:
+                post_ret = round((p_after - p_event) / p_event * 100, 3)
+            if pre_ret is not None and post_ret is not None:
+                # Etki skoru: haber sonrası hareket büyüklüğü / öncesi hareket
+                pre_abs = abs(pre_ret) if pre_ret else 0.001
+                impact_score = round(abs(post_ret) / pre_abs, 2)
+
+            impacts.append({
+                "news_id":       item.get("id"),
+                "event_date":    event_date,
+                "headline":      item.get("headline", "")[:80],
+                "pre_return_pct": pre_ret,
+                "post_return_pct": post_ret,
+                "impact_score":  impact_score,
+                "price_before":  round(p_before, 4) if p_before else None,
+                "price_event":   round(p_event, 4) if p_event else None,
+                "price_after":   round(p_after, 4) if p_after else None,
+            })
+
+        return {
+            "symbol": symbol.upper(),
+            "event_impacts": impacts,
+            "days_before": days_before,
+            "days_after": days_after,
+        }
+
+    # ── Piyasa Olayları (events) ──────────────────────────────────────────────
+
+    _event_store_instance = None
+
+    def _get_event_store():
+        nonlocal _event_store_instance
+        if _event_store_instance is None:
+            from backend.events.event_store import EventStore
+            import os
+            db_path = os.environ.get("EVENT_DB_PATH", "db/market_events.db")
+            _event_store_instance = EventStore(db_path)
+        return _event_store_instance
+
+    @app.get("/api/events", tags=["events"])
+    def get_events(
+        symbol: str | None = None,
+        event_types: str | None = None,      # virgülle ayrılmış: kap,earnings,dividend
+        from_date: str | None = None,        # YYYY-MM-DD
+        to_date: str | None = None,          # YYYY-MM-DD
+        limit: int = 50,
+        fresh: bool = False,
+        confirmed_only: bool = False,
+        user: dict | None = Depends(get_optional_user),
+    ) -> dict[str, Any]:
+        """
+        Piyasa olaylarını döndür: KAP bildirimleri, bilanço, temettü, ekonomik takvim.
+
+        Plan kapısı:
+          - guest: yalnızca ekonomik takvim (global)
+          - free: sembol bazlı 20 olay
+          - pro/ultra/admin: 200 olaya kadar, fresh destekli
+        """
+        # Plan bazlı kısıt
+        if user is None:
+            # Guest — yalnızca ekonomik takvim
+            et_list = ["economic"]
+            effective_limit = 20
+            allow_fresh = False
+            symbol = None  # Sembol bazlı filtreleme yok
+        else:
+            role = user.get("role", "free")
+            et_list = [t.strip() for t in event_types.split(",")] if event_types else []
+            effective_limit = min(limit, 200 if role in ("pro", "ultra", "admin") else 50)
+            allow_fresh = fresh and role in ("pro", "ultra", "admin")
+
+        store = _get_event_store()
+
+        # Fresh mod: verilen sembol için kaynaktan çek
+        if allow_fresh and symbol:
+            from backend.events.event_fetcher import fetch_events_for_symbol
+            fetched = fetch_events_for_symbol(symbol, limit=min(effective_limit, 50))
+            if fetched:
+                store.upsert(fetched)
+
+        events = store.query(
+            symbol=symbol,
+            event_types=et_list if et_list else None,
+            from_date=from_date,
+            to_date=to_date,
+            limit=effective_limit,
+            confirmed_only=confirmed_only,
+        )
+
+        result: dict[str, Any] = {
+            "events": events,
+            "total": len(events),
+        }
+        if not events:
+            result["message"] = (
+                "Bu sembol için olay bulunamadı." if symbol
+                else "Belirtilen tarih aralığında olay yok."
+            )
+        if user is None:
+            result["guest_note"] = "Hisse olaylarını görmek için giriş yapın."
+
+        return result
+
+    @app.get("/api/events/upcoming", tags=["events"])
+    def get_upcoming_events(
+        days: int = 30,
+        limit: int = 20,
+        user: dict | None = Depends(get_optional_user),
+    ) -> dict[str, Any]:
+        """Önümüzdeki N günün olaylarını döndür (ekonomik takvim dahil)."""
+        store = _get_event_store()
+        events = store.upcoming(days=days, limit=limit)
+        return {"events": events, "total": len(events), "days": days}
+
+    @app.post("/api/events/fetch", tags=["events"])
+    def fetch_symbol_events(
+        body: dict[str, Any],
+        user: dict = Depends(get_current_user),
+    ) -> dict[str, Any]:
+        """Sembol için olay verisi çek ve depoya yaz (Pro+ planı gerekli)."""
+        role = user.get("role", "free")
+        if role not in ("pro", "ultra", "admin"):
+            raise HTTPException(
+                status_code=403,
+                detail={
+                    "code": "PLAN_LIMIT",
+                    "tr": "Olay veri çekimi Pro veya Ultra planında mevcut.",
+                    "en": "Event data fetch requires Pro or Ultra plan.",
+                },
+            )
+        symbol = str(body.get("symbol") or "").upper().strip()
+        if not symbol:
+            raise HTTPException(status_code=422, detail="symbol gerekli")
+
+        from backend.events.event_fetcher import fetch_events_for_symbol
+        store = _get_event_store()
+        fetched = fetch_events_for_symbol(symbol, limit=100)
+        count = store.upsert(fetched) if fetched else 0
+        return {"symbol": symbol, "fetched": len(fetched), "upserted": count}
 
     @app.get("/api/strategy-lab/strategies", tags=["strategy-lab"])
     def strategy_lab_list(user: dict = Depends(get_current_user)) -> dict[str, Any]:
@@ -1973,6 +2256,64 @@ def create_app(
     def paper_resume(strategy_id: str, user: dict = Depends(get_current_user)) -> dict[str, Any]:
         paper_db.resume_strategy(strategy_id)
         return {"status": "ok", "strategy_id": strategy_id, "halted": False}
+
+    @app.get("/api/paper/mtm", tags=["paper-trading"])
+    def paper_mtm(strategy_id: str = "", user: dict = Depends(get_current_user)) -> dict[str, Any]:
+        """Açık pozisyonları mark-to-market değeriyle döndürür.
+
+        Her pozisyon için:
+        - entry_price, quantity, opened_at
+        - current_price: cache'ten son 1d kapanış fiyatı (yoksa entry_price)
+        - unrealized_pnl: (current_price - entry_price) * quantity
+        - unrealized_pnl_pct: % fark
+        """
+        sid = strategy_id or None
+        positions = paper_db.get_positions(sid)
+
+        result = []
+        for pos in positions:
+            sym         = str(pos["symbol"]).upper()
+            entry_price = float(pos["entry_price"])
+            quantity    = float(pos["quantity"])
+
+            # En güncel fiyat: cache'ten son bar
+            bar = cache.latest_bar(sym, "1d") or cache.latest_bar(sym, "1h")
+            if bar:
+                current_price = float(bar["close"])
+            else:
+                current_price = entry_price
+
+            unrealized_pnl = (current_price - entry_price) * quantity
+            unrealized_pnl_pct = (
+                ((current_price - entry_price) / entry_price * 100)
+                if entry_price > 0 else 0.0
+            )
+
+            result.append({
+                "strategy_id":        pos["strategy_id"],
+                "symbol":             sym,
+                "trade_id":           pos["trade_id"],
+                "entry_price":        round(entry_price, 6),
+                "current_price":      round(current_price, 6),
+                "quantity":           round(quantity, 6),
+                "position_value":     round(current_price * quantity, 4),
+                "cost_basis":         round(entry_price * quantity, 4),
+                "unrealized_pnl":     round(unrealized_pnl, 4),
+                "unrealized_pnl_pct": round(unrealized_pnl_pct, 2),
+                "opened_at":          pos["opened_at"],
+                "updated_at":         pos.get("updated_at"),
+            })
+
+        total_unrealized = round(sum(r["unrealized_pnl"] for r in result), 4)
+        total_value      = round(sum(r["position_value"]  for r in result), 4)
+
+        return {
+            "positions":       result,
+            "total_unrealized_pnl": total_unrealized,
+            "total_position_value": total_value,
+            "position_count":  len(result),
+            "fetched_at":      _utc_iso(),
+        }
 
     # ── WebSocket fan-out: signals (Sprint 3.5) ──────────────────────────
     @app.websocket("/ws/signals")
@@ -2160,6 +2501,136 @@ def create_app(
 
         return result
 
+    @app.get("/api/market/regime", tags=["market"])
+    def market_regime() -> dict[str, Any]:
+        """Piyasa rejim skoru — BIST 100 + kripto benchmark.
+
+        Skor 0–100 arası:  0=güçlü düşüş, 100=güçlü yükseliş.
+        Bileşenler:
+          - RSI(14) konumu (30→ 50→ 70 bandı)
+          - EMA trend (fiyat>EMA200)
+          - ADX güç (>25 = trend var)
+          - Volatilite (ATR/fiyat — yüksek vol skor azaltır)
+          - BIST30 breadth (% of stocks > SMA50)
+        """
+        import numpy as np
+        from backend.data.constants import VALID_INTERVALS_SET  # noqa: F401
+
+        def _calc_rsi(arr: list[float], p: int = 14) -> float | None:
+            if len(arr) < p + 1:
+                return None
+            a = np.array(arr, dtype=float)
+            d = np.diff(a)
+            g = np.where(d > 0, d, 0.0)
+            l_ = np.where(d < 0, -d, 0.0)
+            ag = float(np.mean(g[:p])); al = float(np.mean(l_[:p]))
+            for i in range(p, len(d)):
+                ag = (ag * (p - 1) + g[i]) / p
+                al = (al * (p - 1) + l_[i]) / p
+            return round(100 - 100 / (1 + ag / al), 2) if al > 0 else 100.0
+
+        def _calc_ema(arr: list[float], p: int) -> float | None:
+            if len(arr) < p:
+                return None
+            k = 2 / (p + 1)
+            ema = sum(arr[:p]) / p
+            for v in arr[p:]:
+                ema = v * k + ema * (1 - k)
+            return ema
+
+        def _calc_atr(bars: list[dict], p: int = 14) -> float | None:
+            if len(bars) < p + 1:
+                return None
+            trs = []
+            for i in range(1, len(bars)):
+                h = float(bars[i]["high"]); l = float(bars[i]["low"]); pc = float(bars[i - 1]["close"])
+                trs.append(max(h - l, abs(h - pc), abs(l - pc)))
+            atr = sum(trs[:p]) / p
+            for tr in trs[p:]:
+                atr = (atr * (p - 1) + tr) / p
+            return atr
+
+        BENCHMARK = "BTCUSDT"  # BIST'e lisans olmadığında kripto benchmark
+        bars = cache.get_window(BENCHMARK, "1d", limit=300) or []
+        scores: dict[str, int] = {}
+        details: dict[str, Any] = {}
+
+        if bars and len(bars) >= 20:
+            closes = [float(b["close"]) for b in bars]
+            last   = closes[-1]
+
+            # RSI bileşeni (0-30)
+            rsi = _calc_rsi(closes, 14)
+            if rsi is not None:
+                rsi_score = max(0, min(30, int((rsi - 30) / 40 * 30))) if rsi > 30 else 0
+                scores["rsi"] = rsi_score
+                details["rsi_14"] = round(rsi, 1)
+
+            # EMA200 trendi (0-25)
+            ema200 = _calc_ema(closes, 200)
+            if ema200:
+                scores["ema_trend"] = 25 if last > ema200 else 0
+                details["ema_200"] = round(ema200, 4)
+                details["above_ema200"] = last > ema200
+
+            # EMA50 (0-15)
+            ema50 = _calc_ema(closes, 50)
+            if ema50:
+                scores["ema_50_trend"] = 15 if last > ema50 else 0
+                details["ema_50"] = round(ema50, 4)
+
+            # ATR volatilite baskısı (0-15 ters)
+            atr = _calc_atr(bars, 14)
+            if atr and last > 0:
+                atr_pct = (atr / last) * 100
+                vol_score = max(0, 15 - int(atr_pct * 1.5))
+                scores["volatility"] = vol_score
+                details["atr_pct"] = round(atr_pct, 2)
+
+            # SMA50 üstünde fiyat trendi — son 5/20 bar momentum (0-15)
+            if len(closes) >= 20:
+                momentum = (closes[-1] - closes[-20]) / closes[-20] * 100 if closes[-20] > 0 else 0
+                scores["momentum"] = max(0, min(15, int(momentum * 3 + 7.5)))
+                details["momentum_20d_pct"] = round(momentum, 2)
+        else:
+            details["note"] = "Yeterli bar verisi yok"
+
+        total_score = min(100, max(0, sum(scores.values())))
+        if total_score >= 70:
+            regime = "güçlü_yükseliş"
+            regime_en = "strong_bull"
+        elif total_score >= 55:
+            regime = "yükseliş"
+            regime_en = "bull"
+        elif total_score >= 45:
+            regime = "yatay"
+            regime_en = "sideways"
+        elif total_score >= 30:
+            regime = "düşüş"
+            regime_en = "bear"
+        else:
+            regime = "güçlü_düşüş"
+            regime_en = "strong_bear"
+
+        return {
+            "score":          total_score,
+            "regime":         regime,
+            "regime_en":      regime_en,
+            "benchmark":      BENCHMARK,
+            "components":     scores,
+            "details":        details,
+            "max_score":      100,
+            "interpretation": {
+                "0-30":   "Güçlü düşüş trendi — riskten kaçınma yüksek",
+                "30-45":  "Düşüş trendi — savunmacı pozisyon",
+                "45-55":  "Yatay / belirsiz piyasa",
+                "55-70":  "Yükseliş trendi — seçici fırsatlar",
+                "70-100": "Güçlü yükseliş trendi — risk iştahı yüksek",
+            },
+            "disclaimer": "Rejim skoru geçmiş fiyat verisine dayalı teknik analizdir; yatırım tavsiyesi değildir.",
+            "fetched_at": _utc_iso(),
+        }
+
     # ── Sinyal Güven Durumu ───────────────────────────────────────────────────
     @app.get("/api/signals/trust-status", tags=["signals"])
     def signals_trust_status(user: dict = Depends(get_current_user)) -> dict:
@@ -2190,6 +2661,49 @@ def create_app(
     @app.get("/api/workspace")
     def workspace() -> dict[str, Any]:
         return workspace_store.load()
+
+    # ── Veri Lisansı Matrisi ─────────────────────────────────────────────────
+    @app.get("/api/data/license-matrix", tags=["data"])
+    def data_license_matrix(user: dict = Depends(get_current_user)) -> dict:
+        """
+        Provider/piyasa/veri tipi kombinasyonları için lisans matrisini döner.
+        Redistribution, export, cache süresi ve kullanıcı planı kısıtlarını içerir.
+        """
+        from backend.data.license_matrix import license_matrix
+        return {
+            "entries": license_matrix.as_dict(),
+            "principles": [
+                "Lisansı olmayan veri ücretli özellik gibi paketlenemez.",
+                "Export/paylaşım lisans matrisine göre sınırlandırılır.",
+                "Bilinmeyen lisans kombinasyonlarında kısıtlayıcı varsayılan uygulanır.",
+                "Redis cache kayıtları orijinal provider lisansına tabidir.",
+            ],
+            "fetched_at": _utc_iso(),
+        }
+
+    # ── Depolama Katmanı Politikası ──────────────────────────────────────────
+    @app.get("/api/data/storage-policy", tags=["data"])
+    def storage_policy(user: dict = Depends(get_current_user)) -> dict:
+        """
+        ClickHouse / MySQL / Redis katman ayrımı politikasını döner.
+        Her kategorinin hangi storage'a yazılabileceğini gösterir.
+        """
+        from backend.data.storage_layer_guard import StorageLayerGuard
+        return {
+            "policy": StorageLayerGuard.policy_summary(),
+            "description": {
+                "clickhouse": "OHLCV bar, tick, büyük zaman serisi, kalite olayları",
+                "mysql":      "Sembol metadata, kullanıcı, plan, alarm, envanter, lisans",
+                "redis":      "Sıcak cache, pub/sub, distributed lock, kısa ömürlü snapshot",
+            },
+            "rules": [
+                "Zaman serisi (OHLCV) hiçbir zaman MySQL'e yazılmaz",
+                "Kullanıcı/plan bilgisi hiçbir zaman ClickHouse'a yazılmaz",
+                "Redis kalıcı truth source olarak kullanılamaz — her key TTL taşımalı",
+                "Provider sessizce değişemez — her geçiş loglanır ve UI'ya iletilir",
+            ],
+            "fetched_at": _utc_iso(),
+        }
 
     # ── Fiyat Uyarıları ──────────────────────────────────────────────────────
 
@@ -2266,6 +2780,21 @@ def create_app(
             payload = {}
         try:
             trade = paper_recorder.record_signal(payload)
+            # ── Audit log ──────────────────────────────────────────────────
+            try:
+                from backend.audit import audit_logger, AuditEvent, AuditAction
+                await audit_logger.log(AuditEvent(
+                    action=AuditAction.PAPER_ORDER_SUBMIT,
+                    user_id=int(user.get("id", 0)) or None,
+                    resource=str(payload.get("symbol", "")),
+                    metadata={
+                        "direction": payload.get("direction"),
+                        "strategy": payload.get("strategy_id"),
+                        "price": payload.get("price"),
+                    },
+                ))
+            except Exception:
+                pass
             return {
                 "status": "ok",
                 "message": "Sanal paper trade gerçek son fiyatla kaydedildi.",
@@ -2296,6 +2825,17 @@ def create_app(
             safe_limit = max(1, min(int(limit), 5000))
         except (TypeError, ValueError):
             safe_limit = 500
+
+        # Interval doğrulaması — merkezi VALID_INTERVALS_SET kullanılır
+        if interval.strip().lower() not in VALID_INTERVALS_SET:
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "code": "invalid_interval",
+                    "message": f"Geçersiz zaman dilimi: '{interval}'. "
+                               f"Desteklenenler: 1m, 5m, 15m, 30m, 1h, 2h, 4h, 1d, 1w, 1mo",
+                },
+            )
 
         if symbol.strip():
             restricted_payload = _license_restricted_payload(symbol, interval)
@@ -3133,6 +3673,24 @@ def create_app(
         ).encode()
         data_snapshot_hash = hashlib.md5(rows_raw).hexdigest()
 
+        # ── Audit log ──────────────────────────────────────────────────────────
+        try:
+            from backend.audit import audit_logger, AuditEvent, AuditAction
+            import asyncio
+            asyncio.get_event_loop().run_until_complete(audit_logger.log(AuditEvent(
+                action=AuditAction.SCREENER_RUN,
+                user_id=int(user.get("id", 0)) or None,
+                resource=f"{req.market}/{req.universe}",
+                metadata={
+                    "run_id": run_id,
+                    "filters": len(req.filters),
+                    "row_count": len(rows),
+                    "filters_hash": filters_hash,
+                },
+            )))
+        except Exception:
+            pass
+
         return ScreenerRunResponse(
             run_id=run_id,
             created_at=created_at,
@@ -3269,9 +3827,10 @@ def create_app(
                 detail=f"{sym_upper}/{timeframe} için cache verisi bulunamadı.",
             )
 
-        closes_arr = np.array([float(b["close"]) for b in bars], dtype=float)
-        highs_arr  = np.array([float(b["high"])  for b in bars], dtype=float)
-        lows_arr   = np.array([float(b["low"])   for b in bars], dtype=float)
+        closes_arr  = np.array([float(b["close"])  for b in bars], dtype=float)
+        highs_arr   = np.array([float(b["high"])   for b in bars], dtype=float)
+        lows_arr    = np.array([float(b["low"])    for b in bars], dtype=float)
+        volumes_arr = np.array([float(b.get("volume", 0) or 0) for b in bars], dtype=float)
         n = len(closes_arr)
 
         def _round(v: float | None, d: int = 4) -> float | None:
@@ -3362,6 +3921,335 @@ def create_app(
                 atr_val = (atr_val * (period - 1) + tr) / period
             return round(atr_val, 4)
 
+        # ── Bollinger Bands(20,2) ──
+        def _bollinger(arr: np.ndarray, period: int = 20, std_dev: float = 2.0) -> tuple[float | None, float | None, float | None]:
+            if len(arr) < period:
+                return None, None, None
+            sma_val = float(np.mean(arr[-period:]))
+            std_val = float(np.std(arr[-period:], ddof=1))
+            return round(sma_val + std_dev * std_val, 4), round(sma_val, 4), round(sma_val - std_dev * std_val, 4)
+
+        # ── Stochastic(14,3) ──
+        def _stochastic(high: np.ndarray, low: np.ndarray, close: np.ndarray, k_period: int = 14, d_period: int = 3) -> tuple[float | None, float | None]:
+            if len(close) < k_period + d_period:
+                return None, None
+            k_series: list[float] = []
+            for i in range(k_period - 1, len(close)):
+                period_high = float(np.max(high[i - k_period + 1:i + 1]))
+                period_low  = float(np.min(low[i  - k_period + 1:i + 1]))
+                if period_high - period_low == 0:
+                    k_series.append(50.0)
+                else:
+                    k_series.append((close[i] - period_low) / (period_high - period_low) * 100)
+            if len(k_series) < d_period:
+                return None, None
+            k_val = round(k_series[-1], 2)
+            d_val = round(float(np.mean(k_series[-d_period:])), 2)
+            return k_val, d_val
+
+        # ── ADX(14) ──
+        def _adx(high: np.ndarray, low: np.ndarray, close: np.ndarray, period: int = 14) -> float | None:
+            if len(close) < period * 2:
+                return None
+            tr_list, plus_dm_list, minus_dm_list = [], [], []
+            for i in range(1, len(close)):
+                h, l, pc = float(high[i]), float(low[i]), float(close[i - 1])
+                tr_list.append(max(h - l, abs(h - pc), abs(l - pc)))
+                hd = float(high[i]) - float(high[i - 1])
+                ld = float(low[i - 1]) - float(low[i])
+                plus_dm_list.append(hd if hd > ld and hd > 0 else 0.0)
+                minus_dm_list.append(ld if ld > hd and ld > 0 else 0.0)
+            # Wilder smoothing
+            smooth = lambda lst: [sum(lst[:period])] + [
+                s - s / period + lst[i] for i, s in zip(range(period, len(lst)), [sum(lst[:period])] + [None] * len(lst))
+                if s is not None
+            ]
+            def _wilder(lst: list[float]) -> list[float]:
+                result = [sum(lst[:period])]
+                for v in lst[period:]:
+                    result.append(result[-1] - result[-1] / period + v)
+                return result
+            atr_s = _wilder(tr_list)
+            plus_s  = _wilder(plus_dm_list)
+            minus_s = _wilder(minus_dm_list)
+            dx_list = []
+            for a, p, m in zip(atr_s, plus_s, minus_s):
+                plus_di  = 100.0 * p / a if a != 0 else 0.0
+                minus_di = 100.0 * m / a if a != 0 else 0.0
+                denom = plus_di + minus_di
+                dx_list.append(100.0 * abs(plus_di - minus_di) / denom if denom != 0 else 0.0)
+            if len(dx_list) < period:
+                return None
+            adx_val = float(np.mean(dx_list[:period]))
+            for dx in dx_list[period:]:
+                adx_val = (adx_val * (period - 1) + dx) / period
+            return round(adx_val, 2)
+
+        # ── CCI(20) — Commodity Channel Index ──
+        def _cci(high: np.ndarray, low: np.ndarray, close: np.ndarray, period: int = 20) -> float | None:
+            if len(close) < period:
+                return None
+            tp = (high + low + close) / 3.0
+            tp_slice = tp[-period:]
+            mean_tp = float(np.mean(tp_slice))
+            mean_dev = float(np.mean(np.abs(tp_slice - mean_tp)))
+            if mean_dev == 0:
+                return 0.0
+            return round((float(tp_slice[-1]) - mean_tp) / (0.015 * mean_dev), 2)
+
+        # ── Momentum(10) ──
+        def _momentum(arr: np.ndarray, period: int = 10) -> float | None:
+            if len(arr) < period + 1:
+                return None
+            return round(float(arr[-1]) - float(arr[-period - 1]), 4)
+
+        # ── Williams %R(14) ──
+        def _williams_r(high: np.ndarray, low: np.ndarray, close: np.ndarray, period: int = 14) -> float | None:
+            if len(close) < period:
+                return None
+            h = float(np.max(high[-period:]))
+            l = float(np.min(low[-period:]))
+            if h - l == 0:
+                return -50.0
+            return round((h - float(close[-1])) / (h - l) * -100.0, 2)
+
+        # ── Stochastic RSI(14,14,3,3) ──
+        def _stoch_rsi(arr: np.ndarray, rsi_period: int = 14, stoch_period: int = 14, k_period: int = 3, d_period: int = 3) -> tuple[float | None, float | None]:
+            if len(arr) < rsi_period + stoch_period + k_period + d_period:
+                return None, None
+            # Build RSI series
+            rsi_series: list[float] = []
+            for i in range(rsi_period, len(arr) + 1):
+                sub = arr[i - rsi_period - 1:i]
+                if len(sub) < rsi_period + 1:
+                    continue
+                v = _rsi(sub, rsi_period)
+                if v is not None:
+                    rsi_series.append(v)
+            if len(rsi_series) < stoch_period + k_period + d_period:
+                return None, None
+            rsi_arr = np.array(rsi_series, dtype=float)
+            k_raw: list[float] = []
+            for i in range(stoch_period - 1, len(rsi_arr)):
+                sl = rsi_arr[i - stoch_period + 1:i + 1]
+                r_h, r_l = float(np.max(sl)), float(np.min(sl))
+                k_raw.append((rsi_arr[i] - r_l) / (r_h - r_l) * 100 if r_h - r_l != 0 else 50.0)
+            if len(k_raw) < k_period + d_period:
+                return None, None
+            k_smooth: list[float] = [float(np.mean(k_raw[i:i + k_period])) for i in range(len(k_raw) - k_period + 1)]
+            d_smooth: list[float] = [float(np.mean(k_smooth[i:i + d_period])) for i in range(len(k_smooth) - d_period + 1)]
+            return round(k_smooth[-1], 2) if k_smooth else None, round(d_smooth[-1], 2) if d_smooth else None
+
+        # ── Hull MA(9) ──
+        def _hma(arr: np.ndarray, period: int = 9) -> float | None:
+            half = max(2, period // 2)
+            sqrt_p = max(2, int(period ** 0.5))
+            if len(arr) < period:
+                return None
+            wma1 = _wma(arr, half)
+            wma2 = _wma(arr, period)
+            if wma1 is None or wma2 is None:
+                return None
+            # Hull raw series: 2*WMA(n/2) - WMA(n)
+            hull_series: list[float] = []
+            for i in range(period - 1, len(arr)):
+                sub = arr[: i + 1]
+                w1 = _wma(sub, half)
+                w2 = _wma(sub, period)
+                if w1 is not None and w2 is not None:
+                    hull_series.append(2 * w1 - w2)
+            if len(hull_series) < sqrt_p:
+                return None
+            return _round(_wma(np.array(hull_series, dtype=float), sqrt_p))
+
+        # ── WMA(n) — Weighted Moving Average (yardımcı) ──
+        def _wma(arr: np.ndarray, period: int) -> float | None:
+            if len(arr) < period:
+                return None
+            weights = np.arange(1, period + 1, dtype=float)
+            return float(np.dot(arr[-period:], weights) / weights.sum())
+
+        # ── VWMA(20) — Volume Weighted MA ──
+        def _vwma(close: np.ndarray, volume: np.ndarray, period: int = 20) -> float | None:
+            if len(close) < period or volume is None or len(volume) < period:
+                return None
+            v_slice = volume[-period:]
+            c_slice = close[-period:]
+            vol_sum = float(np.sum(v_slice))
+            if vol_sum == 0:
+                return None
+            return _round(float(np.dot(c_slice, v_slice) / vol_sum))
+
+        # ── Ichimoku — Tenkan-sen(9), Kijun-sen(26), Chikou ──
+        def _ichimoku(high: np.ndarray, low: np.ndarray, close: np.ndarray) -> dict[str, float | None]:
+            def _mid(h: np.ndarray, l: np.ndarray, p: int) -> float | None:
+                if len(h) < p:
+                    return None
+                return round((float(np.max(h[-p:])) + float(np.min(l[-p:]))) / 2, 4)
+            tenkan  = _mid(high, low, 9)
+            kijun   = _mid(high, low, 26)
+            senkou_a = round((tenkan + kijun) / 2, 4) if tenkan and kijun else None
+            senkou_b = _mid(high, low, 52)
+            chikou  = _round(float(close[-1])) if len(close) > 0 else None
+            above_cloud: str | None = None
+            if close[-1] is not None and senkou_a is not None and senkou_b is not None:
+                cloud_top = max(senkou_a, senkou_b)
+                cloud_bot = min(senkou_a, senkou_b)
+                if float(close[-1]) > cloud_top:
+                    above_cloud = "above"
+                elif float(close[-1]) < cloud_bot:
+                    above_cloud = "below"
+                else:
+                    above_cloud = "inside"
+            return {
+                "tenkan_sen":  tenkan,
+                "kijun_sen":   kijun,
+                "senkou_a":    senkou_a,
+                "senkou_b":    senkou_b,
+                "chikou_span": chikou,
+                "cloud_position": above_cloud,
+            }
+
+        # ── Awesome Oscillator (AO = SMA5 of midpoints - SMA34 of midpoints) ──
+        def _awesome_oscillator(high: np.ndarray, low: np.ndarray) -> float | None:
+            if len(high) < 34:
+                return None
+            mids = (high + low) / 2.0
+            sma5  = float(np.mean(mids[-5:]))
+            sma34 = float(np.mean(mids[-34:]))
+            return _round(sma5 - sma34)
+
+        # ── Bull/Bear Power ──
+        def _bull_bear_power(high: np.ndarray, low: np.ndarray, close: np.ndarray, period: int = 13) -> tuple[float | None, float | None]:
+            ema_val = _ema(close, period)
+            if ema_val is None:
+                return None, None
+            bull = _round(float(high[-1]) - ema_val)
+            bear = _round(float(low[-1]) - ema_val)
+            return bull, bear
+
+        # ── Ultimate Oscillator (7,14,28) ──
+        def _ultimate_oscillator(high: np.ndarray, low: np.ndarray, close: np.ndarray) -> float | None:
+            if len(close) < 29:
+                return None
+            bp_list, tr_list = [], []
+            for i in range(1, len(close)):
+                true_low  = min(float(low[i]),  float(close[i-1]))
+                true_high = max(float(high[i]), float(close[i-1]))
+                bp = float(close[i]) - true_low
+                tr = true_high - true_low
+                bp_list.append(bp)
+                tr_list.append(tr if tr > 0 else 1e-9)
+            def _avg(bp, tr, n):
+                if len(bp) < n:
+                    return 0.0
+                return sum(bp[-n:]) / (sum(tr[-n:]) or 1e-9)
+            avg7  = _avg(bp_list, tr_list, 7)
+            avg14 = _avg(bp_list, tr_list, 14)
+            avg28 = _avg(bp_list, tr_list, 28)
+            uo = 100.0 * (4 * avg7 + 2 * avg14 + avg28) / 7.0
+            return _round(uo)
+
+        def _uo_signal(v: float | None) -> str:
+            if v is None:
+                return "neutral"
+            if v < 30:
+                return "oversold"
+            if v > 70:
+                return "overbought"
+            return "neutral"
+
+        # ── Fibonacci pivot seviyeleri ──
+        def _fib_pivots(high: np.ndarray, low: np.ndarray, close: np.ndarray) -> dict[str, float | None]:
+            if len(close) < 2:
+                return {}
+            h, l, c = float(high[-2]), float(low[-2]), float(close[-2])
+            pp  = (h + l + c) / 3.0
+            rng = h - l
+            return {
+                "PP":  round(pp, 4),
+                "R1":  round(pp + 0.382 * rng, 4),
+                "R2":  round(pp + 0.618 * rng, 4),
+                "R3":  round(pp + 1.000 * rng, 4),
+                "S1":  round(pp - 0.382 * rng, 4),
+                "S2":  round(pp - 0.618 * rng, 4),
+                "S3":  round(pp - 1.000 * rng, 4),
+            }
+
+        # ── Pivot seviyeleri (Classic) ──
+        def _pivots(high: np.ndarray, low: np.ndarray, close: np.ndarray) -> dict[str, float | None]:
+            if len(close) < 2:
+                return {}
+            # Önceki tam bar kullan
+            h, l, c = float(high[-2]), float(low[-2]), float(close[-2])
+            pp = (h + l + c) / 3.0
+            r1 = 2 * pp - l
+            s1 = 2 * pp - h
+            r2 = pp + (h - l)
+            s2 = pp - (h - l)
+            r3 = h + 2 * (pp - l)
+            s3 = l - 2 * (h - pp)
+            return {
+                "PP": round(pp, 4), "R1": round(r1, 4), "R2": round(r2, 4), "R3": round(r3, 4),
+                "S1": round(s1, 4), "S2": round(s2, 4), "S3": round(s3, 4),
+            }
+
+        # ── Camarilla pivot seviyeleri ──
+        def _camarilla_pivots(high: np.ndarray, low: np.ndarray, close: np.ndarray) -> dict[str, float | None]:
+            if len(close) < 2:
+                return {}
+            h, l, c = float(high[-2]), float(low[-2]), float(close[-2])
+            rng = h - l
+            return {
+                "PP": round((h + l + c) / 3.0, 4),
+                "R1": round(c + rng * 1.1 / 12, 4),
+                "R2": round(c + rng * 1.1 / 6,  4),
+                "R3": round(c + rng * 1.1 / 4,  4),
+                "R4": round(c + rng * 1.1 / 2,  4),
+                "S1": round(c - rng * 1.1 / 12, 4),
+                "S2": round(c - rng * 1.1 / 6,  4),
+                "S3": round(c - rng * 1.1 / 4,  4),
+                "S4": round(c - rng * 1.1 / 2,  4),
+            }
+
+        # ── Woodie pivot seviyeleri ──
+        def _woodie_pivots(high: np.ndarray, low: np.ndarray, close: np.ndarray) -> dict[str, float | None]:
+            if len(close) < 2:
+                return {}
+            h, l, c = float(high[-2]), float(low[-2]), float(close[-2])
+            # Woodie: PP = (H + L + 2*Open) / 4; Open yaklaşımı = previous close
+            pp = (h + l + 2 * c) / 4.0
+            r1 = 2 * pp - l
+            s1 = 2 * pp - h
+            r2 = pp + (h - l)
+            s2 = pp - (h - l)
+            return {
+                "PP": round(pp, 4),
+                "R1": round(r1, 4), "R2": round(r2, 4),
+                "S1": round(s1, 4), "S2": round(s2, 4),
+            }
+
+        # ── DeMark pivot seviyeleri ──
+        def _demark_pivots(high: np.ndarray, low: np.ndarray, close: np.ndarray, open_arr: np.ndarray | None = None) -> dict[str, float | None]:
+            if len(close) < 2:
+                return {}
+            h, l, c = float(high[-2]), float(low[-2]), float(close[-2])
+            o = float(open_arr[-2]) if open_arr is not None and len(open_arr) >= 2 else c
+            if c < o:
+                x = h + 2 * l + c
+            elif c > o:
+                x = 2 * h + l + c
+            else:
+                x = h + l + 2 * c
+            pp = x / 4.0
+            r1 = x / 2.0 - l
+            s1 = x / 2.0 - h
+            return {
+                "PP": round(pp, 4),
+                "R1": round(r1, 4),
+                "S1": round(s1, 4),
+            }
+
         last_close = _round(float(closes_arr[-1]))
         prev_close = float(closes_arr[-2]) if n >= 2 else None
         change_pct: float | None = None
@@ -3369,12 +4257,41 @@ def create_app(
             change_pct = _round((last_close - prev_close) / prev_close * 100, 2)
 
         rsi_val   = _rsi(closes_arr, 14)
+        sma_10    = _round(_sma(closes_arr, 10))
         sma_20    = _round(_sma(closes_arr, 20))
+        sma_30    = _round(_sma(closes_arr, 30))
         sma_50    = _round(_sma(closes_arr, 50))
+        sma_100   = _round(_sma(closes_arr, 100))
         sma_200   = _round(_sma(closes_arr, 200))
+        ema_10    = _round(_ema(closes_arr, 10))
         ema_20    = _round(_ema(closes_arr, 20))
+        ema_50    = _round(_ema(closes_arr, 50))
+        ema_100   = _round(_ema(closes_arr, 100))
+        ema_200   = _round(_ema(closes_arr, 200))
         macd_v, macd_sig_v, macd_hist_v = _macd(closes_arr)
         atr_val   = _atr(highs_arr, lows_arr, closes_arr, 14)
+        bb_upper, bb_mid, bb_lower = _bollinger(closes_arr, 20, 2.0)
+        stoch_k, stoch_d   = _stochastic(highs_arr, lows_arr, closes_arr, 14, 3)
+        adx_val            = _adx(highs_arr, lows_arr, closes_arr, 14)
+        cci_val            = _cci(highs_arr, lows_arr, closes_arr, 20)
+        momentum_val       = _momentum(closes_arr, 10)
+        williams_r_val     = _williams_r(highs_arr, lows_arr, closes_arr, 14)
+        srsi_k, srsi_d     = _stoch_rsi(closes_arr, 14, 14, 3, 3)
+        hma_9              = _hma(closes_arr, 9)
+        vwma_20            = _vwma(closes_arr, volumes_arr, 20)
+        ichimoku           = _ichimoku(highs_arr, lows_arr, closes_arr)
+        pivots             = _pivots(highs_arr, lows_arr, closes_arr)
+        fib_pivots         = _fib_pivots(highs_arr, lows_arr, closes_arr)
+        # Ek göstergeler
+        ao_val             = _awesome_oscillator(highs_arr, lows_arr)
+        bull_power, bear_power = _bull_bear_power(highs_arr, lows_arr, closes_arr, 13)
+        uo_val             = _ultimate_oscillator(highs_arr, lows_arr, closes_arr)
+        # Ek pivot türleri
+        camarilla_pivots   = _camarilla_pivots(highs_arr, lows_arr, closes_arr)
+        woodie_pivots      = _woodie_pivots(highs_arr, lows_arr, closes_arr)
+        # bars'dan open dizisi çıkar (varsa)
+        _opens_arr = np.array([float(b.get("open", b["close"])) for b in bars], dtype=float)
+        demark_pivots      = _demark_pivots(highs_arr, lows_arr, closes_arr, _opens_arr)
 
         # Signal mantığı
         def _ma_signal(ma_val: float | None) -> str:
@@ -3403,30 +4320,124 @@ def create_app(
                 return "sell"
             return "neutral"
 
-        ma_signals = {
-            "sma_20":  _ma_signal(sma_20),
-            "sma_50":  _ma_signal(sma_50),
-            "sma_200": _ma_signal(sma_200),
-            "ema_20":  _ma_signal(ema_20),
-        }
-        osc_macd_signal = _macd_signal(macd_hist_v)
+        def _stoch_signal(k: float | None, d: float | None) -> str:
+            if k is None or d is None:
+                return "neutral"
+            if k < 20 and d < 20:
+                return "oversold"
+            if k > 80 and d > 80:
+                return "overbought"
+            if k > d:
+                return "buy"
+            if k < d:
+                return "sell"
+            return "neutral"
 
-        # overall_rating: buy/sell sayısını karşılaştır
-        all_signals = list(ma_signals.values()) + [osc_macd_signal]
-        buy_count  = sum(1 for s in all_signals if s == "buy")
-        sell_count = sum(1 for s in all_signals if s == "sell")
-        if buy_count > sell_count:
+        def _bb_signal(close: float | None, upper: float | None, lower: float | None, mid: float | None) -> str:
+            if close is None or upper is None or lower is None:
+                return "neutral"
+            if close > upper:
+                return "overbought"
+            if close < lower:
+                return "oversold"
+            if mid is not None and close > mid:
+                return "buy"
+            return "sell"
+
+        def _cci_signal(v: float | None) -> str:
+            if v is None:
+                return "neutral"
+            if v < -100:
+                return "oversold"
+            if v > 100:
+                return "overbought"
+            return "neutral"
+
+        def _momentum_signal(v: float | None) -> str:
+            if v is None:
+                return "neutral"
+            return "buy" if v > 0 else "sell"
+
+        def _williams_r_signal(v: float | None) -> str:
+            if v is None:
+                return "neutral"
+            if v < -80:
+                return "oversold"
+            if v > -20:
+                return "overbought"
+            return "neutral"
+
+        def _srsi_signal(k: float | None, d: float | None) -> str:
+            if k is None or d is None:
+                return "neutral"
+            if k < 20 and d < 20:
+                return "oversold"
+            if k > 80 and d > 80:
+                return "overbought"
+            if k > d:
+                return "buy"
+            if k < d:
+                return "sell"
+            return "neutral"
+
+        ma_signals = {
+            "sma_10":  _ma_signal(sma_10),
+            "sma_20":  _ma_signal(sma_20),
+            "sma_30":  _ma_signal(sma_30),
+            "sma_50":  _ma_signal(sma_50),
+            "sma_100": _ma_signal(sma_100),
+            "sma_200": _ma_signal(sma_200),
+            "ema_10":  _ma_signal(ema_10),
+            "ema_20":  _ma_signal(ema_20),
+            "ema_50":  _ma_signal(ema_50),
+            "ema_100": _ma_signal(ema_100),
+            "ema_200": _ma_signal(ema_200),
+            "hma_9":   _ma_signal(hma_9),
+            "vwma_20": _ma_signal(vwma_20),
+        }
+        osc_macd_signal     = _macd_signal(macd_hist_v)
+        osc_rsi_signal      = _rsi_signal(rsi_val)
+        osc_stoch_signal    = _stoch_signal(stoch_k, stoch_d)
+        osc_bb_signal       = _bb_signal(last_close, bb_upper, bb_lower, bb_mid)
+        osc_cci_signal      = _cci_signal(cci_val)
+        osc_momentum_signal = _momentum_signal(momentum_val)
+        osc_wr_signal       = _williams_r_signal(williams_r_val)
+        osc_srsi_signal     = _srsi_signal(srsi_k, srsi_d)
+        osc_ao_signal       = "buy" if ao_val and ao_val > 0 else ("sell" if ao_val and ao_val < 0 else "neutral")
+        osc_uo_signal       = _uo_signal(uo_val)
+
+        # overall_rating: oscillators + MA sinyallerini say
+        osc_signals_all = [
+            osc_macd_signal, osc_rsi_signal, osc_stoch_signal, osc_bb_signal,
+            osc_cci_signal, osc_momentum_signal, osc_wr_signal, osc_srsi_signal,
+            osc_ao_signal, osc_uo_signal,
+        ]
+        ma_signals_all  = list(ma_signals.values())
+
+        def _count_rating(signals: list[str]) -> dict[str, int]:
+            buy  = sum(1 for s in signals if s in ("buy", "oversold"))
+            sell = sum(1 for s in signals if s in ("sell", "overbought"))
+            return {"buy": buy, "sell": sell, "neutral": len(signals) - buy - sell}
+
+        osc_rating = _count_rating(osc_signals_all)
+        ma_rating  = _count_rating(ma_signals_all)
+        all_signals_list = osc_signals_all + ma_signals_all
+        total_rating = _count_rating(all_signals_list)
+
+        if total_rating["buy"] > total_rating["sell"]:
             overall = "buy"
-        elif sell_count > buy_count:
+        elif total_rating["sell"] > total_rating["buy"]:
             overall = "sell"
         else:
             overall = "neutral"
 
         return {
             "symbol": sym_upper,
+            "market": market.upper(),
             "timeframe": timeframe,
             "bars_used": n,
             "fetched_at": fetched_at,
+            "calculation_version": "2.0",
             "price": {
                 "last": last_close,
                 "change_pct": change_pct,
@@ -3434,7 +4445,7 @@ def create_app(
             "oscillators": {
                 "rsi_14": {
                     "value": rsi_val,
-                    "signal": _rsi_signal(rsi_val),
+                    "signal": osc_rsi_signal,
                 },
                 "macd": {
                     "value": macd_v,
@@ -3442,31 +4453,433 @@ def create_app(
                     "histogram": macd_hist_v,
                     "signal": osc_macd_signal,
                 },
+                "stochastic": {
+                    "k": stoch_k,
+                    "d": stoch_d,
+                    "signal": osc_stoch_signal,
+                },
                 "atr_14": {
                     "value": atr_val,
+                    "atr_pct": _round(atr_val / float(closes_arr[-1]) * 100 if atr_val and float(closes_arr[-1]) > 0 else None, 2),
                 },
+                "bollinger": {
+                    "upper": bb_upper,
+                    "middle": bb_mid,
+                    "lower": bb_lower,
+                    "signal": osc_bb_signal,
+                    "bandwidth_pct": _round((bb_upper - bb_lower) / bb_mid * 100 if bb_upper and bb_lower and bb_mid and bb_mid != 0 else None, 2),
+                },
+                "adx_14": {
+                    "value": adx_val,
+                    "trend_strength": (
+                        "güçlü" if adx_val and adx_val > 25
+                        else "zayıf" if adx_val and adx_val < 20
+                        else "orta" if adx_val else None
+                    ),
+                },
+                "cci_20": {
+                    "value": _round(cci_val, 2),
+                    "signal": osc_cci_signal,
+                },
+                "momentum_10": {
+                    "value": _round(momentum_val, 4),
+                    "signal": osc_momentum_signal,
+                },
+                "williams_r_14": {
+                    "value": _round(williams_r_val, 2),
+                    "signal": osc_wr_signal,
+                },
+                "stoch_rsi": {
+                    "k": _round(srsi_k, 2),
+                    "d": _round(srsi_d, 2),
+                    "signal": osc_srsi_signal,
+                },
+                "awesome_oscillator": {
+                    "value": ao_val,
+                    "signal": osc_ao_signal,
+                    "description": "SMA5(midpoint) - SMA34(midpoint); pozitif = momentum yukarı",
+                },
+                "bull_bear_power": {
+                    "bull": bull_power,
+                    "bear": bear_power,
+                    "signal": (
+                        "buy" if (bull_power or 0) > 0 and (bear_power or 0) > -abs(bull_power or 0) * 0.5
+                        else "sell" if (bear_power or 0) < 0 else "neutral"
+                    ),
+                    "description": "Bull=High-EMA13, Bear=Low-EMA13",
+                },
+                "ultimate_oscillator": {
+                    "value": uo_val,
+                    "signal": osc_uo_signal,
+                    "description": "7/14/28 periyotlu ağırlıklı ortalama; 30 altı aşırı satım, 70 üstü aşırı alım",
+                },
+                "rating": osc_rating,
             },
             "moving_averages": {
-                "sma_20":  {"value": sma_20,  "signal": ma_signals["sma_20"]},
-                "sma_50":  {"value": sma_50,  "signal": ma_signals["sma_50"]},
-                "sma_200": {"value": sma_200, "signal": ma_signals["sma_200"]},
-                "ema_20":  {"value": ema_20,  "signal": ma_signals["ema_20"]},
+                "sma_10":  {"value": sma_10,  "signal": ma_signals["sma_10"],  "distance_pct": _round((last_close - sma_10) / sma_10 * 100 if sma_10 and last_close else None, 2)},
+                "sma_20":  {"value": sma_20,  "signal": ma_signals["sma_20"],  "distance_pct": _round((last_close - sma_20) / sma_20 * 100 if sma_20 and last_close else None, 2)},
+                "sma_30":  {"value": sma_30,  "signal": ma_signals["sma_30"],  "distance_pct": _round((last_close - sma_30) / sma_30 * 100 if sma_30 and last_close else None, 2)},
+                "sma_50":  {"value": sma_50,  "signal": ma_signals["sma_50"],  "distance_pct": _round((last_close - sma_50) / sma_50 * 100 if sma_50 and last_close else None, 2)},
+                "sma_100": {"value": sma_100, "signal": ma_signals["sma_100"], "distance_pct": _round((last_close - sma_100) / sma_100 * 100 if sma_100 and last_close else None, 2)},
+                "sma_200": {"value": sma_200, "signal": ma_signals["sma_200"], "distance_pct": _round((last_close - sma_200) / sma_200 * 100 if sma_200 and last_close else None, 2)},
+                "ema_10":  {"value": ema_10,  "signal": ma_signals["ema_10"],  "distance_pct": _round((last_close - ema_10) / ema_10 * 100 if ema_10 and last_close else None, 2)},
+                "ema_20":  {"value": ema_20,  "signal": ma_signals["ema_20"],  "distance_pct": _round((last_close - ema_20) / ema_20 * 100 if ema_20 and last_close else None, 2)},
+                "ema_50":  {"value": ema_50,  "signal": ma_signals["ema_50"],  "distance_pct": _round((last_close - ema_50) / ema_50 * 100 if ema_50 and last_close else None, 2)},
+                "ema_100": {"value": ema_100, "signal": ma_signals["ema_100"], "distance_pct": _round((last_close - ema_100) / ema_100 * 100 if ema_100 and last_close else None, 2)},
+                "ema_200": {"value": ema_200, "signal": ma_signals["ema_200"], "distance_pct": _round((last_close - ema_200) / ema_200 * 100 if ema_200 and last_close else None, 2)},
+                "hma_9":   {"value": hma_9,   "signal": ma_signals["hma_9"],   "distance_pct": _round((last_close - hma_9) / hma_9 * 100 if hma_9 and last_close else None, 2)},
+                "vwma_20": {"value": vwma_20, "signal": ma_signals["vwma_20"], "distance_pct": _round((last_close - vwma_20) / vwma_20 * 100 if vwma_20 and last_close else None, 2)},
+                "ichimoku": ichimoku,
+                "rating": ma_rating,
+            },
+            "pivots": {
+                "classic": {
+                    "method": "classic",
+                    "note": "Önceki tam bar OHLC verisiyle hesaplandı.",
+                    "levels": pivots,
+                },
+                "fibonacci": {
+                    "method": "fibonacci",
+                    "note": "Fibonacci oranlı pivot seviyeleri.",
+                    "levels": fib_pivots,
+                },
+                "camarilla": {
+                    "method": "camarilla",
+                    "note": "Camarilla: Close + range × 1.1/12…1.1/2 oranları.",
+                    "levels": camarilla_pivots,
+                },
+                "woodie": {
+                    "method": "woodie",
+                    "note": "Woodie: PP = (H+L+2C)/4; open yerine önceki kapanış kullanılır.",
+                    "levels": woodie_pivots,
+                },
+                "demark": {
+                    "method": "demark",
+                    "note": "DeMark: X değeri kapanış/açılış ilişkisine göre seçilir.",
+                    "levels": demark_pivots,
+                },
+                "period_note": "Tüm pivotlar önceki tamamlanmış bar (n-1) verisiyle hesaplandı.",
             },
             "overall_rating": overall,
+            "overall_counts": total_rating,
             "data_truth": {
                 "quality_status": "ok",
                 "provider": "cache",
                 "fetched_at": fetched_at,
+                "warning": "Bu teknik özet cache verisinden hesaplanmıştır; yatırım tavsiyesi değildir.",
             },
-            "calculation_version": "1.0",
+        }
+
+    # ─────────────────────────────────────────────────────────────────────
+    # 18.4 · Finansallar sekmesi — mali özet + değerleme oranları
+    # ─────────────────────────────────────────────────────────────────────
+    @app.get("/api/financials/{symbol}", tags=["symbol360"])
+    def get_financials(
+        symbol: str,
+        user: dict = Depends(get_optional_user),
+    ) -> dict[str, Any]:
+        """
+        Sembol için finansal özet: gelir tablosu, bilanço, değerleme oranları.
+
+        Plan kısıtı: guest → temel oranlar; free → TTM + yıllık; pro/ultra → çeyreklik.
+
+        Veri kaynağı: yfinance (gecikimli, lisansına göre).
+        Uyarı: Bu veriler yatırım tavsiyesi değildir.
+        """
+        sym = symbol.strip().upper().replace(".IS", "")
+        plan = (user or {}).get("plan", "guest")
+        fetched_at = _utc_iso()
+
+        disclaimer = (
+            "Bu finansal veriler bilgilendirme amaçlıdır; yatırım tavsiyesi değildir. "
+            "Veriler gecikimli olabilir. Kaynak: yfinance (Yahoo Finance lisansı)."
+        )
+
+        result: dict[str, Any] = {
+            "symbol": sym,
+            "plan": plan,
+            "fetched_at": fetched_at,
+            "disclaimer": disclaimer,
+            "data_truth": {
+                "provider": "yfinance",
+                "delayed": True,
+                "license_note": "Yahoo Finance verisi; yeniden dağıtım ve ticari kullanım kısıtlıdır.",
+            },
+        }
+
+        try:
+            import yfinance as yf
+            ticker_sym = f"{sym}.IS" if len(sym) <= 7 and not sym.endswith(".IS") else sym
+            ticker = yf.Ticker(ticker_sym)
+            info = ticker.info or {}
+
+            def _safe(key: str, default: Any = None) -> Any:
+                v = info.get(key, default)
+                if v == "Infinity" or v != v:  # NaN check
+                    return None
+                return v
+
+            # Temel oranlar (tüm planlar)
+            result["valuation"] = {
+                "pe_ratio":         _safe("trailingPE"),
+                "forward_pe":       _safe("forwardPE"),
+                "pb_ratio":         _safe("priceToBook"),
+                "ps_ratio":         _safe("priceToSalesTrailing12Months"),
+                "ev_ebitda":        _safe("enterpriseToEbitda"),
+                "ev_revenue":       _safe("enterpriseToRevenue"),
+                "peg_ratio":        _safe("pegRatio"),
+                "market_cap":       _safe("marketCap"),
+                "enterprise_value": _safe("enterpriseValue"),
+            }
+
+            result["profitability"] = {
+                "return_on_equity":   _safe("returnOnEquity"),
+                "return_on_assets":   _safe("returnOnAssets"),
+                "profit_margin":      _safe("profitMargins"),
+                "operating_margin":   _safe("operatingMargins"),
+                "gross_margin":       _safe("grossMargins"),
+                "ebitda_margin":      _safe("ebitdaMargins"),
+            }
+
+            result["growth"] = {
+                "revenue_growth":   _safe("revenueGrowth"),
+                "earnings_growth":  _safe("earningsGrowth"),
+                "earnings_quarterly_growth": _safe("earningsQuarterlyGrowth"),
+            }
+
+            result["financial_health"] = {
+                "total_cash":         _safe("totalCash"),
+                "total_debt":         _safe("totalDebt"),
+                "net_debt":           (_safe("totalDebt") or 0) - (_safe("totalCash") or 0) if _safe("totalDebt") and _safe("totalCash") else None,
+                "current_ratio":      _safe("currentRatio"),
+                "quick_ratio":        _safe("quickRatio"),
+                "debt_to_equity":     _safe("debtToEquity"),
+                "free_cashflow":      _safe("freeCashflow"),
+                "operating_cashflow": _safe("operatingCashflow"),
+            }
+
+            if plan not in ("guest",):
+                # TTM gelir tablosu
+                result["income_statement_ttm"] = {
+                    "revenue":          _safe("totalRevenue"),
+                    "gross_profit":     _safe("grossProfits"),
+                    "ebitda":           _safe("ebitda"),
+                    "net_income":       _safe("netIncomeToCommon"),
+                    "eps_trailing":     _safe("trailingEps"),
+                    "eps_forward":      _safe("forwardEps"),
+                }
+
+        except ImportError:
+            result["error"] = "yfinance kurulu değil (pip install yfinance)."
+        except Exception as exc:
+            result["error"] = f"Veri alınamadı: {str(exc)[:200]}"
+
+        return result
+
+    # ─────────────────────────────────────────────────────────────────────
+    # 18.4 · Takvim sekmesi — sembol için tüm gelecek/geçmiş olaylar
+    # ─────────────────────────────────────────────────────────────────────
+    @app.get("/api/symbol/{symbol}/calendar", tags=["symbol360"])
+    def get_symbol_calendar(
+        symbol: str,
+        from_date: str | None = None,
+        to_date: str | None = None,
+        limit: int = 50,
+        user: dict = Depends(get_optional_user),
+    ) -> dict[str, Any]:
+        """
+        Sembol için takvim olayları: bilanço, temettü, GMYK, sermaye artırımı, ekonomik takvim.
+
+        Geçmiş ve gelecek olaylar ayrımı ile "tahmini" etiketi zorunludur.
+        """
+        import datetime as dt_cal
+        sym = symbol.strip().upper().replace(".IS", "")
+        plan = (user or {}).get("plan", "guest")
+        today = dt_cal.date.today().isoformat()
+
+        store = _get_event_store()
+        # Sembol olayları
+        events = store.query(symbol=sym, from_date=from_date, to_date=to_date, limit=limit)
+        # Ekonomik olaylar (global)
+        econ = store.query(event_types=["economic"], from_date=from_date or today, limit=20)
+
+        def _classify(ev: dict) -> str:
+            return "past" if ev["event_date"] < today else "upcoming"
+
+        result_events = []
+        for ev in events + econ:
+            ev["when"] = _classify(ev)
+            ev["confirmed_label"] = "kesin" if ev["is_confirmed"] else "tahmini"
+            result_events.append(ev)
+
+        # Tarihe göre sırala: yakın gelecek önce, sonra geçmiş
+        result_events.sort(key=lambda e: (e["event_date"], e.get("event_type", "")))
+
+        return {
+            "symbol":    sym,
+            "fetched_at": _utc_iso(),
+            "plan":      plan,
+            "count":     len(result_events),
+            "events":    result_events,
+            "note":      "Tarih kesin değilse 'tahmini' etiketi görünür. Geçmiş olaylar arşiv amaçlıdır.",
+            "disclaimer": "Bu takvim verileri bilgilendirme amaçlıdır; yatırım tavsiyesi değildir.",
+        }
+
+    # ─────────────────────────────────────────────────────────────────────
+    # 18.11 · Sağ yan panel — quick-view: izleme, alarm, haber, takvim
+    # ─────────────────────────────────────────────────────────────────────
+    @app.get("/api/quick-view", tags=["panel"])
+    def get_quick_view(
+        symbols: str = "",
+        user: dict = Depends(get_optional_user),
+    ) -> dict[str, Any]:
+        """
+        Sağ yan panel için özet veri:
+        - Son fiyatlar (izleme listesi)
+        - Yaklaşan olaylar (30 gün)
+        - Son haberler (5 adet)
+        - Veri kalitesi özeti
+
+        Kullanım: GET /api/quick-view?symbols=THYAO,GARAN,AKBNK
+        """
+        import datetime as dt_qv
+        plan = (user or {}).get("plan", "guest")
+        sym_list = [s.strip().upper() for s in symbols.split(",") if s.strip()] if symbols else []
+
+        # Son fiyatlar — cache'ten
+        quotes: list[dict] = []
+        for sym in sym_list[:20]:  # maksimum 20 sembol
+            bars = cache.get_window(sym, "1d", limit=2)
+            if bars:
+                last = bars[-1]
+                prev = bars[-2] if len(bars) >= 2 else None
+                chg = None
+                if prev and float(prev.get("close", 0)) > 0:
+                    chg = round((float(last["close"]) - float(prev["close"])) / float(prev["close"]) * 100, 2)
+                quotes.append({
+                    "symbol": sym,
+                    "close":  float(last.get("close", 0)),
+                    "change_pct": chg,
+                    "volume": float(last.get("volume", 0) or 0),
+                    "bar_time": last.get("time"),
+                })
+
+        # Yaklaşan olaylar
+        store = _get_event_store()
+        upcoming = store.upcoming(days=30, limit=15)
+
+        # Son haberler
+        news_limit = 5 if plan == "guest" else 10
+        latest_news: list[dict] = []
+        for sym in (sym_list[:3] if sym_list else []):
+            try:
+                from backend.news.news_fetcher import fetch_news_for_symbol
+                items = fetch_news_for_symbol(sym, limit=3)
+                for it in items[:2]:
+                    it["_for_symbol"] = sym
+                    latest_news.append(it)
+            except Exception:
+                pass
+        latest_news = latest_news[:news_limit]
+
+        return {
+            "fetched_at": _utc_iso(),
+            "plan":       plan,
+            "quotes":     quotes,
+            "upcoming_events": upcoming,
+            "latest_news": latest_news,
+            "disclaimer":  "Bu özet bilgilendirme amaçlıdır; yatırım tavsiyesi değildir.",
+        }
+
+    # ─────────────────────────────────────────────────────────────────────
+    # 18.13 · Monitoring — genişletilmiş sağlık metrikleri
+    # ─────────────────────────────────────────────────────────────────────
+    @app.get("/api/health/detailed", tags=["ops"])
+    def health_detailed(user: dict = Depends(get_current_user)) -> dict[str, Any]:
+        """
+        Üretim izleme için genişletilmiş sağlık metrikleri.
+
+        Yalnızca admin kullanıcılar görebilir; CI/Grafana scrape için de kullanılabilir.
+        """
+        import time as _time
+
+        if (user or {}).get("role") not in ("admin", "superadmin"):
+            raise HTTPException(status_code=403, detail="Admin yetkisi gereklidir.")
+
+        # Cache metrikleri
+        cache_stats = cache.stats()
+        cache_ok = cache_stats.get("rows", 0) > 0
+
+        # Worker durumları
+        worker_errors = {w["name"]: w.get("failures", 0) for w in supervisor.status().get("workers", [])}
+        high_failure_workers = [k for k, v in worker_errors.items() if v > 5]
+
+        # Event store
+        try:
+            store = _get_event_store()
+            event_count = store.count()
+            event_store_ok = True
+        except Exception:
+            event_count = 0
+            event_store_ok = False
+
+        return {
+            "fetched_at": _utc_iso(),
+            "overall_health": "degraded" if high_failure_workers else "ok",
+            "cache": {
+                "rows": cache_stats.get("rows", 0),
+                "symbols": cache_stats.get("distinct_symbols", 0),
+                "healthy": cache_ok,
+                "alert": "cache boş veya stale" if not cache_ok else None,
+            },
+            "workers": {
+                "all":   [w["name"] for w in supervisor.status().get("workers", [])],
+                "high_failure": high_failure_workers,
+                "alert": f"Worker hatalar yüksek: {high_failure_workers}" if high_failure_workers else None,
+            },
+            "event_store": {
+                "total_events": event_count,
+                "healthy": event_store_ok,
+                "alert": "Event store erişilemiyor" if not event_store_ok else None,
+            },
+            "alerts": [
+                alert for alert in [
+                    "cache boş" if not cache_ok else None,
+                    f"Worker hata: {high_failure_workers}" if high_failure_workers else None,
+                    "Event store erişilemiyor" if not event_store_ok else None,
+                ]
+                if alert
+            ],
+            "monitoring_note": (
+                "Bu endpoint Prometheus/Grafana veya cron alarm için tasarlanmıştır. "
+                "alerts[] doluysa PagerDuty/Telegram alarm tetiklenmelidir."
+            ),
         }
 
     # ── Statik dosyalar (SPA / index.html) ───────────────────────────────
     # Mount en sona; daha spesifik /api/* route'larını gölgelemesin diye.
-    if (ROOT / "index.html").exists():
+    # Önce ROOT/index.html'e bak, yoksa frontend/dist/index.html'e düş.
+    _spa_root = ROOT / "index.html"
+    _spa_dist = ROOT / "frontend" / "dist"
+    if _spa_root.exists():
         @app.get("/")
         def root_index() -> FileResponse:
             return FileResponse(ROOT / "index.html")
+    elif (_spa_dist / "index.html").exists():
+        # Vite build çıktısı frontend/dist altında
+        app.mount("/assets", StaticFiles(directory=_spa_dist / "assets"), name="spa_assets")
+
+        @app.get("/")
+        def root_index() -> FileResponse:
+            return FileResponse(_spa_dist / "index.html")
+
+        @app.get("/{full_path:path}")
+        def spa_fallback(full_path: str) -> FileResponse:
+            """SPA client-side routing — bilinmeyen path'leri index.html'e yönlendir."""
+            if full_path.startswith("api/") or full_path.startswith("ws/"):
+                from fastapi import HTTPException
+                raise HTTPException(status_code=404)
+            return FileResponse(_spa_dist / "index.html")
 
     # Statik dizinler (varsa)
     static_dir = ROOT / "data"

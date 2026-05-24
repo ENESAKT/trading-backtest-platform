@@ -24,11 +24,21 @@ export function pageShell(title: string, body: string, active = ''): string {
       </header>
       <main class="public-main" aria-label="${escapeHtml(title)}">${body}</main>
       <footer class="public-footer">
-        <a href="/legal/terms">${i18n.t('LEGAL_TERMS')}</a>
-        <a href="/legal/privacy">${i18n.t('LEGAL_PRIVACY')}</a>
-        <a href="/legal/cookies">${i18n.t('LEGAL_COOKIES')}</a>
-        <a href="/legal/info">${i18n.t('LEGAL_INFO')}</a>
+        <div class="footer-legal-links">
+          <a href="/legal/terms">${i18n.t('LEGAL_TERMS')}</a>
+          <a href="/legal/privacy">${i18n.t('LEGAL_PRIVACY')}</a>
+          <a href="/legal/cookies">${i18n.t('LEGAL_COOKIES')}</a>
+          <a href="/legal/info">${i18n.t('LEGAL_INFO')}</a>
+        </div>
         <p class="risk-disclaimer">${i18n.t('PUBLIC_RISK_DISCLAIMER')}</p>
+        <!-- TTK m.39/2 + TKHK m.48 — İşletmeci bilgileri canlı yayın öncesinde doldurulmalıdır -->
+        <p class="footer-company-info">
+          PiyasaPilot &mdash;
+          <span id="footer-company-name">[İşletmeci/Şirket Adı]</span> &middot;
+          <span id="footer-company-address">[Adres]</span> &middot;
+          <span id="footer-company-tax">[Vergi Dairesi / VKN veya TC Kimlik No]</span> &middot;
+          <a href="mailto:destek@piyasapilot.com">destek@piyasapilot.com</a>
+        </p>
       </footer>
     </div>`;
 }

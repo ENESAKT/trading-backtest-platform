@@ -13,7 +13,7 @@ STALE_SECONDS = 90
 
 
 def utc_iso() -> str:
-    return dt.datetime.now(dt.UTC).replace(microsecond=0).isoformat()
+    return dt.datetime.now(dt.timezone.utc).replace(microsecond=0).isoformat()
 
 
 def write_listener_status(status: dict[str, Any]) -> None:
@@ -44,8 +44,8 @@ def read_listener_status() -> dict[str, Any]:
         try:
             ts = dt.datetime.fromisoformat(updated_at)
             if ts.tzinfo is None:
-                ts = ts.replace(tzinfo=dt.UTC)
-            age = (dt.datetime.now(dt.UTC) - ts.astimezone(dt.UTC)).total_seconds()
+                ts = ts.replace(tzinfo=dt.timezone.utc)
+            age = (dt.datetime.now(dt.timezone.utc) - ts.astimezone(dt.timezone.utc)).total_seconds()
             if age > STALE_SECONDS:
                 active = False
         except Exception:  # noqa: BLE001

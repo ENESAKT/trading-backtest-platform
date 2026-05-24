@@ -20,6 +20,12 @@ import redis
 
 _logger = logging.getLogger(__name__)
 
+# Depolama katmanı politikası — yanlış kullanım RuntimeError fırlatır
+try:
+    from backend.data.storage_layer_guard import StorageLayerGuard as _Guard
+except ImportError:
+    _Guard = None  # type: ignore[assignment]
+
 
 @dataclass(frozen=True)
 class CandleReadResult:
@@ -159,6 +165,9 @@ class MarketDataFacade:
     ) -> None:
         if not bars:
             return
+        # ── Katman politikası: OHLCV sadece ClickHouse'a gider ──────────────
+        if _Guard:
+            _Guard.assert_clickhouse("ohlcv_write", f"write_candles:{symbol}/{interval}")
         canonical = symbol.strip().upper()
         self.write_redis(canonical, interval, limit, bars)
         market, instrument_type = _market_for_symbol(canonical)
@@ -221,6 +230,9 @@ class MarketDataFacade:
         bars: list[dict[str, Any]],
         ttl_seconds: int = 60,
     ) -> None:
+        # ── Katman politikası: Redis sadece TTL'li hot cache olarak kullanılır ─
+        if _Guard:
+            _Guard.assert_redis("hot_cache_write", f"write_redis:{symbol}/{interval}")
         try:
             self._redis_client().set(
                 self._cache_key(symbol, interval, max(1, min(int(limit or 500), 5000))),

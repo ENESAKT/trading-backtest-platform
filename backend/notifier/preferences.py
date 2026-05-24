@@ -160,7 +160,7 @@ def read_preferences() -> dict[str, Any]:
 def write_preferences(raw: dict[str, Any]) -> dict[str, Any]:
     prefs = normalize_preferences(raw)
     if prefs["consent_accepted"] and not prefs["consent_accepted_at"]:
-        prefs["consent_accepted_at"] = dt.datetime.now(dt.UTC).replace(microsecond=0).isoformat()
+        prefs["consent_accepted_at"] = dt.datetime.now(dt.timezone.utc).replace(microsecond=0).isoformat()
     if prefs["consent_accepted"] and not prefs["consent_version"]:
         prefs["consent_version"] = "2026-05-23"
     PREFERENCES_PATH.parent.mkdir(parents=True, exist_ok=True)

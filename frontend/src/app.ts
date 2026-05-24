@@ -2,6 +2,7 @@ import type { Timeframe, DataUpdateEvent, PriceUpdateEvent, SymbolInfo } from '.
 import type { LayoutMode } from './components/MultiChartLayout.js';
 import type { MaliAnalizPanel as MaliAnalizPanelInstance } from './components/MaliAnalizPanel.js';
 import type { NewsPanel as NewsPanelInstance } from './components/NewsPanel.js';
+import { CommandPalette } from './components/CommandPalette.js';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import '../style.css';
 import { mountCookieBanner } from './components/CookieBanner.js';
@@ -10,11 +11,15 @@ import { analytics } from './core/Analytics.js';
 import { i18n } from './i18n/index.js';
 import { auth } from './auth/AuthManager.js';
 import { planGate, type Feature } from './auth/PlanGate.js';
+import { preloadSymbolUniverse } from './core/SymbolUniverse.js';
 // Error monitoring removed
 
 i18n.init();
 installErrorBoundary();
 mountCookieBanner();
+
+// Sembol evrenini arka planda önceden yükle (TTL: 5 dk, hata varsa statik fallback)
+void preloadSymbolUniverse();
 const publicPath = window.location.pathname.replace(/\/+$/, '') || '/';
 analytics.track('page_view', { path: publicPath });
 
@@ -206,8 +211,8 @@ const tabBtns      = document.querySelectorAll<HTMLElement>('[data-tab]');
 const LS_LAST_TAB  = 'piyasapilot_last_tab';
 const LS_THEME     = 'piyasapilot_theme';
 const LS_ACCENT    = 'piyasapilot_accent';
-type AppTab = 'chart' | 'portfolio' | 'strategy' | 'screener' | 'signals' | 'education' | 'financials' | 'news';
-const TABS: AppTab[] = ['chart', 'portfolio', 'strategy', 'screener', 'signals', 'education', 'financials', 'news'];
+type AppTab = 'chart' | 'portfolio' | 'strategy' | 'screener' | 'signals' | 'education' | 'financials' | 'news' | 'market';
+const TABS: AppTab[] = ['chart', 'portfolio', 'strategy', 'screener', 'signals', 'education', 'financials', 'news', 'market'];
 type RequiredTier = 'free' | 'pro' | 'ultra';
 interface TabGate {
   feature: Feature;
@@ -273,6 +278,7 @@ function buildShortcutOverlay(): void {
           <div class="shortcut-row"><kbd>6</kbd><span>Eğitim</span></div>
           <div class="shortcut-row"><kbd>7</kbd><span>Finansallar</span></div>
           <div class="shortcut-row"><kbd>8</kbd><span>Haberler</span></div>
+          <div class="shortcut-row"><kbd>9</kbd><span>Piyasa</span></div>
         </div>
         <div class="shortcut-section">
           <h4>Grafik</h4>
@@ -283,6 +289,7 @@ function buildShortcutOverlay(): void {
         </div>
         <div class="shortcut-section">
           <h4>Genel</h4>
+          <div class="shortcut-row"><kbd>⌘K</kbd><span>Komut paleti / Sembol arama</span></div>
           <div class="shortcut-row"><kbd>?</kbd><span>Bu pencereyi aç / kapat</span></div>
           <div class="shortcut-row"><kbd>Esc</kbd><span>Kapat / İptal</span></div>
         </div>
@@ -500,6 +507,7 @@ const signalsEl   = createPanel('panel-signals');
 const educationEl = createPanel('panel-education');
 const financialsEl= createPanel('panel-financials');
 const newsEl      = createPanel('panel-news');
+const marketEl    = createPanel('panel-market');
 
 // Inject Financials tab button if not exists
 let financialsBtn = document.querySelector('[data-tab="financials"]');
@@ -527,6 +535,19 @@ if (!document.querySelector('[data-tab="news"]')) {
     btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 20H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h10l6 6v8a2 2 0 0 1-2 2z"/><polyline points="17 1 17 7 23 7"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg><span>Haberler</span><span class="shortcut">8</span><span class="tab-news-badge" id="tab-news-badge" hidden></span>`;
     tabsContainer.appendChild(btn);
     btn.addEventListener('click', () => showTab('news'));
+  }
+}
+
+// Inject Market Overview tab button if not exists
+if (!document.querySelector('[data-tab="market"]')) {
+  const tabsContainer = document.querySelector('.topbar-tabs');
+  if (tabsContainer) {
+    const btn = document.createElement('button');
+    btn.dataset.tab = 'market';
+    btn.className = 'tab-btn';
+    btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg><span>Piyasa</span><span class="shortcut">9</span>`;
+    tabsContainer.appendChild(btn);
+    btn.addEventListener('click', () => showTab('market'));
   }
 }
 
@@ -582,6 +603,14 @@ function getNewsPanel(): NewsPanelInstance {
   }
   return newsPanelInstance;
 }
+// MarketOverviewPanel — lazy-loaded on first tab visit
+let _marketOverviewPanel: { destroy?: () => void } | null = null;
+function getMarketOverviewPanel(): void {
+  if (_marketOverviewPanel) return;
+  void import('./components/MarketOverviewPanel.js').then(({ MarketOverviewPanel }) => {
+    _marketOverviewPanel = new MarketOverviewPanel(marketEl);
+  });
+}
 // Screener is self-contained; reference kept to prevent GC
 const _screener = new Screener(screenerEl, () => dataEngine.getAllCached());
 void _screener;
@@ -597,6 +626,7 @@ async function openSymbol(info: SymbolInfo): Promise<void> {
   await multiChart.setActivePaneSymbol(info);
   await dataEngine.setActiveSymbol(info);
   syncUrlState();
+  CommandPalette.addRecent(info.symbol);
   // Mali Analiz senkronizasyonu — loadData non-BIST sembolleri zaten yoksayar
   if (maliAnalizPanel) maliAnalizPanel.loadData(info.symbol);
 }
@@ -624,6 +654,26 @@ async function warmFavoriteTickers(skipSymbol?: string): Promise<void> {
     }
   }
 }
+
+// ─── Command Palette ─────────────────────────────────────────────────────────
+
+const commandPalette = new CommandPalette();
+commandPalette.setCommands([
+  { id: 'tab:chart',      label: 'Grafik',       sublabel: 'Fiyat grafiğine git',          icon: '📈', action: () => showTab('chart') },
+  { id: 'tab:portfolio',  label: 'Portföy',      sublabel: 'Sanal portföy',                icon: '💼', action: () => showTab('portfolio') },
+  { id: 'tab:strategy',   label: 'Strateji',     sublabel: 'Backtest ve strateji',         icon: '🧪', action: () => showTab('strategy') },
+  { id: 'tab:screener',   label: 'Tarama',       sublabel: 'Piyasa tarayıcı',             icon: '🔍', action: () => showTab('screener') },
+  { id: 'tab:signals',    label: 'Sinyaller',    sublabel: 'Canlı sinyal akışı',          icon: '📡', action: () => showTab('signals') },
+  { id: 'tab:education',  label: 'Eğitim',       sublabel: 'Eğitim içerikleri',           icon: '🎓', action: () => showTab('education') },
+  { id: 'tab:financials', label: 'Finansallar',  sublabel: 'Bilanço ve finansal analiz',  icon: '💰', action: () => showTab('financials') },
+  { id: 'tab:news',       label: 'Haberler',     sublabel: 'Piyasa haberleri',            icon: '📰', action: () => showTab('news') },
+  { id: 'tab:market',     label: 'Piyasa',       sublabel: 'Genel piyasa görünümü',       icon: '🌍', action: () => showTab('market') },
+  { id: 'action:shortcuts', label: 'Klavye Kısayolları', sublabel: 'Tüm kısayolları gör', icon: '⌨️', action: () => toggleShortcutOverlay(true) },
+]);
+commandPalette.onSymbolSelect(async (info) => {
+  showTab('chart');
+  await openSymbol(info);
+});
 
 // ─── Tab routing ──────────────────────────────────────────────────────────────
 
@@ -663,6 +713,8 @@ function showTab(tab: string, persist = true, sync = true): void {
   educationEl.style.display = nextTab === 'education' ? 'flex' : 'none';
   financialsEl.style.display= nextTab === 'financials'? 'flex' : 'none';
   newsEl.style.display      = nextTab === 'news'       ? 'flex' : 'none';
+  marketEl.style.display   = nextTab === 'market'     ? 'flex' : 'none';
+  if (nextTab === 'market') getMarketOverviewPanel();
   if (nextTab === 'financials') {
     const panel = getMaliAnalizPanel();
     const activeSym = multiChart.getActivePaneSymbol()?.symbol;
@@ -715,6 +767,7 @@ document.addEventListener('keydown', (e) => {
     case '6': showTab('education'); break;
     case '7': showTab('financials'); break;
     case '8': showTab('news');       break;
+    case '9': showTab('market');     break;
     case '?': toggleShortcutOverlay(); break;
     case 'Escape': toggleShortcutOverlay(false); break;
     case 'g':

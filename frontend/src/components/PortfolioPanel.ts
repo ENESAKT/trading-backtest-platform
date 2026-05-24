@@ -35,6 +35,20 @@ interface EquityPoint {
   positions_value: number;
 }
 
+interface MtmPosition {
+  strategy_id: string;
+  symbol: string;
+  trade_id: number;
+  entry_price: number;
+  current_price: number;
+  quantity: number;
+  position_value: number;
+  cost_basis: number;
+  unrealized_pnl: number;
+  unrealized_pnl_pct: number;
+  opened_at: string;
+}
+
 // ─── PortfolioPanel v2 ────────────────────────────────────────────────────────
 
 export class PortfolioPanel {
@@ -42,6 +56,8 @@ export class PortfolioPanel {
   private pollTimer: ReturnType<typeof setInterval> | null = null;
   private wallets: PaperWallet[] = [];
   private trades: PaperTrade[] = [];
+  private mtmPositions: MtmPosition[] = [];
+  private mtmTotal = 0;
   private equityChart: Chart | null = null;
   private drawdownChart: Chart | null = null;
   private selectedStrategy = '';
@@ -71,9 +87,15 @@ export class PortfolioPanel {
 
   private async fetchAndRender(): Promise<void> {
     try {
-      const [walletsRes, tradesRes] = await Promise.all([
+      const sid = this.selectedStrategy;
+      const mtmUrl = sid
+        ? `/api/paper/mtm?strategy_id=${encodeURIComponent(sid)}`
+        : '/api/paper/mtm';
+
+      const [walletsRes, tradesRes, mtmRes] = await Promise.all([
         fetch('/api/paper/wallets'),
         fetch('/api/paper/trades?limit=100'),
+        fetch(mtmUrl),
       ]);
       if (walletsRes.ok) {
         const data = await walletsRes.json() as { wallets: PaperWallet[] };
@@ -83,15 +105,24 @@ export class PortfolioPanel {
         const data = await tradesRes.json() as { trades: PaperTrade[] };
         this.trades = data.trades ?? [];
       }
+      if (mtmRes.ok) {
+        const data = await mtmRes.json() as {
+          positions: MtmPosition[];
+          total_unrealized_pnl: number;
+        };
+        this.mtmPositions = data.positions ?? [];
+        this.mtmTotal = data.total_unrealized_pnl ?? 0;
+      }
 
       this.renderWallets();
       this.renderMetrics();
+      this.renderPositions();
       this.renderTrades();
 
       // Equity curve varsa seçili strateji için yükle
       if (this.selectedStrategy || this.wallets.length > 0) {
-        const sid = this.selectedStrategy || this.wallets[0]?.strategy_id || '';
-        if (sid) await this.fetchEquityCurve(sid);
+        const stratSid = this.selectedStrategy || this.wallets[0]?.strategy_id || '';
+        if (stratSid) await this.fetchEquityCurve(stratSid);
       }
     } catch {
       // ağ hatası — sessizce geç
@@ -196,6 +227,12 @@ export class PortfolioPanel {
           </div>
         </div>
 
+        <!-- Open Positions (MTM) -->
+        <div class="paper-section">
+          <h2 class="paper-title">Açık Pozisyonlar <span id="mtm-total-badge" style="font-size:12px;font-weight:400;margin-left:8px"></span></h2>
+          <div id="paper-positions"></div>
+        </div>
+
         <!-- Trade History -->
         <div class="paper-section">
           <div class="panel-title-row">
@@ -210,6 +247,7 @@ export class PortfolioPanel {
 
     this.renderWallets();
     this.renderMetrics();
+    this.renderPositions();
     this.renderTrades();
 
     const exportBtn = this.container.querySelector<HTMLButtonElement>('#export-trades-btn');
@@ -417,6 +455,65 @@ export class PortfolioPanel {
         });
       }
     }
+  }
+
+  // ─── Açık Pozisyonlar (MTM) ─────────────────────────────────────────────
+
+  private renderPositions(): void {
+    const el = this.container.querySelector('#paper-positions');
+    const badge = this.container.querySelector('#mtm-total-badge');
+
+    if (badge) {
+      if (this.mtmPositions.length > 0) {
+        const cls = this.mtmTotal >= 0 ? 'pos' : 'neg';
+        badge.innerHTML = `<span class="${cls}">${this.mtmTotal >= 0 ? '+' : ''}${formatNumber(this.mtmTotal, 2)} TL (gerçekleşmemiş)</span>`;
+      } else {
+        badge.textContent = '';
+      }
+    }
+
+    if (!el) return;
+    if (this.mtmPositions.length === 0) {
+      el.innerHTML = '<div class="empty-state" style="padding:12px;font-size:12px">Açık pozisyon yok.</div>';
+      return;
+    }
+
+    el.innerHTML = `
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th style="text-align:left">Strateji</th>
+            <th style="text-align:left">Sembol</th>
+            <th>Giriş Fiyatı</th>
+            <th>Güncel Fiyat</th>
+            <th>Miktar</th>
+            <th>Poz. Değer</th>
+            <th>Gerçekleşmemiş K/Z</th>
+            <th>K/Z %</th>
+            <th>Açılış</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${this.mtmPositions.map(p => {
+            const pnlCls = p.unrealized_pnl >= 0 ? 'pos' : 'neg';
+            const pctStr = (p.unrealized_pnl_pct >= 0 ? '+' : '') + formatNumber(p.unrealized_pnl_pct, 2) + '%';
+            const pnlStr = (p.unrealized_pnl >= 0 ? '+' : '') + formatNumber(p.unrealized_pnl, 2);
+            const openedTs = Math.floor(new Date(p.opened_at).getTime() / 1000);
+            return `
+              <tr>
+                <td style="text-align:left;font-size:10px;color:var(--text-dim)">${p.strategy_id}</td>
+                <td style="text-align:left;font-weight:600;color:var(--text-bold)">${p.symbol}</td>
+                <td>${formatNumber(p.entry_price, 4)}</td>
+                <td>${formatNumber(p.current_price, 4)}</td>
+                <td>${formatNumber(p.quantity, 4)}</td>
+                <td>${formatNumber(p.position_value, 2)}</td>
+                <td class="${pnlCls}">${pnlStr}</td>
+                <td class="${pnlCls}">${pctStr}</td>
+                <td style="font-size:11px">${formatDateTime(openedTs)}</td>
+              </tr>`;
+          }).join('')}
+        </tbody>
+      </table>`;
   }
 
   // ─── Trade History ──────────────────────────────────────────────────────

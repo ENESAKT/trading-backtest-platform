@@ -92,7 +92,7 @@ class SignalBus:
             "reason": reason,
             "strength": int(strength),
             "interval": interval,
-            "ts": dt.datetime.now(dt.UTC).replace(microsecond=0).isoformat(),
+            "ts": dt.datetime.now(dt.timezone.utc).replace(microsecond=0).isoformat(),
         }
         if metadata:
             message["metadata"] = metadata

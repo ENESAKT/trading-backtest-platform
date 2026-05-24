@@ -72,7 +72,7 @@ def _lifecycle_allowed(
     guard_path: Any | None = None,
 ) -> bool:
     """Aynı yaşam döngüsü bildirimini kısa sürede tekrar gönderme."""
-    current = now or dt.datetime.now(dt.UTC)
+    current = now or dt.datetime.now(dt.timezone.utc)
     path = guard_path or _LIFECYCLE_GUARD_PATH
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -85,8 +85,8 @@ def _lifecycle_allowed(
         try:
             last = dt.datetime.fromisoformat(last_raw)
             if last.tzinfo is None:
-                last = last.replace(tzinfo=dt.UTC)
-            age = (current - last.astimezone(dt.UTC)).total_seconds()
+                last = last.replace(tzinfo=dt.timezone.utc)
+            age = (current - last.astimezone(dt.timezone.utc)).total_seconds()
             if age < _LIFECYCLE_COOLDOWN_SECONDS:
                 return False
         except Exception:  # noqa: BLE001
@@ -122,7 +122,7 @@ def _in_quiet_hours(quiet_hours: str, now: dt.datetime | None = None) -> bool:
 def _cooldown_allowed(key: str, minutes: int) -> bool:
     if minutes <= 0:
         return True
-    now = dt.datetime.now(dt.UTC)
+    now = dt.datetime.now(dt.timezone.utc)
     try:
         _SIGNAL_COOLDOWN_PATH.parent.mkdir(parents=True, exist_ok=True)
         data = (
@@ -138,8 +138,8 @@ def _cooldown_allowed(key: str, minutes: int) -> bool:
         try:
             last = dt.datetime.fromisoformat(last_raw)
             if last.tzinfo is None:
-                last = last.replace(tzinfo=dt.UTC)
-            age = (now - last.astimezone(dt.UTC)).total_seconds()
+                last = last.replace(tzinfo=dt.timezone.utc)
+            age = (now - last.astimezone(dt.timezone.utc)).total_seconds()
             if age < minutes * 60:
                 return False
         except Exception:

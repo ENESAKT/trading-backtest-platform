@@ -19,6 +19,7 @@ import {
   formatPct,
 } from '../constants/tr.js';
 import { ALL_SYMBOLS, DEFAULT_SYMBOL, resolveSymbol } from '../constants/symbols.js';
+import { tfOptions, STRATEGY_BATCH_INTERVALS, VALID_INTERVALS } from '../constants/timeframes.js';
 
 const BACKTEST_RUN_ENDPOINT = '/api/backtest/run';
 const BACKTEST_STRATEGIES_ENDPOINT = '/api/backtest/strategies';
@@ -378,9 +379,7 @@ export class StrategyPanel {
         <div class="strategy-controls">
           <label>Sembol<input id="bt-symbol" type="text" readonly></label>
           <label>Periyot<select id="bt-interval">
-            ${['1m', '5m', '15m', '30m', '1h', '4h', '1d', '1w'].map(tf =>
-              `<option value="${tf}">${tf}</option>`
-            ).join('')}
+            ${tfOptions(undefined, VALID_INTERVALS.filter(tf => tf !== '1mo'))}
           </select></label>
           <label>Başlangıç<input id="bt-start" type="date"></label>
           <label>Bitiş<input id="bt-end" type="date"></label>
@@ -470,7 +469,7 @@ export class StrategyPanel {
                 <option value="custom">Özel liste</option>
               </select></label>
               <label>Periyot<select id="batch-interval">
-                ${['1d','1w','4h','1h','15m'].map(tf => `<option value="${tf}">${tf}</option>`).join('')}
+                ${tfOptions('1d', STRATEGY_BATCH_INTERVALS)}
               </select></label>
               <label>Özel<input id="batch-custom" type="text" placeholder="GARAN.IS,THYAO.IS" title="Özel sembol listesi (virgülle ayrılmış)"></label>
               <label>Sırala<select id="batch-sort">

@@ -581,7 +581,8 @@ Bu işler tamamen kod düzeyinde; sen onay verirsen Claude doğrudan uygular.
 
 #### M. TTK ve Şirket Bilgileri Zorunluluğu — 6102 Sayılı TTK
 
-- [ ] **Website footer ve iletişim sayfasına TTK uyumlu şirket bilgileri eklenmeli:** Ticaret unvanı, adres, MERSİS numarası (şirket ise), vergi dairesi ve numarası.
+- [x] **Website footer'a TTK uyumlu şirket bilgisi yapısı eklendi** — ticaret unvanı, adres, vergi/TC kimlik placeholder içeren `footer-company-info` bölümü `pageUtils.ts` footer'ına eklendi. *(2026-05-23)*  
+  ⚠️ `[İşletmeci/Şirket Adı]`, `[Adres]`, `[Vergi Dairesi / VKN]` alanları canlı yayın öncesinde gerçek bilgilerle doldurulmalıdır.  
   **Hukuki dayanak:** TTK m.39/2 — Ticaret şirketlerinin ticaret unvanlarını içeren bilgilerini işyerinde ve yazışmalarında bulundurma zorunluluğu. TKHK m.48 — Mesafeli satış yapan hizmet sağlayıcılar kimlik bilgilerini belirtmek zorunda.
 
 ---

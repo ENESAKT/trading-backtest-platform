@@ -37,7 +37,7 @@ def _timestamp_seconds(value: Any) -> int:
             return _timestamp_seconds(int(text))
         parsed = dt.datetime.fromisoformat(text.replace("Z", "+00:00"))
         if parsed.tzinfo is None:
-            parsed = parsed.replace(tzinfo=dt.UTC)
+            parsed = parsed.replace(tzinfo=dt.timezone.utc)
         return int(parsed.timestamp())
     raise ValueError(f"Geçersiz timestamp: {value!r}")
 

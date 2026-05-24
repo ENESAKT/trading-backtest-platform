@@ -25,6 +25,7 @@ import math
 from dataclasses import asdict
 from typing import Any
 
+import numpy as np
 import pandas as pd
 
 from backend.backtest import blueprints as _blueprints  # noqa: F401  (registry trigger)
@@ -41,6 +42,14 @@ from quant_engine.strategy.spec import FormulaError, StrategySpecSignal, validat
 
 MIN_BARS = 50
 DEFAULT_SOURCE_MODE = "cache_only"
+
+# ── Genişletilmiş modüller ────────────────────────────────────────────────────
+try:
+    from backend.backtest.risk_metrics import compute_extended_metrics, wfa_overfit_analysis
+    from backend.backtest.corporate_action import corporate_action_checker
+    _EXTENDED_MODULES = True
+except ImportError:  # pragma: no cover
+    _EXTENDED_MODULES = False
 
 
 class BacktestRunError(Exception):
@@ -322,6 +331,52 @@ def _benchmark_return_pct(df: pd.DataFrame) -> float:
     return (last / first - 1) * 100
 
 
+def _sortino_ratio(trades: list[Any], capital: float, risk_free: float = 0.0) -> float:
+    """Downside deviation kullanarak Sortino oranı hesapla."""
+    if not trades or capital <= 0:
+        return 0.0
+    returns = [float(t.net_pnl) / capital for t in trades]
+    mean_return = np.mean(returns)
+    downside = [r for r in returns if r < risk_free]
+    if not downside:
+        return float("inf") if mean_return > risk_free else 0.0
+    downside_std = float(np.std(downside, ddof=1))
+    if downside_std == 0:
+        return 0.0
+    return float((mean_return - risk_free) / downside_std)
+
+
+def _calmar_ratio(annualized_return_pct: float, max_drawdown_pct: float) -> float:
+    """Calmar oranı: yıllıklaştırılmış getiri / maksimum çöküş."""
+    if max_drawdown_pct <= 0:
+        return 0.0
+    return abs(annualized_return_pct / max_drawdown_pct)
+
+
+def _var_cvar(trades: list[Any], capital: float, confidence: float = 0.95) -> dict[str, float]:
+    """Geçmiş simülasyona dayalı VaR ve CVaR (%95)."""
+    if len(trades) < 5 or capital <= 0:
+        return {"var_95_pct": 0.0, "cvar_95_pct": 0.0}
+    returns = sorted([float(t.net_pnl) / capital * 100 for t in trades])
+    cutoff_idx = max(0, int(len(returns) * (1 - confidence)) - 1)
+    var_95 = abs(returns[cutoff_idx])
+    tail = [r for r in returns if r <= returns[cutoff_idx]]
+    cvar_95 = abs(float(np.mean(tail))) if tail else var_95
+    return {"var_95_pct": round(var_95, 4), "cvar_95_pct": round(cvar_95, 4)}
+
+
+def _expectancy(trades: list[Any], capital: float) -> float:
+    """Beklenti (Expectancy): ortalama beklenen kazanç/kayıp per işlem."""
+    if not trades or capital <= 0:
+        return 0.0
+    winners = [t for t in trades if float(t.net_pnl) > 0]
+    losers = [t for t in trades if float(t.net_pnl) <= 0]
+    win_rate = len(winners) / len(trades)
+    avg_win = sum(float(t.net_pnl) for t in winners) / len(winners) if winners else 0.0
+    avg_loss = sum(abs(float(t.net_pnl)) for t in losers) / len(losers) if losers else 0.0
+    return float(win_rate * avg_win - (1 - win_rate) * avg_loss)
+
+
 def _make_engine_config(
     *,
     capital: float,
@@ -499,7 +554,7 @@ def _paper_operation_payload(
     }
 
 
-def _lifecycle_payload(payload: dict[str, Any]) -> dict[str, Any]:
+def _lifecycle_payload(payload: dict[str, Any], df: "pd.DataFrame | None" = None) -> dict[str, Any]:
     wfa = payload.get("walk_forward_report") or {}
     mc = payload.get("monte_carlo_report") or {}
     data_source = payload.get("data_source") or {}
@@ -510,13 +565,21 @@ def _lifecycle_payload(payload: dict[str, Any]) -> dict[str, Any]:
         state = "wfa_passed"
     if wfa.get("passed") and float(mc.get("probability_of_loss", 1.0)) < 0.5:
         state = "monte_carlo_passed"
+
+    # Gerçek ortalama hacim: df varsa son 30 bardan hesapla; yoksa None geç.
+    # None geldiğinde generate_risk_cards "Kapasite Bilgisi Eksik" uyarı kartı üretir.
+    if df is not None and "volume" in df.columns and len(df) > 0:
+        avg_volume: float | None = float(df["volume"].tail(30).mean())
+    else:
+        avg_volume = None
+
     risk_cards = generate_risk_cards(
         {
             "data_gap_pct": max(0.0, 100.0 - float(data_source.get("data_coverage_pct", 100.0))),
             "bar_count": int(data_source.get("bar_count", 0)),
             "param_count": len(payload.get("params") or {}),
             "wfa_passed": bool(wfa.get("passed")),
-            "avg_volume": 1_000_000,
+            "avg_volume": avg_volume,
             "has_slippage_assumptions": float(assumptions.get("slippage_bps", 0) or 0) > 0,
             "market": "BIST" if str(payload.get("symbol", "")).endswith(".IS") else "OTHER",
             "allows_short": bool(assumptions.get("allow_short")),
@@ -562,7 +625,7 @@ def _report_payload(
     )
     return {
         "title": f"{strategy_name} · {symbol} · {interval}",
-        "generated_at": dt.datetime.now(dt.UTC).replace(microsecond=0).isoformat(),
+        "generated_at": dt.datetime.now(dt.timezone.utc).replace(microsecond=0).isoformat(),
         "symbol": symbol,
         "interval": interval,
         "last_price": float(df.iloc[-1]["close"]) if not df.empty else 0.0,
@@ -579,6 +642,7 @@ def _report_payload(
             "yaklaşık sonuç budur; gelecek kazancı garanti etmez."
         ),
         "metrics": {
+            # ── Temel Metrikler ───────────────────────────────────────────────
             "initial_capital": float(capital),
             "final_equity": float(result.final_equity),
             "net_pnl": net_pnl,
@@ -588,15 +652,32 @@ def _report_payload(
             "total_trades": int(result.total_trades),
             "total_commission": float(result.total_commission),
             "total_slippage": total_slippage,
+            "benchmark_return_pct": _benchmark_return_pct(df),
+            "has_open_position": bool(result.has_open_position),
+            # ── Risk-Düzeltilmiş Oranlar ──────────────────────────────────────
             "sharpe_ratio": float(result.sharpe_ratio),
+            "sortino_ratio": _sortino_ratio(trades, capital),
+            "calmar_ratio": _calmar_ratio(
+                _annualized_return_pct(result.final_equity, capital, df),
+                float(result.max_drawdown_pct),
+            ),
+            # ── Kazanç/Kayıp Analizi ─────────────────────────────────────────
             "win_rate": float(result.win_rate),
             "profit_factor": _profit_factor(trades),
+            "expectancy": _expectancy(trades, capital),
             "best_trade": best,
             "worst_trade": worst,
             "avg_win": sum(winners) / len(winners) if winners else 0.0,
             "avg_loss": sum(losers) / len(losers) if losers else 0.0,
-            "benchmark_return_pct": _benchmark_return_pct(df),
-            "has_open_position": bool(result.has_open_position),
+            "avg_win_loss_ratio": (
+                (sum(winners) / len(winners)) / abs(sum(losers) / len(losers))
+                if winners and losers and sum(losers) != 0
+                else 0.0
+            ),
+            # ── Kuyruk Riski (VaR / CVaR) ────────────────────────────────────
+            **_var_cvar(trades, capital),
+            # ── İstatistiksel Yeterlilik Uyarısı ─────────────────────────────
+            "statistically_weak": int(result.total_trades) < 30,
         },
         "assumptions": assumptions,
         "quality_score": getattr(result, "quality_score", 100),
@@ -612,6 +693,44 @@ def _report_payload(
         "trades": _trades_payload(result.trades),
         "signals": _signals_payload(result.fills, result.trades, result.equity_curve),
     }
+
+    # ── Genişletilmiş metrikler (risk + corporate action) ────────────────────
+    if _EXTENDED_MODULES:
+        try:
+            eq_vals = [
+                float(p.get("equity", p.get("total_equity", 0)))
+                for p in report.get("equity_curve", [])
+            ]
+            trades_list = list(result.trades)
+            wfa_rep: dict[str, Any] = report.get("walk_forward_report") or {}
+            ext = compute_extended_metrics(
+                trades=trades_list,
+                equity_curve=eq_vals,
+                capital=float(capital),
+                total_bars=len(df),
+                avg_daily_volume_tl=None,  # gerçek hacim verisi yoksa None → capacity unavailable
+                wfa_report=wfa_rep,
+            )
+            report["extended_metrics"] = ext
+            # WFA overfit uyarılarını ana warnings listesine ekle
+            for w in ext.get("wfa_overfit", {}).get("warnings", []):
+                report["warnings"].append({"code": "WFA_OVERFIT", "severity": "high", "message": w})
+        except Exception:
+            pass  # genişletilmiş metrik hatası raporu engellemesin
+
+        try:
+            closes: list[float] = df["close"].tolist() if not df.empty else []
+            ca_status = corporate_action_checker.check_adjustment_status(
+                symbol=symbol,
+                closes=closes,
+                series_type="unknown",  # frontend'den seri tipi gelmediğinde
+                period_days=len(df),
+            )
+            report = corporate_action_checker.annotate_report(report, ca_status)
+        except Exception:
+            pass
+
+    return report
 
 
 def run_backtest(
@@ -899,5 +1018,5 @@ def run_backtest(
         df=df,
         allow_short=bool(allow_short),
     )
-    payload["lifecycle_summary"] = _lifecycle_payload(payload)
+    payload["lifecycle_summary"] = _lifecycle_payload(payload, df=df)
     return payload

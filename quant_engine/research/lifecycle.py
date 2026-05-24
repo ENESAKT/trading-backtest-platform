@@ -68,13 +68,49 @@ def generate_risk_cards(metrics: dict) -> list[dict]:
             "description": "Çok fazla parametre kullanıldı veya WFA doğrulamasından geçemedi."
         })
 
-    # 3. Liquidity Risk
-    if metrics.get("avg_volume", 0) < 100000:
+    # 3. Liquidity / Capacity Risk
+    avg_volume = metrics.get("avg_volume")
+    if avg_volume is None:
+        # Gerçek hacim verisi sağlanmadı — kapasite kartı hesaplanamaz
+        cards.append({
+            "type": "capacity_unknown",
+            "severity": "medium",
+            "title": "Kapasite Bilgisi Eksik",
+            "description": (
+                "Ortalama hacim verisi sağlanmadı; kapasite ve likidite riski "
+                "değerlendirilemiyor. Backtest sonuçları gerçek piyasa kapasitesini "
+                "yansıtmayabilir."
+            ),
+        })
+    elif avg_volume == 0:
+        cards.append({
+            "type": "capacity_unknown",
+            "severity": "medium",
+            "title": "Hacim Verisi Sıfır",
+            "description": (
+                "Veri serisinde hacim bilgisi sıfır; kapasite ve likidite riski "
+                "değerlendirilemiyor. Hacim verisi olan bir kaynak kullanılmalı."
+            ),
+        })
+    elif avg_volume < 100_000:
+        cards.append({
+            "type": "liquidity_risk",
+            "severity": "high",
+            "title": "Çok Düşük Likidite",
+            "description": (
+                f"Ortalama hacim {avg_volume:,.0f} — sığ piyasa. "
+                "Gerçek işlemlerde slippage çok yüksek ve kapasite çok düşük olabilir."
+            ),
+        })
+    elif avg_volume < 1_000_000:
         cards.append({
             "type": "liquidity_risk",
             "severity": "medium",
             "title": "Düşük Likidite",
-            "description": "Sinyal üretilen varlık sığ. Gerçekte slippage çok yüksek olabilir."
+            "description": (
+                f"Ortalama hacim {avg_volume:,.0f} — sınırlı likidite. "
+                "Büyük pozisyonlarda piyasa etkisi ve slippage artabilir."
+            ),
         })
 
     # 4. Slippage Risk

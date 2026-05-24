@@ -357,3 +357,31 @@
 - [x] `/api/v2/candles`, `/api/symbols` ve market overview BIST/VİOP için `license_pending/not_configured` davranışı döndürüyor.
 - [x] `TermsPage`, `PrivacyPage`, `CookiesPage` genişletildi; `/legal/info` ve `/yasal` rotaları eklendi; public footer yasal bilgilendirme linki ve risk şeridi içeriyor.
 - [x] Doğrulama: `cd frontend && npm run typecheck`, `cd frontend && npm run build`, hedefli `python3 -m py_compile` başarılı.
+
+---
+
+## 2026-05-24 — Uygulama başlatma, datetime uyumu, yeni endpointler, SEN_YAPACAKSIN.md
+
+- **Python 3.10 uyumu**: `dt.UTC` → `dt.timezone.utc` 21 dosyada toplu güncelleme yapıldı.
+  `backend/api/main.py` en üstüne compat shim eklendi (Python <3.11 için).
+- **Backend frontend sunucu**: `backend/api/main.py` `frontend/dist` klasörünü otomatik tespit edip
+  SPA olarak sunacak şekilde güncellendi (`/assets` mount + fallback route).
+- **`start.sh`** başlatma scripti oluşturuldu: Python kontrolü, bağımlılık kurulumu, frontend dist
+  varlık kontrolü ve uvicorn başlatma.
+- **Teknik Özet Endpoint genişletme** (18.5):
+  - Yeni osilatörler: `awesome_oscillator`, `bull_bear_power`, `ultimate_oscillator`
+  - Yeni pivot türleri: `camarilla`, `woodie`, `demark`
+  - Tüm pivot türleri `period_note` ile birlikte response'a eklendi
+- **`GET /api/financials/{symbol}`** eklendi (18.4): yfinance üzerinden
+  değerleme oranları (P/E, P/B, EV/EBITDA), karlılık, büyüme, finansal sağlık, TTM gelir.
+  Plan kapılı: guest → temel oranlar, free+ → TTM gelir tablosu. Disclaimer zorunlu.
+- **`GET /api/symbol/{symbol}/calendar`** eklendi (18.4): EventStore üzerinden sembol olayları +
+  ekonomik takvim; `when` (past/upcoming) ve `confirmed_label` (kesin/tahmini) alanları ile.
+- **`GET /api/quick-view`** eklendi (18.11): sağ yan panel için son fiyatlar (cache'ten), yaklaşan
+  olaylar, son haberler; sembol listesi CSV olarak geçirilir.
+- **`GET /api/health/detailed`** eklendi (18.13): admin-only genişletilmiş monitoring endpoint;
+  cache sağlığı, worker hata sayısı, event store durumu ve `alerts[]` listesi.
+- **Yatırım tavsiyesi disclaimer** finansallar, takvim ve quick-view endpointlerine eklendi (18.13).
+- **108 pytest testi** başarıyla geçti.
+- **`SEN_YAPACAKSIN.md`** oluşturuldu: 12 bölüm, sıralı adımlarla OAuth, Stripe, AWS, DNS, Email,
+  Sentry, Grafana, Backup, BIST lisansı, Mobil store, Growth kanalları.

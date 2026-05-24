@@ -226,7 +226,7 @@ class BistMarketDataProvider:
                 if ts_value.tzinfo is None:
                     import datetime as dt
 
-                    ts_value = ts_value.replace(tzinfo=dt.UTC)
+                    ts_value = ts_value.replace(tzinfo=dt.timezone.utc)
                 ts = int(ts_value.timestamp())
             else:
                 ts = int(ts_value)

@@ -68,6 +68,7 @@ export class SignalFeed {
     this.render();
     this.renderSignals();
     this.bindPreferenceControls();
+    this._bindPriceAlertCreate();
     this.connect();
     this.pollTelegramStatus();
     void this.loadTelegramPreferences();
@@ -458,8 +459,43 @@ export class SignalFeed {
         <div id="signal-feed-list" class="signal-feed-list">
           <div class="signal-feed-empty">${TR.CONNECTING}…</div>
         </div>
+
+        <!-- Fiyat Alarmları -->
+        <div style="margin-top:20px;padding-top:16px;border-top:1px solid rgba(255,255,255,.08)">
+          <h3 style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;
+                     color:#64748B;margin:0 0 12px">Fiyat Alarmları</h3>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">
+            <input id="pa-symbol" type="text" placeholder="Sembol (THYAO)" maxlength="20"
+              style="flex:1;min-width:80px;padding:5px 8px;border-radius:6px;font-size:12px;
+                     background:var(--bg,#0F172A);border:1px solid rgba(255,255,255,.15);color:#F8FAFC">
+            <input id="pa-target" type="number" placeholder="Hedef fiyat" step="any"
+              style="flex:1;min-width:100px;padding:5px 8px;border-radius:6px;font-size:12px;
+                     background:var(--bg,#0F172A);border:1px solid rgba(255,255,255,.15);color:#F8FAFC">
+            <select id="pa-direction"
+              style="padding:5px 8px;border-radius:6px;font-size:12px;
+                     background:var(--bg,#0F172A);border:1px solid rgba(255,255,255,.15);color:#F8FAFC">
+              <option value="above">▲ Üstünde</option>
+              <option value="below">▼ Altında</option>
+            </select>
+            <input id="pa-note" type="text" placeholder="Not (isteğe bağlı)"
+              style="flex:2;min-width:100px;padding:5px 8px;border-radius:6px;font-size:12px;
+                     background:var(--bg,#0F172A);border:1px solid rgba(255,255,255,.15);color:#F8FAFC">
+            <button id="pa-create-btn"
+              style="padding:5px 14px;border-radius:6px;background:#3B82F6;color:#fff;
+                     border:none;font-size:12px;cursor:pointer;font-weight:600">+ Ekle</button>
+          </div>
+          <div id="price-alerts-list"></div>
+        </div>
       </div>
     `;
+    // Fiyat alarmlarını yükle
+    void this.loadPriceAlerts();
+  }
+
+  private _bindPriceAlertCreate(): void {
+    this.container.querySelector('#pa-create-btn')?.addEventListener('click', () => {
+      void this.createPriceAlert();
+    });
   }
 
   private renderSignals(): void {
@@ -469,10 +505,183 @@ export class SignalFeed {
       list.innerHTML = `<div class="signal-feed-empty">${TR.SIGNAL_FEED_EMPTY}</div>`;
       return;
     }
-    list.innerHTML = this.signals.map(sig => this.signalHTML(sig)).join('');
+    list.innerHTML = this.signals.map((sig, i) =>
+      this.signalHTML(sig, i)
+    ).join('');
+
+    // Kanıt paneli: her signal-item tıklandığında detay modalı açılır
+    list.querySelectorAll<HTMLElement>('[data-sig-idx]').forEach(el => {
+      el.addEventListener('click', (e) => {
+        if ((e.target as HTMLElement).closest('button')) return;
+        const idx = parseInt(el.dataset['sigIdx'] ?? '0', 10);
+        const sig = this.signals[idx];
+        if (sig) this.showSignalEvidence(sig);
+      });
+    });
   }
 
-  private signalHTML(sig: LiveSignal): string {
+  // ─── Sinyal Kanıt Paneli ───────────────────────────────────────────────────
+
+  private showSignalEvidence(sig: LiveSignal): void {
+    const existing = document.getElementById('sig-evidence-modal');
+    if (existing) existing.remove();
+
+    const isBuy = sig.signal_type === 'BUY' || sig.signal_type === 'STRONG_BUY';
+    const sigColor = isBuy ? '#10B981' : '#EF4444';
+    const sigLabel = { BUY:'AL', SELL:'SAT', STRONG_BUY:'GÜÇLÜ AL', STRONG_SELL:'GÜÇLÜ SAT' }[sig.signal_type] ?? sig.signal_type;
+
+    const m = sig.metadata ?? {};
+    const evidenceRows: [string, string][] = [];
+    if (m.rsi             !== undefined) evidenceRows.push(['RSI (14)',            m.rsi.toFixed(1)]);
+    if (m.trend           !== undefined) evidenceRows.push(['Trend',               String(m.trend)]);
+    if (m.atr             !== undefined) evidenceRows.push(['ATR',                 m.atr.toFixed(4)]);
+    if (m.volatility_pct  !== undefined) evidenceRows.push(['Volatilite %',        m.volatility_pct.toFixed(2) + '%']);
+    if (m.buy_count       !== undefined && m.total_strategies !== undefined)
+      evidenceRows.push(['Strateji Oyu (AL)',  `${m.buy_count}/${m.total_strategies}`]);
+    if (m.sell_count      !== undefined && m.total_strategies !== undefined)
+      evidenceRows.push(['Strateji Oyu (SAT)', `${m.sell_count}/${m.total_strategies}`]);
+    if (m.consensus_ratio !== undefined) evidenceRows.push(['Konsensüs Oranı',     (m.consensus_ratio * 100).toFixed(0) + '%']);
+    if (m.lgbm_prob       !== undefined) evidenceRows.push(['LGBM Olasılık',       (m.lgbm_prob * 100).toFixed(0) + '%']);
+
+    const rowsHTML = evidenceRows.map(([k, v]) =>
+      `<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid rgba(255,255,255,.04);font-size:12px">
+        <span style="color:#94A3B8">${this.escapeHtml(k)}</span>
+        <span style="color:#F8FAFC;font-weight:500">${this.escapeHtml(v)}</span>
+      </div>`
+    ).join('');
+
+    const modal = document.createElement('div');
+    modal.id = 'sig-evidence-modal';
+    modal.style.cssText = `
+      position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:1000;
+      display:flex;align-items:center;justify-content:center;padding:16px;`;
+    modal.innerHTML = `
+      <div style="background:#1E293B;border:1px solid rgba(255,255,255,.12);border-radius:14px;
+                  padding:20px 24px;max-width:460px;width:100%;max-height:80vh;overflow-y:auto;">
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">
+          <span style="background:${sigColor}22;color:${sigColor};padding:4px 12px;border-radius:20px;
+                       font-weight:700;font-size:13px;">${sigLabel}</span>
+          <span style="color:#F8FAFC;font-size:18px;font-weight:700">${this.escapeHtml(sig.symbol)}</span>
+          <span style="color:#94A3B8;font-size:13px">@ ${formatNumber(sig.price, sig.price < 1 ? 6 : 4)}</span>
+          <button id="ev-close" style="margin-left:auto;background:none;border:none;
+                  color:#94A3B8;font-size:18px;cursor:pointer;">✕</button>
+        </div>
+
+        <div style="font-size:11px;color:#64748B;margin-bottom:12px;line-height:1.5;">
+          Strateji: <strong style="color:#94A3B8">${this.escapeHtml(sig.strategy_id)}</strong> ·
+          Zaman dilimi: <strong style="color:#94A3B8">${this.escapeHtml(sig.interval || '—')}</strong> ·
+          Güç: <strong style="color:#94A3B8">${sig.strength}/10</strong> ·
+          ${new Date(sig.ts).toLocaleString('tr-TR')}
+        </div>
+
+        <div style="background:rgba(255,255,255,.04);border-radius:8px;padding:10px 14px;
+                    margin-bottom:14px;font-size:12px;color:#94A3B8;line-height:1.5;">
+          <strong style="color:#CBD5E1">Neden:</strong> ${this.escapeHtml(sig.reason)}
+        </div>
+
+        ${evidenceRows.length > 0 ? `
+        <h4 style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;
+                   color:#64748B;margin:0 0 8px;">Gösterge Kanıtı</h4>
+        <div>${rowsHTML}</div>` : ''}
+
+        <div style="margin-top:14px;padding:10px;background:rgba(239,68,68,.06);border-radius:8px;
+                    font-size:10px;color:#94A3B8;line-height:1.5;">
+          ⚠️ Bu teknik sinyal bilgisidir. Yatırım tavsiyesi değildir.
+          Geçmiş performans gelecek sonuçların garantisi değildir.
+        </div>
+      </div>`;
+
+    document.body.appendChild(modal);
+    modal.querySelector('#ev-close')?.addEventListener('click', () => modal.remove());
+    modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
+  }
+
+  // ─── Fiyat Alarmları ─────────────────────────────────────────────────────
+
+  private _priceAlerts: Array<{ id: number; symbol: string; target: number; direction: string; note?: string; triggered: number }> = [];
+
+  async loadPriceAlerts(): Promise<void> {
+    type PA = { id: number; symbol: string; target: number; direction: string; note?: string; triggered: number };
+    try {
+      const res = await fetch('/api/alerts/price?active_only=false');
+      if (!res.ok) return;
+      const data = await res.json() as { alerts: PA[] };
+      this._priceAlerts = data.alerts ?? [];
+      this.renderPriceAlerts();
+    } catch { /* sessizce geç */ }
+  }
+
+  private renderPriceAlerts(): void {
+    const el = this.container.querySelector('#price-alerts-list');
+    if (!el) return;
+
+    if (this._priceAlerts.length === 0) {
+      el.innerHTML = '<div style="font-size:12px;color:var(--text-dim);padding:8px 0">Aktif fiyat alarmı yok.</div>';
+      return;
+    }
+
+    el.innerHTML = `
+      <table style="width:100%;border-collapse:collapse;font-size:12px;">
+        <thead>
+          <tr style="text-align:left;border-bottom:1px solid rgba(255,255,255,.08)">
+            <th style="padding:4px 8px 6px 0;color:#64748B;font-weight:600;font-size:10px;text-transform:uppercase">Sembol</th>
+            <th style="padding:4px 8px 6px;color:#64748B;font-weight:600;font-size:10px;text-transform:uppercase">Hedef</th>
+            <th style="padding:4px 8px 6px;color:#64748B;font-weight:600;font-size:10px;text-transform:uppercase">Yön</th>
+            <th style="padding:4px 8px 6px;color:#64748B;font-weight:600;font-size:10px;text-transform:uppercase">Durum</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          ${this._priceAlerts.map(a => `
+            <tr style="border-bottom:1px solid rgba(255,255,255,.03)">
+              <td style="padding:5px 8px 5px 0;font-weight:600;color:#F8FAFC">${this.escapeHtml(a.symbol)}</td>
+              <td style="padding:5px 8px;color:#F8FAFC">${formatNumber(a.target, 4)}</td>
+              <td style="padding:5px 8px;color:${a.direction === 'above' ? '#10B981' : '#EF4444'}">
+                ${a.direction === 'above' ? '▲ Üstünde' : '▼ Altında'}
+              </td>
+              <td style="padding:5px 8px;color:${a.triggered ? '#64748B' : '#10B981'}">
+                ${a.triggered ? '✓ Tetiklendi' : '⏳ Bekliyor'}
+              </td>
+              <td style="padding:5px 0 5px 8px">
+                <button class="del-alert-btn" data-aid="${a.id}"
+                  style="background:none;border:none;color:#EF4444;cursor:pointer;font-size:12px">✕</button>
+              </td>
+            </tr>`).join('')}
+        </tbody>
+      </table>`;
+
+    el.querySelectorAll<HTMLButtonElement>('.del-alert-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const aid = parseInt(btn.dataset['aid'] ?? '0', 10);
+        await fetch(`/api/alerts/price/${aid}`, { method: 'DELETE' });
+        void this.loadPriceAlerts();
+      });
+    });
+  }
+
+  private async createPriceAlert(): Promise<void> {
+    const sym = (this.container.querySelector<HTMLInputElement>('#pa-symbol'))?.value.trim().toUpperCase();
+    const tgt = parseFloat((this.container.querySelector<HTMLInputElement>('#pa-target'))?.value ?? '');
+    const dir = (this.container.querySelector<HTMLSelectElement>('#pa-direction'))?.value;
+    const note = (this.container.querySelector<HTMLInputElement>('#pa-note'))?.value.trim() ?? '';
+    if (!sym || isNaN(tgt) || !dir) return;
+
+    await fetch('/api/alerts/price', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ symbol: sym, target: tgt, direction: dir, note }),
+    });
+    // Form temizle
+    const syminp = this.container.querySelector<HTMLInputElement>('#pa-symbol');
+    const tgtinp = this.container.querySelector<HTMLInputElement>('#pa-target');
+    const noteinp = this.container.querySelector<HTMLInputElement>('#pa-note');
+    if (syminp)  syminp.value = '';
+    if (tgtinp)  tgtinp.value = '';
+    if (noteinp) noteinp.value = '';
+    void this.loadPriceAlerts();
+  }
+
+  private signalHTML(sig: LiveSignal, idx: number): string {
     const isStrong = sig.signal_type === 'STRONG_BUY' || sig.signal_type === 'STRONG_SELL';
     const isBuy = sig.signal_type === 'BUY' || sig.signal_type === 'STRONG_BUY';
 
@@ -522,7 +731,7 @@ export class SignalFeed {
     }
 
     return `
-      <div class="signal-item ${isStrong ? 'signal-strong' : ''}">
+      <div class="signal-item ${isStrong ? 'signal-strong' : ''}" data-sig-idx="${idx}" style="cursor:pointer" title="Kanıt detayı için tıklayın">
         <div class="signal-header">
           <span class="signal-badge ${badgeClass}">${badgeLabel}</span>
           <span class="signal-symbol">${this.escapeHtml(sig.symbol)}</span>

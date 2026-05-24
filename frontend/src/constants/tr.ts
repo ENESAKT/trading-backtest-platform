@@ -36,15 +36,16 @@ export const TR = {
   INDICATORS: 'Göstergeler',
   VOLUME: 'Hacim',
 
-  // ── Timeframe Labels ─────────────────────────────────────────────────────────
-  TF_1M: '1D',
-  TF_5M: '5D',
-  TF_15M: '15D',
-  TF_30M: '30D',
-  TF_1H: '1S',
-  TF_4H: '4S',
-  TF_1D: '1G',
-  TF_1W: '1H',
+  // ── Timeframe Labels (Türkçe standart: dk=dakika, s=saat, g=gün, hf=hafta, ay=ay) ────────
+  TF_1M:  '1dk',
+  TF_5M:  '5dk',
+  TF_15M: '15dk',
+  TF_30M: '30dk',
+  TF_1H:  '1s',
+  TF_4H:  '4s',
+  TF_1D:  '1g',
+  TF_1W:  '1hf',
+  TF_1MO: '1ay',
 
   // ── Indicator Names ──────────────────────────────────────────────────────────
   IND_RSI: 'RSI',
