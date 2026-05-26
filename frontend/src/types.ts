@@ -579,3 +579,267 @@ declare global {
     showToast?: (message: string, type?: NotificationType) => void;
   }
 }
+
+// ─── Screener Kontratı (Bölüm 18.14) ─────────────────────────────────────────
+
+export type ScreenerOperator = 'gt' | 'gte' | 'lt' | 'lte' | 'eq' | 'neq' | 'in' | 'not_in';
+
+/** API v2 screener filtresi — eski ScreenerFilter (legacy preset tipi) ile karışmamalı */
+export interface ScreenerFilterRule {
+  field:    string;
+  operator: ScreenerOperator;
+  value:    unknown;
+}
+
+export interface ScreenerSort {
+  field:     string;
+  direction: 'asc' | 'desc';
+}
+
+export interface ScreenerRunRequest {
+  market?:        string;
+  universe?:      string[];
+  filters?:       ScreenerFilterRule[];
+  columns?:       string[];
+  sort?:          ScreenerSort;
+  limit?:         number;
+  snapshot_time?: string;
+}
+
+export interface ScreenerRow {
+  symbol:         string;
+  name?:          string;
+  market:         string;
+  sector?:        string;
+  last_price?:    number;
+  change_pct_1d?: number;
+  volume?:        number;
+  market_cap?:    number;
+  quality_badge:  string;
+  columns:        Record<string, unknown>;
+}
+
+export interface ScreenerRunResponse {
+  run_id:              string;
+  created_at:          string;
+  filters_hash:        string;
+  data_snapshot_hash:  string;
+  market:              string;
+  total_count:         number;
+  rows:                ScreenerRow[];
+  data_truth?:         DataTruth;
+  warnings:            string[];
+}
+
+// ─── Symbol Snapshot (Bölüm 18.14) ───────────────────────────────────────────
+
+export type SessionStatus = 'open' | 'closed' | 'pre' | 'post' | 'unknown';
+
+export interface SymbolSnapshot {
+  symbol:           string;
+  market:           string;
+  name?:            string;
+  sector?:          string;
+  instrument_type?: string;
+
+  last_price?:      number;
+  prev_close?:      number;
+  change_pct_1d?:   number;
+  high_52w?:        number;
+  low_52w?:         number;
+
+  session_status:   SessionStatus;
+  last_bar_ts?:     string;
+
+  data_truth?:      DataTruth;
+
+  pe_ratio?:        number;
+  pb_ratio?:        number;
+  market_cap?:      number;
+  eps_ttm?:         number;
+  dividend_yield?:  number;
+
+  warnings:         string[];
+}
+
+// ─── Technical Summary (Bölüm 18.14) ─────────────────────────────────────────
+
+export type TechnicalRating = 'strong_buy' | 'buy' | 'neutral' | 'sell' | 'strong_sell' | 'unknown';
+export type MAType = 'ema' | 'sma' | 'wma' | 'vwma' | 'hull' | 'ichimoku';
+export type MASignal = 'above' | 'below' | 'unknown';
+export type PivotMethod = 'classic' | 'fibonacci' | 'camarilla' | 'woodie' | 'demark';
+
+export interface OscillatorEntry {
+  name:            string;
+  value?:          number;
+  signal:          'buy' | 'sell' | 'neutral' | 'unknown';
+  threshold_low?:  number;
+  threshold_high?: number;
+  description:     string;
+}
+
+export interface MovingAverageEntry {
+  name:          string;
+  period:        number;
+  ma_type:       MAType;
+  value?:        number;
+  signal:        MASignal;
+  distance_pct?: number;
+}
+
+export interface PivotLevels {
+  method: PivotMethod;
+  period: string;
+  r3?: number; r2?: number; r1?: number;
+  pp?: number;
+  s1?: number; s2?: number; s3?: number;
+}
+
+export interface TechnicalSummary {
+  symbol:    string;
+  market:    string;
+  timeframe: string;
+
+  overall_rating:        TechnicalRating;
+  oscillator_rating:     TechnicalRating;
+  moving_average_rating: TechnicalRating;
+
+  oscillators:     OscillatorEntry[];
+  moving_averages: MovingAverageEntry[];
+  pivot_levels:    PivotLevels[];
+
+  warmup_bars_used:    number;
+  calculation_version: string;
+  data_truth?:         DataTruth;
+  calculated_at?:      string;
+
+  warnings: string[];
+}
+
+// ─── Backtest Assumptions (Bölüm 18.14) ──────────────────────────────────────
+
+export type CommissionModel = 'fixed_bps' | 'fixed_pct' | 'tiered' | 'zero';
+export type SlippageModel =
+  | 'fixed_bps' | 'fixed_tick' | 'spread' | 'atr'
+  | 'volume_pct' | 'gap_open' | 'low_liquidity' | 'zero';
+export type OrderExecutionTime = 'next_open' | 'close' | 'same_bar';
+
+export interface BacktestAssumptions {
+  data_source:         string;
+  data_delay_minutes:  number;
+  is_real_data:        boolean;
+
+  commission_model:    CommissionModel;
+  commission_value:    number;
+  commission_note:     string;
+
+  slippage_model:      SlippageModel;
+  slippage_value:      number;
+  slippage_note:       string;
+
+  order_type:              'market' | 'limit' | 'close';
+  execution_time:          OrderExecutionTime;
+
+  corporate_action_adjusted: boolean;
+  survivorship_bias_free:    boolean;
+  liquidity_capacity_try?:   number;
+
+  data_truth?: DataTruth;
+  warnings:    string[];
+}
+
+// ─── Paper Trading (Bölüm 18.14) ─────────────────────────────────────────────
+
+export type PaperOrderSide   = 'buy' | 'sell' | 'short' | 'cover';
+export type PaperOrderType   = 'market' | 'limit' | 'stop';
+export type PaperOrderStatus = 'pending' | 'filled' | 'cancelled' | 'rejected';
+
+export interface PaperOrder {
+  id:              number;
+  strategy_id:     string;
+  symbol:          string;
+  side:            PaperOrderSide;
+  order_type:      PaperOrderType;
+  status:          PaperOrderStatus;
+  quantity:        number;
+  requested_price?: number;
+  filled_price?:   number;
+  created_at:      string;
+  filled_at?:      string;
+  reason:          string;
+}
+
+export interface PaperPosition {
+  strategy_id:        string;
+  symbol:             string;
+  side:               'long' | 'short';
+  quantity:           number;
+  entry_price:        number;
+  current_price?:     number;
+
+  unrealized_pnl?:     number;
+  unrealized_pnl_pct?: number;
+  realized_pnl:        number;
+
+  opened_at: string;
+  trade_id:  number;
+}
+
+export interface PaperPortfolioSummary {
+  strategy_id:     string;
+  initial_capital: number;
+  cash:            number;
+  positions_value: number;
+  total_equity:    number;
+  unrealized_pnl:  number;
+  realized_pnl:    number;
+  daily_pnl:       number;
+  daily_pnl_pct:   number;
+  is_halted:       boolean;
+
+  positions:   PaperPosition[];
+  open_orders: PaperOrder[];
+
+  as_of?: string;
+}
+
+// ─── Signal Evidence (Bölüm 18.14) ───────────────────────────────────────────
+
+export type SignalType = 'BUY' | 'SELL' | 'SHORT' | 'COVER' | 'HOLD';
+
+export interface SignalIndicatorSnapshot {
+  name:   string;
+  value?: number;
+  signal: string;
+  note:   string;
+}
+
+export interface SignalEvidence {
+  signal_id:       string;
+  strategy_id:     string;
+  symbol:          string;
+  market:          string;
+  timeframe:       string;
+
+  signal_type:     SignalType;
+  strength:        number;
+  price_at_signal: number;
+  ts:              string;
+
+  indicators:      SignalIndicatorSnapshot[];
+  reason:          string;
+  rule_triggered:  string;
+
+  data_truth?: DataTruth;
+
+  disclaimer: string;
+  warnings:   string[];
+}
+
+// ─── CandleSeriesResponse (Bölüm 18.14) ──────────────────────────────────────
+
+export interface CandleSeriesResponse {
+  bars:       OHLCV[];
+  data_truth: DataTruth;
+  fetched_at: string;
+}

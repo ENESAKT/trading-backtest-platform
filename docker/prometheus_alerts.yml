@@ -1,0 +1,219 @@
+# PiyasaPilot — Prometheus Alert Kuralları
+# Bu dosyayı prometheus.yml'e rule_files ile ekleyin:
+#   rule_files:
+#     - /etc/prometheus/prometheus_alerts.yml
+
+groups:
+
+  # ─── API / Gateway ──────────────────────────────────────────────────────────
+  - name: piyasapilot_api
+    interval: 60s
+    rules:
+
+      - alert: HighAPILatency
+        expr: |
+          rate(gateway_request_duration_seconds_sum[5m])
+          / rate(gateway_request_duration_seconds_count[5m]) * 1000 > 500
+        for: 3m
+        labels:
+          severity: warning
+          team: backend
+        annotations:
+          summary: "Yüksek API gecikmesi"
+          description: "Ortalama API yanıt süresi {{ $value | humanize }}ms > 500ms (5 dk ort.)."
+
+      - alert: CriticalAPILatency
+        expr: |
+          rate(gateway_request_duration_seconds_sum[5m])
+          / rate(gateway_request_duration_seconds_count[5m]) * 1000 > 2000
+        for: 1m
+        labels:
+          severity: critical
+          team: backend
+        annotations:
+          summary: "Kritik API gecikmesi"
+          description: "Ortalama API yanıt süresi {{ $value | humanize }}ms > 2000ms."
+
+      - alert: HighErrorRate
+        expr: |
+          rate(gateway_request_errors_total[5m])
+          / rate(gateway_request_total[5m]) * 100 > 5
+        for: 2m
+        labels:
+          severity: warning
+          team: backend
+        annotations:
+          summary: "Yüksek HTTP hata oranı"
+          description: "HTTP 5xx oranı {{ $value | humanize }}% > 5% (5 dk ort.)."
+
+      - alert: APIDown
+        expr: up{job="piyasapilot-gateway"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          team: backend
+        annotations:
+          summary: "API servisi çevrimdışı"
+          description: "piyasapilot-gateway hedefi 1 dakikadır yanıt vermiyor."
+
+  # ─── Paper Trading ──────────────────────────────────────────────────────────
+  - name: piyasapilot_paper_trading
+    interval: 30s
+    rules:
+
+      - alert: PaperTradingDailyLossHalt
+        expr: paper_strategy_halted_total > 0
+        for: 0m
+        labels:
+          severity: warning
+          team: trading
+        annotations:
+          summary: "Paper trading stratejisi donduruldu"
+          description: "{{ $value }} strateji günlük zarar limiti nedeniyle donduruldu."
+
+      - alert: PaperOrderFillFailure
+        expr: rate(paper_order_fill_failures_total[10m]) > 0
+        for: 5m
+        labels:
+          severity: warning
+          team: trading
+        annotations:
+          summary: "Paper emir dolum hatası"
+          description: "Son 10 dakikada {{ $value | humanize }} paper emir doldurulamadı."
+
+      - alert: PaperEquityDrawdown
+        expr: |
+          (paper_portfolio_equity_current - paper_portfolio_equity_initial)
+          / paper_portfolio_equity_initial * 100 < -15
+        for: 5m
+        labels:
+          severity: warning
+          team: trading
+        annotations:
+          summary: "Paper portföy büyük drawdown"
+          description: "Portföy başlangıç sermayesine göre {{ $value | humanize }}% drawdown."
+
+  # ─── Sinyal Motoru ──────────────────────────────────────────────────────────
+  - name: piyasapilot_signals
+    interval: 60s
+    rules:
+
+      - alert: SignalEngineSilent
+        expr: rate(signal_generated_total[30m]) == 0
+        for: 30m
+        labels:
+          severity: warning
+          team: signals
+        annotations:
+          summary: "Sinyal motoru sessiz"
+          description: "30 dakikadır hiç sinyal üretilmedi — motor takılmış olabilir."
+
+      - alert: SignalEngineHighRate
+        expr: rate(signal_generated_total[5m]) > 100
+        for: 5m
+        labels:
+          severity: warning
+          team: signals
+        annotations:
+          summary: "Anormal sinyal üretim hızı"
+          description: "Son 5 dakikada/saniye {{ $value | humanize }} sinyal üretildi (olası döngü)."
+
+      - alert: SignalQueueBacklog
+        expr: signal_queue_depth > 1000
+        for: 5m
+        labels:
+          severity: warning
+          team: signals
+        annotations:
+          summary: "Sinyal kuyruğu tıkandı"
+          description: "Sinyal kuyruğunda {{ $value }} bekleyen sinyal var."
+
+  # ─── Veri Kalitesi ──────────────────────────────────────────────────────────
+  - name: piyasapilot_data_quality
+    interval: 120s
+    rules:
+
+      - alert: DataProviderDown
+        expr: data_provider_up == 0
+        for: 5m
+        labels:
+          severity: critical
+          team: data
+        annotations:
+          summary: "Veri sağlayıcı çevrimdışı"
+          description: "{{ $labels.provider }} sağlayıcısı 5 dakikadır yanıt vermiyor."
+
+      - alert: DataQualityDegraded
+        expr: data_quality_coverage_pct < 95
+        for: 10m
+        labels:
+          severity: warning
+          team: data
+        annotations:
+          summary: "Düşük veri kapsam oranı"
+          description: "{{ $labels.market }}/{{ $labels.symbol }} kapsam oranı {{ $value | humanize }}% < 95%."
+
+      - alert: DataIngestLag
+        expr: data_ingest_lag_seconds > 300
+        for: 5m
+        labels:
+          severity: warning
+          team: data
+        annotations:
+          summary: "Veri alım gecikmesi"
+          description: "{{ $labels.symbol }} için son bar {{ $value | humanize }}s gecikmiş (> 5 dk)."
+
+      - alert: BackfillJobFailed
+        expr: increase(backfill_job_failures_total[1h]) > 0
+        for: 0m
+        labels:
+          severity: warning
+          team: data
+        annotations:
+          summary: "Backfill işi başarısız"
+          description: "Son 1 saatte {{ $value }} backfill işi hatayla bitti."
+
+      - alert: RetentionJobOverdue
+        expr: time() - retention_last_run_timestamp > 86400 * 2
+        for: 0m
+        labels:
+          severity: warning
+          team: data
+        annotations:
+          summary: "Retention işi 2 günden eski"
+          description: "Son retention çalışması {{ $value | humanizeDuration }} önce tamamlandı."
+
+  # ─── Altyapı ────────────────────────────────────────────────────────────────
+  - name: piyasapilot_infra
+    interval: 60s
+    rules:
+
+      - alert: RedisDown
+        expr: redis_connected_clients == 0
+        for: 2m
+        labels:
+          severity: critical
+          team: infra
+        annotations:
+          summary: "Redis bağlantısı kesildi"
+          description: "Redis'e bağlı istemci yok — servis çevrimdışı olabilir."
+
+      - alert: ClickHouseSlowQuery
+        expr: clickhouse_query_duration_seconds_p99 > 10
+        for: 5m
+        labels:
+          severity: warning
+          team: infra
+        annotations:
+          summary: "ClickHouse yavaş sorgular"
+          description: "p99 sorgu süresi {{ $value | humanize }}s > 10s."
+
+      - alert: HighMemoryUsage
+        expr: process_resident_memory_bytes / 1024 / 1024 > 1500
+        for: 5m
+        labels:
+          severity: warning
+          team: infra
+        annotations:
+          summary: "Yüksek bellek kullanımı"
+          description: "API işlemi {{ $value | humanize }} MB RAM kullanıyor."

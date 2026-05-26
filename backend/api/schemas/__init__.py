@@ -1,3 +1,40 @@
 from .backtest import BacktestRequest, BacktestResponse
+from .contracts import (
+    BacktestAssumptions,
+    OscillatorEntry,
+    MovingAverageEntry,
+    PaperOrder,
+    PaperPosition,
+    PaperPortfolioSummary,
+    PivotLevels,
+    ScreenerFilter,
+    ScreenerRow,
+    ScreenerRunRequest,
+    ScreenerRunResponse,
+    ScreenerSort,
+    SignalEvidence,
+    SignalIndicatorSnapshot,
+    SymbolSnapshot,
+    TechnicalSummary,
+)
 
-__all__ = ["BacktestRequest", "BacktestResponse"]
+__all__ = [
+    "BacktestRequest",
+    "BacktestResponse",
+    "BacktestAssumptions",
+    "OscillatorEntry",
+    "MovingAverageEntry",
+    "PaperOrder",
+    "PaperPosition",
+    "PaperPortfolioSummary",
+    "PivotLevels",
+    "ScreenerFilter",
+    "ScreenerRow",
+    "ScreenerRunRequest",
+    "ScreenerRunResponse",
+    "ScreenerSort",
+    "SignalEvidence",
+    "SignalIndicatorSnapshot",
+    "SymbolSnapshot",
+    "TechnicalSummary",
+]

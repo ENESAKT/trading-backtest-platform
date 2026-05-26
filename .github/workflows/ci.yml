@@ -35,6 +35,17 @@ jobs:
           MYSQL_PASSWORD: "test"
           APP_ENV: "test"
 
+      - name: Run integration tests (mock-based, no live services)
+        run: |
+          python -m pytest tests/integration/ -q --tb=short \
+            --ignore=tests/integration/test_binance_ws.py \
+            -p no:warnings
+        env:
+          JWT_SECRET: "ci-test-secret-min-64-chars-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+          APP_ENV: "test"
+          PYTEST_ASYNCIO_MODE: "auto"
+        continue-on-error: true   # integration testler backend import bağımlılığı nedeniyle skip olabilir
+
   frontend:
     runs-on: ubuntu-latest
     steps:
@@ -60,8 +71,30 @@ jobs:
       - name: Run Playwright smoke suite
         run: cd frontend && CI=true npm run e2e -- --pass-with-no-tests
 
+  flutter:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.22.x'
+          channel: 'stable'
+          cache: true
+
+      - name: Flutter pub get
+        run: cd mobile/piyasapilot_mobile && flutter pub get
+
+      - name: Flutter analyze
+        run: cd mobile/piyasapilot_mobile && flutter analyze --no-fatal-infos
+
+      - name: Flutter test
+        run: cd mobile/piyasapilot_mobile && flutter test --reporter=expanded
+
   docker:
-    needs: [backend, frontend]
+    needs: [backend, frontend, flutter]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository

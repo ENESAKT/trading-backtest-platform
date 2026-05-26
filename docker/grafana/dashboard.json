@@ -1,5 +1,7 @@
 {
-  "annotations": { "list": [] },
+  "annotations": {
+    "list": []
+  },
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
@@ -7,30 +9,51 @@
   "links": [],
   "panels": [
     {
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "palette-classic" },
+          "color": {
+            "mode": "palette-classic"
+          },
           "custom": {
             "axisBorderShow": false,
             "axisLabel": "",
             "axisPlacement": "auto",
             "fillOpacity": 10,
             "lineWidth": 2,
-            "scaleDistribution": { "type": "linear" }
+            "scaleDistribution": {
+              "type": "linear"
+            }
           },
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              { "color": "green", "value": null },
-              { "color": "yellow", "value": 100 },
-              { "color": "red", "value": 500 }
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 100
+              },
+              {
+                "color": "red",
+                "value": 500
+              }
             ]
           },
           "unit": "ms"
         }
       },
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 0
+      },
       "id": 1,
       "title": "API Latency (ms)",
       "type": "timeseries",
@@ -42,15 +65,28 @@
       ]
     },
     {
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "palette-classic" },
-          "custom": { "lineWidth": 2, "fillOpacity": 15 },
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 15
+          },
           "unit": "short"
         }
       },
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 0
+      },
       "id": 2,
       "title": "Cache — Bar Sayısı & Sembol",
       "type": "timeseries",
@@ -66,23 +102,52 @@
       ]
     },
     {
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "fixed", "fixedColor": "green" },
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "green"
+          },
           "mappings": [
-            { "options": { "0": { "text": "KAPALI", "color": "red" }, "1": { "text": "ÇALIŞIYOR", "color": "green" } }, "type": "value" }
+            {
+              "options": {
+                "0": {
+                  "text": "KAPALI",
+                  "color": "red"
+                },
+                "1": {
+                  "text": "ÇALIŞIYOR",
+                  "color": "green"
+                }
+              },
+              "type": "value"
+            }
           ],
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              { "color": "red", "value": null },
-              { "color": "green", "value": 1 }
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
             ]
           }
         }
       },
-      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 8 },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 8
+      },
       "id": 3,
       "title": "Worker Durumu",
       "type": "stat",
@@ -92,13 +157,438 @@
           "legendFormat": "{{worker}}"
         }
       ]
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [
+            {
+              "options": {
+                "0": {
+                  "text": "Normal",
+                  "color": "green"
+                }
+              },
+              "type": "value"
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          },
+          "unit": "short"
+        }
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 6,
+        "x": 0,
+        "y": 16
+      },
+      "id": 4,
+      "title": "Paper — Dondurulmuş Stratejiler",
+      "type": "stat",
+      "targets": [
+        {
+          "expr": "paper_strategy_halted_total",
+          "legendFormat": "halted"
+        }
+      ]
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10
+          },
+          "unit": "currencyTRY"
+        }
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 10,
+        "x": 6,
+        "y": 16
+      },
+      "id": 5,
+      "title": "Paper — Portföy Sermayesi (TRY)",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "paper_portfolio_equity_current",
+          "legendFormat": "equity"
+        }
+      ]
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 20
+          },
+          "unit": "short"
+        }
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 8,
+        "x": 16,
+        "y": 16
+      },
+      "id": 6,
+      "title": "Paper — Emir Dolum / Hata",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "rate(paper_orders_filled_total[5m])",
+          "legendFormat": "filled/s"
+        },
+        {
+          "expr": "rate(paper_order_fill_failures_total[5m])",
+          "legendFormat": "errors/s"
+        }
+      ]
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10
+          },
+          "unit": "short"
+        }
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 0,
+        "y": 22
+      },
+      "id": 7,
+      "title": "Sinyal Motoru — Üretim Hızı",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "rate(signal_generated_total[5m])",
+          "legendFormat": "sinyaller/s"
+        },
+        {
+          "expr": "signal_queue_depth",
+          "legendFormat": "kuyruk derinliği"
+        }
+      ]
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "unit": "short"
+        }
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 12,
+        "y": 22
+      },
+      "id": 8,
+      "title": "Sinyal Tipi Dağılımı",
+      "type": "piechart",
+      "targets": [
+        {
+          "expr": "sum by (signal_type) (increase(signal_generated_total[1h]))",
+          "legendFormat": "{{signal_type}}"
+        }
+      ]
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 90
+              },
+              {
+                "color": "green",
+                "value": 98
+              }
+            ]
+          },
+          "unit": "percent",
+          "min": 0,
+          "max": 100
+        }
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 8,
+        "x": 0,
+        "y": 29
+      },
+      "id": 9,
+      "title": "Veri Kalitesi — Kapsam (%)",
+      "type": "gauge",
+      "targets": [
+        {
+          "expr": "avg(data_quality_coverage_pct)",
+          "legendFormat": "ort. kapsam"
+        }
+      ]
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 15
+          },
+          "unit": "short"
+        }
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 8,
+        "x": 8,
+        "y": 29
+      },
+      "id": 10,
+      "title": "Veri Kalitesi — Gap / Duplicate / Outlier",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "sum(data_quality_gap_count)",
+          "legendFormat": "gap"
+        },
+        {
+          "expr": "sum(data_quality_duplicate_count)",
+          "legendFormat": "duplicate"
+        },
+        {
+          "expr": "sum(data_quality_outlier_count)",
+          "legendFormat": "outlier"
+        }
+      ]
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed"
+          },
+          "mappings": [
+            {
+              "options": {
+                "0": {
+                  "text": "KAPALI",
+                  "color": "red"
+                },
+                "1": {
+                  "text": "ÇALIŞIYOR",
+                  "color": "green"
+                }
+              },
+              "type": "value"
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          }
+        }
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 8,
+        "x": 16,
+        "y": 29
+      },
+      "id": 11,
+      "title": "Veri Sağlayıcıları — Durum",
+      "type": "stat",
+      "targets": [
+        {
+          "expr": "data_provider_up",
+          "legendFormat": "{{provider}}"
+        }
+      ]
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 10
+          },
+          "unit": "short"
+        }
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 12,
+        "x": 0,
+        "y": 35
+      },
+      "id": 12,
+      "title": "Backfill — İş Geçmişi (bars/s)",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "rate(backfill_bars_written_total[5m])",
+          "legendFormat": "yazılan bar/s"
+        },
+        {
+          "expr": "rate(backfill_job_failures_total[1h])",
+          "legendFormat": "hata/s"
+        }
+      ]
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 60
+              },
+              {
+                "color": "red",
+                "value": 300
+              }
+            ]
+          },
+          "unit": "s"
+        }
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 12,
+        "x": 12,
+        "y": 35
+      },
+      "id": 13,
+      "title": "Veri Alım Gecikmesi (saniye)",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "max by (symbol) (data_ingest_lag_seconds)",
+          "legendFormat": "{{symbol}}"
+        }
+      ]
     }
   ],
   "schemaVersion": 39,
-  "tags": ["piyasapilot", "trading"],
-  "templating": { "list": [] },
-  "time": { "from": "now-1h", "to": "now" },
-  "title": "PiyasaPilot Gateway",
+  "tags": [
+    "piyasapilot",
+    "trading"
+  ],
+  "templating": {
+    "list": []
+  },
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "title": "PiyasaPilot — Ana Gösterge Paneli",
   "uid": "piyasapilot-gateway",
   "version": 1
 }
