@@ -55,14 +55,20 @@ class _ScreenerScreenState extends State<ScreenerScreen> {
     try {
       final preset = _presets[idx];
       final rules  = preset.filters.map((f) => ScreenerFilterRule(
-        field: f['field'] as String,
-        op:    f['op']    as String,
-        value: f['value'],
+        field:    f['field'] as String,
+        operator: f['op']   as String,
+        value:    f['value'],
       )).toList();
       final req  = ScreenerRunRequest(filters: rules, market: 'BIST', limit: 50);
       final resp = await widget.api.runScreener(req);
       setState(() {
-        _results = resp.results;
+        _results = resp.rows.map((r) => SymbolSnapshot(
+          symbol: r.symbol,
+          market: r.market,
+          name: r.name,
+          lastPrice: r.lastPrice,
+          changePct1d: r.changePct1d,
+        )).toList();
         _loading = false;
       });
     } on ApiException catch (e) {

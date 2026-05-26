@@ -7,9 +7,11 @@ library;
 
 import 'package:flutter/material.dart';
 
+import '../models/models.dart';
+
 class TechnicalRatingCard extends StatelessWidget {
-  /// "buy", "sell", "neutral", "strong_buy", "strong_sell" veya boş dize.
-  final String rating;
+  /// TechnicalRating enum değeri.
+  final TechnicalRating rating;
 
   /// Kartın üstüne yazılacak başlık (örn. "Genel", "Osilatörler").
   final String label;
@@ -53,11 +55,11 @@ class TechnicalRatingCard extends StatelessWidget {
     );
   }
 
-  (Color, IconData, String) _resolve() => switch (rating.toLowerCase()) {
-        'strong_buy'  => (Colors.green[700]!,   Icons.trending_up,   'GÜÇLÜ AL'),
-        'buy'         => (Colors.green,          Icons.arrow_upward,  'AL'),
-        'strong_sell' => (Colors.red[700]!,      Icons.trending_down, 'GÜÇLÜ SAT'),
-        'sell'        => (Colors.red,            Icons.arrow_downward,'SAT'),
-        _             => (Colors.grey,           Icons.remove,        'NÖTR'),
+  (Color, IconData, String) _resolve() => switch (rating) {
+        TechnicalRating.strongBuy  => (Colors.green[700]!,   Icons.trending_up,   'GÜÇLÜ AL'),
+        TechnicalRating.buy        => (Colors.green,          Icons.arrow_upward,  'AL'),
+        TechnicalRating.strongSell => (Colors.red[700]!,      Icons.trending_down, 'GÜÇLÜ SAT'),
+        TechnicalRating.sell       => (Colors.red,            Icons.arrow_downward,'SAT'),
+        _                          => (Colors.grey,           Icons.remove,        'NÖTR'),
       };
 }

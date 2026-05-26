@@ -9,12 +9,15 @@ import 'package:flutter/material.dart';
 import '../models/models.dart';
 
 class DataQualityBadge extends StatelessWidget {
-  final DataTruth truth;
+  final DataTruth? truth;
 
   const DataQualityBadge({super.key, required this.truth});
 
   @override
   Widget build(BuildContext context) {
+    if (truth == null) {
+      return const SizedBox.shrink();
+    }
     final (color, icon, label) = _resolve();
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
@@ -40,16 +43,17 @@ class DataQualityBadge extends StatelessWidget {
   }
 
   (Color, IconData, String) _resolve() {
-    if (!truth.isReal) {
+    final t = truth!;
+    if (!t.isReal) {
       return (Colors.deepOrange, Icons.warning_amber, 'MOCK');
     }
-    if (truth.isDelayed && truth.delayMinutes > 0) {
-      return (Colors.orange, Icons.access_time, '${truth.delayMinutes}dk');
+    if (t.isDelayed && t.delayMinutes > 0) {
+      return (Colors.orange, Icons.access_time, '${t.delayMinutes}dk');
     }
-    return switch (truth.qualityStatus) {
-      DataQualityStatus.good    => (Colors.green,  Icons.verified,       'CANLI'),
+    return switch (t.qualityStatus) {
+      DataQualityStatus.ok      => (Colors.green,  Icons.verified,       'CANLI'),
       DataQualityStatus.warning => (Colors.orange, Icons.info_outline,   'UYARI'),
-      DataQualityStatus.poor    => (Colors.red,    Icons.error_outline,  'ZAYIF'),
+      DataQualityStatus.blocked => (Colors.red,    Icons.error_outline,  'ZAYIF'),
       DataQualityStatus.unknown => (Colors.grey,   Icons.help_outline,   '?'),
     };
   }
