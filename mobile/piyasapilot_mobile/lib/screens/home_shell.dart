@@ -7,7 +7,6 @@ library;
 import 'package:flutter/material.dart';
 
 import '../services/api_service.dart';
-import '../services/auth_store.dart';
 import 'watchlist_screen.dart';
 import 'signals_screen.dart';
 import 'paper_portfolio_screen.dart';
@@ -53,12 +52,6 @@ class _HomeShellState extends State<HomeShell> {
       ScreenerScreen(api: widget.api),
       SettingsScreen(api: widget.api),
     ];
-  }
-
-  Future<void> _logout() async {
-    await AuthStore.clearToken();
-    if (!mounted) return;
-    Navigator.of(context).pushReplacementNamed('/login');
   }
 
   @override
