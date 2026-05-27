@@ -56,12 +56,21 @@ class ApiService {
   dynamic _parse(http.Response res) {
     if (res.statusCode >= 200 && res.statusCode < 300) {
       if (res.body.isEmpty) return null;
-      return jsonDecode(res.body);
+      final decoded = jsonDecode(res.body);
+      if (decoded is Map<String, dynamic> && decoded.containsKey('ok')) {
+        return decoded['data'];
+      }
+      return decoded;
     }
     String msg = 'HTTP ${res.statusCode}';
     try {
       final j = jsonDecode(res.body) as Map<String, dynamic>;
-      msg = (j['detail'] as String?) ?? msg;
+      final detail = j['detail'];
+      if (detail is Map) {
+        msg = (detail['tr'] ?? detail['en'] ?? msg) as String;
+      } else if (detail is String) {
+        msg = detail;
+      }
     } catch (_) {}
     throw ApiException(res.statusCode, msg);
   }
