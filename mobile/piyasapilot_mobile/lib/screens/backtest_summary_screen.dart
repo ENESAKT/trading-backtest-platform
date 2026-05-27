@@ -6,8 +6,6 @@ library;
 
 import 'package:flutter/material.dart';
 
-import '../models/models.dart';
-
 class BacktestSummaryScreen extends StatelessWidget {
   final Map<String, dynamic> result;
 
