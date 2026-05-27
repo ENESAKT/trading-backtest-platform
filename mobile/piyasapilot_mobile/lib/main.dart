@@ -47,15 +47,10 @@ class PiyasaPilotApp extends StatelessWidget {
         seedColor: const Color(0xFF1565C0),
         brightness: brightness,
       ),
-      cardTheme: CardTheme(
+      cardTheme: const CardThemeData(
         elevation: 0,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-          side: BorderSide(
-            color: brightness == Brightness.dark
-                ? Colors.white.withOpacity(0.08)
-                : Colors.black.withOpacity(0.06),
-          ),
+          borderRadius: BorderRadius.all(Radius.circular(12)),
         ),
       ),
       appBarTheme: const AppBarTheme(
