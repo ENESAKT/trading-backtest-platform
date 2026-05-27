@@ -12,8 +12,9 @@ import 'screens/login_screen.dart';
 import 'services/api_service.dart';
 import 'services/auth_store.dart';
 
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await AuthStore.saveBaseUrl('http://localhost');
   runApp(const PiyasaPilotApp());
 }
 

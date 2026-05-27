@@ -41,7 +41,7 @@ class AuthStore {
   }
 
   /// Base URL getir.
-  static Future<String> loadBaseUrl({String defaultUrl = 'https://piyasapilot.com'}) async {
+  static Future<String> loadBaseUrl({String defaultUrl = 'http://localhost'}) async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getString(_keyBaseUrl) ?? defaultUrl;
   }
