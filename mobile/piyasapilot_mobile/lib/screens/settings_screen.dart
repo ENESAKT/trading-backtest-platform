@@ -70,7 +70,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Widget _buildBody() {
     final me     = _me     ?? {};
     final limits = _limits ?? {};
-    final plan   = me['plan'] as String? ?? 'free';
+    final planObj = me['plan'];
+    final plan   = (planObj is Map ? planObj['slug'] : planObj) as String? ?? 'free';
     final email  = me['email'] as String? ?? '—';
 
     return ListView(children: [
