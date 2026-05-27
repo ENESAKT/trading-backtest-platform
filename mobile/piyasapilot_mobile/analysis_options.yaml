@@ -1,0 +1,21 @@
+# PiyasaPilot Flutter — Statik Analiz Kuralları
+include: package:flutter_lints/flutter.yaml
+
+analyzer:
+  errors:
+    # unused_import ve unused_element info seviyesine indir
+    unused_import: info
+    unused_element: info
+    # deprecated API kullanımı uyarı olarak kalsın ama CI'ı kırmasın
+    deprecated_member_use: info
+  exclude:
+    - "**/*.g.dart"
+    - "**/*.freezed.dart"
+
+linter:
+  rules:
+    # Gereksiz gürültü yapan kuralları kapat
+    prefer_const_constructors: false
+    prefer_const_literals_to_create_immutables: false
+    use_key_in_widget_constructors: false
+    library_private_types_in_public_api: false
