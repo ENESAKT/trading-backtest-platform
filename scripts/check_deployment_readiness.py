@@ -81,6 +81,7 @@ def check_tls(base_url: str) -> tuple[bool, str]:
         return False, "Host yok"
     try:
         ctx = ssl.create_default_context()
+        ctx.minimum_version = ssl.TLSVersion.TLSv1_2
         with socket.create_connection((host, 443), timeout=5) as sock:
             with ctx.wrap_socket(sock, server_hostname=host) as ssock:
                 cert = ssock.getpeercert()

@@ -27,8 +27,8 @@ def _fetch_kap_rss(symbol: str, limit: int) -> list[dict[str, Any]]:
     try:
         from backend.news.kap_rss import fetch_kap_rss
         return fetch_kap_rss(symbol, limit)
-    except Exception as exc:  # noqa: BLE001
-        _logger.debug("[news_fetcher] KAP RSS hatası (%s): %s", symbol, exc)
+    except Exception:  # noqa: BLE001
+        _logger.debug("[news_fetcher] KAP RSS fetch failed")
         return []
 
 
@@ -64,8 +64,8 @@ def _fetch_borsapy(symbol: str, limit: int) -> list[dict[str, Any]]:
                 "url":          str(row.get("URL") or "") or None,
             })
         return results
-    except Exception as exc:  # noqa: BLE001
-        _logger.debug("[news_fetcher] borsapy hatası (%s): %s", symbol, exc)
+    except Exception:  # noqa: BLE001
+        _logger.debug("[news_fetcher] borsapy fetch failed")
         return []
 
 
@@ -96,6 +96,6 @@ def _fetch_yfinance(symbol: str, limit: int) -> list[dict[str, Any]]:
                 "url":          item.get("link") or item.get("url"),
             })
         return results
-    except Exception as exc:  # noqa: BLE001
-        _logger.warning("[news_fetcher] yfinance hatası (%s): %s", symbol, exc)
+    except Exception:  # noqa: BLE001
+        _logger.warning("[news_fetcher] yfinance fetch failed")
         return []

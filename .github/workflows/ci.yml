@@ -38,6 +38,12 @@ jobs:
           MYSQL_PASSWORD: "test"
           APP_ENV: "test"
 
+      - name: Run backend regression suite
+        run: python -m pytest backend/tests/ -q --tb=short
+        env:
+          JWT_SECRET: "ci-test-secret-min-64-chars-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+          APP_ENV: "test"
+
       - name: Run integration tests (mock-based, no live services)
         run: |
           python -m pytest tests/integration/ -q --tb=short \
