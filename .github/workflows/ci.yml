@@ -44,7 +44,6 @@ jobs:
           JWT_SECRET: "ci-test-secret-min-64-chars-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
           APP_ENV: "test"
           PYTEST_ASYNCIO_MODE: "auto"
-        continue-on-error: true   # integration testler backend import bağımlılığı nedeniyle skip olabilir
 
   frontend:
     runs-on: ubuntu-latest
@@ -57,7 +56,7 @@ jobs:
           node-version: '20'
 
       - name: Install frontend dependencies
-        run: cd frontend && npm install
+        run: cd frontend && npm ci
 
       - name: Run frontend typecheck
         run: cd frontend && npm run typecheck
@@ -119,7 +118,10 @@ jobs:
           format: table
           exit-code: 1
           severity: CRITICAL,HIGH
-          trivyignores: .trivyignore
+          # Debian occasionally defers fixes for newly disclosed CVEs. Keep
+          # blocking every HIGH/CRITICAL finding as soon as a fixed package is
+          # available, without maintaining a broad permanent allow-list.
+          ignore-unfixed: true
 
   deploy:
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
@@ -168,7 +170,7 @@ jobs:
 
             if [ ! -d "$INSTALL_DIR/.git" ]; then
               tmp_dir="$(mktemp -d)"
-              git clone https://github.com/ENESAKT/Backtest.git "$tmp_dir"
+              git clone https://github.com/ENESAKT/trading-backtest-platform.git "$tmp_dir"
               rsync -a --delete \
                 --exclude ".env.production" \
                 --exclude "infra/certbot/conf/" \
