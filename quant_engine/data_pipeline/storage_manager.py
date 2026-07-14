@@ -31,6 +31,7 @@ Kullanım:
 from __future__ import annotations
 
 import datetime as dt
+import os
 import re
 import tempfile
 from pathlib import Path
@@ -105,11 +106,14 @@ class StorageManager:
             raise ValueError("Geçersiz sembol.")
 
         base = self.bist_dir if market == "bist" else self.viop_dir
-        resolved_base = base.resolve()
-        candidate = (resolved_base / f"symbol={normalized_symbol}" / "data.parquet").resolve()
-        if not candidate.is_relative_to(resolved_base):
+        resolved_base = os.path.realpath(base)
+        candidate = os.path.realpath(
+            os.path.join(resolved_base, f"symbol={normalized_symbol}", "data.parquet")
+        )
+        root_prefix = resolved_base.rstrip(os.sep) + os.sep
+        if not candidate.startswith(root_prefix):
             raise ValueError("Sembol yolu veri dizininin dışında kalamaz.")
-        return candidate
+        return Path(candidate)
 
     def _ensure_symbol_dir(
         self, symbol: str, market: str = "bist"
