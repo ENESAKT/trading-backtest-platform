@@ -13,7 +13,7 @@ Bu dosya uygulamanın Production ortamına alınması için gerekli adımları i
 
 Sunucu üzerinde projeyi clone'layın:
 ```bash
-git clone https://github.com/ENESAKT/Backtest.git piyasapilot
+git clone https://github.com/ENESAKT/trading-backtest-platform.git piyasapilot
 cd piyasapilot
 ```
 
