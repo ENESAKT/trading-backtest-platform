@@ -4,6 +4,7 @@
  */
 
 import Chart from 'chart.js/auto';
+import DOMPurify from 'dompurify';
 import { createChart, ColorType, LineStyle } from 'lightweight-charts';
 import type { IChartApi, ISeriesApi, UTCTimestamp } from 'lightweight-charts';
 
@@ -30,6 +31,40 @@ interface FinancialChartDef {
 }
 
 const API = '/api/mali-analiz';
+const SYMBOL_PATTERN = /^[A-Z0-9][A-Z0-9._-]{0,31}$/;
+const SYMBOL_ENDPOINTS = new Set([
+  'summary',
+  'balance-sheet',
+  'income-stmt',
+  'cashflow',
+  'ratios',
+  'chart-data',
+  'events',
+  'reports',
+  'refresh',
+]);
+
+function symbolApiUrl(
+  symbol: string,
+  endpoint: string,
+  query?: Record<string, string>,
+): string {
+  const normalized = symbol.trim().toUpperCase();
+  if (!SYMBOL_PATTERN.test(normalized) || !SYMBOL_ENDPOINTS.has(endpoint)) {
+    throw new Error('Geçersiz mali analiz isteği.');
+  }
+  const url = new URL(
+    `${API}/${encodeURIComponent(normalized)}/${endpoint}`,
+    window.location.origin,
+  );
+  if (url.origin !== window.location.origin) {
+    throw new Error('Mali analiz isteği aynı origin üzerinde olmalı.');
+  }
+  for (const [key, value] of Object.entries(query ?? {})) {
+    url.searchParams.set(key, value);
+  }
+  return `${url.pathname}${url.search}`;
+}
 const ICON_CHART = '<svg class="icon-svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg>';
 const ICON_REFRESH = '<svg class="icon-svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 1-15.5 6.3L3 16"/><path d="M3 21v-5h5"/><path d="M3 12A9 9 0 0 1 18.5 5.7L21 8"/><path d="M21 3v5h-5"/></svg>';
 
@@ -272,7 +307,7 @@ export class MaliAnalizPanel {
       list.innerHTML = `<div class="ma-empty">${this.universeQuery ? 'Sonuç yok' : 'Liste boş'}</div>`;
       return;
     }
-    list.innerHTML = filtered.map(s => {
+    list.innerHTML = DOMPurify.sanitize(filtered.map(s => {
       const fs = s.fetch_status;
       const dotCls = fs.status === 'ok' ? 'dot-ok' : fs.status === 'no_data' ? 'dot-empty' : 'dot-partial';
       const active = s.symbol === this.currentSymbol ? ' active' : '';
@@ -287,7 +322,7 @@ export class MaliAnalizPanel {
           <button class="ma-sym-chart-btn" data-chart-sym="${s.symbol}" title="Grafikte aç">${ICON_CHART}</button>
         </div>
       </div>`;
-    }).join('');
+    }).join(''));
 
     list.querySelectorAll('.ma-sym-item').forEach(el => {
       el.addEventListener('click', (e) => {
@@ -323,8 +358,8 @@ export class MaliAnalizPanel {
     if (symbol === this.currentSymbol) return;
     this.currentSymbol = symbol;
     const info = this.universe.find(s => s.symbol === symbol);
-    this.titleEl.innerHTML = `<span class="ma-sym-code">${symbol}</span>
-      <span class="ma-sym-fullname">${info?.name || ''}</span>`;
+    this.titleEl.innerHTML = DOMPurify.sanitize(`<span class="ma-sym-code">${symbol}</span>
+      <span class="ma-sym-fullname">${info?.name || ''}</span>`);
     this.renderUniverseList();
     const fs = info?.fetch_status;
     this.updateStatusBadge(fs);
@@ -350,15 +385,15 @@ export class MaliAnalizPanel {
 
   private showUnsupportedSymbol(symbol: string): void {
     this.currentSymbol = symbol;
-    this.titleEl.innerHTML = `<span class="ma-sym-code">${symbol}</span>
-      <span class="ma-sym-fullname">Mali analiz kapsamı dışında</span>`;
+    this.titleEl.innerHTML = DOMPurify.sanitize(`<span class="ma-sym-code">${symbol}</span>
+      <span class="ma-sym-fullname">Mali analiz kapsamı dışında</span>`);
     this.statusBadgeEl.className = 'ma-status-badge badge-empty';
     this.statusBadgeEl.textContent = 'Kapsam dışı';
-    this.bodyEl.innerHTML = `
+    this.bodyEl.innerHTML = DOMPurify.sanitize(`
       <div class="ma-empty-block">
         Mali analiz şu anda BIST şirket finansalları için kullanılabilir. ${symbol} için bilanço/oran verisi beklenmez.
         Sol listeden BIST 30/BIST 100 sembolü seçin veya grafikte fiyat analizine devam edin.
-      </div>`;
+      </div>`);
   }
 
   private openOnChart(symbol: string): void {
@@ -411,7 +446,7 @@ export class MaliAnalizPanel {
       let cached = this.getCached<{ summary: unknown; alerts: Alert[] }>('summary');
       if (!cached) {
         const [sResp, aResp] = await Promise.all([
-          fetch(`${API}/${sym}/summary`),
+          fetch(symbolApiUrl(sym, 'summary')),
           fetch(`${API}/alerts?limit=30`),
         ]);
         if (this._loadSeq !== seq) return; // symbol/tab changed while fetching
@@ -442,7 +477,7 @@ export class MaliAnalizPanel {
         this.updateStatusBadge(fetchStatus);
       }
 
-      this.bodyEl.innerHTML = `
+      this.bodyEl.innerHTML = DOMPurify.sanitize(`
         <div class="summary-header">
           <div class="summary-title-row">
             <h2>${String(summary.company_name || sym)}</h2>
@@ -453,7 +488,7 @@ export class MaliAnalizPanel {
         ${this.renderSummaryWarnings((summary.warnings as unknown[]) || [])}
         ${this.renderAlertsSection((summary.alerts as Alert[]) || [], 'Bu Sembol Direktifleri')}
         ${this.renderDisclosuresTable(allAlerts)}
-      `;
+      `);
 
       this.bodyEl.querySelectorAll('.btn-mark-read').forEach(btn => {
         btn.addEventListener('click', () => {
@@ -471,7 +506,7 @@ export class MaliAnalizPanel {
       });
     } catch (e) {
       if (this._loadSeq !== seq) return;
-      this.bodyEl.innerHTML = `<div class="ma-error">Özet yüklenemedi: ${this.escHtml(String(e))}</div>`;
+      this.showError('Özet yüklenemedi', e);
     }
   }
 
@@ -553,7 +588,7 @@ export class MaliAnalizPanel {
       this.renderComparisonTable(data);
     } catch (e) {
       if (this._loadSeq !== seq) return;
-      this.bodyEl.innerHTML = `<div class="ma-error">Karşılaştırma yüklenemedi: ${this.escHtml(String(e))}</div>`;
+      this.showError('Karşılaştırma yüklenemedi', e);
     }
   }
 
@@ -614,7 +649,7 @@ export class MaliAnalizPanel {
       ? `<div class="ma-cmp-nodata">Veri yok (BDDK/format): ${noData.map(s => s.symbol).join(', ')}</div>`
       : '';
 
-    this.bodyEl.innerHTML = `
+    this.bodyEl.innerHTML = DOMPurify.sanitize(`
       <div class="ma-table-header">
         <span class="ma-table-title">BIST 30 Finansal Karşılaştırma — ${hasData.length} şirket</span>
         <span class="ma-table-source">Sütun başlığına tıkla: sırala · Satıra tıkla: sembol seç</span>
@@ -634,7 +669,7 @@ export class MaliAnalizPanel {
           </thead>
           <tbody>${bodyRows}</tbody>
         </table>
-      </div>`;
+      </div>`);
 
     this.bodyEl.querySelectorAll('.ma-cmp-sortable').forEach(th => {
       th.addEventListener('click', () => {
@@ -681,7 +716,7 @@ export class MaliAnalizPanel {
     try {
       let data = this.getCached<{ periods: string[]; rows: TableRow[] }>(tab);
       if (!data) {
-        const resp = await fetch(`${API}/${sym}/${endpoint}?limit=12`);
+        const resp = await fetch(symbolApiUrl(sym, endpoint, { limit: '12' }));
         if (this._loadSeq !== seq) return;
         data = await resp.json() as { periods: string[]; rows: TableRow[] };
         if (this._loadSeq !== seq) return;
@@ -719,7 +754,7 @@ export class MaliAnalizPanel {
         return `<tr><td class="ma-label">${r.label}</td>${valueCells}</tr>`;
       }).join('');
 
-      this.bodyEl.innerHTML = `
+      this.bodyEl.innerHTML = DOMPurify.sanitize(`
         <div class="ma-table-header">
           <span class="ma-table-title">${title} — ${this.currentSymbol}</span>
           <span class="ma-table-source">Kaynak: borsapy / isyatirim.com</span>
@@ -729,10 +764,10 @@ export class MaliAnalizPanel {
             <thead><tr><th class="ma-sticky-col">Kalem</th>${headerCells}</tr></thead>
             <tbody>${bodyRows}</tbody>
           </table>
-        </div>`;
+        </div>`);
     } catch (e) {
       if (this._loadSeq !== seq) return;
-      this.bodyEl.innerHTML = `<div class="ma-error">Veri yüklenemedi: ${this.escHtml(String(e))}</div>`;
+      this.showError('Veri yüklenemedi', e);
     }
   }
 
@@ -744,7 +779,7 @@ export class MaliAnalizPanel {
     try {
       let data = this.getCached<{ ratios: Record<string, unknown>[]; periods: string[] }>('ratios');
       if (!data) {
-        const resp = await fetch(`${API}/${sym}/ratios?limit=8`);
+        const resp = await fetch(symbolApiUrl(sym, 'ratios', { limit: '8' }));
         if (this._loadSeq !== seq) return;
         data = await resp.json() as { ratios: Record<string, unknown>[]; periods: string[] };
         if (this._loadSeq !== seq) return;
@@ -800,10 +835,10 @@ export class MaliAnalizPanel {
       }
       html += '</tbody></table></div>';
       if (this._loadSeq !== seq) return;
-      this.bodyEl.innerHTML = html;
+      this.bodyEl.innerHTML = DOMPurify.sanitize(html);
     } catch (e) {
       if (this._loadSeq !== seq) return;
-      this.bodyEl.innerHTML = `<div class="ma-error">Oranlar yüklenemedi: ${this.escHtml(String(e))}</div>`;
+      this.showError('Oranlar yüklenemedi', e);
     }
   }
 
@@ -815,7 +850,7 @@ export class MaliAnalizPanel {
     try {
       let data = this.getCached<ChartDataResponse>('charts');
       if (!data) {
-        const resp = await fetch(`${API}/${sym}/chart-data?limit=20`);
+        const resp = await fetch(symbolApiUrl(sym, 'chart-data', { limit: '20' }));
         if (this._loadSeq !== seq) return;
         data = await resp.json() as ChartDataResponse;
         if (this._loadSeq !== seq) return;
@@ -849,7 +884,7 @@ export class MaliAnalizPanel {
         return;
       }
 
-      this.bodyEl.innerHTML = `
+      this.bodyEl.innerHTML = DOMPurify.sanitize(`
         <div class="ma-chart-grid">
           ${active.map(d => `
             <div class="ma-chart-block${this._expandedCharts.has(d.key) ? ' is-expanded' : ''}" data-chart-key="${d.key}">
@@ -862,7 +897,7 @@ export class MaliAnalizPanel {
               </div>
               <div class="ma-chart-canvas" id="ma-chart-${d.key}" style="position:relative"></div>
             </div>`).join('')}
-        </div>`;
+        </div>`);
 
       this.bindChartActions();
 
@@ -924,7 +959,7 @@ export class MaliAnalizPanel {
 
     } catch (e) {
       if (this._loadSeq !== seq) return;
-      this.bodyEl.innerHTML = `<div class="ma-error">Grafikler yüklenemedi: ${this.escHtml(String(e))}</div>`;
+      this.showError('Grafikler yüklenemedi', e);
     }
   }
 
@@ -1018,7 +1053,7 @@ export class MaliAnalizPanel {
 
     const wfSection = document.createElement('div');
     wfSection.className = `ma-chart-block ma-chart-block-wide${this._expandedCharts.has('waterfall') ? ' is-expanded' : ''}`;
-    wfSection.innerHTML = `
+    wfSection.innerHTML = DOMPurify.sanitize(`
       <div class="ma-chart-head">
         <div class="ma-chart-title">Gelir Şelalesi — Son ${periods.length} Dönem</div>
         <div class="ma-chart-actions">
@@ -1026,7 +1061,7 @@ export class MaliAnalizPanel {
           <button class="ma-chart-action" id="ma-waterfall-income" title="Gelir tablosu sekmesine git">Gelir</button>
         </div>
       </div>
-      <div class="ma-waterfall-canvas-wrap"><canvas id="ma-waterfall-canvas"></canvas></div>`;
+      <div class="ma-waterfall-canvas-wrap"><canvas id="ma-waterfall-canvas"></canvas></div>`);
     this.bodyEl.appendChild(wfSection);
     wfSection.querySelector<HTMLButtonElement>('#ma-waterfall-expand')?.addEventListener('click', () => {
       if (this._expandedCharts.has('waterfall')) this._expandedCharts.delete('waterfall');
@@ -1085,7 +1120,7 @@ export class MaliAnalizPanel {
     try {
       let data = this.getCached<{ events: Record<string, unknown>[]; source: string }>('events');
       if (!data) {
-        const resp = await fetch(`${API}/${sym}/events`);
+        const resp = await fetch(symbolApiUrl(sym, 'events'));
         if (this._loadSeq !== seq) return;
         data = await resp.json() as { events: Record<string, unknown>[]; source: string };
         if (this._loadSeq !== seq) return;
@@ -1122,9 +1157,9 @@ export class MaliAnalizPanel {
         </div>`;
       }).join('');
       if (this._loadSeq !== seq) return;
-      this.bodyEl.innerHTML = `
+      this.bodyEl.innerHTML = DOMPurify.sanitize(`
         <div class="ma-events-header">${markBtn}</div>
-        <div class="ma-events-list">${rows}</div>`;
+        <div class="ma-events-list">${rows}</div>`);
       if (markBtn) {
         this.bodyEl.querySelector<HTMLButtonElement>('.ma-events-mark-all')?.addEventListener('click', (btn) => {
           const ids = JSON.parse((btn.currentTarget as HTMLElement).dataset.ids || '[]') as number[];
@@ -1133,7 +1168,7 @@ export class MaliAnalizPanel {
       }
     } catch (e) {
       if (this._loadSeq !== seq) return;
-      this.bodyEl.innerHTML = `<div class="ma-error">Veri yüklenemedi: ${this.escHtml(String(e))}</div>`;
+      this.showError('Veri yüklenemedi', e);
     }
   }
 
@@ -1145,7 +1180,7 @@ export class MaliAnalizPanel {
     try {
       let data = this.getCached<{ reports: Record<string, unknown>[]; source: string }>('reports');
       if (!data) {
-        const resp = await fetch(`${API}/${sym}/reports`);
+        const resp = await fetch(symbolApiUrl(sym, 'reports'));
         if (this._loadSeq !== seq) return;
         data = await resp.json() as { reports: Record<string, unknown>[]; source: string };
         if (this._loadSeq !== seq) return;
@@ -1177,16 +1212,23 @@ export class MaliAnalizPanel {
         </div>`;
       }).join('');
       if (this._loadSeq !== seq) return;
-      this.bodyEl.innerHTML = `<div class="ma-reports-list">${rows}</div>`;
+      this.bodyEl.innerHTML = DOMPurify.sanitize(`<div class="ma-reports-list">${rows}</div>`);
     } catch (e) {
       if (this._loadSeq !== seq) return;
-      this.bodyEl.innerHTML = `<div class="ma-error">Veri yüklenemedi: ${this.escHtml(String(e))}</div>`;
+      this.showError('Veri yüklenemedi', e);
     }
   }
 
   private escHtml(s: string): string {
     return s.replace(/[&<>"']/g, c =>
       ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c] ?? c);
+  }
+
+  private showError(prefix: string, error: unknown): void {
+    const message = document.createElement('div');
+    message.className = 'ma-error';
+    message.textContent = `${prefix}: ${String(error)}`;
+    this.bodyEl.replaceChildren(message);
   }
 
   private escAttr(s: string): string {
@@ -1213,7 +1255,7 @@ export class MaliAnalizPanel {
       this.statusBadgeEl.textContent = 'Güncelleniyor…';
     }
     try {
-      const resp = await fetch(`${API}/${symbol}/refresh`, { method: 'POST' });
+      const resp = await fetch(symbolApiUrl(symbol, 'refresh'), { method: 'POST' });
       const data = await resp.json();
       if (updateBadge) {
         if (data.status === 'ok') {

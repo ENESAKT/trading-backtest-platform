@@ -53,8 +53,9 @@ def _render(template_name: str, context: dict) -> str:
 
 def _send(to: str, subject: str, html: str) -> None:
     if not SMTP_USER or not SMTP_PASS:
-        # Dev modda konsola yaz
-        print(f"[EMAIL DEV] To: {to} | Subject: {subject}\n{html[:200]}")
+        # Do not print recipient addresses, reset links, tokens, or message
+        # bodies. They are sensitive even in local development logs.
+        print("[EMAIL DEV] Email delivery skipped because SMTP is not configured.")
         return
 
     msg = MIMEMultipart("alternative")
@@ -69,8 +70,8 @@ def _send(to: str, subject: str, html: str) -> None:
             server.starttls()
             server.login(SMTP_USER, SMTP_PASS)
             server.sendmail(FROM_EMAIL, to, msg.as_string())
-    except Exception as exc:
-        print(f"[EMAIL ERROR] {exc}")
+    except Exception:
+        print("[EMAIL ERROR] Email delivery failed.")
 
 
 def send_verification_email(to: str, token: str, display_name: str = "") -> None:

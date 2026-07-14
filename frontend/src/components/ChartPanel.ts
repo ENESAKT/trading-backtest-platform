@@ -16,6 +16,7 @@ import {
   LineStyle,
   PriceScaleMode,
 } from 'lightweight-charts';
+import DOMPurify from 'dompurify';
 import type { OHLCV, Timeframe, ChartType, IndicatorSet, Signal, ChartDataStatus, ChartViewOptions, ChartTemplate, ChartEvent, ChartEventType, DataTruth } from '../types.js';
 import { computeIndicators, lastValid, type IndicatorCalculationOptions } from '../indicators/index.js';
 import { TR, formatNumber, formatDateTime } from '../constants/tr.js';
@@ -3088,9 +3089,9 @@ export class ChartPanel {
     for (let i = 0; i < this._extraEntries.length; i++) {
       allSymbols.push({ sym: this._extraEntries[i].symbol, color: this._extraColors[i] ?? '#aaa' });
     }
-    chips.innerHTML = allSymbols.map(({ sym, color }) =>
+    chips.innerHTML = DOMPurify.sanitize(allSymbols.map(({ sym, color }) =>
       `<span class="cmp-chip" data-sym="${this._escHtml(sym)}" style="border-color:${color};color:${color}">${this._escHtml(sym)} <button class="cmp-chip-x" title="Kaldır">×</button></span>`
-    ).join('');
+    ).join(''));
     chips.querySelectorAll<HTMLElement>('.cmp-chip-x').forEach(btn => {
       btn.addEventListener('click', (e) => {
         e.stopPropagation();
