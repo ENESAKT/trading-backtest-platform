@@ -2,8 +2,10 @@ from __future__ import annotations
 
 from urllib.parse import parse_qs, urlsplit
 
+import pandas as pd
 import pytest
 
+from backend.backtest import runner as backtest_runner
 from quant_engine.data.providers.http_ohlcv import _validated_url
 from quant_engine.data_pipeline.storage_manager import StorageManager
 
@@ -53,3 +55,22 @@ def test_storage_paths_cannot_escape_data_directory(tmp_path) -> None:
 
         with pytest.raises(ValueError):
             storage._symbol_path("THYAO", "unknown")
+
+
+def test_walk_forward_warning_does_not_expose_exception(monkeypatch) -> None:
+    def fail_with_sensitive_detail(*_args, **_kwargs):
+        raise RuntimeError("database password appeared in a stack trace")
+
+    monkeypatch.setattr(
+        backtest_runner,
+        "run_walk_forward_analysis",
+        fail_with_sensitive_detail,
+    )
+
+    payload = backtest_runner._walk_forward_payload(
+        df=pd.DataFrame({"close": range(120)}),
+        run_slice=lambda _frame: None,
+        params={},
+    )
+
+    assert payload["warnings"] == ["Walk-forward analizi üretilemedi."]
