@@ -8,7 +8,7 @@ starlette==0.49.1
 
 # ─── Pydantic / Settings ─────────────────────────────────────────────────────
 pydantic==2.13.3
-pydantic-settings==2.14.0
+pydantic-settings==2.14.2
 email-validator==2.2.0
 
 # ─── Auth / JWT ──────────────────────────────────────────────────────────────
