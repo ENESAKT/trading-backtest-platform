@@ -1,3 +1,4 @@
+import DOMPurify from 'dompurify';
 import { TR, formatNumber } from '../constants/tr.js';
 
 // Canlı sinyal akışı — backend ``/ws/signals`` WebSocket fan-out client'ı.
@@ -114,7 +115,7 @@ export class SignalFeed {
       ? new Date(sonBildirim).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })
       : '—';
     const dotClass = sonHata ? 'tg-warn' : 'tg-on';
-    el.innerHTML = `<span class="tg-dot ${dotClass}"></span> Telegram aktif · son: ${zamanStr} · ${toplam} bildirim`;
+    el.innerHTML = DOMPurify.sanitize(`<span class="tg-dot ${dotClass}"></span> Telegram aktif · son: ${zamanStr} · ${toplam} bildirim`);
     el.title = sonHata ? `Son hata: ${sonHata}` : 'Telegram yapılandırması gizli tutuluyor';
   }
 
@@ -327,15 +328,16 @@ export class SignalFeed {
 
     const toast = document.createElement('div');
     toast.className = `toast toast-${isBuy ? 'buy' : 'sell'}`;
-    toast.innerHTML = `
+    toast.innerHTML = DOMPurify.sanitize(`
       <div class="toast-icon">${emoji}</div>
       <div class="toast-body">
         <div class="toast-title">${label} — ${this.escapeHtml(sig.symbol)} · Tavsiye değildir</div>
         <div class="toast-detail">${this.escapeHtml(sig.reason)}</div>
         <div class="toast-meta">Güç: ${sig.strength}/10 · ${sig.interval}</div>
       </div>
-      <button class="toast-close" onclick="this.parentElement.remove()">✕</button>
-    `;
+      <button class="toast-close" type="button">✕</button>
+    `);
+    toast.querySelector('.toast-close')?.addEventListener('click', () => toast.remove());
 
     // Toast container
     let container = document.getElementById('toast-container');
@@ -505,9 +507,9 @@ export class SignalFeed {
       list.innerHTML = `<div class="signal-feed-empty">${TR.SIGNAL_FEED_EMPTY}</div>`;
       return;
     }
-    list.innerHTML = this.signals.map((sig, i) =>
+    list.innerHTML = DOMPurify.sanitize(this.signals.map((sig, i) =>
       this.signalHTML(sig, i)
-    ).join('');
+    ).join(''));
 
     // Kanıt paneli: her signal-item tıklandığında detay modalı açılır
     list.querySelectorAll<HTMLElement>('[data-sig-idx]').forEach(el => {
@@ -555,7 +557,7 @@ export class SignalFeed {
     modal.style.cssText = `
       position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:1000;
       display:flex;align-items:center;justify-content:center;padding:16px;`;
-    modal.innerHTML = `
+    modal.innerHTML = DOMPurify.sanitize(`
       <div style="background:#1E293B;border:1px solid rgba(255,255,255,.12);border-radius:14px;
                   padding:20px 24px;max-width:460px;width:100%;max-height:80vh;overflow-y:auto;">
         <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">
@@ -589,7 +591,7 @@ export class SignalFeed {
           ⚠️ Bu teknik sinyal bilgisidir. Yatırım tavsiyesi değildir.
           Geçmiş performans gelecek sonuçların garantisi değildir.
         </div>
-      </div>`;
+      </div>`);
 
     document.body.appendChild(modal);
     modal.querySelector('#ev-close')?.addEventListener('click', () => modal.remove());
@@ -620,7 +622,7 @@ export class SignalFeed {
       return;
     }
 
-    el.innerHTML = `
+    el.innerHTML = DOMPurify.sanitize(`
       <table style="width:100%;border-collapse:collapse;font-size:12px;">
         <thead>
           <tr style="text-align:left;border-bottom:1px solid rgba(255,255,255,.08)">
@@ -648,7 +650,7 @@ export class SignalFeed {
               </td>
             </tr>`).join('')}
         </tbody>
-      </table>`;
+      </table>`);
 
     el.querySelectorAll<HTMLButtonElement>('.del-alert-btn').forEach(btn => {
       btn.addEventListener('click', async () => {
@@ -701,7 +703,10 @@ export class SignalFeed {
       badgeLabel = TR.SIGNAL_SELL;
     }
 
-    const stars = '★'.repeat(Math.min(Math.max(sig.strength, 1), 10));
+    const strengthIndex = Number.isFinite(sig.strength)
+      ? Math.min(Math.max(Math.trunc(sig.strength), 1), 10)
+      : 1;
+    const stars = ['', '★', '★★', '★★★', '★★★★', '★★★★★', '★★★★★★', '★★★★★★★', '★★★★★★★★', '★★★★★★★★★', '★★★★★★★★★★'][strengthIndex]!;
     const time = new Date(sig.ts).toLocaleTimeString('tr-TR', {
       hour: '2-digit',
       minute: '2-digit',

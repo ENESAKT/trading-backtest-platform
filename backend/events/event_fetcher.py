@@ -77,8 +77,8 @@ def _fetch_kap_events(symbol: str, limit: int) -> list[dict[str, Any]]:
                 "is_confirmed": True,
             })
         return events
-    except Exception as exc:
-        _logger.debug("[event_fetcher] KAP RSS hatası (%s): %s", symbol, exc)
+    except Exception:
+        _logger.debug("[event_fetcher] KAP RSS fetch failed")
         return []
 
 
@@ -144,8 +144,8 @@ def _fetch_borsapy_events(symbol: str, limit: int) -> list[dict[str, Any]]:
             pass
 
         return events
-    except Exception as exc:
-        _logger.debug("[event_fetcher] borsapy kurumsal olaylar (%s): %s", symbol, exc)
+    except Exception:
+        _logger.debug("[event_fetcher] borsapy corporate-event fetch failed")
         return []
 
 
@@ -214,8 +214,8 @@ def _fetch_yfinance_events(symbol: str, limit: int) -> list[dict[str, Any]]:
             pass
 
         return events
-    except Exception as exc:
-        _logger.debug("[event_fetcher] yfinance kurumsal olaylar (%s): %s", symbol, exc)
+    except Exception:
+        _logger.debug("[event_fetcher] yfinance corporate-event fetch failed")
         return []
 
 

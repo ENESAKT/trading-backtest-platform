@@ -449,13 +449,13 @@ def _walk_forward_payload(
             step_bars=step_bars,
             min_window_efficiency=0.0,
         )
-    except Exception as exc:  # noqa: BLE001
+    except Exception:  # noqa: BLE001
         return {
             "windows": [],
             "total_oos_return_pct": 0.0,
             "walk_forward_efficiency": 0.0,
             "passed": False,
-            "warnings": [f"Walk-forward analizi üretilemedi: {exc}"],
+            "warnings": ["Walk-forward analizi üretilemedi."],
         }
 
     payload = report.to_dict()

@@ -20,6 +20,9 @@ env/
 *.swo
 
 # Veriler (yerel veritabanı — git'e dahil edilmez)
+db/
+*.db
+*.db-journal
 data/bist/
 data/viop/
 data/*.duckdb
@@ -38,6 +41,9 @@ frontend/node_modules/
 frontend/test-results/
 frontend/playwright-report/
 frontend/dist/
+**/.dart_tool/
+**/.flutter-plugins-dependencies
+**/build/
 
 # Loglar
 logs/

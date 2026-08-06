@@ -3,12 +3,64 @@
 from __future__ import annotations
 
 import datetime as dt
+import ipaddress
 import json
+import re
 from typing import Any
-from urllib.parse import quote
+from urllib.parse import quote, urlsplit, urlunsplit
 from urllib.request import Request, urlopen
 
 from backend.config import getenv
+
+
+_SYMBOL_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:=-]{0,63}$")
+_TIMEFRAME_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,15}$")
+
+
+def _validated_url(
+    url_template: str,
+    symbol: str,
+    timeframe: str,
+    limit: int,
+) -> str:
+    """Render an OHLCV URL without allowing request data to change its origin."""
+    if not _SYMBOL_PATTERN.fullmatch(symbol) or not _TIMEFRAME_PATTERN.fullmatch(timeframe):
+        raise ValueError("Invalid OHLCV symbol or timeframe.")
+    template_parts = urlsplit(url_template)
+    if template_parts.scheme != "https" or not template_parts.hostname:
+        raise ValueError("OHLCV endpoint must use HTTPS.")
+    if template_parts.username or template_parts.password or template_parts.fragment:
+        raise ValueError("OHLCV endpoint contains unsupported URL components.")
+    if "{" in template_parts.netloc or "}" in template_parts.netloc:
+        raise ValueError("OHLCV placeholders are not allowed in the URL origin.")
+
+    host = template_parts.hostname.rstrip(".").lower()
+    if host == "localhost" or host.endswith(".localhost"):
+        raise ValueError("Local OHLCV endpoints are not allowed.")
+    try:
+        address = ipaddress.ip_address(host)
+    except ValueError:
+        address = None
+    if address is not None and not address.is_global:
+        raise ValueError("Private OHLCV endpoint addresses are not allowed.")
+
+    rendered = url_template.format(
+        symbol=quote(symbol, safe=""),
+        timeframe=quote(timeframe, safe=""),
+        interval=quote(timeframe, safe=""),
+        limit=max(1, int(limit)),
+    )
+    rendered_parts = urlsplit(rendered)
+    if (
+        rendered_parts.scheme != template_parts.scheme
+        or rendered_parts.hostname != template_parts.hostname
+        or rendered_parts.port != template_parts.port
+        or rendered_parts.username
+        or rendered_parts.password
+        or rendered_parts.fragment
+    ):
+        raise ValueError("OHLCV request origin changed during URL rendering.")
+    return urlunsplit(rendered_parts)
 
 
 def configured_template(env_name: str) -> str:
@@ -86,12 +138,7 @@ def fetch_http_ohlcv(
     timeout: int,
     auth_header: tuple[str, str] | None = None,
 ) -> list[dict[str, Any]]:
-    url = url_template.format(
-        symbol=quote(symbol, safe=""),
-        timeframe=quote(timeframe, safe=""),
-        interval=quote(timeframe, safe=""),
-        limit=max(1, int(limit)),
-    )
+    url = _validated_url(url_template, symbol, timeframe, limit)
     headers = {"User-Agent": "PiyasaPilot/1.0"}
     if auth_header is not None:
         headers[auth_header[0]] = auth_header[1]

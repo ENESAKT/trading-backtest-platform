@@ -8,15 +8,18 @@ on:
     branches:
       - main
 
+permissions:
+  contents: read
+
 jobs:
   backend:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
       - name: Setup Python 3.11
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
         with:
           python-version: '3.11'
 
@@ -35,6 +38,12 @@ jobs:
           MYSQL_PASSWORD: "test"
           APP_ENV: "test"
 
+      - name: Run backend regression suite
+        run: python -m pytest backend/tests/ -q --tb=short
+        env:
+          JWT_SECRET: "ci-test-secret-min-64-chars-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+          APP_ENV: "test"
+
       - name: Run integration tests (mock-based, no live services)
         run: |
           python -m pytest tests/integration/ -q --tb=short \
@@ -44,20 +53,19 @@ jobs:
           JWT_SECRET: "ci-test-secret-min-64-chars-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
           APP_ENV: "test"
           PYTEST_ASYNCIO_MODE: "auto"
-        continue-on-error: true   # integration testler backend import bağımlılığı nedeniyle skip olabilir
 
   frontend:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
-      - name: Setup Node 20
-        uses: actions/setup-node@v4
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - name: Setup Node 24
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: '20'
+          node-version: '24'
 
       - name: Install frontend dependencies
-        run: cd frontend && npm install
+        run: cd frontend && npm ci
 
       - name: Run frontend typecheck
         run: cd frontend && npm run typecheck
@@ -75,10 +83,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
       - name: Setup Flutter
-        uses: subosito/flutter-action@v2
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
         with:
           flutter-version: '3.x'
           channel: 'stable'
@@ -104,7 +112,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
       - name: Build API image
         run: docker build -f docker/Dockerfile.api -t piyasapilot-api:ci .
@@ -112,14 +120,50 @@ jobs:
       - name: Build frontend image
         run: docker build -f docker/Dockerfile.frontend -t piyasapilot-frontend:ci .
 
+      - name: Build workers image
+        run: docker build -f docker/Dockerfile.workers -t piyasapilot-workers:ci .
+
+      - name: Build notifier image
+        run: docker build -f docker/Dockerfile.notifier -t piyasapilot-notifier:ci .
+
       - name: Scan API image
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           image-ref: piyasapilot-api:ci
           format: table
           exit-code: 1
           severity: CRITICAL,HIGH
-          trivyignores: .trivyignore
+          # Debian occasionally defers fixes for newly disclosed CVEs. Keep
+          # blocking every HIGH/CRITICAL finding as soon as a fixed package is
+          # available, without maintaining a broad permanent allow-list.
+          ignore-unfixed: true
+
+      - name: Scan frontend image
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: piyasapilot-frontend:ci
+          format: table
+          exit-code: 1
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+
+      - name: Scan workers image
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: piyasapilot-workers:ci
+          format: table
+          exit-code: 1
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+
+      - name: Scan notifier image
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: piyasapilot-notifier:ci
+          format: table
+          exit-code: 1
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
 
   deploy:
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
@@ -151,7 +195,7 @@ jobs:
 
       - name: Deploy to EC2
         if: ${{ steps.deploy_config.outputs.ready == 'true' }}
-        uses: appleboy/ssh-action@v1.0.3
+        uses: appleboy/ssh-action@0ff4204d59e8e51228ff73bce53f80d53301dee2 # v1.2.5
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
@@ -168,7 +212,7 @@ jobs:
 
             if [ ! -d "$INSTALL_DIR/.git" ]; then
               tmp_dir="$(mktemp -d)"
-              git clone https://github.com/ENESAKT/Backtest.git "$tmp_dir"
+              git clone https://github.com/ENESAKT/trading-backtest-platform.git "$tmp_dir"
               rsync -a --delete \
                 --exclude ".env.production" \
                 --exclude "infra/certbot/conf/" \

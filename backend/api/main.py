@@ -36,6 +36,7 @@ import itertools
 import logging
 import math
 import os
+import re
 import signal
 import uuid
 # NOT: sentry_sdk.init() burada çağrılmaz — create_app() içindeki _init_sentry() çağırır.
@@ -1114,12 +1115,12 @@ def create_app(
             except Exception:
                 pass  # audit hatası backtest'i engellemesin
             return result
-        except UnknownStrategy as exc:
-            raise HTTPException(status_code=400, detail=str(exc))
-        except BacktestNotEnoughData as exc:
-            raise HTTPException(status_code=409, detail=str(exc))
-        except BacktestRunError as exc:
-            raise HTTPException(status_code=400, detail=str(exc))
+        except UnknownStrategy:
+            raise HTTPException(status_code=400, detail="Bilinmeyen strateji.")
+        except BacktestNotEnoughData:
+            raise HTTPException(status_code=409, detail="Backtest için yeterli veri yok.")
+        except BacktestRunError:
+            raise HTTPException(status_code=400, detail="Backtest çalıştırılamadı.")
 
     @app.post("/api/backtest/batch", tags=["backtest"])
     @_limit(limiter, "5/minute")
@@ -1190,8 +1191,8 @@ def create_app(
                     "final_equity":       m.get("final_equity", capital),
                     "profit_factor":      m.get("profit_factor"),
                 })
-            except (UnknownStrategy, BacktestRunError) as exc:
-                errors.append({"symbol": sym, "error": str(exc)})
+            except (UnknownStrategy, BacktestRunError):
+                errors.append({"symbol": sym, "error": "Backtest çalıştırılamadı."})
             except Exception:  # noqa: BLE001
                 errors.append({"symbol": sym, "error": "Backtest çalıştırılamadı."})
 
@@ -1295,8 +1296,8 @@ def create_app(
                     "score": score,
                     "warnings": warnings,
                 })
-            except Exception as exc:  # noqa: BLE001
-                errors.append({"params": combo, "error": str(exc)})
+            except Exception:  # noqa: BLE001
+                errors.append({"params": combo, "error": "Optimizasyon denemesi çalıştırılamadı."})
 
         rows.sort(key=lambda row: float(row["score"]), reverse=True)
         stability_report: dict[str, Any] = {}
@@ -1384,8 +1385,8 @@ def create_app(
                         - float(metrics["max_drawdown_pct"]) * 0.7
                     ),
                 })
-            except Exception as exc:  # noqa: BLE001
-                errors.append({"symbol": symbol, "error": str(exc)})
+            except Exception:  # noqa: BLE001
+                errors.append({"symbol": symbol, "error": "Backtest taraması çalıştırılamadı."})
         rows.sort(key=lambda row: float(row["score"]), reverse=True)
         return {"scanner_version": "v3", "results": rows, "errors": errors}
 
@@ -2124,16 +2125,16 @@ def create_app(
                 description=req.description,
                 example_backtest_metadata=req.example_backtest_metadata,
             )
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc))
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Geçersiz strateji paketi.")
         return {"filename": ".piyasapilot-strategy.json", "pack": pack}
 
     @app.post("/api/strategy-lab/pack/import", tags=["strategy-lab"])
     def strategy_pack_import(req: StrategyPackImportRequest, user: dict = Depends(get_current_user)) -> dict[str, Any]:
         try:
             pack = import_strategy_pack(req.pack)
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc))
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Geçersiz strateji paketi.")
         return {"pack": pack}
 
     @app.post("/api/strategy-lab/strategies/{record_id}/paper/activate", tags=["strategy-lab"])
@@ -3058,8 +3059,8 @@ def create_app(
                 "message": "Sanal paper trade gerçek son fiyatla kaydedildi.",
                 "trade": trade,
             }
-        except Exception as exc:
-            raise HTTPException(status_code=400, detail=str(exc))
+        except Exception:
+            raise HTTPException(status_code=400, detail="Paper trade kaydedilemedi.")
 
     # ── v2 endpoint: cache-aside OHLCV ───────────────────────────────────
     @app.get("/api/v2/candles")
@@ -3079,6 +3080,14 @@ def create_app(
           4. Provider hata verirse cache'te biriken eski veriyi yine de döndür
              (graceful degradation), metadata'da ``status='stale'``.
         """
+        canonical_input = symbol.strip().upper()
+        if not re.fullmatch(r"[A-Z0-9][A-Z0-9._:=-]{0,63}", canonical_input):
+            raise HTTPException(
+                status_code=400,
+                detail={"code": "invalid_symbol", "message": "Geçersiz veya boş sembol."},
+            )
+        symbol = canonical_input
+
         try:
             safe_limit = max(1, min(int(limit), 5000))
         except (TypeError, ValueError):
@@ -3369,8 +3378,8 @@ def create_app(
         """Tek sembol için stored data'dan oran yeniden hesaplama."""
         try:
             normalized = normalize_symbol(symbol)
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc))
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Geçersiz sembol.")
         if not _financial_repository_ref:
             raise HTTPException(status_code=503, detail="Finansal repository hazır değil")
         import asyncio as _aio
@@ -3384,8 +3393,8 @@ def create_app(
         """Tek sembol için veri yenileme tetikler."""
         try:
             normalized = normalize_symbol(symbol)
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc))
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Geçersiz sembol.")
         if not _financial_repository_ref:
             raise HTTPException(status_code=503, detail="Finansal repository hazır değil")
         import asyncio as _aio
@@ -3408,8 +3417,8 @@ def create_app(
         """Bilanço verisi — satır × dönem pivot tablosu."""
         try:
             normalized = normalize_symbol(symbol)
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc))
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Geçersiz sembol.")
         if not _financial_repository_ref:
             return {"symbol": normalized, "rows": [], "periods": [], "source": "no_db"}
         periods = _financial_repository_ref.get_available_periods(normalized, period_type)[:limit]
@@ -3431,8 +3440,8 @@ def create_app(
         """Gelir tablosu."""
         try:
             normalized = normalize_symbol(symbol)
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc))
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Geçersiz sembol.")
         if not _financial_repository_ref:
             return {"symbol": normalized, "rows": [], "periods": [], "source": "no_db"}
         periods = _financial_repository_ref.get_available_periods(normalized, period_type)[:limit]
@@ -3454,8 +3463,8 @@ def create_app(
         """Nakit akışı tablosu."""
         try:
             normalized = normalize_symbol(symbol)
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc))
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Geçersiz sembol.")
         if not _financial_repository_ref:
             return {"symbol": normalized, "rows": [], "periods": [], "source": "no_db"}
         periods = _financial_repository_ref.get_available_periods(normalized, period_type)[:limit]
@@ -3476,8 +3485,8 @@ def create_app(
         """Hesaplanmış finansal oranlar."""
         try:
             normalized = normalize_symbol(symbol)
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc))
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Geçersiz sembol.")
         if not _financial_repository_ref:
             return {"symbol": normalized, "ratios": [], "source": "no_db"}
         periods = _financial_repository_ref.get_available_periods(normalized, "quarterly")[:limit]
@@ -3494,8 +3503,8 @@ def create_app(
         """Özet + direktifler."""
         try:
             normalized = normalize_symbol(symbol)
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc))
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Geçersiz sembol.")
         if not _financial_repository_ref:
             return {"symbol": normalized, "alerts": [], "ratios": [], "source": "no_db"}
         alerts = _financial_repository_ref.get_alerts(symbol=normalized, limit=10)
@@ -3518,8 +3527,8 @@ def create_app(
     def get_mali_analiz_reports(symbol: str, user: dict = Depends(get_current_user)) -> dict[str, Any]:
         try:
             normalized = normalize_symbol(symbol)
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc))
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Geçersiz sembol.")
         periods: list[str] = []
         if _financial_repository_ref:
             periods = _financial_repository_ref.get_available_periods(normalized, "quarterly")
@@ -3545,8 +3554,8 @@ def create_app(
     def get_mali_analiz_events(symbol: str, user: dict = Depends(get_current_user)) -> dict[str, Any]:
         try:
             normalized = normalize_symbol(symbol)
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc))
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Geçersiz sembol.")
         alerts: list[Any] = []
         if _financial_repository_ref:
             alerts = _financial_repository_ref.get_alerts(symbol=normalized, limit=100)
@@ -3569,8 +3578,8 @@ def create_app(
         """Metrik geçmişi kontratı; finansal seri bağlanana kadar boş döner."""
         try:
             normalized = normalize_symbol(symbol)
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc))
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Geçersiz sembol.")
         if not _financial_repository_ref:
             return {"symbol": normalized, "metric": metric, "points": [], "source": "no_db"}
         ratios = _financial_repository_ref.get_computed_ratios(normalized, ratio_keys=[metric])
@@ -3593,8 +3602,8 @@ def create_app(
         """
         try:
             normalized = normalize_symbol(symbol)
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc))
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Geçersiz sembol.")
 
         if not _financial_repository_ref:
             return {"symbol": normalized, "metrics": {}, "source": "no_db"}
@@ -4971,8 +4980,8 @@ def create_app(
 
         except ImportError:
             result["error"] = "yfinance kurulu değil (pip install yfinance)."
-        except Exception as exc:
-            result["error"] = f"Veri alınamadı: {str(exc)[:200]}"
+        except Exception:
+            result["error"] = "Veri alınamadı."
 
         return result
 

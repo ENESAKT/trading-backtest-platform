@@ -31,6 +31,8 @@ Kullanım:
 from __future__ import annotations
 
 import datetime as dt
+import os
+import re
 import tempfile
 from pathlib import Path
 from typing import Optional
@@ -45,6 +47,8 @@ from quant_engine.config.config_manager import get_config
 
 # STR-3 FIX: İzin verilen mode'lar
 _VALID_MODES = {"append", "overwrite"}
+_VALID_MARKETS = {"bist", "viop"}
+_SYMBOL_PATTERN = re.compile(r"^[A-Z0-9][A-Z0-9._:=-]{0,63}$")
 
 
 class StorageManager:
@@ -95,10 +99,21 @@ class StorageManager:
         STR-7 FIX: Artık her çağrıda mkdir yapmıyor.
         mkdir sadece yazma işleminde yapılıyor.
         """
-        base = (
-            self.bist_dir if market == "bist" else self.viop_dir
+        normalized_symbol = symbol.strip().upper()
+        if market not in _VALID_MARKETS:
+            raise ValueError("Geçersiz piyasa.")
+        if not _SYMBOL_PATTERN.fullmatch(normalized_symbol):
+            raise ValueError("Geçersiz sembol.")
+
+        base = self.bist_dir if market == "bist" else self.viop_dir
+        resolved_base = os.path.realpath(base)
+        candidate = os.path.realpath(
+            os.path.join(resolved_base, f"symbol={normalized_symbol}", "data.parquet")
         )
-        return base / f"symbol={symbol}" / "data.parquet"
+        root_prefix = resolved_base.rstrip(os.sep) + os.sep
+        if not candidate.startswith(root_prefix):
+            raise ValueError("Sembol yolu veri dizininin dışında kalamaz.")
+        return Path(candidate)
 
     def _ensure_symbol_dir(
         self, symbol: str, market: str = "bist"

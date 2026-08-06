@@ -127,7 +127,10 @@ class StorageLayerGuard:
                 f"İzinliler: [{allowed_names}]. "
                 f"Bağlam: {context or '—'}"
             )
-            _logger.error(msg)
+            # The detailed message contains caller-controlled context. Keep it
+            # out of logs to prevent forged log lines while preserving it for
+            # the in-process exception handler.
+            _logger.error("[StorageLayerGuard] Storage layer policy violation")
             raise StorageLayerViolation(msg)
 
     # ── Kısayol metodlar ─────────────────────────────────────────────────────
