@@ -65,18 +65,24 @@ class _PaperPortfolioScreenState extends State<PaperPortfolioScreen> {
   }
 
   Widget _buildBody() {
-    if (_loading) return const Center(child: CircularProgressIndicator());
-    if (_error != null) return Center(child: Padding(
-      padding: const EdgeInsets.all(24),
-      child: Column(mainAxisSize: MainAxisSize.min, children: [
-        const Icon(Icons.warning_amber, size: 40, color: Colors.orange),
-        const SizedBox(height: 8),
-        Text(_error!, textAlign: TextAlign.center),
-        const SizedBox(height: 16),
-        ElevatedButton(onPressed: _load, child: const Text('Tekrar Dene')),
-      ]),
-    ));
-    if (_portfolio == null) return const SizedBox.shrink();
+    if (_loading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (_error != null) {
+      return Center(child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          const Icon(Icons.warning_amber, size: 40, color: Colors.orange),
+          const SizedBox(height: 8),
+          Text(_error!, textAlign: TextAlign.center),
+          const SizedBox(height: 16),
+          ElevatedButton(onPressed: _load, child: const Text('Tekrar Dene')),
+        ]),
+      ));
+    }
+    if (_portfolio == null) {
+      return const SizedBox.shrink();
+    }
 
     final p = _portfolio!;
     return RefreshIndicator(
@@ -85,7 +91,7 @@ class _PaperPortfolioScreenState extends State<PaperPortfolioScreen> {
         // Donduruldu uyarısı
         if (p.isHalted)
           Container(
-            color: Colors.red.withOpacity(0.1),
+            color: Colors.red.withValues(alpha: 0.1),
             padding: const EdgeInsets.all(12),
             child: const Row(children: [
               Icon(Icons.lock, color: Colors.red),
@@ -205,7 +211,7 @@ class _PositionTile extends StatelessWidget {
       leading: Container(
         width: 36, height: 36,
         decoration: BoxDecoration(
-          color: position.side == 'long' ? Colors.green.withOpacity(0.15) : Colors.red.withOpacity(0.15),
+          color: position.side == 'long' ? Colors.green.withValues(alpha: 0.15) : Colors.red.withValues(alpha: 0.15),
           borderRadius: BorderRadius.circular(6),
         ),
         child: Center(child: Text(
@@ -255,7 +261,7 @@ class _PaperDisclaimer extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      color: Colors.blue.withOpacity(0.08),
+      color: Colors.blue.withValues(alpha: 0.08),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       child: const Text(
         '📋 SANAL AL/SAT — Bu ekrandaki tüm işlemler simülasyondur. Gerçek emir verilmez, gerçek para kullanılmaz.',

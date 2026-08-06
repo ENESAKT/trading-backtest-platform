@@ -1,51 +1,24 @@
 /// Fiyat Alarmı Ekranı
 ///
-/// Kullanıcı sembol + hedef fiyat girer. Alarm listesi yerel olarak tutulur.
-/// Push notification entegrasyonu (Firebase) yayın aşamasında yapılır;
-/// bu ekran UI katmanını tamamlar.
+/// Backend /api/alerts/price endpoint'i ile senkronize alarm yönetimi.
 library;
 
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'dart:convert';
 
-class PriceAlert {
-  final String symbol;
-  final double targetPrice;
-  final String direction; // 'above' | 'below'
-  final DateTime createdAt;
-
-  PriceAlert({
-    required this.symbol,
-    required this.targetPrice,
-    required this.direction,
-    required this.createdAt,
-  });
-
-  Map<String, dynamic> toJson() => {
-    'symbol':      symbol,
-    'targetPrice': targetPrice,
-    'direction':   direction,
-    'createdAt':   createdAt.toIso8601String(),
-  };
-
-  factory PriceAlert.fromJson(Map<String, dynamic> j) => PriceAlert(
-    symbol:      j['symbol']      as String,
-    targetPrice: (j['targetPrice'] as num).toDouble(),
-    direction:   j['direction']   as String,
-    createdAt:   DateTime.parse(j['createdAt'] as String),
-  );
-}
+import '../services/api_service.dart';
 
 class PriceAlertScreen extends StatefulWidget {
-  const PriceAlertScreen({super.key});
+  final ApiService api;
+  const PriceAlertScreen({super.key, required this.api});
 
   @override
   State<PriceAlertScreen> createState() => _PriceAlertScreenState();
 }
 
 class _PriceAlertScreenState extends State<PriceAlertScreen> {
-  List<PriceAlert> _alerts = [];
+  List<Map<String, dynamic>> _alerts = [];
+  bool _loading = true;
+  String? _error;
 
   @override
   void initState() {
@@ -54,95 +27,72 @@ class _PriceAlertScreenState extends State<PriceAlertScreen> {
   }
 
   Future<void> _load() async {
-    final prefs = await SharedPreferences.getInstance();
-    final raw   = prefs.getStringList('price_alerts') ?? [];
-    setState(() {
-      _alerts = raw
-          .map((s) => PriceAlert.fromJson(jsonDecode(s) as Map<String, dynamic>))
-          .toList();
-    });
-  }
-
-  Future<void> _save() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setStringList(
-      'price_alerts',
-      _alerts.map((a) => jsonEncode(a.toJson())).toList(),
-    );
+    setState(() { _loading = true; _error = null; });
+    try {
+      final list = await widget.api.getAlerts();
+      setState(() { _alerts = list; _loading = false; });
+    } on ApiException catch (e) {
+      setState(() {
+        _loading = false;
+        _error = e.statusCode == 401
+            ? 'Alarmları görmek için giriş yapın.'
+            : 'Alarmlar yüklenemedi (${e.statusCode})';
+      });
+    } catch (e) {
+      setState(() { _loading = false; _error = 'Bağlantı hatası'; });
+    }
   }
 
   Future<void> _addAlert() async {
-    final result = await showModalBottomSheet<PriceAlert>(
+    final result = await showModalBottomSheet<Map<String, dynamic>>(
       context: context,
       isScrollControlled: true,
       builder: (_) => const _AddAlertSheet(),
     );
-    if (result != null) {
-      setState(() => _alerts.add(result));
-      await _save();
+    if (result == null) return;
+    try {
+      await widget.api.createAlert(
+        symbol:    result['symbol'] as String,
+        target:    result['target'] as double,
+        direction: result['direction'] as String,
+      );
+      _load();
+    } on ApiException catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Alarm eklenemedi: ${e.message}')),
+        );
+      }
     }
   }
 
-  Future<void> _deleteAlert(int index) async {
-    setState(() => _alerts.removeAt(index));
-    await _save();
+  Future<void> _deleteAlert(int id) async {
+    try {
+      await widget.api.deleteAlert(id);
+      setState(() => _alerts.removeWhere((a) => a['id'] == id));
+    } on ApiException catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Alarm silinemedi: ${e.message}')),
+        );
+      }
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Fiyat Alarmları')),
-      body: _alerts.isEmpty
-          ? Center(
-              child: Column(mainAxisSize: MainAxisSize.min, children: [
-                Icon(Icons.notifications_none, size: 48, color: Colors.grey[400]),
-                const SizedBox(height: 12),
-                const Text('Henüz alarm eklenmedi.',
-                  style: TextStyle(color: Colors.grey)),
-                const SizedBox(height: 4),
-                const Text('+ butonuna basarak alarm ekleyin.',
-                  style: TextStyle(fontSize: 12, color: Colors.grey)),
-              ]),
-            )
-          : ListView.separated(
-              itemCount: _alerts.length,
-              separatorBuilder: (_, __) => const Divider(height: 1),
-              itemBuilder: (ctx, i) {
-                final a = _alerts[i];
-                final isAbove = a.direction == 'above';
-                return ListTile(
-                  leading: CircleAvatar(
-                    backgroundColor: (isAbove ? Colors.green : Colors.red).withOpacity(0.12),
-                    child: Icon(
-                      isAbove ? Icons.arrow_upward : Icons.arrow_downward,
-                      color: isAbove ? Colors.green : Colors.red,
-                      size: 20,
-                    ),
-                  ),
-                  title: Text(a.symbol, style: const TextStyle(fontWeight: FontWeight.bold)),
-                  subtitle: Text(
-                    '${isAbove ? "Üstünde" : "Altında"}: ₺${a.targetPrice.toStringAsFixed(2)}',
-                    style: const TextStyle(fontSize: 13),
-                  ),
-                  trailing: Row(mainAxisSize: MainAxisSize.min, children: [
-                    Text(
-                      a.createdAt.toLocal().toString().substring(0, 10),
-                      style: const TextStyle(fontSize: 11, color: Colors.grey),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.delete_outline, color: Colors.red, size: 20),
-                      onPressed: () => _deleteAlert(i),
-                    ),
-                  ]),
-                );
-              },
-            ),
+      appBar: AppBar(
+        title: const Text('Fiyat Alarmları'),
+        actions: [IconButton(icon: const Icon(Icons.refresh), onPressed: _load)],
+      ),
+      body: _buildBody(),
       floatingActionButton: FloatingActionButton(
         onPressed: _addAlert,
         child: const Icon(Icons.add),
       ),
       bottomNavigationBar: Container(
-        color: Colors.blue.withOpacity(0.08),
+        color: Colors.blue.withValues(alpha: 0.08),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         child: const Text(
           '🔔 Push bildirimler yayın sürümünde aktif olur.',
@@ -150,6 +100,66 @@ class _PriceAlertScreenState extends State<PriceAlertScreen> {
           textAlign: TextAlign.center,
         ),
       ),
+    );
+  }
+
+  Widget _buildBody() {
+    if (_loading) return const Center(child: CircularProgressIndicator());
+    if (_error != null) {
+      return Center(child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          const Icon(Icons.warning_amber, size: 40, color: Colors.orange),
+          const SizedBox(height: 8),
+          Text(_error!, textAlign: TextAlign.center),
+          const SizedBox(height: 16),
+          ElevatedButton(onPressed: _load, child: const Text('Tekrar Dene')),
+        ]),
+      ));
+    }
+    if (_alerts.isEmpty) {
+      return Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
+        Icon(Icons.notifications_none, size: 48, color: Colors.grey[400]),
+        const SizedBox(height: 12),
+        const Text('Henüz alarm eklenmedi.', style: TextStyle(color: Colors.grey)),
+        const SizedBox(height: 4),
+        const Text('+ butonuna basarak alarm ekleyin.', style: TextStyle(fontSize: 12, color: Colors.grey)),
+      ]));
+    }
+    return ListView.separated(
+      itemCount: _alerts.length,
+      separatorBuilder: (_, __) => const Divider(height: 1),
+      itemBuilder: (ctx, i) {
+        final a         = _alerts[i];
+        final id        = a['id'] as int? ?? 0;
+        final symbol    = a['symbol'] as String? ?? '';
+        final target    = (a['target'] as num?)?.toDouble() ?? 0;
+        final direction = a['direction'] as String? ?? 'above';
+        final createdAt = a['created_at'] as String? ?? '';
+        final isAbove   = direction == 'above';
+        return ListTile(
+          leading: CircleAvatar(
+            backgroundColor: (isAbove ? Colors.green : Colors.red).withValues(alpha: 0.12),
+            child: Icon(
+              isAbove ? Icons.arrow_upward : Icons.arrow_downward,
+              color: isAbove ? Colors.green : Colors.red,
+              size: 20,
+            ),
+          ),
+          title: Text(symbol, style: const TextStyle(fontWeight: FontWeight.bold)),
+          subtitle: Text('${isAbove ? "Üstünde" : "Altında"}: ₺${target.toStringAsFixed(2)}'),
+          trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+            Text(
+              createdAt.length >= 10 ? createdAt.substring(0, 10) : createdAt,
+              style: const TextStyle(fontSize: 11, color: Colors.grey),
+            ),
+            IconButton(
+              icon: const Icon(Icons.delete_outline, color: Colors.red, size: 20),
+              onPressed: () => _deleteAlert(id),
+            ),
+          ]),
+        );
+      },
     );
   }
 }
@@ -176,15 +186,11 @@ class _AddAlertSheetState extends State<_AddAlertSheet> {
 
   void _submit() {
     if (!_formKey.currentState!.validate()) return;
-    Navigator.pop(
-      context,
-      PriceAlert(
-        symbol:      _symbolCtrl.text.trim().toUpperCase(),
-        targetPrice: double.parse(_priceCtrl.text.trim()),
-        direction:   _direction,
-        createdAt:   DateTime.now(),
-      ),
-    );
+    Navigator.pop(context, {
+      'symbol':    _symbolCtrl.text.trim().toUpperCase(),
+      'target':    double.parse(_priceCtrl.text.trim()),
+      'direction': _direction,
+    });
   }
 
   @override
@@ -197,8 +203,7 @@ class _AddAlertSheetState extends State<_AddAlertSheet> {
       child: Form(
         key: _formKey,
         child: Column(mainAxisSize: MainAxisSize.min, children: [
-          const Text('Yeni Fiyat Alarmı',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+          const Text('Yeni Fiyat Alarmı', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
           const SizedBox(height: 16),
           TextFormField(
             controller: _symbolCtrl,

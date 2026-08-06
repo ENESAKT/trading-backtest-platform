@@ -7,8 +7,9 @@ library;
 import 'package:shared_preferences/shared_preferences.dart';
 
 class AuthStore {
-  static const _keyToken    = 'auth_token';
-  static const _keyBaseUrl  = 'api_base_url';
+  static const _keyToken        = 'auth_token';
+  static const _keyRefreshToken = 'auth_refresh_token';
+  static const _keyBaseUrl      = 'api_base_url';
 
   /// Token'ı kaydet.
   static Future<void> saveToken(String token) async {
@@ -26,6 +27,19 @@ class AuthStore {
   static Future<void> clearToken() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_keyToken);
+    await prefs.remove(_keyRefreshToken);
+  }
+
+  /// Refresh token kaydet.
+  static Future<void> saveRefreshToken(String token) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_keyRefreshToken, token);
+  }
+
+  /// Kayıtlı refresh token. Yoksa null döner.
+  static Future<String?> loadRefreshToken() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_keyRefreshToken);
   }
 
   /// Giriş yapılmış mı?
@@ -41,7 +55,7 @@ class AuthStore {
   }
 
   /// Base URL getir.
-  static Future<String> loadBaseUrl({String defaultUrl = 'http://localhost'}) async {
+  static Future<String> loadBaseUrl({String defaultUrl = 'http://localhost:8000'}) async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getString(_keyBaseUrl) ?? defaultUrl;
   }

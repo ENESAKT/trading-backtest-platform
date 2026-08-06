@@ -4,6 +4,7 @@
 /// tek sayfada gösterir. Sekmeli yapı ile daha fazla detay açılabilir.
 library;
 
+import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 
 import '../models/models.dart';
@@ -34,17 +35,21 @@ class _Symbol360ScreenState extends State<Symbol360Screen>
 
   SymbolSnapshot? _snapshot;
   TechnicalSummary? _technical;
+  List<Map<String, dynamic>> _candles = [];
   bool _loadingSnapshot = true;
   bool _loadingTechnical = true;
+  bool _loadingCandles = false;
   String? _snapshotError;
   String? _technicalError;
+  String? _candlesError;
 
   @override
   void initState() {
     super.initState();
-    _tabs = TabController(length: 3, vsync: this);
+    _tabs = TabController(length: 4, vsync: this);
     _loadSnapshot();
     _loadTechnical();
+    _loadCandles();
   }
 
   @override
@@ -62,6 +67,18 @@ class _Symbol360ScreenState extends State<Symbol360Screen>
       setState(() { _loadingSnapshot = false; _snapshotError = 'Sembol verisi yüklenemedi (${e.statusCode})'; });
     } catch (e) {
       setState(() { _loadingSnapshot = false; _snapshotError = 'Bağlantı hatası'; });
+    }
+  }
+
+  Future<void> _loadCandles() async {
+    setState(() { _loadingCandles = true; _candlesError = null; });
+    try {
+      final list = await widget.api.getCandles(widget.symbol, interval: '1d', limit: 90);
+      setState(() { _candles = list; _loadingCandles = false; });
+    } on ApiException catch (e) {
+      setState(() { _loadingCandles = false; _candlesError = 'Grafik verisi alınamadı (${e.statusCode})'; });
+    } catch (_) {
+      setState(() { _loadingCandles = false; _candlesError = 'Bağlantı hatası'; });
     }
   }
 
@@ -88,7 +105,7 @@ class _Symbol360ScreenState extends State<Symbol360Screen>
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
-            onPressed: () { _loadSnapshot(); _loadTechnical(); },
+            onPressed: () { _loadSnapshot(); _loadTechnical(); _loadCandles(); },
           ),
         ],
         bottom: TabBar(
@@ -96,6 +113,7 @@ class _Symbol360ScreenState extends State<Symbol360Screen>
           tabs: const [
             Tab(text: 'Genel'),
             Tab(text: 'Teknik'),
+            Tab(text: 'Grafik'),
             Tab(text: 'Veri'),
           ],
         ),
@@ -112,6 +130,11 @@ class _Symbol360ScreenState extends State<Symbol360Screen>
             summary: _technical,
             loading: _loadingTechnical,
             error: _technicalError,
+          ),
+          _ChartTab(
+            candles: _candles,
+            loading: _loadingCandles,
+            error: _candlesError,
           ),
           _DataQualityTab(snapshot: _snapshot, technical: _technical),
         ],
@@ -345,7 +368,7 @@ class _IndicatorRow extends StatelessWidget {
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
           decoration: BoxDecoration(
-            color: _signalColor().withOpacity(0.12),
+            color: _signalColor().withValues(alpha: 0.12),
             borderRadius: BorderRadius.circular(4),
           ),
           child: Text(_signalLabel(), style: TextStyle(fontSize: 11, color: _signalColor(), fontWeight: FontWeight.bold)),
@@ -369,15 +392,116 @@ class _WarningChip extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 4),
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
-        color: Colors.orange.withOpacity(0.1),
+        color: Colors.orange.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: Colors.orange.withOpacity(0.3)),
+        border: Border.all(color: Colors.orange.withValues(alpha: 0.3)),
       ),
       child: Row(children: [
         const Icon(Icons.warning_amber, size: 14, color: Colors.orange),
         const SizedBox(width: 6),
         Expanded(child: Text(message, style: const TextStyle(fontSize: 12))),
       ]),
+    );
+  }
+}
+
+// ─── Grafik Sekmesi ───────────────────────────────────────────────────────────
+
+class _ChartTab extends StatelessWidget {
+  final List<Map<String, dynamic>> candles;
+  final bool loading;
+  final String? error;
+  const _ChartTab({required this.candles, required this.loading, this.error});
+
+  @override
+  Widget build(BuildContext context) {
+    if (loading) return const Center(child: CircularProgressIndicator());
+    if (error != null) return _ErrorView(message: error!);
+    if (candles.isEmpty) {
+      return const Center(child: Text('Grafik verisi bulunamadı.', style: TextStyle(color: Colors.grey)));
+    }
+
+    final closes = candles
+        .map((c) => (c['close'] as num?)?.toDouble() ?? 0.0)
+        .toList();
+
+    final minY = closes.reduce((a, b) => a < b ? a : b);
+    final maxY = closes.reduce((a, b) => a > b ? a : b);
+    final padding = (maxY - minY) * 0.05;
+    final lastClose = closes.last;
+    final firstClose = closes.first;
+    final isPositive = lastClose >= firstClose;
+    final lineColor = isPositive ? Colors.green : Colors.red;
+
+    final spots = List.generate(
+      closes.length,
+      (i) => FlSpot(i.toDouble(), closes[i]),
+    );
+
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Son ${candles.length} Gün — Kapanış Fiyatı',
+            style: const TextStyle(fontSize: 12, color: Colors.grey),
+          ),
+          const SizedBox(height: 12),
+          Expanded(
+            child: LineChart(
+              LineChartData(
+                minY: minY - padding,
+                maxY: maxY + padding,
+                gridData: FlGridData(
+                  show: true,
+                  drawVerticalLine: false,
+                  horizontalInterval: (maxY - minY) / 4,
+                  getDrawingHorizontalLine: (v) => FlLine(
+                    color: Colors.grey.withValues(alpha: 0.15),
+                    strokeWidth: 1,
+                  ),
+                ),
+                borderData: FlBorderData(show: false),
+                titlesData: FlTitlesData(
+                  leftTitles: AxisTitles(
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      reservedSize: 52,
+                      getTitlesWidget: (v, _) => Text(
+                        v.toStringAsFixed(2),
+                        style: const TextStyle(fontSize: 10, color: Colors.grey),
+                      ),
+                    ),
+                  ),
+                  bottomTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                  topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                  rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                ),
+                lineBarsData: [
+                  LineChartBarData(
+                    spots: spots,
+                    isCurved: true,
+                    curveSmoothness: 0.3,
+                    color: lineColor,
+                    barWidth: 2,
+                    dotData: const FlDotData(show: false),
+                    belowBarData: BarAreaData(
+                      show: true,
+                      color: lineColor.withValues(alpha: 0.08),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'Bu grafik yatırım tavsiyesi değildir.',
+            style: TextStyle(fontSize: 11, color: Colors.grey),
+          ),
+        ],
+      ),
     );
   }
 }

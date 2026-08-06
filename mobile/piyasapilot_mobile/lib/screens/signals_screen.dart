@@ -194,7 +194,7 @@ class _StrengthBar extends StatelessWidget {
       ...List.generate(10, (i) => Container(
         width: 6, height: 12, margin: const EdgeInsets.only(right: 1),
         decoration: BoxDecoration(
-          color: i < strength ? Colors.amber : Colors.grey.withOpacity(0.2),
+          color: i < strength ? Colors.amber : Colors.grey.withValues(alpha: 0.2),
           borderRadius: BorderRadius.circular(2),
         ),
       )),
@@ -208,7 +208,7 @@ class _DisclaimerBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      color: Colors.amber.withOpacity(0.1),
+      color: Colors.amber.withValues(alpha: 0.1),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       child: const Text(
         '⚠️ Bu sinyaller yatırım tavsiyesi değildir. Geçmiş performans gelecek sonuçları garanti etmez.',

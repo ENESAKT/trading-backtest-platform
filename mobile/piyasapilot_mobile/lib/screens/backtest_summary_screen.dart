@@ -38,9 +38,9 @@ class BacktestSummaryScreen extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: Colors.red.withOpacity(0.1),
+              color: Colors.red.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Colors.red.withOpacity(0.3)),
+              border: Border.all(color: Colors.red.withValues(alpha: 0.3)),
             ),
             child: const Row(children: [
               Icon(Icons.warning_amber, color: Colors.red),
@@ -69,7 +69,7 @@ class BacktestSummaryScreen extends StatelessWidget {
         Container(
           padding: const EdgeInsets.all(10),
           decoration: BoxDecoration(
-            color: Colors.amber.withOpacity(0.08),
+            color: Colors.amber.withValues(alpha: 0.08),
             borderRadius: BorderRadius.circular(8),
           ),
           child: const Text(
@@ -116,7 +116,7 @@ class _AssumptionsCard extends StatelessWidget {
               margin: const EdgeInsets.only(top: 8),
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: Colors.deepOrange.withOpacity(0.1),
+                color: Colors.deepOrange.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(6),
               ),
               child: const Text(
@@ -205,9 +205,9 @@ class _RiskChip extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 6),
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.08),
+        color: color.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: color.withOpacity(0.25)),
+        border: Border.all(color: color.withValues(alpha: 0.25)),
       ),
       child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Icon(_iconForLevel(level), color: color, size: 16),

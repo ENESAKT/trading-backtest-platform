@@ -2,8 +2,9 @@
 ///
 /// Kullanıcının takip ettiği sembollerin anlık fiyat, değişim ve
 /// veri kalite rozetleriyle gösterildiği mobil-öncelikli ana ekran.
-/// Masaüstü terminalin kopyası değil; hızlı izleme odaklıdır.
 library;
+
+import 'dart:async';
 
 import 'package:flutter/material.dart';
 
@@ -11,6 +12,8 @@ import '../models/models.dart';
 import '../services/api_service.dart';
 import '../widgets/data_quality_badge.dart';
 import '../widgets/price_change_chip.dart';
+import 'price_alert_screen.dart';
+import 'symbol_360_screen.dart';
 
 class WatchlistScreen extends StatefulWidget {
   final ApiService api;
@@ -24,11 +27,19 @@ class _WatchlistScreenState extends State<WatchlistScreen> {
   List<SymbolSnapshot> _items = [];
   bool _loading = true;
   String? _error;
+  Timer? _refreshTimer;
 
   @override
   void initState() {
     super.initState();
     _load();
+    _refreshTimer = Timer.periodic(const Duration(seconds: 30), (_) => _load());
+  }
+
+  @override
+  void dispose() {
+    _refreshTimer?.cancel();
+    super.dispose();
   }
 
   Future<void> _load() async {
@@ -48,12 +59,66 @@ class _WatchlistScreenState extends State<WatchlistScreen> {
     }
   }
 
+  Future<void> _addSymbol() async {
+    final ctrl = TextEditingController();
+    final symbol = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Sembol Ekle'),
+        content: TextField(
+          controller: ctrl,
+          textCapitalization: TextCapitalization.characters,
+          decoration: const InputDecoration(
+            labelText: 'Sembol (örn. THYAO)',
+            border: OutlineInputBorder(),
+          ),
+          autofocus: true,
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('İptal')),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, ctrl.text.trim().toUpperCase()),
+            child: const Text('Ekle'),
+          ),
+        ],
+      ),
+    );
+    if (symbol == null || symbol.isEmpty) return;
+    try {
+      await widget.api.addToWatchlist(symbol, 'BIST');
+      _load();
+    } on ApiException catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Eklenemedi: ${e.message}')),
+        );
+      }
+    }
+  }
+
+  Future<void> _removeSymbol(String symbol) async {
+    try {
+      await widget.api.removeFromWatchlist(symbol);
+      setState(() => _items.removeWhere((s) => s.symbol == symbol));
+    } on ApiException catch (_) {
+      _load();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('İzleme Listesi'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.notifications_outlined),
+            tooltip: 'Fiyat Alarmları',
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => PriceAlertScreen(api: widget.api)),
+            ),
+          ),
           IconButton(
             icon: const Icon(Icons.refresh),
             tooltip: 'Yenile',
@@ -62,12 +127,19 @@ class _WatchlistScreenState extends State<WatchlistScreen> {
         ],
       ),
       body: _buildBody(),
+      floatingActionButton: FloatingActionButton(
+        onPressed: _addSymbol,
+        tooltip: 'Sembol Ekle',
+        child: const Icon(Icons.add),
+      ),
     );
   }
 
   Widget _buildBody() {
-    if (_loading) return const Center(child: CircularProgressIndicator());
-    if (_error != null) {
+    if (_loading && _items.isEmpty) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (_error != null && _items.isEmpty) {
       return Center(
         child: Padding(
           padding: const EdgeInsets.all(24),
@@ -86,7 +158,10 @@ class _WatchlistScreenState extends State<WatchlistScreen> {
     }
     if (_items.isEmpty) {
       return const Center(
-        child: Text('İzleme listeniz boş.\nSembol eklemek için + butonunu kullanın.', textAlign: TextAlign.center),
+        child: Text(
+          'İzleme listeniz boş.\n+ butonuna basarak sembol ekleyin.',
+          textAlign: TextAlign.center,
+        ),
       );
     }
     return RefreshIndicator(
@@ -94,7 +169,33 @@ class _WatchlistScreenState extends State<WatchlistScreen> {
       child: ListView.separated(
         itemCount: _items.length,
         separatorBuilder: (_, __) => const Divider(height: 1),
-        itemBuilder: (ctx, i) => _WatchlistTile(snapshot: _items[i]),
+        itemBuilder: (ctx, i) {
+          final s = _items[i];
+          return Dismissible(
+            key: ValueKey(s.symbol),
+            direction: DismissDirection.endToStart,
+            background: Container(
+              color: Colors.red,
+              alignment: Alignment.centerRight,
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: const Icon(Icons.delete, color: Colors.white),
+            ),
+            onDismissed: (_) => _removeSymbol(s.symbol),
+            child: _WatchlistTile(
+              snapshot: s,
+              onTap: () => Navigator.push(
+                ctx,
+                MaterialPageRoute(
+                  builder: (_) => Symbol360Screen(
+                    api: widget.api,
+                    symbol: s.symbol,
+                    market: s.market,
+                  ),
+                ),
+              ),
+            ),
+          );
+        },
       ),
     );
   }
@@ -102,7 +203,8 @@ class _WatchlistScreenState extends State<WatchlistScreen> {
 
 class _WatchlistTile extends StatelessWidget {
   final SymbolSnapshot snapshot;
-  const _WatchlistTile({required this.snapshot});
+  final VoidCallback onTap;
+  const _WatchlistTile({required this.snapshot, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -145,9 +247,7 @@ class _WatchlistTile extends StatelessWidget {
               ],
             )
           : const Text('—', style: TextStyle(color: Colors.grey)),
-      onTap: () {
-        // Symbol 360 ekranına git
-      },
+      onTap: onTap,
     );
   }
 }

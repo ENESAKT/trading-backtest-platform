@@ -29,9 +29,9 @@ class TechnicalRatingCard extends StatelessWidget {
       elevation: 0,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(8),
-        side: BorderSide(color: color.withOpacity(0.4)),
+        side: BorderSide(color: color.withValues(alpha: 0.4)),
       ),
-      color: color.withOpacity(0.06),
+      color: color.withValues(alpha: 0.06),
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
         child: Column(mainAxisSize: MainAxisSize.min, children: [

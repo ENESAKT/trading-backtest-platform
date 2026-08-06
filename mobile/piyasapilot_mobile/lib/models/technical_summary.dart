@@ -156,20 +156,21 @@ class TechnicalSummary {
         overallRating:        TechnicalRating.fromJson(j['overall_rating']         as String?),
         oscillatorRating:     TechnicalRating.fromJson(j['oscillator_rating']      as String?),
         movingAverageRating:  TechnicalRating.fromJson(j['moving_average_rating']  as String?),
-        oscillators: (j['oscillators'] as List<dynamic>?)
+        // Backend oscillators_list / moving_averages_list list alanlarını oku
+        oscillators: (j['oscillators_list'] as List<dynamic>?)
                 ?.map((e) => OscillatorEntry.fromJson(e as Map<String, dynamic>))
                 .toList() ??
             [],
-        movingAverages: (j['moving_averages'] as List<dynamic>?)
+        movingAverages: (j['moving_averages_list'] as List<dynamic>?)
                 ?.map((e) => MovingAverageEntry.fromJson(e as Map<String, dynamic>))
                 .toList() ??
             [],
-        pivotLevels: (j['pivot_levels'] as List<dynamic>?)
+        pivotLevels: (j['pivot_levels_list'] as List<dynamic>?)
                 ?.map((e) => PivotLevels.fromJson(e as Map<String, dynamic>))
                 .toList() ??
             [],
-        warmupBarsUsed:    j['warmup_bars_used']    as int? ?? 0,
-        calculationVersion: j['calculation_version'] as String? ?? '1.0',
+        warmupBarsUsed:    j['warmup_bars_used'] as int? ?? (j['bars_used'] as int? ?? 0),
+        calculationVersion: j['calculation_version'] as String? ?? '2.0',
         dataTruth: j['data_truth'] != null
             ? DataTruth.fromJson(j['data_truth'] as Map<String, dynamic>)
             : null,

@@ -110,7 +110,7 @@ class _ScreenerScreenState extends State<ScreenerScreen> {
         Expanded(child: _buildBody()),
       ]),
       bottomNavigationBar: Container(
-        color: Colors.amber.withOpacity(0.08),
+        color: Colors.amber.withValues(alpha: 0.08),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         child: const Text(
           '⚠️ Tarayıcı sonuçları yatırım tavsiyesi değildir.',
@@ -122,24 +122,30 @@ class _ScreenerScreenState extends State<ScreenerScreen> {
   }
 
   Widget _buildBody() {
-    if (_loading) return const Center(child: CircularProgressIndicator());
-    if (_error != null) return Center(child: Padding(
-      padding: const EdgeInsets.all(24),
-      child: Column(mainAxisSize: MainAxisSize.min, children: [
-        const Icon(Icons.warning_amber, size: 40, color: Colors.orange),
-        const SizedBox(height: 8),
-        Text(_error!, textAlign: TextAlign.center),
-      ]),
-    ));
-    if (_results.isEmpty) return Center(
-      child: Text(
-        _selected < 0
-            ? 'Bir preset seçerek taramayı başlatın.'
-            : 'Bu kriterlere uyan sembol bulunamadı.',
-        textAlign: TextAlign.center,
-        style: const TextStyle(color: Colors.grey),
-      ),
-    );
+    if (_loading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (_error != null) {
+      return Center(child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          const Icon(Icons.warning_amber, size: 40, color: Colors.orange),
+          const SizedBox(height: 8),
+          Text(_error!, textAlign: TextAlign.center),
+        ]),
+      ));
+    }
+    if (_results.isEmpty) {
+      return Center(
+        child: Text(
+          _selected < 0
+              ? 'Bir preset seçerek taramayı başlatın.'
+              : 'Bu kriterlere uyan sembol bulunamadı.',
+          textAlign: TextAlign.center,
+          style: const TextStyle(color: Colors.grey),
+        ),
+      );
+    }
 
     return ListView.separated(
       itemCount: _results.length,

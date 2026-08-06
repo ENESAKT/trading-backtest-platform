@@ -1,6 +1,6 @@
-/// PiyasaPilot widget testi — smoke test
-///
-/// Uygulama MaterialApp ile başlatılabilir mi kontrol eder.
+// PiyasaPilot widget testi — smoke test
+//
+// Uygulama MaterialApp ile başlatılabilir mi kontrol eder.
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 

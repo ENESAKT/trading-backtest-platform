@@ -7,11 +7,13 @@ library;
 import 'package:flutter/material.dart';
 
 import '../services/api_service.dart';
-import 'watchlist_screen.dart';
-import 'signals_screen.dart';
+import 'backtest_list_screen.dart';
+import 'news_screen.dart';
 import 'paper_portfolio_screen.dart';
 import 'screener_screen.dart';
 import 'settings_screen.dart';
+import 'signals_screen.dart';
+import 'watchlist_screen.dart';
 
 class HomeShell extends StatefulWidget {
   final ApiService api;
@@ -24,12 +26,14 @@ class HomeShell extends StatefulWidget {
 class _HomeShellState extends State<HomeShell> {
   int _selectedIndex = 0;
 
-  static const _tabLabels = ['İzleme', 'Sinyaller', 'Portföy', 'Tarayıcı', 'Ayarlar'];
-  static const _tabIcons  = [
+  static const _tabLabels = ['İzleme', 'Sinyaller', 'Portföy', 'Tarayıcı', 'Haberler', 'Backtest', 'Ayarlar'];
+  static const _tabIcons = [
     Icons.list_alt,
     Icons.notifications_active_outlined,
     Icons.account_balance_wallet_outlined,
     Icons.search,
+    Icons.newspaper_outlined,
+    Icons.bar_chart_outlined,
     Icons.settings_outlined,
   ];
   static const _tabIconsSelected = [
@@ -37,6 +41,8 @@ class _HomeShellState extends State<HomeShell> {
     Icons.notifications_active,
     Icons.account_balance_wallet,
     Icons.search,
+    Icons.newspaper,
+    Icons.bar_chart,
     Icons.settings,
   ];
 
@@ -50,6 +56,8 @@ class _HomeShellState extends State<HomeShell> {
       SignalsScreen(api: widget.api),
       PaperPortfolioScreen(api: widget.api, strategyId: 'default'),
       ScreenerScreen(api: widget.api),
+      NewsScreen(api: widget.api),
+      BacktestListScreen(api: widget.api),
       SettingsScreen(api: widget.api),
     ];
   }

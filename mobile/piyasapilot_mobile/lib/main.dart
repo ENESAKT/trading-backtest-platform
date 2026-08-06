@@ -14,7 +14,6 @@ import 'services/auth_store.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await AuthStore.saveBaseUrl('http://localhost');
   runApp(const PiyasaPilotApp());
 }
 

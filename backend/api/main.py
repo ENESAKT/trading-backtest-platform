@@ -117,6 +117,7 @@ _BACKTEST_ARCHIVE_PATH = "data/strategy_lab/backtest_reports.sqlite3"
 _STRATEGY_STORE_PATH = "data/strategy_lab/strategies.sqlite3"
 _NEWS_DB_PATH = "data/cache/news.sqlite3"
 _PRICE_ALERTS_DB_PATH = "data/cache/price_alerts.sqlite3"
+_WATCHLIST_DB_PATH    = "data/cache/watchlist.sqlite3"
 _logger = logging.getLogger(__name__)
 
 # Cache miss eşiği: cache'teki en yeni bar'dan beri bu süreden uzun zaman
@@ -2315,6 +2316,111 @@ def create_app(
             "fetched_at":      _utc_iso(),
         }
 
+    # ── Paper Portfolio Özeti (mobile) ───────────────────────────────────
+    @app.get("/api/paper/portfolio/{strategy_id}", tags=["paper-trading"])
+    def paper_portfolio_summary(strategy_id: str, user: dict = Depends(get_current_user)) -> dict[str, Any]:
+        """Strateji için birleşik portföy özeti: cüzdan + MTM pozisyonlar + emirler."""
+        wallet    = paper_db.get_or_create_wallet(strategy_id)
+        positions = paper_db.get_positions(strategy_id)
+        trades    = paper_db.get_trades(strategy_id, limit=50)
+
+        # Realized PnL: kapalı trade'lerin pnl toplamı
+        realized_pnl = sum(float(t.get("pnl") or 0) for t in trades if t.get("closed_at"))
+
+        # MTM pozisyonlar
+        positions_value  = 0.0
+        unrealized_pnl   = 0.0
+        mtm_positions    = []
+        for pos in positions:
+            sym         = str(pos["symbol"]).upper()
+            entry_price = float(pos["entry_price"])
+            quantity    = float(pos["quantity"])
+            bar = cache.latest_bar(sym, "1d") or cache.latest_bar(sym, "1h")
+            cur = float(bar["close"]) if bar else entry_price
+            upnl = (cur - entry_price) * quantity
+            upnl_pct = (cur - entry_price) / entry_price * 100 if entry_price > 0 else 0.0
+            pos_val = cur * quantity
+            positions_value += pos_val
+            unrealized_pnl  += upnl
+            mtm_positions.append({
+                "strategy_id":       strategy_id,
+                "symbol":            sym,
+                "side":              "long",
+                "quantity":          round(quantity, 6),
+                "entry_price":       round(entry_price, 6),
+                "current_price":     round(cur, 6),
+                "unrealized_pnl":    round(upnl, 4),
+                "unrealized_pnl_pct": round(upnl_pct, 2),
+                "realized_pnl":      0.0,
+                "opened_at":         pos.get("opened_at", ""),
+                "trade_id":          pos.get("trade_id", 0),
+            })
+
+        cash           = float(wallet["cash"])
+        initial_cap    = float(wallet["initial_capital"])
+        total_equity   = cash + positions_value
+        daily_loss     = float(wallet.get("daily_loss", 0))
+        daily_pnl_pct  = daily_loss / initial_cap * 100 if initial_cap > 0 else 0.0
+
+        # Open orders: son filled emirler (paper'da tüm emirler filled olur)
+        open_orders_raw = paper_db.get_trades(strategy_id, limit=10)
+        open_orders = [
+            {
+                "id":              t["id"],
+                "strategy_id":     strategy_id,
+                "symbol":          str(t["symbol"]).upper(),
+                "side":            str(t.get("side", "BUY")).lower(),
+                "order_type":      "market",
+                "status":          "filled",
+                "quantity":        float(t.get("quantity", 0)),
+                "requested_price": float(t.get("price", 0)),
+                "filled_price":    float(t.get("price", 0)),
+                "created_at":      str(t.get("opened_at", _utc_iso())),
+                "filled_at":       str(t.get("opened_at", _utc_iso())),
+                "reason":          str(t.get("reason", "")),
+            }
+            for t in open_orders_raw
+            if not t.get("closed_at")
+        ]
+
+        return {
+            "strategy_id":    strategy_id,
+            "initial_capital": round(initial_cap, 2),
+            "cash":           round(cash, 2),
+            "positions_value": round(positions_value, 2),
+            "total_equity":   round(total_equity, 2),
+            "unrealized_pnl": round(unrealized_pnl, 2),
+            "realized_pnl":   round(realized_pnl, 2),
+            "daily_pnl":      round(-daily_loss, 2),
+            "daily_pnl_pct":  round(-daily_pnl_pct, 2),
+            "is_halted":      bool(wallet.get("is_halted", 0)),
+            "positions":      mtm_positions,
+            "open_orders":    open_orders,
+            "as_of":          _utc_iso(),
+        }
+
+    @app.get("/api/paper/orders/{strategy_id}", tags=["paper-trading"])
+    def paper_orders_list(strategy_id: str, limit: int = 50, user: dict = Depends(get_current_user)) -> list[dict[str, Any]]:
+        """Strateji emirlerini döndürür (paper_orders tablosundan)."""
+        trades = paper_db.get_trades(strategy_id, limit=limit)
+        return [
+            {
+                "id":              t["id"],
+                "strategy_id":     strategy_id,
+                "symbol":          str(t["symbol"]).upper(),
+                "side":            str(t.get("side", "BUY")).lower(),
+                "order_type":      "market",
+                "status":          "filled",
+                "quantity":        float(t.get("quantity", 0)),
+                "requested_price": float(t.get("price", 0)),
+                "filled_price":    float(t.get("price", 0)),
+                "created_at":      str(t.get("opened_at", _utc_iso())),
+                "filled_at":       str(t.get("opened_at", _utc_iso())),
+                "reason":          str(t.get("reason", "")),
+            }
+            for t in trades
+        ]
+
     # ── WebSocket fan-out: signals (Sprint 3.5) ──────────────────────────
     @app.websocket("/ws/signals")
     async def ws_signals(ws: WebSocket) -> None:
@@ -2771,6 +2877,158 @@ def create_app(
         if not deleted:
             raise HTTPException(status_code=404, detail="Uyarı bulunamadı.")
         return {"deleted": alert_id}
+
+    # ── Watchlist ─────────────────────────────────────────────────────────────
+
+    def _wl_connect() -> "sqlite3.Connection":
+        import sqlite3 as _sq3
+        from pathlib import Path as _P
+        p = _P(_WATCHLIST_DB_PATH)
+        p.parent.mkdir(parents=True, exist_ok=True)
+        conn = _sq3.connect(str(p))
+        conn.row_factory = _sq3.Row
+        conn.executescript("""
+            CREATE TABLE IF NOT EXISTS watchlist (
+                id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_email TEXT NOT NULL,
+                symbol     TEXT NOT NULL,
+                market     TEXT NOT NULL DEFAULT 'BIST',
+                added_at   TEXT NOT NULL DEFAULT (datetime('now')),
+                UNIQUE(user_email, symbol)
+            );""")
+        return conn
+
+    def _symbol_snapshot_dict(sym: str, market: str = "BIST") -> dict[str, Any]:
+        bar       = cache.latest_bar(sym, "1d") or cache.latest_bar(sym, "1h")
+        prev_bars = cache.get_window(sym, "1d", limit=2)
+        prev_close: float | None = None
+        if len(prev_bars) >= 2:
+            prev_close = float(prev_bars[-2]["close"])
+        change_pct: float | None = None
+        if bar and prev_close and prev_close > 0:
+            change_pct = round((float(bar["close"]) - prev_close) / prev_close * 100, 2)
+        return {
+            "symbol": sym,
+            "market": market,
+            "name":   SYMBOL_METADATA.get(sym),
+            "sector": None,
+            "instrument_type": "stock",
+            "last_price":   float(bar["close"]) if bar else None,
+            "prev_close":   prev_close,
+            "change_pct_1d": change_pct,
+            "high_52w": None,
+            "low_52w":  None,
+            "session_status": "unknown",
+            "last_bar_ts": (bar.get("ts") or bar.get("time")) if bar else None,
+            "data_truth": {
+                "symbol": sym, "market": market, "timeframe": "1d",
+                "provider": "cache", "source_type": "cache",
+                "is_real": True, "is_live": False, "is_delayed": True,
+                "delay_minutes": 15, "staleness_seconds": 0,
+                "quality_status": "ok", "coverage_pct": 95.0,
+                "gap_count": 0, "duplicate_count": 0, "outlier_count": 0,
+                "adjusted_for_splits": False, "adjusted_for_dividends": False,
+                "is_derived": False, "source_timeframe": "1d",
+                "derivation_method": "",
+                "license_note": "Yahoo Finance verisi; gecikimli.",
+                "warnings": [],
+            },
+            "pe_ratio": None, "pb_ratio": None, "market_cap": None,
+            "eps_ttm": None, "dividend_yield": None, "warnings": [],
+        }
+
+    _DEFAULT_WATCHLIST_SYMBOLS = BIST_30_SYMBOLS[:15]
+
+    @app.get("/api/watchlist", tags=["watchlist"])
+    def get_watchlist(user: dict | None = Depends(get_optional_user)) -> list[dict[str, Any]]:
+        """İzleme listesi. Giriş yoksa BIST30 ilk 15 sembol döner."""
+        if user is None:
+            return [_symbol_snapshot_dict(s) for s in _DEFAULT_WATCHLIST_SYMBOLS]
+        email = str(user.get("email", ""))
+        with _wl_connect() as conn:
+            rows = conn.execute(
+                "SELECT symbol, market FROM watchlist WHERE user_email=? ORDER BY added_at DESC",
+                (email,),
+            ).fetchall()
+        pairs = [(r["symbol"], r["market"]) for r in rows]
+        if not pairs:
+            pairs = [(s, "BIST") for s in _DEFAULT_WATCHLIST_SYMBOLS]
+        return [_symbol_snapshot_dict(sym, mkt) for sym, mkt in pairs]
+
+    @app.post("/api/watchlist/add", tags=["watchlist"])
+    def watchlist_add(body: dict[str, Any], user: dict = Depends(get_current_user)) -> dict[str, Any]:
+        symbol = str(body.get("symbol", "")).upper().strip()
+        market = str(body.get("market", "BIST")).upper()
+        if not symbol:
+            raise HTTPException(status_code=422, detail="symbol zorunludur.")
+        email = str(user.get("email", ""))
+        with _wl_connect() as conn:
+            conn.execute(
+                "INSERT OR IGNORE INTO watchlist (user_email, symbol, market) VALUES (?,?,?)",
+                (email, symbol, market),
+            )
+            conn.commit()
+        return {"added": symbol, "market": market}
+
+    @app.delete("/api/watchlist/{symbol}", tags=["watchlist"])
+    def watchlist_remove(symbol: str, user: dict = Depends(get_current_user)) -> dict[str, Any]:
+        email = str(user.get("email", ""))
+        with _wl_connect() as conn:
+            conn.execute(
+                "DELETE FROM watchlist WHERE user_email=? AND symbol=?",
+                (email, symbol.upper()),
+            )
+            conn.commit()
+        return {"removed": symbol.upper()}
+
+    # ── Sembol Snapshot ───────────────────────────────────────────────────────
+
+    @app.get("/api/symbols/{symbol}/snapshot", tags=["symbols"])
+    def get_symbol_snapshot(symbol: str, market: str = "BIST") -> dict[str, Any]:
+        """Sembol anlık snapshot: son fiyat, günlük değişim."""
+        sym  = symbol.strip().upper()
+        snap = _symbol_snapshot_dict(sym, market.upper())
+        if snap["last_price"] is None:
+            raise HTTPException(status_code=404, detail=f"{sym} için cache verisi bulunamadı.")
+        return snap
+
+    # ── Sinyal Listesi (mobil) ────────────────────────────────────────────────
+
+    @app.get("/api/signals", tags=["signals"])
+    def list_signals(
+        symbol: str | None = None,
+        market: str | None = None,
+        limit: int = 20,
+        user: dict | None = Depends(get_optional_user),
+    ) -> list[dict[str, Any]]:
+        """Son paper trade'leri sinyal formatında döndürür."""
+        trades = paper_db.get_trades(strategy_id=None, limit=min(limit * 3, 200))
+        result = []
+        for t in trades:
+            sym = str(t["symbol"]).upper()
+            if symbol and sym != symbol.upper():
+                continue
+            side = str(t.get("side", "BUY")).upper()
+            result.append({
+                "signal_id":      str(t["id"]),
+                "strategy_id":    str(t.get("strategy_id", "default")),
+                "symbol":         sym,
+                "market":         "BIST",
+                "timeframe":      "1d",
+                "signal_type":    "BUY" if side in ("BUY", "LONG") else "SELL",
+                "strength":       5,
+                "price_at_signal": float(t.get("price", 0)),
+                "ts":             str(t.get("opened_at", _utc_iso())),
+                "indicators":     [],
+                "reason":         str(t.get("reason", "")),
+                "rule_triggered": "",
+                "data_truth":     None,
+                "disclaimer":     "Bu sinyal yatırım tavsiyesi değildir.",
+                "warnings":       [],
+            })
+            if len(result) >= limit:
+                break
+        return result
 
     @app.post("/api/paper/signal", tags=["paper-trading"], dependencies=[Depends(require_paper_trading)])
     async def paper_signal(request: Request, user: dict = Depends(get_current_user)) -> dict[str, Any]:
@@ -4563,11 +4821,53 @@ def create_app(
             "overall_rating": overall,
             "overall_counts": total_rating,
             "data_truth": {
-                "quality_status": "ok",
-                "provider": "cache",
+                "symbol": sym_upper, "market": market.upper(), "timeframe": timeframe,
+                "quality_status": "ok", "provider": "cache", "source_type": "cache",
+                "is_real": True, "is_live": False, "is_delayed": True,
+                "delay_minutes": 15, "staleness_seconds": 0,
+                "coverage_pct": 95.0, "gap_count": 0, "duplicate_count": 0, "outlier_count": 0,
+                "adjusted_for_splits": False, "adjusted_for_dividends": False,
+                "is_derived": False, "source_timeframe": "1d", "derivation_method": "",
+                "license_note": "Yahoo Finance verisi; gecikimli.",
+                "warnings": ["Bu teknik özet cache verisinden hesaplanmıştır; yatırım tavsiyesi değildir."],
                 "fetched_at": fetched_at,
-                "warning": "Bu teknik özet cache verisinden hesaplanmıştır; yatırım tavsiyesi değildir.",
             },
+            # Mobile-uyumlu list alanları
+            "oscillator_rating": ("buy" if osc_rating["buy"] > osc_rating["sell"] else ("sell" if osc_rating["sell"] > osc_rating["buy"] else "neutral")),
+            "moving_average_rating": ("buy" if ma_rating["buy"] > ma_rating["sell"] else ("sell" if ma_rating["sell"] > ma_rating["buy"] else "neutral")),
+            "warmup_bars_used": n,
+            "calculated_at": fetched_at,
+            "oscillators_list": [
+                {"name": "RSI(14)",      "value": rsi_val,       "signal": osc_rsi_signal,      "threshold_low": 30,   "threshold_high": 70,  "description": ""},
+                {"name": "MACD",         "value": macd_hist_v,   "signal": osc_macd_signal,     "threshold_low": None, "threshold_high": None, "description": ""},
+                {"name": "Stochastic",   "value": stoch_k,       "signal": osc_stoch_signal,    "threshold_low": 20,   "threshold_high": 80,  "description": ""},
+                {"name": "Bollinger",    "value": bb_mid,        "signal": osc_bb_signal,       "threshold_low": None, "threshold_high": None, "description": ""},
+                {"name": "CCI(20)",      "value": cci_val,       "signal": osc_cci_signal,      "threshold_low": -100, "threshold_high": 100, "description": ""},
+                {"name": "Momentum(10)", "value": momentum_val,  "signal": osc_momentum_signal, "threshold_low": None, "threshold_high": None, "description": ""},
+                {"name": "Williams %R",  "value": williams_r_val,"signal": osc_wr_signal,       "threshold_low": -80,  "threshold_high": -20, "description": ""},
+                {"name": "StochRSI",     "value": srsi_k,        "signal": osc_srsi_signal,     "threshold_low": 20,   "threshold_high": 80,  "description": ""},
+                {"name": "AO",           "value": ao_val,        "signal": osc_ao_signal,       "threshold_low": None, "threshold_high": None, "description": ""},
+                {"name": "UO",           "value": uo_val,        "signal": osc_uo_signal,       "threshold_low": 30,   "threshold_high": 70,  "description": ""},
+            ],
+            "moving_averages_list": [
+                {"name": "SMA 10",  "period": 10,  "ma_type": "sma",  "value": sma_10,  "signal": ma_signals["sma_10"],  "distance_pct": _round((last_close - sma_10) / sma_10 * 100 if sma_10 and last_close else None, 2)},
+                {"name": "SMA 20",  "period": 20,  "ma_type": "sma",  "value": sma_20,  "signal": ma_signals["sma_20"],  "distance_pct": _round((last_close - sma_20) / sma_20 * 100 if sma_20 and last_close else None, 2)},
+                {"name": "SMA 30",  "period": 30,  "ma_type": "sma",  "value": sma_30,  "signal": ma_signals["sma_30"],  "distance_pct": _round((last_close - sma_30) / sma_30 * 100 if sma_30 and last_close else None, 2)},
+                {"name": "SMA 50",  "period": 50,  "ma_type": "sma",  "value": sma_50,  "signal": ma_signals["sma_50"],  "distance_pct": _round((last_close - sma_50) / sma_50 * 100 if sma_50 and last_close else None, 2)},
+                {"name": "SMA 100", "period": 100, "ma_type": "sma",  "value": sma_100, "signal": ma_signals["sma_100"], "distance_pct": _round((last_close - sma_100) / sma_100 * 100 if sma_100 and last_close else None, 2)},
+                {"name": "SMA 200", "period": 200, "ma_type": "sma",  "value": sma_200, "signal": ma_signals["sma_200"], "distance_pct": _round((last_close - sma_200) / sma_200 * 100 if sma_200 and last_close else None, 2)},
+                {"name": "EMA 10",  "period": 10,  "ma_type": "ema",  "value": ema_10,  "signal": ma_signals["ema_10"],  "distance_pct": _round((last_close - ema_10) / ema_10 * 100 if ema_10 and last_close else None, 2)},
+                {"name": "EMA 20",  "period": 20,  "ma_type": "ema",  "value": ema_20,  "signal": ma_signals["ema_20"],  "distance_pct": _round((last_close - ema_20) / ema_20 * 100 if ema_20 and last_close else None, 2)},
+                {"name": "EMA 50",  "period": 50,  "ma_type": "ema",  "value": ema_50,  "signal": ma_signals["ema_50"],  "distance_pct": _round((last_close - ema_50) / ema_50 * 100 if ema_50 and last_close else None, 2)},
+                {"name": "EMA 100", "period": 100, "ma_type": "ema",  "value": ema_100, "signal": ma_signals["ema_100"], "distance_pct": _round((last_close - ema_100) / ema_100 * 100 if ema_100 and last_close else None, 2)},
+                {"name": "EMA 200", "period": 200, "ma_type": "ema",  "value": ema_200, "signal": ma_signals["ema_200"], "distance_pct": _round((last_close - ema_200) / ema_200 * 100 if ema_200 and last_close else None, 2)},
+                {"name": "HMA 9",   "period": 9,   "ma_type": "hull", "value": hma_9,   "signal": ma_signals["hma_9"],   "distance_pct": _round((last_close - hma_9) / hma_9 * 100 if hma_9 and last_close else None, 2)},
+                {"name": "VWMA 20", "period": 20,  "ma_type": "vwma", "value": vwma_20, "signal": ma_signals["vwma_20"], "distance_pct": _round((last_close - vwma_20) / vwma_20 * 100 if vwma_20 and last_close else None, 2)},
+            ],
+            "pivot_levels_list": [
+                {"method": "classic",    "period": "1d", "r3": pivots.get("R3"),      "r2": pivots.get("R2"),      "r1": pivots.get("R1"),      "pp": pivots.get("PP"),      "s1": pivots.get("S1"),      "s2": pivots.get("S2"),      "s3": pivots.get("S3")},
+                {"method": "fibonacci",  "period": "1d", "r3": fib_pivots.get("R3"),  "r2": fib_pivots.get("R2"),  "r1": fib_pivots.get("R1"),  "pp": fib_pivots.get("PP"),  "s1": fib_pivots.get("S1"),  "s2": fib_pivots.get("S2"),  "s3": fib_pivots.get("S3")},
+            ],
         }
 
     # ─────────────────────────────────────────────────────────────────────
